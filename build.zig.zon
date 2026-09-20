@@ -1,0 +1,8 @@
+.{
+    .name = .dk3,
+    .fingerprint = 0x89466994b4ee2e75,
+    .version = "0.0.0",
+    .minimum_zig_version = "0.16.0",
+    .dependencies = .{},
+    .paths = .{ "build.zig", "build.zig.zon", "build", "src", "dkq3", "docs", "LICENSE", "COPYRIGHT.md", "README.md" },
+}

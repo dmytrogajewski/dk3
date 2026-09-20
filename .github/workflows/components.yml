@@ -1,0 +1,22 @@
+name: Components
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+        with:
+          version: 0.16.0
+      - name: Install headless display support
+        run: sudo apt-get update && sudo apt-get install -y xvfb xauth
+      - name: Build published tools
+        run: make build
+      - name: Check existing components
+        run: make lint
+      - name: Run documented command
+        run: ./zig-out/bin/dkguard --mem 512M --timeout 30s -- python3 --version

@@ -1,0 +1,191 @@
+{
+  "scope": "Reviewed GPL components; game rewrite incomplete",
+  "license": "GPL-2.0-or-later",
+  "files": [
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "sha256": "af8a8f393e044b78a3b419d728557e588d6dd36f6c003611887886ecb20a1d1e",
+      "bytes": 441
+    },
+    {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md",
+      "sha256": "b524f283f0dfc06ef73894a5fb19b3a1a84a848806e4c966ba9f9fc4e859165f",
+      "bytes": 353
+    },
+    {
+      "path": ".github/workflows/components.yml",
+      "sha256": "5bef82291513a228bd8b78bd2628ea063aa82ef17b32e68c6a09f6964f9640fa",
+      "bytes": 746
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "aed09d55878d3a33f640fc19b7809f52c5d81ae56010ed5f401cb5e06c9eec97",
+      "bytes": 976
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "sha256": "0ff6e805431c33b204cc7895912d1056b4936edbfd5adfad257c196064b3b875",
+      "bytes": 1853
+    },
+    {
+      "path": "COPYRIGHT.md",
+      "sha256": "7adf884c2072bced22aff44cc5b44e2c0722f3a29f6f4a4019060a2e81dbef29",
+      "bytes": 1733
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "fac9da110d1433f4df0cb9f5dda9449e9aff6ee236ed240fa29e3e92926c363a",
+      "bytes": 15148
+    },
+    {
+      "path": "Makefile",
+      "sha256": "f3bf01d8b5e16b284a52faaaa93ed2669ddc571f90040b92182345842837c1d3",
+      "bytes": 188
+    },
+    {
+      "path": "README.md",
+      "sha256": "6c969e1ee98e51686f3c38ffaef7292d13391abaaa6c5eac119b308a37bb23a9",
+      "bytes": 2938
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "97f551e4f58f211cfd67f7e91af5cc6e509e519187050d4757c68a2fdb80e563",
+      "bytes": 440
+    },
+    {
+      "path": "build.zig",
+      "sha256": "e7ff6dc57813142130280c19329d6896121b9f4b27fdb9a23d363d30d0b3e359",
+      "bytes": 3481
+    },
+    {
+      "path": "build.zig.zon",
+      "sha256": "83a463cc7403ce97e9b99d12fdbb8e81b35f83236aa557f0ec3ff888f911fc5b",
+      "bytes": 268
+    },
+    {
+      "path": "build/toolchain.zig",
+      "sha256": "f41a75e6312b41e742eb66abdb7622840399b4ada4ab5995f39f8c391ede468c",
+      "bytes": 3898
+    },
+    {
+      "path": "dkq3/tools/dk_unzip.py",
+      "sha256": "dc6896548d4f2115d96e130f063f991d6fa773482392048240709c58fd542af3",
+      "bytes": 1235
+    },
+    {
+      "path": "dkq3/tools/dkpak.py",
+      "sha256": "740b1b2f34a486f2c10e2c74e97ffc73c659da773c5eed4d6d8f3080928897b7",
+      "bytes": 10184
+    },
+    {
+      "path": "dkq3/tools/dkwal.py",
+      "sha256": "c7b8d813450f747ea85e6eeabea8105a137c1778f66ee4a9109e35346a8aded1",
+      "bytes": 4895
+    },
+    {
+      "path": "dkq3/tools/pk3.py",
+      "sha256": "d9c4ac171c73bf7e36a5236cec365598afde2df7f2b8ea445807af788f63e329",
+      "bytes": 3238
+    },
+    {
+      "path": "dkq3/tools/tests/__init__.py",
+      "sha256": "2c1ad19814e1ecdeaa9665ea01cce66ccc8546daf25cd0e923d597331dd37bcb",
+      "bytes": 80
+    },
+    {
+      "path": "dkq3/tools/tests/support.py",
+      "sha256": "94fca3958fdc611ca84466e54d4122e3fac7355d9996bb6fccda006ec70f926c",
+      "bytes": 8224
+    },
+    {
+      "path": "dkq3/tools/tests/synthetic_pak.py",
+      "sha256": "bce9181eb2eab8d4004add5c0d259209dd5ee58ba0d47389122a8ec9adf57533",
+      "bytes": 1795
+    },
+    {
+      "path": "dkq3/tools/tests/synthetic_wal.py",
+      "sha256": "c5b9c0157f20bc49f3dcabfefc7fbb1d8531635cebfeb718491702b07378a04b",
+      "bytes": 3505
+    },
+    {
+      "path": "dkq3/tools/tests/test_dk_unzip.py",
+      "sha256": "feddb6479287bfd27ab2c55323e498d87ff6cfeac90a2ee33b06898b78b62f6c",
+      "bytes": 1966
+    },
+    {
+      "path": "dkq3/tools/tests/test_dkpak.py",
+      "sha256": "fbfff314b1db8afb2cf5c036e0cc4cd4880ee5a9cfd7caf44f174e1d60ee473c",
+      "bytes": 12708
+    },
+    {
+      "path": "dkq3/tools/tests/test_dkwal.py",
+      "sha256": "2587106fd0042144abd3f4f78dae135393d3d6d94a87f38233b6e1751a40488a",
+      "bytes": 7633
+    },
+    {
+      "path": "dkq3/tools/tests/test_pk3.py",
+      "sha256": "9f6c311d9d23b5e99d6917d95c44c83740e1acd1a0d853b9c42f8ccf16b0fa97",
+      "bytes": 5029
+    },
+    {
+      "path": "docs/getting-started.md",
+      "sha256": "7bda1456c0e61521d78e1f64a0fe7b18c26f8a21ec294b99b8b2b0ba15a447d1",
+      "bytes": 2657
+    },
+    {
+      "path": "docs/local-development.md",
+      "sha256": "d3be75e74bff6a3ae3af94cf0b927d221ab9ff5ec6e7b4f80626136286908934",
+      "bytes": 2805
+    },
+    {
+      "path": "docs/publication.md",
+      "sha256": "ae891239d6f69d8eabaae5efe5787e9b266184840e548a8bbc1d27223bdf6a61",
+      "bytes": 2122
+    },
+    {
+      "path": "docs/rewrite-roadmap.md",
+      "sha256": "d31bfa3477459b3cc1f8ab67a750f9b51508cd9541044f0685ee342539c7f0b2",
+      "bytes": 2944
+    },
+    {
+      "path": "src/dkguard/alloc_probe.zig",
+      "sha256": "ae14f9c029b09ae1881db256d6ab77f17ff4397aa6e50a6cbd92ae58df397b60",
+      "bytes": 1225
+    },
+    {
+      "path": "src/dkguard/args.zig",
+      "sha256": "09d78ae38ce7522481e376e452edcee9e278a30b87e1d88ba77a1cc87dbc8b5d",
+      "bytes": 12031
+    },
+    {
+      "path": "src/dkguard/e2e_test.zig",
+      "sha256": "7762ad934d321a5ea2451482346ecfbfc032f1c3ab5e212bef5793bf58887c62",
+      "bytes": 20899
+    },
+    {
+      "path": "src/dkguard/gpu_lock.zig",
+      "sha256": "e115478b5430ba21d259a9972c4ee2fb8f06ae0f2561fe18a184e2e3aaf0c220",
+      "bytes": 2482
+    },
+    {
+      "path": "src/dkguard/host.zig",
+      "sha256": "0b0a556ad424c2d51472e51632442110d78acb9c01631e16411c786fc3ddb184",
+      "bytes": 4258
+    },
+    {
+      "path": "src/dkguard/main.zig",
+      "sha256": "11ae647be548be66e55a93483002a99e75bf08490834d83d48971eea9ab7359d",
+      "bytes": 6374
+    },
+    {
+      "path": "src/dkguard/plan.zig",
+      "sha256": "3e64d0209168d8c7ce707f169a9a6ac3deb31450d8781b30bc00b5c1afc65be9",
+      "bytes": 9965
+    },
+    {
+      "path": "src/dkguard/supervise.zig",
+      "sha256": "f237d44ffffe0493b797a87bd65e81aa17ba9fdd0b6501a37bdc4dd49abb3968",
+      "bytes": 6863
+    }
+  ]
+}
