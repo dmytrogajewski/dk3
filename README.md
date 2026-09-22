@@ -2,22 +2,34 @@
 
 An open-source project to bring **Daikatana to the ioquake3 engine**, built with Zig.
 
-**The game rewrite is incomplete.** This repository currently contains reviewed GPL development
-components: the process runner and archive/texture format tools. It does **not** yet contain a
-playable game or the complete game runtime. A separate local development build is playable, but
-still depends on original game source that is excluded from this repository.
+**The game rewrite is incomplete.** The development checkout now includes the bundled
+ioq3 engine, both renderers, native upstream module foundations, optional QVM tooling,
+independent native game/client/UI modules, and the asset conversion/install graph.
+The default native build passes with the reference workspace and existing caches unavailable.
+The private 1.3 asset profile converts all 84 maps and their navigation. Running scenarios
+have exercised the opening cinematic, combat, bridge encounter and authored exits into
+e1m1c, plus multiplayer joins, respawns and objectives. Full campaign and multiplayer
+acceptance remain incomplete; see the [roadmap and evidence](docs/rewrite-roadmap.md).
+The preserved local game remains separate.
 
-## Try the published tools
+## Build the engine and tools
 
-You need **Linux x86-64**, **Zig 0.16.x**, **Python 3.10+**, and **Make**. Install Zig from
-[ziglang.org](https://ziglang.org/download/), then:
+You need Linux x86-64, Zig 0.16.x, Make, and SDL2 development files discoverable by
+pkg-config. Python 3.10+ is needed for archive tools and synthetic checks.
 
 ```sh
 git clone https://github.com/dmytrogajewski/dk3.git
 cd dk3
-make build
+zig build
 ./zig-out/bin/dkguard --help
 ```
+
+The repository includes the engine, native game/client/UI modules, asset converters,
+and build/install tools together. It is a development snapshot, not a completed game port.
+
+The client and server are `zig-out/bin/dk3` and `zig-out/bin/dk3ded`. The engine source
+is included under `engine/ioquake3`; no separate ioq3 or Gold checkout is required.
+See [building](docs/building.md) for products, optional QVM tools, and dependencies.
 
 `dkguard` runs commands with memory limits, timeouts, and optional headless graphics. For example:
 
@@ -28,28 +40,43 @@ make build
 No game assets, GPU, ioquake3 checkout, or Python packages are needed for this example.
 See [getting started](docs/getting-started.md) for setup and format-tool examples.
 
-## What about playing Daikatana?
+## Supply assets and play the development build
 
-The intended game build will require **your own legally acquired Daikatana game data**.
-Maps, textures, models, sounds, music, and other original assets are not included and are not
-covered by this project's GPL license. Converted and upscaled versions stay local too.
+Development commands require **your own legally acquired Daikatana game data**, Python
+with `dkq3/tools/requirements.txt`, and ffmpeg 7:
 
-**Retail assets alone cannot build the game from this repository yet.** The remaining game code
-must be replaced before that is possible. We are keeping the working local game available during
-that work; [local development](docs/local-development.md) records its requirements and launch commands.
+```sh
+python3 -m venv .venv-convert
+.venv-convert/bin/python -m pip install -r dkq3/tools/requirements.txt
+zig build play-install -DDK_DATA=/path/to/data -Dasset-profile=retail -Dpython=.venv-convert/bin/python
+zig build play -DDK_DATA=/path/to/data -Dasset-profile=retail -Dpython=.venv-convert/bin/python
+```
+
+`play-install` includes conversion and verifies the installed files; `assets` selects conversion
+alone. ffmpeg 7 must be available on `PATH`. Use `-Dasset-profile=1.3` for the documented
+1.3 overrides. That private profile has been converted and installed; the retail profile and
+complete new-game-to-ending path still require verification. See
+[asset inputs and installation](docs/assets.md). Original and converted assets stay local
+and are not covered by the project's GPL license.
 
 ## Project layout
 
 ```text
+engine/ioquake3/   Bundled engine, upstream foundations, and third-party notices
+engine/bspc/       Bundled navigation compiler and its notices
+src/game/         Independent authoritative game and campaign systems
+src/cgame/        Client presentation and shared prediction integration
+src/ui/           Native menus and input configuration
+src/shared/       Shared state, weapons, movement contracts and text layout
 src/dkguard/       Process runner and its existing checks
-dkq3/tools/        PAK/WAL readers, PAK/PK3 writers, ZIP member extraction
-build/            Zig toolchain version check
+dkq3/tools/        Asset conversion, archive tools and installation
+build/            Engine, modules, navigation, assets and launcher build graph
 docs/             Setup, provenance, publication boundaries, and rewrite roadmap
-build.zig         Build for the published components only
+build.zig         Engine and reviewed component build
 ```
 
-The [rewrite roadmap](docs/rewrite-roadmap.md) describes what must be replaced before a public
-game build can run. [Publication notes](docs/publication.md) explain how reviewed source is
+The [rewrite roadmap](docs/rewrite-roadmap.md) separates implemented systems from verified
+gameplay. [Publication notes](docs/publication.md) explain how reviewed source is
 separated from the local playable workspace.
 
 ## Contributing
@@ -60,9 +87,10 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md). Maintained by
 
 ## License
 
-Published project code is **GPL-2.0-or-later**; see [LICENSE](LICENSE) and
+Original project code is **GPL-2.0-or-later**; see [LICENSE](LICENSE) and
 [COPYRIGHT.md](COPYRIGHT.md). The target engine, [ioquake3](https://ioquake3.org/), is GPL software.
-Its license does not grant rights to Daikatana's original code or assets. This is an independent
+Bundled third-party sources retain their own terms. No engine license grants rights to
+Daikatana's original code or assets. This is an independent
 community project, unaffiliated with the original game's rights holders.
 
 <!-- README structure informed by https://github.com/RichardLitt/standard-readme -->

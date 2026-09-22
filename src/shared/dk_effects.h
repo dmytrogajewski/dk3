@@ -1,0 +1,21 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+#ifndef DK_EFFECTS_H
+#define DK_EFFECTS_H
+
+/* Explicit effect descriptions travel in entityState_t; simulation stays on the server. */
+typedef enum {
+    DK_FX_NONE, DK_FX_RAIN, DK_FX_SNOW, DK_FX_DRIP, DK_FX_PARTICLES,
+    DK_FX_FIREFLIES, DK_FX_FLAME, DK_FX_FLARE, DK_FX_LIGHT, DK_FX_BEAM,
+    DK_FX_QUAKE, DK_FX_DEBRIS, DK_FX_SPOTLIGHT, DK_FX_COUNT
+} dkEffect_t;
+enum {
+    DK_FX_ENABLED = 1, DK_FX_SMOKE = 2, DK_FX_SPARK = 4, DK_FX_STROBE = 8,
+    DK_FX_LIGHTNING = 16, DK_FX_BUBBLE = 32, DK_FX_LIGHT_AT_END = 64,
+    DK_FX_STREAK = 128
+};
+enum { DK_DEBRIS_STONE, DK_DEBRIS_WOOD, DK_DEBRIS_METAL, DK_DEBRIS_GLASS, DK_DEBRIS_FLESH };
+#define DK_FX_PARTICLE_SHIFT 8
+#define DK_FX_PARTICLE_MASK (7 << DK_FX_PARTICLE_SHIFT)
+enum { DK_PARTICLE_SIMPLE, DK_PARTICLE_CP1, DK_PARTICLE_CP2, DK_PARTICLE_CP3, DK_PARTICLE_CP4 };
+
+#endif

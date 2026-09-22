@@ -1,0 +1,278 @@
+{
+  "upstream": "UPSTREAM.json",
+  "application": "One-time source import; the build compiles these checked-in source files directly.",
+  "changes": [
+    {
+      "name": "max-submodels-512",
+      "path": "code/qcommon/cm_local.h",
+      "reason": "e1dt1 has 305 models and e4m5a 300; the temporary box and capsule handles stay the last two numbers"
+    },
+    {
+      "name": "load-submodels-below-reserved-handles",
+      "path": "code/qcommon/cm_load.c",
+      "reason": "CM_ClipHandleToModel returns a submodel before it tests for the box handle (cm_load.c:682-686), so a map may not own a reserved handle"
+    },
+    {
+      "name": "cgame-inline-models-within-max-models",
+      "path": "code/cgame/cg_main.c",
+      "reason": "module code, not engine: with max-submodels-512 a map has up to 510 inline models, and the stock cgame filled its MAX_MODELS (256) inline model arrays up to trap_CM_NumInlineModels() (cg_main.c:1034-1045); the fix is never in q_shared.h or msg.c"
+    },
+    {
+      "name": "entity-ext-qcommon",
+      "path": "code/qcommon/qcommon.h",
+      "reason": "the extension's opcode after the stock ones, its version, the userinfo key, the extension state struct and the two codec prototypes; the capability entity-ext-1 names the whole extension"
+    },
+    {
+      "name": "entity-ext-msg-delta",
+      "path": "code/qcommon/msg.c",
+      "reason": "the extension field table and the two codec functions, which call the untouched stock MSG_WriteDeltaEntity / MSG_ReadDeltaEntity and append or read one block per entity"
+    },
+    {
+      "name": "entity-ext-server-state",
+      "path": "code/server/server.h",
+      "reason": "where the engine keeps the game module's extension array beside its gentities"
+    },
+    {
+      "name": "entity-ext-server-client-flag",
+      "path": "code/server/server.h",
+      "reason": "the per-client latch every extended server path tests"
+    },
+    {
+      "name": "entity-ext-server-snapshot-ring",
+      "path": "code/server/server.h",
+      "reason": "the extension ring parallel to the snapshot entity ring, at the same index"
+    },
+    {
+      "name": "entity-ext-server-prototypes",
+      "path": "code/server/server.h",
+      "reason": "sv_snapshot.c reads the rows sv_game.c located"
+    },
+    {
+      "name": "entity-ext-server-ring-alloc",
+      "path": "code/server/sv_init.c",
+      "reason": "the extension ring is allocated with the snapshot entity ring, the same count, zeroed by the hunk"
+    },
+    {
+      "name": "entity-ext-server-cvar",
+      "path": "code/server/sv_init.c",
+      "reason": "the server states that it offers the extension; read-only and never in the serverinfo string, which is the one byte-level difference a stock client could observe"
+    },
+    {
+      "name": "entity-ext-server-connect-latch",
+      "path": "code/server/sv_client.c",
+      "reason": "the negotiation: exactly once per connection, from the connect packet's userinfo, on an exact version match"
+    },
+    {
+      "name": "entity-ext-server-gamestate",
+      "path": "code/server/sv_client.c",
+      "reason": "a negotiated client gets the marker and no baselines, so the gamestate no longer grows with num_edicts (the three large maps); a stock client gets the stock loop, verbatim"
+    },
+    {
+      "name": "entity-ext-server-locate",
+      "path": "code/server/sv_game.c",
+      "reason": "the module hands the engine its extension rows once (SV_LocateEntityExt, refusing another struct size) and the snapshot builder reads a row per entity (SV_EntityExt, a zero row for a stock module)"
+    },
+    {
+      "name": "entity-ext-server-locate-case",
+      "path": "code/server/sv_game.c",
+      "reason": "the trap dispatch of G_DKQ3_LOCATE_ENTITY_EXT"
+    },
+    {
+      "name": "entity-ext-game-import-enum",
+      "path": "code/game/g_public.h",
+      "reason": "the game module's trap to hand the engine its extension rows, numbered after the stock values (582)"
+    },
+    {
+      "name": "entity-ext-game-syscall",
+      "path": "code/game/g_syscalls.c",
+      "reason": "module code, like the cgame row of Step 61: the native game module's wrapper of the new trap"
+    },
+    {
+      "name": "entity-ext-server-snapshot-copy",
+      "path": "code/server/sv_snapshot.c",
+      "reason": "each snapshot entity's extension row is copied beside its state, at the same ring index"
+    },
+    {
+      "name": "entity-ext-server-emit",
+      "path": "code/server/sv_snapshot.c",
+      "reason": "the extended packet-entity writer: the stock walk with MSG_WriteDeltaEntityDkq3 and new entities from zero instead of from the baselines the client never received"
+    },
+    {
+      "name": "entity-ext-server-snapflag",
+      "path": "code/server/sv_snapshot.c",
+      "reason": "every extended snapshot says so in a free snapFlags bit, because the server sends snapshots to a CS_CONNECTED client before its gamestate and the client's parser must not depend on which arrives first"
+    },
+    {
+      "name": "entity-ext-server-emit-call",
+      "path": "code/server/sv_snapshot.c",
+      "reason": "the switch between the two writers on the per-client latch"
+    },
+    {
+      "name": "entity-ext-client-flag",
+      "path": "code/client/client.h",
+      "reason": "the per-session latch every extended client path tests"
+    },
+    {
+      "name": "entity-ext-client-ring",
+      "path": "code/client/client.h",
+      "reason": "the extension ring parallel to parseEntities, at the same index, zeroed with cl by CL_ClearState"
+    },
+    {
+      "name": "entity-ext-client-svc-name",
+      "path": "code/client/cl_parse.c",
+      "reason": "svc_strings mirrors the enum, as its comment asks"
+    },
+    {
+      "name": "entity-ext-client-gamestate-reset",
+      "path": "code/client/cl_parse.c",
+      "reason": "a gamestate without the marker (a stock server, a stock demo) puts the client on the stock parser"
+    },
+    {
+      "name": "entity-ext-client-gamestate-marker",
+      "path": "code/client/cl_parse.c",
+      "reason": "the marker raises the latch and prints the negotiated line; a version other than this client's is an error, reachable only from a demo of another version"
+    },
+    {
+      "name": "entity-ext-client-delta",
+      "path": "code/client/cl_parse.c",
+      "reason": "the extended reader per packet entity, keyed on the snapshot's own DKQ3_SNAPFLAG_EXT, with the old extension found beside the old state in the ring, and the copy of the old extension on the unchanged path"
+    },
+    {
+      "name": "entity-ext-client-cvar",
+      "path": "code/client/cl_main.c",
+      "reason": "the userinfo key the negotiation reads, beside rate; a stock server ignores keys it does not know; an archived value of an older version is raised to this one, so an upgrade never falls back to the stock stream unasked"
+    },
+    {
+      "name": "entity-ext-client-demo-marker",
+      "path": "code/client/cl_main.c",
+      "reason": "a demo of an extended session carries the marker, so it replays on an extended client and stops a stock one at its gamestate with bad command byte"
+    },
+    {
+      "name": "entity-ext-cgame-trap",
+      "path": "code/client/cl_cgame.c",
+      "reason": "the cgame's read of a snapshot's extension rows, in CL_GetSnapshot's order, -1 on a stock session"
+    },
+    {
+      "name": "entity-ext-cgame-trap-case",
+      "path": "code/client/cl_cgame.c",
+      "reason": "the trap dispatch of CG_DKQ3_GET_SNAPSHOT_EXT"
+    },
+    {
+      "name": "entity-ext-cgame-import-enum",
+      "path": "code/cgame/cg_public.h",
+      "reason": "the cgame's trap to read a snapshot's extension rows, numbered after the stock values (112)"
+    },
+    {
+      "name": "entity-ext-cgame-syscall-asm",
+      "path": "code/cgame/cg_syscalls.asm",
+      "reason": "module code: the QVM syscall number of the new cgame trap, -(112 + 1), so the slice cgame QVM resolves the symbol"
+    },
+    {
+      "name": "renderer-follows-the-drawable-size",
+      "path": "code/sdl/sdl_glimp.c",
+      "reason": "the renderer must draw at the size the window system gave it: a fullscreen window whose mode the desktop refuses keeps the desktop's drawable, and the image lands in a corner of it (BUG-menu-video-resolution-and-border.md)"
+    },
+    {
+      "name": "sound-update-cgame-trap-case",
+      "path": "code/client/cl_cgame.c",
+      "reason": "the loading screen's per-block click is started while CG_INIT blocks the main loop, so nothing paints it until the level appears; this trap paints the mix where Gold paints it"
+    },
+    {
+      "name": "sound-update-cgame-import-enum",
+      "path": "code/cgame/cg_public.h",
+      "reason": "the cgame's trap to paint the sound mix, numbered after the stock values and after the entity extension's"
+    },
+    {
+      "name": "sound-update-cgame-syscall-asm",
+      "path": "code/cgame/cg_syscalls.asm",
+      "reason": "module code: the QVM syscall number of the new cgame trap, so the slice cgame QVM resolves the symbol"
+    },
+    {
+      "name": "ext-capabilities-cvar",
+      "path": "code/qcommon/common.c",
+      "reason": "capability discovery: modules query ext_capabilities with the stock trap_Cvar_VariableStringBuffer"
+    }
+  ],
+  "files": {
+    "code/cgame/cg_main.c": {
+      "upstream_sha256": "61fa473865a83e560b259590ab7dbee076c47031766dc770ed1c847e0172b542",
+      "imported_sha256": "cb5ad5c55e95138286a1ddd67d3c34bf12bb67ae2408ba50db0ecdfb8a6b9776"
+    },
+    "code/cgame/cg_public.h": {
+      "upstream_sha256": "51da13a15cd192ef840a7e56643d5f58f055a00af8201b7c49432551df86dfe1",
+      "imported_sha256": "026ec7288eed105d5e1be79930c59d8f04417d2280c1eef679c1bd2d3d301af8"
+    },
+    "code/cgame/cg_syscalls.asm": {
+      "upstream_sha256": "789224d7c6caa67b7a0c161e3e68bd35615b498907c5a0f9d1c3bfe1b83b3682",
+      "imported_sha256": "54bdb96f320fb185456857947244a2fb548c7fdaaa769eb8b0d7f7f5ea12143f"
+    },
+    "code/client/cl_cgame.c": {
+      "upstream_sha256": "9dd3ee3ce2c6eaaac002bbd590e4de0b74141c027156b24c81c22eb0b362dfca",
+      "imported_sha256": "a579a675a996805a2807930803ce8c3cc4ed94ea413fdd6cd667fc6d852428ef"
+    },
+    "code/client/cl_main.c": {
+      "upstream_sha256": "b9a8e49c5b105d7a5be8ed0df4ec67cc5b256fc47d04b816b173689a91d9e792",
+      "imported_sha256": "726ab4433aae71f48564d6f4deefabb9cb63c2fabb1f303076541af8d3b71b1d"
+    },
+    "code/client/cl_parse.c": {
+      "upstream_sha256": "28421667fb9ef9dc9e1d8d92aed7dbbc09e7e0722da1eac5060a5bc788242b8f",
+      "imported_sha256": "77074212fd6e079807fc59277f83a1985d068aa2b087dcf4661217a1a824f443"
+    },
+    "code/client/client.h": {
+      "upstream_sha256": "48a3ddc4ab4ca25035dfa83b7e6b47308e391116535821e86b2bb1cfd5780099",
+      "imported_sha256": "2735ba53f88e5545d55722d77b633d0b412bf79cd8300e71bedb6fc2eabc22a8"
+    },
+    "code/game/g_public.h": {
+      "upstream_sha256": "7231abf877d8fa039fc658de23fe89071619a9fe39ecfdb86515b9712d1281e3",
+      "imported_sha256": "876506147e0154698ddd3d4962b182c1c5094fbb261b7412f155a21e29906806"
+    },
+    "code/game/g_syscalls.c": {
+      "upstream_sha256": "cff516acc171d158afe47ed3d577020c30ea7cea7bfd1a18f84797f29d077331",
+      "imported_sha256": "5687d1ab1ec8464a6f3829c4d1ae67c47efb6f380e0ad318d84f63e247c09f53"
+    },
+    "code/qcommon/cm_load.c": {
+      "upstream_sha256": "3e7744c38261aea6efd2e3129423b39b2dbb082b596a8f48feb53ae152c609d8",
+      "imported_sha256": "750378f5aa27faea7645c7934f77c23da419f506c6c6845c5e06ad6061ccb6f5"
+    },
+    "code/qcommon/cm_local.h": {
+      "upstream_sha256": "b1cb750e1955862ced569cbb43b2a6ce1a078125443b5d0755a2144d9f10ff9c",
+      "imported_sha256": "38a19532163993168c2cc149a7adfee19d7f9fbf4743cd22043aebddc66a247c"
+    },
+    "code/qcommon/common.c": {
+      "upstream_sha256": "c1c17157f4107b6dab5a4a534cab5b7890a7fb924758446835af628ae2e7bd39",
+      "imported_sha256": "b6bec736487cd2e2eb5c09d9d3d781810e46783782880734e43b3912f0ba78c9"
+    },
+    "code/qcommon/msg.c": {
+      "upstream_sha256": "4bec709886666852b248f9974c4ccdee169a812c48d93f0ee5df71b76a8fe3a1",
+      "imported_sha256": "0ba16ccf48ee54e0b158ccffa69aabbefe8145dc78a2217c14f9b974f522a646"
+    },
+    "code/qcommon/qcommon.h": {
+      "upstream_sha256": "1bc3f8ad1c47a540cd999367453d053b68b6baee9716f059bae970e79cbd12fe",
+      "imported_sha256": "612065249006917a671be3bd89f4f411b829725071badbd4e47a3fab6acd5c72"
+    },
+    "code/sdl/sdl_glimp.c": {
+      "upstream_sha256": "52d1f5c42880cfbd2f41c210f4df52b4d2ef4c03a6554d225ac5bbce15f3652c",
+      "imported_sha256": "c7c101abb533f46d76a5ae8b3a561bdb90cb95513717f0448049f5d533b40f64"
+    },
+    "code/server/server.h": {
+      "upstream_sha256": "463bdd4e24f0b464bb819f1512a48036b1b642b83c95fd772400c9a83b887488",
+      "imported_sha256": "c6f7a3585a2ccadf5fac83cbdd6cc3f1feb56bd9de648eb93663bad9771f401d"
+    },
+    "code/server/sv_client.c": {
+      "upstream_sha256": "c0778839ce7231047cbcf0653f59ec557efc4642653da25dcaca21b9b2c32218",
+      "imported_sha256": "e6d0346dba12e090483a123cf296154748ef62aa82151339e3e9c2088504113c"
+    },
+    "code/server/sv_game.c": {
+      "upstream_sha256": "9068030dc984ab53260002a968a0ab21441d7835cce9196cc7391cf21cdffb0f",
+      "imported_sha256": "0ec6a3c8bbcb10602e4ab4b8c992f5b7fed9eb4a22f6ad41c9a2c5358c8aa6ac"
+    },
+    "code/server/sv_init.c": {
+      "upstream_sha256": "d755cdaf837b7fd54c9c55dec947cd910002d59609bf06b13b0c6d5904129e7b",
+      "imported_sha256": "b70370bfbc59affe5047e69b79ae04d274877a0fb9d366b186144c02c441e03a"
+    },
+    "code/server/sv_snapshot.c": {
+      "upstream_sha256": "e0422032ed814b03337521bdb7e6b6627546fe295264a9096d6ac9618cffc561",
+      "imported_sha256": "754890cd2a72f829f1b3d77803cb2d44336556f7aa46c0c50c73a97f9bbab2ee"
+    }
+  }
+}

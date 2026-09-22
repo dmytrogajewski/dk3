@@ -14,11 +14,13 @@ reference executables, and saved games are not included and receive no license g
 
 The PAK/WAL tools implement file-format rules and use synthetic test fixtures. References to
 original filenames in comments document format research; those source files are not distributed.
-The process runner uses Zig's standard library and Linux interfaces. No engine source or
-third-party libraries are vendored in this publication.
+The process runner uses Zig's standard library and Linux interfaces. The development tree
+also bundles ioquake3 and its third-party sources with their original notices. This project's
+GPL grant does not replace those licenses; see [component dispositions](docs/provenance.md).
 
-ioquake3 is an external target engine with its own
-[GPL license and notices](https://github.com/ioquake/ioq3/blob/main/COPYING.txt).
+ioquake3 is bundled under `engine/ioquake3` with its own
+[GPL license and notices](engine/ioquake3/COPYING.txt). Its LCC tools carry separate
+[terms](engine/ioquake3/code/tools/lcc/COPYRIGHT) and are optional development targets.
 The Daikatana 1.3 maintainers explicitly say they cannot release the game's source in their
 [project README](https://github.com/maraakate/daikatana). We have not established a GPL grant for
 the Gold source used by the local playable build, so that runtime remains excluded.

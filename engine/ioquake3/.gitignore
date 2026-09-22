@@ -1,0 +1,54 @@
+build*
+*.swp
+*tags
+*~
+/.vscode/
+/baseq3
+
+# OS X
+####################
+.Spotlight-V100/
+.Trashes/
+._*
+.AppleDouble
+.DS_Store
+.LSOverride
+Icon?
+
+# Xcode
+####################
+*.mode1v3
+*.mode2v3
+*.pbxuser
+*.perspectivev3
+*.user
+*.xcuserstate
+*.moved-aside
+*~.nib
+.idea/
+DerivedData/
+project.xcworkspace/
+xcuserdata/
+profile
+!default.pbxuser
+!default.mode1v3
+!default.mode2v3
+!default.perspectivev3
+
+# Microsoft Visual Studio
+####################
+*.sdf
+*.opensdf
+*.suo
+/.vs
+
+# Preserve these pinned upstream inputs when vendored by dk3.
+!/.github/workflows/build.yml
+!/misc/macos/build-macos-sdl.sh
+!/code/thirdparty/libs/macos/libSDL2main.a
+!/code/thirdparty/libs/win32/SDL2.dll
+!/code/thirdparty/libs/win32/libSDL2.dll.a
+!/code/thirdparty/libs/win32/libSDL2main.a
+!/code/thirdparty/libs/win64/SDL2.dll
+!/code/thirdparty/libs/win64/libSDL2.dll.a
+!/code/thirdparty/libs/win64/libSDL2main.a

@@ -58,11 +58,8 @@ venv/
 /HANDOVER.md
 /install.sh
 
-# A full workspace import is not a public release. The publication manifest
-# selects reviewed files; unresolved gameplay and Gold patch text are excluded.
-/src/game/
-/src/cgame/
-/src/ui/
+# Independent game/client/UI source belongs in the public tree after review.
+# Legacy common libraries and Gold patch generators remain excluded.
 /src/ioncommon/
 /build/daikatana*.zig
 /publication/manifest.json

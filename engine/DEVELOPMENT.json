@@ -1,0 +1,330 @@
+{
+  "base": "UPSTREAM.json",
+  "description": "Independent dk3 native runtime and protocol 1344, native media/startup, campaign map mode, defined field offsets and JPEG encoding, authored audio and nine-bit AAS mover indices. Local restore world-hold service v1 and stationary native projectile handling. Local pause excludes menu elapsed time from the client simulation clock. Reserved powerup slot 15 for Gas Hands lifetime. Native equipped weapon sound loop for Gas Hands. Zero velocity before a delayed stop trajectory begins. Explicit per-axis actor scale and simulation-based animation ranges, render interpolation, cinematic facing, native HUD/menu hooks and bounded damage tint. Original loading art/progress, weapon contact audio and surface marks, supplied pain sounds, and cambot spotlight presentation. Save service accepts bounded campaign archives. Both renderers share cloud geometry across shader stages to avoid unreferenced duplicate vertices. Finite reverse turret animation and campaign death checkpoint restart. Standalone software gamma avoids compositor-dependent fullscreen darkening. Exact ignore exceptions preserve the complete pinned upstream tree in Git.",
+  "files": {
+    ".gitignore": {
+      "current_sha256": "5300b0caf48f9694dff85321aaecf4ea38f926a0df2f7287442d6867c3242d57",
+      "upstream_sha256": "a32ca1369c4b982cd614ede67cb102ac3ec065824e4ccd55d48ef691396e9147"
+    },
+    "code/botlib/aasfile.h": {
+      "current_sha256": "4411d7e7da509ce20e78137ffae5a6da7f2ce6d6e0b934139aca25646c0d16d3",
+      "upstream_sha256": "998daf8bd53cc3dbb8efaf8409c06e5481b86c5818286573a1faccf7a9ed0a53"
+    },
+    "code/botlib/be_ai_move.c": {
+      "current_sha256": "e58825b6e0a1aa9e2499bcab16ca64cd156c7d7cc4f7ce04e040868357412169",
+      "upstream_sha256": "af1b86c9f921a7c7e5795490cecdde97210a9e6c55298dfe4b4ae219e294b0da"
+    },
+    "code/botlib/be_interface.c": {
+      "current_sha256": "253b208f7116e0dcad0b5235dc6d2f9c24aeb590c5cbabfde07c3b4c2b55e094",
+      "upstream_sha256": "03d923bc5e024734eb76a4847ef305c0463291182aeffaf81604ee157212693f"
+    },
+    "code/cgame/cg_consolecmds.c": {
+      "current_sha256": "a7bd2a064034eb0cb9247e52cf539f87d20b81cb51d6769f2dbeaccd3bab164d",
+      "upstream_sha256": "293011299513fa018ee19f76609022123d92bfaea5df1080a8177a3faca196fe"
+    },
+    "code/cgame/cg_draw.c": {
+      "current_sha256": "4014d245910b49f702bb505d9ce5e4397afd8874b7af0fa62633ddfbd12431ba",
+      "upstream_sha256": "b3dcead9d4f329d73ec54ca58dcf7f5841d48b7758034144f295d3b29e18b678"
+    },
+    "code/cgame/cg_effects.c": {
+      "current_sha256": "dfcd249a0f2e0dd65f871b293cd3387e1fedc1ee7e4bc7271dcb4017f00de899",
+      "upstream_sha256": "96fab3b2dd809b76c950c752704eebc09a8974ad938280859ce5bb2e6f62822d"
+    },
+    "code/cgame/cg_ents.c": {
+      "current_sha256": "4be39b84aea0254f889342bf43ccb93350fe94b019f3b32cb838ed9e1fd61d73",
+      "upstream_sha256": "1a565e198ecb986a42e94d031a0d4dd95d808b998f8622c88fdd8530d044262e"
+    },
+    "code/cgame/cg_event.c": {
+      "current_sha256": "5586ac02b9f2ae2e23984e5b00f7673aefa91f8324c73c2b82312d0d9d79295e",
+      "upstream_sha256": "f1d1e90e16e50a3c01dc7fb2982c4ce0a7d43df138f2676a24f0dc386879150a"
+    },
+    "code/cgame/cg_info.c": {
+      "current_sha256": "69d7ec04c6c784283db2af14e0c660adf472d0fdc3f1809d72863c7de5574976",
+      "upstream_sha256": "1e1fbfa7a538e9f706531c8918ae4dc0ae257a6470bb54224fbe36d731f66c73"
+    },
+    "code/cgame/cg_local.h": {
+      "current_sha256": "d615580a272949803c3c6351489576aba88ebc57da3e405bfbda33dba189a19b",
+      "upstream_sha256": "73492ba8a1da0998aa71fa1f86b908422ec596956a84fc93815006f8a43178b1"
+    },
+    "code/cgame/cg_localents.c": {
+      "current_sha256": "da1428a42b3e246b2cf656e736b05dc2d5767c37873fb07eeef8ae2137a9c006",
+      "upstream_sha256": "5312f152106a4b2a7fbe84fbe239da10e09e04271c6e082b9c22dddaa453c643"
+    },
+    "code/cgame/cg_main.c": {
+      "current_sha256": "d751f75eb9dd6322579dfafd2086b0765b67a6416842ca45bb79aa817ec61118",
+      "upstream_sha256": "61fa473865a83e560b259590ab7dbee076c47031766dc770ed1c847e0172b542"
+    },
+    "code/cgame/cg_particles.c": {
+      "current_sha256": "7ac317d30c50b809e87bf394da9da4b7aa43c32bfc1f5b2d9790ad1310ea38f8",
+      "upstream_sha256": "23db1a659f83183be0ccab1d4db74677e16aeb8b6c1d73eeded55c57bc1e52c4"
+    },
+    "code/cgame/cg_players.c": {
+      "current_sha256": "d1df73ac010c168e0b556664d9e39e478d89588ac1c65645451d549c07e390e5",
+      "upstream_sha256": "b08f4ab722c36015066df7d9d19bf0d0857392c0960e9f3dc363c7b2219875b7"
+    },
+    "code/cgame/cg_playerstate.c": {
+      "current_sha256": "189920d087d41e0d54f08b57053bb27c631ec5aa483d8eefdf6af651b61266e0",
+      "upstream_sha256": "54a1038ad856020dba425ab88862c5190fe23b3826179f4b0db940dbc572102e"
+    },
+    "code/cgame/cg_public.h": {
+      "current_sha256": "8161697bde0eb780feb69fc8a044d081b14c2d18bcf5f8c2c1c9f26ef59f1527",
+      "upstream_sha256": "51da13a15cd192ef840a7e56643d5f58f055a00af8201b7c49432551df86dfe1"
+    },
+    "code/cgame/cg_servercmds.c": {
+      "current_sha256": "d1b065e6b576ec2a9134d521ba0e4cb9fb455cee28f7cda610107cd3c0909b6f",
+      "upstream_sha256": "919b5fe2892522d0070aca72f5964361594d89cb34e9e1b64a09466de0cecfe8"
+    },
+    "code/cgame/cg_syscalls.asm": {
+      "current_sha256": "13d7489977705517c785baf8443bfb88d04d975dd87debf4b886121982d0f7e2",
+      "upstream_sha256": "789224d7c6caa67b7a0c161e3e68bd35615b498907c5a0f9d1c3bfe1b83b3682"
+    },
+    "code/cgame/cg_syscalls.c": {
+      "current_sha256": "1c1ddb6411773728326caa6cda78bbf99dc52749fcd691c745ae76fcf1ee210b",
+      "upstream_sha256": "a44d65e8c89a8b794573aac3de8f3695695a4f5b0f34981e740be6b626322323"
+    },
+    "code/cgame/cg_view.c": {
+      "current_sha256": "b98868544df99dfbd4085ec873d6e836192024530e74477c51a119552961de86",
+      "upstream_sha256": "06218ad49ec08f02247b04b5ce1909eaac96cd03e3d91e5e0704551b274b2270"
+    },
+    "code/cgame/cg_weapons.c": {
+      "current_sha256": "1d9bb2b98a579d0b26c313f9f0383b5b53febaee99a467d9ca1fff73cedd590e",
+      "upstream_sha256": "5473fed95fa65d1c4c942c681a231b470813106aa5beeebb2675bae83cce1371"
+    },
+    "code/client/cl_cgame.c": {
+      "current_sha256": "8fac116f6f96401fb320bfef5a0800735b0ebf1c3e3ab42d3eea53a35a6b6f5e",
+      "upstream_sha256": "9dd3ee3ce2c6eaaac002bbd590e4de0b74141c027156b24c81c22eb0b362dfca"
+    },
+    "code/client/cl_input.c": {
+      "current_sha256": "8bcceb6ce3e3fb71532925e6ed3a21a432246413857f6a9b2b3fd5e3c8c48afb",
+      "upstream_sha256": "d68954f326e1a2d000e8dfea6c5f095345f844b8ee9855e243615036ff9b78e8"
+    },
+    "code/client/cl_main.c": {
+      "current_sha256": "618cc5ce45565cd331f8985d02db8c33cf82eb1fed026ee62b2e8d24ec239e90",
+      "upstream_sha256": "b9a8e49c5b105d7a5be8ed0df4ec67cc5b256fc47d04b816b173689a91d9e792"
+    },
+    "code/client/cl_parse.c": {
+      "current_sha256": "77074212fd6e079807fc59277f83a1985d068aa2b087dcf4661217a1a824f443",
+      "upstream_sha256": "28421667fb9ef9dc9e1d8d92aed7dbbc09e7e0722da1eac5060a5bc788242b8f"
+    },
+    "code/client/cl_scrn.c": {
+      "current_sha256": "a584443f415dfe53ae1680fcb68c6da7c8fe10cd9a8510b0399cfb37eacd4e21",
+      "upstream_sha256": "b702139f049945c4c235a9a9399a27d97c81563315b56e7c186f4dfbbdceadbe"
+    },
+    "code/client/cl_ui.c": {
+      "current_sha256": "c15ccd75d7d476b318c802f629c1642803ff2ee5b1d48c0dc83f51b111cd7e45",
+      "upstream_sha256": "47f06cc71de2efce8fca8cc169683c82ae310f5a8f0f4551011726c4a33e79d2"
+    },
+    "code/client/client.h": {
+      "current_sha256": "2735ba53f88e5545d55722d77b633d0b412bf79cd8300e71bedb6fc2eabc22a8",
+      "upstream_sha256": "48a3ddc4ab4ca25035dfa83b7e6b47308e391116535821e86b2bb1cfd5780099"
+    },
+    "code/client/qal.c": {
+      "current_sha256": "2c9b87fd4903730099c4931931c758ba04818213602bd5b888bd20aafaaa3922",
+      "upstream_sha256": "0b9aa919c95f64f41835e2d0b967801adef3d4445f019aa70559a31370d82e9d"
+    },
+    "code/client/snd_dma.c": {
+      "current_sha256": "959802eff16053c48df1d803a59358dcf6e23d78daf1506e5a0ed3057ae95ee2",
+      "upstream_sha256": "062ed205132f3f7ff09141b587b86e2d3730ed2c0e0441aa94a60cf6c80e6767"
+    },
+    "code/client/snd_main.c": {
+      "current_sha256": "ac1596a4db5a6ee004faaae21094f4584c38a79666ccd86bf95cea578e9bcc9e",
+      "upstream_sha256": "3279fc2aac2461adee625863697c494ac01c4dd52cd2cccdf0214aa71f97ad1a"
+    },
+    "code/client/snd_mix.c": {
+      "current_sha256": "055c01bc4d8b196d18a80f6810dad9ad3bd9a30a5522e2d1b1cd16f6ab1185d1",
+      "upstream_sha256": "123f7a6e600f694fb4e0cac02db9f58ae9087a74d41abf6c01e2472b14c1cc31"
+    },
+    "code/client/snd_openal.c": {
+      "current_sha256": "c9eda56477dbc5608733f3ac3e0a2c990f35205e605d761391c50999e3eccb70",
+      "upstream_sha256": "697bc4b859ba7af2e5d7484d56f7fdc0da24c79d0b2dde24dfd8b1508d733f28"
+    },
+    "code/client/snd_public.h": {
+      "current_sha256": "49eff161df15d9033f02407cabc9cba132d5bc2b981d45ae8366de1a2524e789",
+      "upstream_sha256": "c86b312e1f08fd84d431827cb4d4400bc29391de733d0bedd59b8a5fd7f2508d"
+    },
+    "code/game/ai_main.c": {
+      "current_sha256": "5f36c6ffb4632a03f5bc09cdee6ae3aa2d95f6f8d4312002ab811a750cd246f7",
+      "upstream_sha256": "4ec633d4581a39b2b86c2c496ab6aa614af7fae782e6ed41a4411d82b9168a84"
+    },
+    "code/game/bg_misc.c": {
+      "current_sha256": "2df215438deb716de2a5fa4b2c00acd1a744561c5ae1b74ae34003382c271059",
+      "upstream_sha256": "a5eee6fcadc65cc4a54a18487f50c3bb42c85e2af7e6ef17d373476184abf945"
+    },
+    "code/game/bg_pmove.c": {
+      "current_sha256": "df161ebbcbd919f8769ac12a4946120c06f08710638e614d2b482b9b49495604",
+      "upstream_sha256": "ac260d7f0cc28351c02746d17a985fea15332e1db593a69a04bec4ed49cd310f"
+    },
+    "code/game/bg_public.h": {
+      "current_sha256": "538e2eea6fe4791a005a384f6b5741db2cbb5c290d2d6a6dfd909027007b4903",
+      "upstream_sha256": "71dfc588cba8d7ef80ff0153ad6fc96d365bf11c3f62696bd9d43b1131339400"
+    },
+    "code/game/g_active.c": {
+      "current_sha256": "8c9c14b7ab63d0d303edf6293d00fc32f775eef30ad19a9a6b60f06c8cba322d",
+      "upstream_sha256": "2cc6043d7e05127293451085e635aed8afba3a06acfcdb069aa5c6218ad5c93d"
+    },
+    "code/game/g_bot.c": {
+      "current_sha256": "4149a9c032472beefbb87df3d2b92ab49d960105991e499ff1e12e23644f13f3",
+      "upstream_sha256": "2e198b9947ac81d50c30c2a60f3b5a0293efae4030f582f44574357c2f35610c"
+    },
+    "code/game/g_client.c": {
+      "current_sha256": "d96bad799b0ed08d1fede9527adec357b70e4fc767d5697d5c34216c98d232f6",
+      "upstream_sha256": "b0aeb5cc2afa9a0657d3af7bb3ac38a67a0a5b66a591b9355fd6a90aa0aeb8ab"
+    },
+    "code/game/g_cmds.c": {
+      "current_sha256": "dfa40c811531376044e89b416d1e59123c2c408c0fd28d023b444ab2f1f55ee7",
+      "upstream_sha256": "fac3229033557ab8f922207e818551d71618d33f46bd6d2197c23d530f6c4c38"
+    },
+    "code/game/g_combat.c": {
+      "current_sha256": "fc50168a07d9beecd44201e70dd845c14858fb792dbdd8fed375de115ea89935",
+      "upstream_sha256": "cf48c2586a8a4c5966c631cb8506fbf78a82455d6471dbe1469cc92457285d54"
+    },
+    "code/game/g_local.h": {
+      "current_sha256": "7a7aaffa0af6abd7805752bbe855d8c2c9a0181462ae72a02e0ac9b715a57dc8",
+      "upstream_sha256": "aaf3664eeecd6e5a3d95f3ca769e2c19708f62fe91df7c2e0aa7f06e92fbab7e"
+    },
+    "code/game/g_main.c": {
+      "current_sha256": "625ae2a53870e9e508b8e29044476c90d2fbf4c0333cd26090d007b8ea5e7c89",
+      "upstream_sha256": "4466e251560a494ff996b0da6dcc55b99956dc7c006fa9fc9050a42e200faeff"
+    },
+    "code/game/g_mem.c": {
+      "current_sha256": "d32d7732988f2e412e0b2cd83456f33108e2ab0df330d97a5d8fd74065646330",
+      "upstream_sha256": "afa5c80e421b37919fef56b70dcde8d9546586a71e0b359603e59a2d144beff2"
+    },
+    "code/game/g_missile.c": {
+      "current_sha256": "fd349b0e60cb0bad5cd7d251753fd25eb6f9c8b29e6f578c5665a9b353d39b2a",
+      "upstream_sha256": "cca0598e85aa5cc385d5c919d801bb721f4bfe80e460e51bfbfccd8d5f7a48d0"
+    },
+    "code/game/g_mover.c": {
+      "current_sha256": "dcf7f5016d5246c5e1bc05ca944863580289dd3705108cea531d5eb711be09cc",
+      "upstream_sha256": "c71d2a5cf1d5a4a956226af6cbbc954bd3e87a11c1fe824e531d31f36aa5cc46"
+    },
+    "code/game/g_public.h": {
+      "current_sha256": "b04301159f14ef5d61f41c34acb0b0fcf23c7ce4ad1861d953997241e18b1aca",
+      "upstream_sha256": "7231abf877d8fa039fc658de23fe89071619a9fe39ecfdb86515b9712d1281e3"
+    },
+    "code/game/g_spawn.c": {
+      "current_sha256": "ffa853829171eca847f715c1c1afc42fcbed32311ba54a2206082c345d358a46",
+      "upstream_sha256": "cccc8b1bfecc91954817f575881f4c5d16523cfbb921ea0be789a21c4af9f562"
+    },
+    "code/game/g_syscalls.asm": {
+      "current_sha256": "dcc8c1b7dbdd7054df4d437fb4e704eb0276f4e960eefd00237ccb3ad339c65b",
+      "upstream_sha256": "c61d6d0d2822a580dc4de08c13aa22768b4218c07cfd66b433705aa88559da11"
+    },
+    "code/game/g_syscalls.c": {
+      "current_sha256": "50c985ab74b7f425e8d785ce75544df9620c371350aa2e5d240a77ae1038c593",
+      "upstream_sha256": "cff516acc171d158afe47ed3d577020c30ea7cea7bfd1a18f84797f29d077331"
+    },
+    "code/game/g_team.c": {
+      "current_sha256": "1ac01a4a5fe16a7e7a6eba08165a5556e72a374470893b4253d91787f4ace620",
+      "upstream_sha256": "885021395b9e2a463e4f30d03bf3f658ac9b5c445acd561d04ec784bb8ad63ee"
+    },
+    "code/game/g_utils.c": {
+      "current_sha256": "500625ad1a1e773c8e25d4b3578e871dd6d664464931b75c52bdf4ccfa39ef79",
+      "upstream_sha256": "8e5c61e7d93d40fac8e7b48bb41776f8cd6336b3703a9fc1044c82b80af19509"
+    },
+    "code/game/g_weapon.c": {
+      "current_sha256": "5849c57623806d66b5683c1ee67e6da42a12a9d786c4d6b199bf5ca5331743e6",
+      "upstream_sha256": "e3da303ef1efc0708fe77863e0c26dccc86771dc123e96cb7a292690fc3a0a9b"
+    },
+    "code/qcommon/cm_load.c": {
+      "current_sha256": "750378f5aa27faea7645c7934f77c23da419f506c6c6845c5e06ad6061ccb6f5",
+      "upstream_sha256": "3e7744c38261aea6efd2e3129423b39b2dbb082b596a8f48feb53ae152c609d8"
+    },
+    "code/qcommon/cm_local.h": {
+      "current_sha256": "38a19532163993168c2cc149a7adfee19d7f9fbf4743cd22043aebddc66a247c",
+      "upstream_sha256": "b1cb750e1955862ced569cbb43b2a6ce1a078125443b5d0755a2144d9f10ff9c"
+    },
+    "code/qcommon/common.c": {
+      "current_sha256": "142e6b1a3386187410014e923855686496b5c79be7e450b904ece65bd5e7bfa4",
+      "upstream_sha256": "c1c17157f4107b6dab5a4a534cab5b7890a7fb924758446835af628ae2e7bd39"
+    },
+    "code/qcommon/files.c": {
+      "current_sha256": "9816464dad4d4dfff22225b2e7d3e501338a90925aab74c8dfdfd18244bbc552",
+      "upstream_sha256": "c47de51f8a3798a6158c3bc8ff282c9a82ece037a08a128d5e67ebb820a67142"
+    },
+    "code/qcommon/msg.c": {
+      "current_sha256": "d36a1d61a6ccadf57b1e8b2a3cf67c9dd53cae81bc10ec0244dfe4d8fc1af621",
+      "upstream_sha256": "4bec709886666852b248f9974c4ccdee169a812c48d93f0ee5df71b76a8fe3a1"
+    },
+    "code/qcommon/net_chan.c": {
+      "current_sha256": "f39c23f2b2b7b69c46bc82beee9938f831afcfb5fe97b456a411108766db770a",
+      "upstream_sha256": "51f5bf0dd123df4c5f554d822487d3bccc0013dde13b36884c943adee6256d19"
+    },
+    "code/qcommon/q_shared.h": {
+      "current_sha256": "f28635f28abe120f4bb1c55485bf6615a838c70a244bef6c3c9665f79f09c346",
+      "upstream_sha256": "bd2515c5eae4e0e49304285e47b999650e52cd2468e40cfbe6fe9ec69a69e3f2"
+    },
+    "code/qcommon/qcommon.h": {
+      "current_sha256": "8446a76eb0d9cc6f10ba45e5f30bab42a78415925980149da05d73c0b4cf9bc3",
+      "upstream_sha256": "1bc3f8ad1c47a540cd999367453d053b68b6baee9716f059bae970e79cbd12fe"
+    },
+    "code/qcommon/vm.c": {
+      "current_sha256": "bf784b32da17626c92831f7e782e0678adce7925e516864475f7e21ae598108f",
+      "upstream_sha256": "f863eca67436fd11a41a56ddf43488e987682c0353264b5cc44d1e5f76a1fcdc"
+    },
+    "code/renderergl1/tr_local.h": {
+      "current_sha256": "a12e412db938c99e0dd9e7da9ff8679c05518a1d488009b3b4241bd93f3f611b",
+      "upstream_sha256": "5dd215ba8e9f27fbbe45a399d641811f1c92bfeccacc256a89ca7e8db0252b31"
+    },
+    "code/renderergl1/tr_sky.c": {
+      "current_sha256": "fbe278924e9e882c8758dc6920eb81fb007a5502487ead54b1975335fb0d9629",
+      "upstream_sha256": "1bf7da9104364bdb99927d3affe4165eeff7bface0d4aac3cbc2a1ec4fe6db48"
+    },
+    "code/renderergl2/tr_local.h": {
+      "current_sha256": "2d17a2c299f2f2d11dc53034190a16842a3aa59e8406aee670c18354a31a0766",
+      "upstream_sha256": "859618b0c8e6ea69e7273660e1579cad202a8048360c296c5975baf365c9ffa3"
+    },
+    "code/renderergl2/tr_sky.c": {
+      "current_sha256": "e2af849c04ef48bb8557fda63416a876c23b3281488d2c9789c721740be1fc18",
+      "upstream_sha256": "7d895f9c0491be5d2aaac1c54d11c3db54daa1d19f07f21cfad2dad5c959ad87"
+    },
+    "code/renderergl2/tr_surface.c": {
+      "current_sha256": "c38616317f3c95026e3d3e1a266d32ac2cee3d576e0a6c487672d45ca66bc802",
+      "upstream_sha256": "a3dc568434e9ea8b057357a8ca6317443aea4209aeebe66fe6c9f1e644c94ac9"
+    },
+    "code/sdl/sdl_glimp.c": {
+      "current_sha256": "a314fcd27843c9d2b5a7cbf1a3dbf323c516ac5cabaaad012e572dc8ad02959d",
+      "upstream_sha256": "52d1f5c42880cfbd2f41c210f4df52b4d2ef4c03a6554d225ac5bbce15f3652c"
+    },
+    "code/server/server.h": {
+      "current_sha256": "500e642debd9809fd1abc55999ffb13e688c405822726958f1981983494556f2",
+      "upstream_sha256": "463bdd4e24f0b464bb819f1512a48036b1b642b83c95fd772400c9a83b887488"
+    },
+    "code/server/sv_ccmds.c": {
+      "current_sha256": "7578b2134adef6e5ea4eb4aeaf783746d4caebfd75d256cda4fdbb253c8496f4",
+      "upstream_sha256": "9790b81ff94f4228fdaf41fe603ed53d99e1d49aa58c82f1ae2d167da362c630"
+    },
+    "code/server/sv_client.c": {
+      "current_sha256": "7a87e860fd1ac89a14880ed3c460df3f0a4a69601a9aead1901df953dfdd9dcf",
+      "upstream_sha256": "c0778839ce7231047cbcf0653f59ec557efc4642653da25dcaca21b9b2c32218"
+    },
+    "code/server/sv_game.c": {
+      "current_sha256": "d2e3595c77ef5bc29e562d8d80749268e7fd310dc641c393992a83d29d3b9197",
+      "upstream_sha256": "9068030dc984ab53260002a968a0ab21441d7835cce9196cc7391cf21cdffb0f"
+    },
+    "code/server/sv_init.c": {
+      "current_sha256": "6dc23ea4eb9b92c0cd987c59705334db29ac432713cc4162aeeb878aa29db648",
+      "upstream_sha256": "d755cdaf837b7fd54c9c55dec947cd910002d59609bf06b13b0c6d5904129e7b"
+    },
+    "code/server/sv_main.c": {
+      "current_sha256": "66c625ee5b9f61fc05d8cb273d3e66ce35a34db974eccc8e9c5a53e49b6a6448",
+      "upstream_sha256": "eddfbcbdda894fe9522248a3824c4dfcb1c0bbed2eb6c4a9739f734996894096"
+    },
+    "code/server/sv_snapshot.c": {
+      "current_sha256": "2caa30d41197bff7b2fa1dfeada1e03bb5cc0385d6e1a6a1f2d042d8a0c8c17a",
+      "upstream_sha256": "e0422032ed814b03337521bdb7e6b6627546fe295264a9096d6ac9618cffc561"
+    },
+    "code/sys/con_tty.c": {
+      "current_sha256": "be32a2162501b0e0290a2aa88086be90e88c94c546d0b111a65980c1ff4f0497",
+      "upstream_sha256": "b7db720dda9ca6c0564bef2054d03e42e8a3d124a2e5a1af1d4a75909fedb67b"
+    },
+    "code/thirdparty/jpeg-9f/jchuff.c": {
+      "current_sha256": "7c4ceaee606869c445a60aa110fc1d6d013dafa4c700d16fec09f22c52d93226",
+      "upstream_sha256": "59b92c9bfd80ec0a884783302b1c7a976de19918c65b18f67bd0f2cb1797cda2"
+    },
+    "code/thirdparty/jpeg-9f/jfdctint.c": {
+      "current_sha256": "810926eee2c70583285a9d65aacb13cec1609672fce7f8bf54bd8bed73eaaeb5",
+      "upstream_sha256": "5ee0daf5c714b305f1e5d55ff2d8c014d7f6b418ba5efa3156932e8024665132"
+    }
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "base": "BSPC-UPSTREAM.json",
+  "description": "Bundled GPL BSPC integration: submodels, consistent bounded paths, winding sizes, partition candidates and nine-bit AAS mover indices; fixed-width MD4 words for x86-64 BSP checksums; traced clearance for authored teleporter destinations; elevator reachabilities for authored vertical doors; distinguish lethal trigger brushes from carrier-safe liquids; recover AAS ladder contents from converted SURF_LADDER faces; explicit dk3 difficulty and mode brush filtering; supported step crossings checked against BSP/static-model collision with the runtime floor lookup tolerance; equal-floor portal endpoints use bounded insets inside their destination areas",
+  "files": {
+    "aas_map.c": {
+      "current_sha256": "46b1a92d523605858946369b7ae8a16a54fc4371b8c0fb6ac451f153ebaa4a98",
+      "upstream_sha256": "8b42d65639c9f06486fad7e146baf5142ef89a959618f4dbb2a6680f7525643f"
+    },
+    "aas_map.h": {
+      "current_sha256": "42561684f2da19ceccbab70385e28e3d04c2de49c24ff8fa64e8dbdca3573b5f",
+      "upstream_sha256": "6bcc1d102013d1ce1b5b7903720c47cb496723e5602018d881ee8fc3b96366d9"
+    },
+    "aas_store.c": {
+      "current_sha256": "649e0a98107957f670dd5ac4829048a05a380ac60360c82901ccce2a3bfd6236",
+      "upstream_sha256": "da4758de528881d55ce983e3e2886d6b796a69d7de3972f0c9d835ba564e48d2"
+    },
+    "be_aas_bspc.c": {
+      "current_sha256": "f96efc738d154e874699c2982b7faec81fefad288474e6201cce38ea95df9c84",
+      "upstream_sha256": "4f6e0b7e8cd36accc9353317c1fd243fe37fb40492d12dc70bc2fa4c25434e3b"
+    },
+    "be_aas_bspc.h": {
+      "current_sha256": "72af1530a7e747abdbc3acfb1120c6eec09ff65d24a4635f4206308929e3896a",
+      "upstream_sha256": "01328e56db09035a23577bb5a7e9686880f10a6a80c745cc56a62a9ae6f072e0"
+    },
+    "brushbsp.c": {
+      "current_sha256": "3e63a2dad638cb49bfc704ec4ba1f00634de56a7430b43da0050093e87fa9782",
+      "upstream_sha256": "4dd9324611e1faf5bb08e643c29d9e81738963662b062e347be0be32e964160d"
+    },
+    "bspc.c": {
+      "current_sha256": "772c94d5f52820da7248c8f49859c5f611f239b5f7957e0a468c9ad29f9a12b7",
+      "upstream_sha256": "1c22d28266323bfacf6459e52811252b07c2af83877cb30e1e449a4ed842ffcf"
+    },
+    "deps/botlib/aasfile.h": {
+      "current_sha256": "e3153414156d806c625f4a07479870885fc26936fd66cb2606b03ccbfa259bd6",
+      "upstream_sha256": "0e092cd94552be2d8a402c5938eaca3630bf4a2e08fc11ef5cdd7da91f198a43"
+    },
+    "deps/botlib/be_aas_def.h": {
+      "current_sha256": "a2eacdd07ad5826d99f69cd58158bfe0686fe311b6e7f46c32d5cc140d4a7ca7",
+      "upstream_sha256": "20ab43f09df8a52cc25fc3c796f61d2266c70e2c4e69f0e11e7f24790f6a1d6a"
+    },
+    "deps/botlib/be_aas_reach.c": {
+      "current_sha256": "5f1e35cf406d18606177a0184b0b3246223fa675f4cddcfb42237e088bf0624c",
+      "upstream_sha256": "3f534570bb2d3a31782014b44039ad2352222a2bf73a1e1c0b14debe45f7e2b3"
+    },
+    "deps/botlib/l_precomp.h": {
+      "current_sha256": "48a7f5bd1cd95899c392cdc9207e64ea9c56b93279d877ed67f367bc022f0584",
+      "upstream_sha256": "d671b13f523c52d30d04f39c09650f71b20141c44cb42d47c54fc5444357fbde"
+    },
+    "deps/botlib/l_script.c": {
+      "current_sha256": "d0188a546a70ebb902e75b0cc1df730e8e5a2775306fba8ee73cc56b84146e3c",
+      "upstream_sha256": "12f3210322abde85cb68370143b1b5181c0438324026708d102dc4e82b992d5c"
+    },
+    "deps/botlib/l_utils.h": {
+      "current_sha256": "73b1217e622e15be9911ed7353b6346be332cbe476df6d0d62bae263cb4202d5",
+      "upstream_sha256": "1c3694cc48800e3893eb5b6c34bd3515213f196d8d2069ef9d4be156f0a2bb45"
+    },
+    "deps/qcommon/cm_load.c": {
+      "current_sha256": "3fd5834330ca698a513adbf48c8e3e5fc5eb3611f0e68ed9aaab23f823a12f42",
+      "upstream_sha256": "50be79653352285c2d538bb9ec844837fdfdc6371590553db5a3b95b656283a5"
+    },
+    "deps/qcommon/cm_local.h": {
+      "current_sha256": "38a19532163993168c2cc149a7adfee19d7f9fbf4743cd22043aebddc66a247c",
+      "upstream_sha256": "b1cb750e1955862ced569cbb43b2a6ce1a078125443b5d0755a2144d9f10ff9c"
+    },
+    "deps/qcommon/md4.c": {
+      "current_sha256": "b77a9bef143d7bd8ec287b04ca496b77ced51f4c4e22e001a03f7dab605a0724",
+      "upstream_sha256": "45b5af84d7b6105ae85fd93c7bb5dad3d6be0b45d8ce0b76a2fc5209be042c7e"
+    },
+    "l_bsp_hl.c": {
+      "current_sha256": "4a41723468a5a37461d617838c81186b0d2499c8cf472c63960a9debf8fd0b9d",
+      "upstream_sha256": "699d33bd1e07782f4d8da53fa6840cfe36969e6a9caa3303f6e8505f138e712f"
+    },
+    "l_bsp_q2.c": {
+      "current_sha256": "c98523f7df11a6522fbae7004550481d1470193cb674824162444a0d2ceca7be",
+      "upstream_sha256": "8c1fa165305665bad23ec7b56463b21c58a43b68f7ba05d34fe038082ae6b3a6"
+    },
+    "l_bsp_sin.c": {
+      "current_sha256": "f6bb65c08f868fdbe2ee8d46bf0688fe2dffec678cbdaeb915a973571ad39e96",
+      "upstream_sha256": "b23a378864537d772eb7a1d8c7e7fe2207281a486c74f84768c3411d3f485b55"
+    },
+    "l_poly.c": {
+      "current_sha256": "9a8ffcc89e0a74f858f065fcbce86d7aa6cabbb91ba7435c769ca13efd76447d",
+      "upstream_sha256": "2c4ab6ecb05ced892de0b2eae1ce38a7cc7cf3ee8bf4f90ac7b820a5bc1aee28"
+    },
+    "l_utils.h": {
+      "current_sha256": "32622ba9dbb6fdadd4a6197e71d6a064c1ebff8155c27b94bbbffaf1af188326",
+      "upstream_sha256": "d914d0349d16e64ef855ef90fbcdd4764bebcbd34b4698da5ad6c85f431aba8c"
+    },
+    "map_q3.c": {
+      "current_sha256": "4704624eeaa704d84f674d3bc005e20898beb6ba9dd11855c11af16df0e14147",
+      "upstream_sha256": "1e75e851ab1de8cad9d6dd08a0715054ed167813881bfa960c4ea8469bb31dab"
+    }
+  }
+}

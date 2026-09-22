@@ -1,0 +1,111 @@
+{
+  "format": 1,
+  "origin": "existing project asset tooling",
+  "files": [
+    {
+      "path": "dkq3/tools/basegame.py",
+      "source_sha256": "bfa35984319adc9ce3095e507863806193169dcc2780d4e37d0baa292abb29a1",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/md3.py",
+      "source_sha256": "eac298662193387f8a6e2a3cc7e44a808fe24221e51e90df0d6c2fe47f25eed4",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/dkimg.py",
+      "source_sha256": "ed84bd4fccadffe35f87ad7acc7483a427be33aabcee896495b3e55b8f8b03ce",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/dkbsp.py",
+      "source_sha256": "9684f6a88edbdda2196b84171083f3c5455b8b20fca6f4239c5a0867c4aa2b5f",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/dk_extract.py",
+      "source_sha256": "aa1288c55d86a2f261a0a1f782bcec177965d5b4ee9bf30c93212019e8eebef7",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/pack_textures.py",
+      "source_sha256": "79b0ed3155846aff51dedc272e89a023fc9eedb895cfcb97a832b59129e45a95",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/dk2q3.py",
+      "source_sha256": "c3242cc16f2f432dd6a197234852abcf339a1384c2ab3efb99f2930adf3ce897",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/entities.py",
+      "source_sha256": "5facb771ccf920e815bf3f36f34fd55921b3e96da1371463459ce4d112209c07",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/convert_all.py",
+      "source_sha256": "f1603f13918a932afa7542ca39dbab52133def5a1eda0f89aad3edb046aa492f",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/shadergen.py",
+      "source_sha256": "78e208be660e5ee57879ee0da9ae9d9d6e13709a8b2b6a1b3ed04dad5c58c80c",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/dkm.py",
+      "source_sha256": "72f277018a426573e16997d48760e4013c1c63b0079799ea75e0e5f8b1b1154d",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/dkm2md3.py",
+      "source_sha256": "67936d8a03e89f01aecb61b242badcc42e3956af1a90069c796e97cfdf6afad9",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/iqm.py",
+      "source_sha256": "12a68e2104b96451a66216be2ecbc2f30735b8bc94800026b2f314d7267dc9b8",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/sp2.py",
+      "source_sha256": "a256d834383f8c31d92bf601149c2555e6836f9bf03c4ccc9353c9b75b8ce809",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/sp2shaders.py",
+      "source_sha256": "e6dc10f002ba7ebbf1c0a0c6404511d1e9cab87bceed64c52b519fa3daf3cc75",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/media.py",
+      "source_sha256": "82f5e5c28a956d44bd14f303ea206a074b29a6661b85aeef91cf492d1f1b123c",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/music_voice.py",
+      "source_sha256": "201503d949f87857b030bb0d3ff202246789a443a06aa187c7057f0fb42289a3",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/dkf.py",
+      "source_sha256": "14aae073a72201df5bc8b491f145f74f2c7997e4a6eacd5c6c51aaf4ed54dbe5",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/lightmap.py",
+      "source_sha256": "a10536470964b86605ff49617cbdd932b47c0c334b4c495c004a783e711e5c44",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/q3bsp.py",
+      "source_sha256": "2e2fbb6d87c56bc34f899ed4aa919074d662a8aabc522127830ad3b2f6a98b54",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    },
+    {
+      "path": "dkq3/tools/pk3_paths.py",
+      "source_sha256": "6f94a201fbcebb3fb43427bcbb4bca77143aa070ec5298f8dbfc06c1672991d4",
+      "disposition": "independent format conversion; review adjustments recorded in docs/provenance.md"
+    }
+  ]
+}

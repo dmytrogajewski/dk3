@@ -12,9 +12,9 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
         with:
           version: 0.16.0
-      - name: Install headless display support
-        run: sudo apt-get update && sudo apt-get install -y xvfb xauth
-      - name: Build published tools
+      - name: Install build and headless dependencies
+        run: sudo apt-get update && sudo apt-get install -y xvfb xauth libsdl2-dev pkg-config
+      - name: Build bundled engine and tools
         run: make build
       - name: Check existing components
         run: make lint
