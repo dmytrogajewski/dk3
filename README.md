@@ -2,7 +2,20 @@
 
 An open-source project to bring **Daikatana to the ioquake3 engine**, built with Zig.
 
-**Playable development build; the game rewrite is incomplete.** The checkout includes
+**Playable development build; the game rewrite is incomplete.**
+
+[![Shotcycler firing with muzzle flash and ejected shells in the native dk3 build](docs/screenshots/shotcycler.jpg)](docs/screenshots/shotcycler.jpg)
+
+*Shotcycler firing on e1dm1 — a staged weapon test in the current native build.*
+
+| The marsh (e1m1a) | Native menu |
+| --- | --- |
+| [![Rain and green waterfalls in the opening marsh](docs/screenshots/marsh.jpg)](docs/screenshots/marsh.jpg) | [![Daikatana difficulty selection in the native dk3 menu](docs/screenshots/menu.jpg)](docs/screenshots/menu.jpg) |
+
+Actual development captures using locally supplied game data and HD textures.
+Click any image for full size. [Capture details](docs/screenshots/README.md).
+
+The checkout includes
 the bundled ioquake3 engine, both renderers, independent native game/client/UI modules,
 all 28 selectable weapons implemented in Zig, and asset conversion/install tooling.
 The private 1.3 profile converts all 84 maps and 97 navigation variants. Recorded

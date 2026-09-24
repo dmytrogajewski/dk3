@@ -13,11 +13,13 @@ It is not a recursive import of the playable workspace.
 - Independent native game, client and UI modules, asset conversion and installation tooling.
 - Zig build integration for the engine, renderers, modules, navigation compiler and tools.
 - Newcomer documentation, GPL terms, contribution guidance, and the runtime replacement roadmap.
+- Three reviewed development screenshots in `docs/screenshots/`, displayed in the README.
 
 ## Excluded
 
 - `reference/`, original source archives, Gold-derived runtime and source patches.
-- `install/`, original or converted game data, extracted strings, saved games, and screenshots.
+- `install/`, original or converted game data, extracted strings, saved games, and local
+  captures other than the three reviewed README screenshots.
 - The unreviewed game, client, UI, and common-library adapters from the local workspace.
 - Neural asset experiments, downloaded model weights, Python libraries, and node modules.
 - Compiler caches, packaged game assets, locally built executables, credentials, local agent configuration, and logs.

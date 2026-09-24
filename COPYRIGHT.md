@@ -12,6 +12,10 @@ files elsewhere in the maintainer's development workspace. In particular, origin
 source, source patches containing its text, game assets, extracted text, converted assets,
 reference executables, and saved games are not included and receive no license grant here.
 
+The [README screenshots](docs/screenshots/README.md) depict locally supplied game artwork.
+The depicted artwork belongs to its respective owners; publishing these development
+captures does not relicense that artwork under the project's GPL grant.
+
 The PAK/WAL tools implement file-format rules and use synthetic test fixtures. References to
 original filenames in comments document format research; those source files are not distributed.
 The process runner uses Zig's standard library and Linux interfaces. The development tree

@@ -1881,3 +1881,18 @@ Remaining acceptance limits: exhaustive frame-by-frame Gold animation, sound mix
 view kick, trails/fragments and every targeting/campaign branch remain open. The
 Bolter water sound is absent from the supplied assets. The run does not close the
 whole rewrite roadmap or claim full audiovisual equivalence.
+
+## readme-gallery — sequence 201
+
+Captured and inspected three 1280 × 720 JPEG frames from the sequence-200 native
+runtime: e1m1a marsh, e1dm1 Shotcycler firing, and native difficulty selection.
+Engine runs used dkguard, software rendering, isolated homes and the local 1.3/HD
+asset profile. The marsh uses a positioned noclip camera; the weapon scene grants
+weapons/ammo. No campaign acceptance claim follows from these staged captures.
+
+The initial capture attempt used stale view offsets and selected a weapon before
+the inventory snapshot arrived. The corrected driver separates those commands;
+`gallery2.log` and `gallery2-inputs.txt` record the accepted run. Private drivers,
+logs and captures remain in `zig-out/reports/readme-gallery-201/`. The three reviewed
+frames are copied unchanged to `docs/screenshots/` for the GitHub README gallery.
+Only documentation and these images changed; no game suite rerun is required.
