@@ -7,7 +7,7 @@ software through `dkguard --headless`.
 
 | Image | Scene |
 | --- | --- |
-| [Shotcycler](shotcycler.jpg) | Staged firing test on e1dm1 with granted weapons/ammo; muzzle flash, shells and impacts. |
+| [Shotcycler](shotcycler-ready.jpg) | Weapon at rest on e1dm1 with granted weapons/ammo; refreshed in sequence 202. |
 | [Marsh](marsh.jpg) | Rain and waterfalls on e1m1a, using a positioned noclip camera. |
 | [Menu](menu.jpg) | Native UI showing difficulty selection with supplied menu artwork. |
 
@@ -17,6 +17,8 @@ The game data is supplied locally and is not bundled with this repository.
 Depicted artwork remains the property of its respective owners and is not
 relicensed by the project's GPL grant; see [copyright](../../COPYRIGHT.md).
 
-Local reproduction evidence: `zig-out/reports/readme-gallery-201/` (`capture.py`,
-`harness.py`, `gallery2.log`, and `gallery2-inputs.txt`). Installed runtime generation:
+Local reproduction evidence: `zig-out/reports/readme-gallery-201/` for the marsh
+and menu; `zig-out/reports/readme-gallery-202/` for the refreshed Shotcycler frame
+(`capture-arena.py`, `harness.py`, `arena-settled.log`, and `arena-settled-inputs.txt`).
+Installed runtime generation:
 `6a4d5a4263029b67c6f5618cd107e7cfef5923d89d35daf21ab845a6e3cb36b4`.

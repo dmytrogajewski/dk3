@@ -4,9 +4,9 @@ An open-source project to bring **Daikatana to the ioquake3 engine**, built with
 
 **Playable development build; the game rewrite is incomplete.**
 
-[![Shotcycler firing with muzzle flash and ejected shells in the native dk3 build](docs/screenshots/shotcycler.jpg)](docs/screenshots/shotcycler.jpg)
+[![Shotcycler equipped on e1dm1 in the native dk3 build](docs/screenshots/shotcycler-ready.jpg)](docs/screenshots/shotcycler-ready.jpg)
 
-*Shotcycler firing on e1dm1 — a staged weapon test in the current native build.*
+*Shotcycler equipped on e1dm1 in the current native development build.*
 
 | The marsh (e1m1a) | Native menu |
 | --- | --- |

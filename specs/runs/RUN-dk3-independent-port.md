@@ -1896,3 +1896,16 @@ the inventory snapshot arrived. The corrected driver separates those commands;
 logs and captures remain in `zig-out/reports/readme-gallery-201/`. The three reviewed
 frames are copied unchanged to `docs/screenshots/` for the GitHub README gallery.
 Only documentation and these images changed; no game suite rerun is required.
+
+## readme-gallery — sequence 202
+
+The owner flagged the README firing frame's prominent muzzle flash. Checked its
+capture provenance: it came from the sequence-200 installed runtime and already
+includes sequence 198's transparent additive flash material. The installed cgame
+binary matches the latest local build; no newer local fix was identified.
+
+Replaced the README firing frame with a fresh e1dm1 capture of the Shotcycler at
+rest, using the same native runtime through dkguard and an isolated home. This is
+a gallery presentation change, not an additional muzzle-flash repair or visual
+acceptance claim. Inspected the unretouched capture and recorded reproduction
+inputs in `zig-out/reports/readme-gallery-202/arena-settled-inputs.txt`.
