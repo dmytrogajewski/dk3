@@ -165,14 +165,14 @@ static int R_DlightFace( srfSurfaceFace_t *face, int dlightBits ) {
 	dlight_t	*dl;
 
 	for ( i = 0 ; i < tr.refdef.num_dlights ; i++ ) {
-		if ( ! ( dlightBits & ( 1 << i ) ) ) {
+		if ( ! ( dlightBits & ( 1U << i ) ) ) {
 			continue;
 		}
 		dl = &tr.refdef.dlights[i];
 		d = DotProduct( dl->origin, face->plane.normal ) - face->plane.dist;
 		if ( d < -dl->radius || d > dl->radius ) {
 			// dlight doesn't reach the plane
-			dlightBits &= ~( 1 << i );
+			dlightBits &= ~( 1U << i );
 		}
 	}
 
@@ -189,7 +189,7 @@ static int R_DlightGrid( srfGridMesh_t *grid, int dlightBits ) {
 	dlight_t	*dl;
 
 	for ( i = 0 ; i < tr.refdef.num_dlights ; i++ ) {
-		if ( ! ( dlightBits & ( 1 << i ) ) ) {
+		if ( ! ( dlightBits & ( 1U << i ) ) ) {
 			continue;
 		}
 		dl = &tr.refdef.dlights[i];
@@ -200,7 +200,7 @@ static int R_DlightGrid( srfGridMesh_t *grid, int dlightBits ) {
 			|| dl->origin[2] - dl->radius > grid->meshBounds[1][2]
 			|| dl->origin[2] + dl->radius < grid->meshBounds[0][2] ) {
 			// dlight doesn't reach the bounds
-			dlightBits &= ~( 1 << i );
+			dlightBits &= ~( 1U << i );
 		}
 	}
 
@@ -222,7 +222,7 @@ static int R_DlightTrisurf( srfTriangles_t *surf, int dlightBits ) {
 	dlight_t	*dl;
 
 	for ( i = 0 ; i < tr.refdef.num_dlights ; i++ ) {
-		if ( ! ( dlightBits & ( 1 << i ) ) ) {
+		if ( ! ( dlightBits & ( 1U << i ) ) ) {
 			continue;
 		}
 		dl = &tr.refdef.dlights[i];
@@ -233,7 +233,7 @@ static int R_DlightTrisurf( srfTriangles_t *surf, int dlightBits ) {
 			|| dl->origin[2] - dl->radius > grid->meshBounds[1][2]
 			|| dl->origin[2] + dl->radius < grid->meshBounds[0][2] ) {
 			// dlight doesn't reach the bounds
-			dlightBits &= ~( 1 << i );
+			dlightBits &= ~( 1U << i );
 		}
 	}
 
@@ -428,15 +428,15 @@ static void R_RecursiveWorldNode( mnode_t *node, unsigned int planeBits, unsigne
 				dlight_t	*dl;
 				float		dist;
 
-				if ( dlightBits & ( 1 << i ) ) {
+				if ( dlightBits & ( 1U << i ) ) {
 					dl = &tr.refdef.dlights[i];
 					dist = DotProduct( dl->origin, node->plane->normal ) - node->plane->dist;
 					
 					if ( dist > -dl->radius ) {
-						newDlights[0] |= ( 1 << i );
+						newDlights[0] |= ( 1U << i );
 					}
 					if ( dist < dl->radius ) {
-						newDlights[1] |= ( 1 << i );
+						newDlights[1] |= ( 1U << i );
 					}
 				}
 			}

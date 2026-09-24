@@ -413,7 +413,9 @@ typedef struct {
 	int			numDrawSurfs;
 	struct drawSurf_s	*drawSurfs;
 
-
+	qboolean	dk3Fog;
+	vec3_t		dk3FogColor;
+	float		dk3FogStart, dk3FogEnd, dk3FogSkyEnd;
 } trRefdef_t;
 
 
@@ -876,6 +878,8 @@ typedef struct {
 	byte		color2D[4];
 	qboolean	vertexes2D;		// shader needs to be finished
 	trRefEntity_t	entity2D;	// currentEntity will point at this when doing 2D rendering
+	qboolean	doneSurfaces;	// a world scene has been drawn this frame
+	qboolean	doneBloom;
 } backEndState_t;
 
 /*
@@ -1008,6 +1012,7 @@ extern cvar_t	*r_primitives;			// "0" = based on compiled vertex array existence
 										// "-1" = no drawing
 
 extern cvar_t	*r_inGameVideo;				// controls whether in game video should be draw
+extern cvar_t	*r_dk3Fog;
 extern cvar_t	*r_fastsky;				// controls whether sky should be cleared or drawn
 extern cvar_t	*r_drawSun;				// controls drawing of sun quad
 extern cvar_t	*r_dynamiclight;		// dynamic lights enabled/disabled
@@ -1380,7 +1385,14 @@ void RE_AddRefEntityToScene( const refEntity_t *ent );
 void RE_AddPolyToScene( qhandle_t hShader , int numVerts, const polyVert_t *verts, int num );
 void RE_AddLightToScene( const vec3_t org, float intensity, float r, float g, float b );
 void RE_AddAdditiveLightToScene( const vec3_t org, float intensity, float r, float g, float b );
+void RE_SetDk3Fog( const vec3_t color, float start, float end, float skyEnd );
+void RB_Dk3FogBegin( void );
+void RB_Dk3FogSky( qboolean sky );
+void RB_Dk3FogEnd( void );
 void RE_RenderScene( const refdef_t *fd );
+void RB_SetGL2D( void );
+void R_BloomInit( void );
+void R_BloomScreen( void );
 
 /*
 =============================================================
@@ -1614,3 +1626,5 @@ void RB_CalcDiffuseColor_altivec( unsigned char *colors );
 #endif
 
 #endif //TR_LOCAL_H
+
+void R_UpdateDkLightstyles(const refdef_t *view);

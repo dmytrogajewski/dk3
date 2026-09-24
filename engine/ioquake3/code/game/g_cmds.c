@@ -264,8 +264,12 @@ void Cmd_Give_f (gentity_t *ent)
 
 	if (give_all || Q_stricmp(name, "weapons") == 0)
 	{
+#ifdef DK3_GAME
+        DK_GiveAllWeapons(ent);
+#else
 		ent->client->ps.stats[STAT_WEAPONS] = (1 << WP_NUM_WEAPONS) - 1 - 
 			( 1 << WP_GRAPPLING_HOOK ) - ( 1 << WP_NONE );
+#endif
 		if (!give_all)
 			return;
 	}
@@ -1660,8 +1664,8 @@ void Cmd_SetViewpos_f( gentity_t *ent ) {
 		trap_SendServerCommand( ent-g_entities, "print \"Cheats are not enabled on this server.\n\"");
 		return;
 	}
-	if ( trap_Argc() != 5 ) {
-		trap_SendServerCommand( ent-g_entities, "print \"usage: setviewpos x y z yaw\n\"");
+	if ( trap_Argc() != 5 && trap_Argc() != 6 ) {
+		trap_SendServerCommand( ent-g_entities, "print \"usage: setviewpos x y z yaw [pitch]\n\"");
 		return;
 	}
 
@@ -1673,6 +1677,10 @@ void Cmd_SetViewpos_f( gentity_t *ent ) {
 
 	trap_Argv( 4, buffer, sizeof( buffer ) );
 	angles[YAW] = atof( buffer );
+	if ( trap_Argc() == 6 ) {
+		trap_Argv( 5, buffer, sizeof( buffer ) );
+		angles[PITCH] = atof( buffer );
+	}
 
 	TeleportPlayer( ent, origin, angles );
 }

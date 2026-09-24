@@ -70,6 +70,7 @@ cvar_t	*r_measureOverdraw;
 
 cvar_t	*r_inGameVideo;
 cvar_t	*r_fastsky;
+cvar_t	*r_dk3Fog;
 cvar_t	*r_drawSun;
 cvar_t	*r_dynamiclight;
 cvar_t	*r_dlightBacks;
@@ -446,6 +447,8 @@ void RB_TakeScreenshot(int x, int y, int width, int height, char *fileName)
 	ri.Hunk_FreeTempMemory(allbuf);
 }
 
+#include "../renderercommon/dk3_savepreview.inc"
+
 /* 
 ================== 
 RB_TakeScreenshotJPEG
@@ -460,6 +463,11 @@ void RB_TakeScreenshotJPEG(int x, int y, int width, int height, char *fileName)
 
 	buffer = RB_ReadPixels(x, y, width, height, &offset, &padlen);
 	memcount = (width * 3 + padlen) * height;
+
+	if ( R_SavePreviewJPEG( buffer + offset, width, height, padlen, fileName ) ) {
+		ri.Hunk_FreeTempMemory(buffer);
+		return;
+	}
 
 	// gamma correct
 	if(glConfig.deviceSupportsGamma)
@@ -1077,6 +1085,8 @@ void R_Register( void )
 	r_stereoSeparation = ri.Cvar_Get( "r_stereoSeparation", "64", CVAR_ARCHIVE );
 	r_ignoreGLErrors = ri.Cvar_Get( "r_ignoreGLErrors", "1", CVAR_ARCHIVE );
 	r_fastsky = ri.Cvar_Get( "r_fastsky", "0", CVAR_ARCHIVE );
+	r_dk3Fog = ri.Cvar_Get( "r_dk3Fog", "1", CVAR_ARCHIVE );
+	ri.Cvar_SetDescription( r_dk3Fog, "Draw authored map distance fog" );
 	r_inGameVideo = ri.Cvar_Get( "r_inGameVideo", "1", CVAR_ARCHIVE );
 	r_drawSun = ri.Cvar_Get( "r_drawSun", "0", CVAR_ARCHIVE );
 	r_dynamiclight = ri.Cvar_Get( "r_dynamiclight", "1", CVAR_ARCHIVE );
@@ -1224,6 +1234,7 @@ void R_Init( void ) {
 	R_NoiseInit();
 
 	R_Register();
+	R_BloomInit();
 
 	max_polys = r_maxpolys->integer;
 	if (max_polys < MAX_POLYS)
@@ -1370,6 +1381,7 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 	re.LightForPoint = R_LightForPoint;
 	re.AddLightToScene = RE_AddLightToScene;
 	re.AddAdditiveLightToScene = RE_AddAdditiveLightToScene;
+	re.SetDk3Fog = RE_SetDk3Fog;
 	re.RenderScene = RE_RenderScene;
 
 	re.SetColor = RE_SetColor;

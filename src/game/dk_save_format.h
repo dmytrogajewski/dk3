@@ -8,7 +8,7 @@
 #define DK_SAVE_LIMIT (256 * 1024 * 1024)
 #define DK_SAVE_WORLD_LIMIT (32 * 1024 * 1024)
 #define DK_SAVE_NAME 64
-#define DK_SAVE_FIELDS 256
+#define DK_SAVE_FIELDS 320
 #define DK_SAVE_RECORDS 16384
 
 typedef enum { DK_SAVE_INT = 1, DK_SAVE_FLOAT = 2, DK_SAVE_TEXT = 3, DK_SAVE_BYTES = 4 } dkSaveType_t;

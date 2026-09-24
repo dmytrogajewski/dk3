@@ -46,27 +46,47 @@ def entries(game, images, records, encode_image):
     import dkbsp
     import dkimg
     import entities
+    import shadergen
     output, shaders, report = {}, [], []
     for mapname in sorted(convert_all.discover(game)):
         source = game.find(f'maps/{mapname}.bsp')
         raw, _ = dk2q3.entity_text(dkbsp.Bsp(source[1]).raw('entities'), game.find(f'maps/{mapname}.ent'))
         world = dict(next(iter(entities.parse(raw))))
         cloud, sky = world.get('cloudname', '').lower(), world.get('sky', '').lower()
-        if not cloud or cloud == 'none':
+        skies = [sky] + [world.get(f'sky_{i}', '').lower() for i in range(2, 6)]
+        if not sky:
             continue
-        if not re.fullmatch(r'[a-z0-9_-]+', mapname) or any(not re.fullmatch(r'[a-z0-9_/-]+', n) or '..' in n for n in (sky, cloud)):
-            raise ValueError(f'map {mapname}: unsafe sky or cloud name')
-        key = f'env/32bit/{cloud}'
-        record = records.get(key, {})
-        if record.get('status') != 'image':
-            raise ValueError(f'map {mapname}: missing authored cloud image {key}.tga')
-        image = f'dk3/skies/{cloud}.tga'
-        if image not in output:
-            output[image] = encode_image(dkimg.read_png(Path(images) / record['files'][0]['file']))
+        for value in skies + ([cloud] if cloud and cloud != 'none' else []):
+            if value and (not re.fullmatch(r'[a-z0-9_/-]+', value) or '..' in value):
+                raise ValueError(f'map {mapname}: unsafe sky or cloud name {value}')
         values = settings(world, mapname)
-        name, original = f'dk3/sky/{mapname}', f'textures/dkq3/sky/{sky}'
-        shaders.append(shader(name, f'env/32bit/{sky}', image, values))
-        output[f'dk3/skies/{mapname}.cfg'] = f'dk3_sky 1 "{original}" "{name}"\n'.encode('ascii')
+        names = []
+        key = ''
+        for i, selected in enumerate(skies):
+            if not selected:
+                names.append(names[0])
+                continue
+            box = f'env/32bit/{selected}'
+            name = f'dk3/sky/{mapname}/{i + 1}'
+            names.append(name)
+            for suffix in shadergen.SKY_SUFFIXES:
+                side = shadergen.sky_side(records, box, suffix)
+                if side:
+                    output[f'{box}_{suffix}.tga'] = encode_image(dkimg.read_png(Path(images) / records[side]['files'][0]['file']))
+                else:
+                    output[f'{box}_{suffix}.tga'] = encode_image(shadergen.notexture_image())
+            if i == 0 and cloud and cloud != 'none':
+                key = f'env/32bit/{cloud}'
+                record = records.get(key, {})
+                if record.get('status') != 'image':
+                    raise ValueError(f'map {mapname}: missing authored cloud image {key}.tga')
+                image = f'dk3/skies/{cloud}.tga'
+                output[image] = encode_image(dkimg.read_png(Path(images) / record['files'][0]['file']))
+                shaders.append(shader(name, box, image, values))
+            else:
+                shaders.append(f'{name}\n{{\n surfaceparm sky\n surfaceparm nolightmap\n skyParms {box} 512 -\n}}\n')
+        original = f'textures/dkq3/sky/{sky}'
+        output[f'dk3/skies/{mapname}.cfg'] = ('dk3_sky 2 "' + original + '" ' + ' '.join('"' + n + '"' for n in names) + '\n').encode('ascii')
         report.append(dict(map=mapname, cloud=key, shader=name, settings=values))
     output['scripts/dk3-skies.shader'] = '\n'.join(shaders).encode('ascii')
     return sorted(output.items()), report

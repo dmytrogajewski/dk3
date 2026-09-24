@@ -90,3 +90,12 @@ uses ioquake3 collision traces, polygons and a supplied model tag. Cloud layers
 use authored map parameters and supplied sky artwork with ioquake3 shader
 projection and its noise-driven flash waveform. No original renderer, menu,
 save or actor implementation is compiled or mechanically translated.
+
+
+The complete weapons rewrite in sequence 199 uses Zig 0.16 implementations of all
+28 selectable weapons, their server controllers and client presentation. Private
+Gold source was consulted for behavioral facts, animation frames, effect parameters
+and supplied asset names. No Gold runtime, implementation, generated translation or
+interface is a build input. The existing ioquake3 C interfaces supply entity,
+collision, damage, snapshot, renderer and audio services; original notices remain.
+The owner's explicit native-Zig scope supersedes the earlier C-only weapons guidance.

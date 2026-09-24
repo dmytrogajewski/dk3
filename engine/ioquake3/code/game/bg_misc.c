@@ -1222,6 +1222,15 @@ void BG_EvaluateTrajectory( const trajectory_t *tr, int atTime, vec3_t result ) 
 		}
 		VectorMA( tr->trBase, deltaTime, tr->trDelta, result );
 		break;
+    case TR_DK_ACCEL_STOP:
+    case TR_DK_BOUNCE_STOP:
+        deltaTime = tr->trDuration > 0 ? Com_Clamp(0, 1, (atTime - tr->trTime) / (float)tr->trDuration) : 1;
+        if (tr->trType == TR_DK_BOUNCE_STOP) {
+            if (deltaTime < 0.7f) phase = deltaTime * deltaTime / 0.49f;
+            else phase = 1 - 0.1f * sin((deltaTime - 0.7f) / 0.3f * M_PI);
+        } else phase = deltaTime * deltaTime;
+        VectorMA(tr->trBase, phase * tr->trDuration * 0.001f, tr->trDelta, result);
+        break;
 	case TR_GRAVITY:
 		deltaTime = ( atTime - tr->trTime ) * 0.001;	// milliseconds to seconds
 		VectorMA( tr->trBase, deltaTime, tr->trDelta, result );
@@ -1265,6 +1274,14 @@ void BG_EvaluateTrajectoryDelta( const trajectory_t *tr, int atTime, vec3_t resu
 		}
 		VectorCopy( tr->trDelta, result );
 		break;
+    case TR_DK_ACCEL_STOP:
+    case TR_DK_BOUNCE_STOP:
+        if (tr->trDuration <= 0 || atTime < tr->trTime || atTime >= tr->trTime + tr->trDuration) { VectorClear(result); break; }
+        deltaTime = (atTime - tr->trTime) / (float)tr->trDuration;
+        phase = tr->trType == TR_DK_ACCEL_STOP ? 2 * deltaTime : deltaTime < 0.7f ?
+            2 * deltaTime / 0.49f : -0.1f * M_PI / 0.3f * cos((deltaTime - 0.7f) / 0.3f * M_PI);
+        VectorScale(tr->trDelta, phase, result);
+        break;
 	case TR_GRAVITY:
 		deltaTime = ( atTime - tr->trTime ) * 0.001;	// milliseconds to seconds
 		VectorCopy( tr->trDelta, result );

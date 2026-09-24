@@ -47,6 +47,9 @@ uniform vec4      u_CubeMapInfo;
 
 uniform int       u_AlphaTest;
 
+uniform vec4      u_Dk3FogColor;
+uniform vec4      u_Dk3FogRange;
+
 varying vec4      var_TexCoords;
 
 varying vec4      var_Color;
@@ -518,4 +521,10 @@ void main()
 #endif
 
 	gl_FragColor.a = alpha;
+
+	if (u_Dk3FogColor.a > 0.0)
+	{
+		float fog = (u_Dk3FogRange.y - 1.0 / gl_FragCoord.w) / (u_Dk3FogRange.y - u_Dk3FogRange.x);
+		gl_FragColor.rgb = mix(u_Dk3FogColor.rgb, gl_FragColor.rgb, clamp(fog, 0.0, 1.0));
+	}
 }

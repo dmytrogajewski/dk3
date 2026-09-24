@@ -482,10 +482,10 @@ void G_MoverTeam( gentity_t *ent ) {
 
 	// the move succeeded
 	for ( part = ent ; part ; part = part->teamchain ) {
-        // Linear and angular stop trajectories share one reached callback.
-        if ((part->s.pos.trType == TR_LINEAR_STOP || part->s.apos.trType == TR_LINEAR_STOP) &&
-            (part->s.pos.trType != TR_LINEAR_STOP || level.time >= part->s.pos.trTime + part->s.pos.trDuration) &&
-            (part->s.apos.trType != TR_LINEAR_STOP || level.time >= part->s.apos.trTime + part->s.apos.trDuration)) {
+        qboolean linear = part->s.pos.trType == TR_LINEAR_STOP || part->s.pos.trType == TR_DK_ACCEL_STOP || part->s.pos.trType == TR_DK_BOUNCE_STOP;
+        qboolean angular = part->s.apos.trType == TR_LINEAR_STOP || part->s.apos.trType == TR_DK_ACCEL_STOP || part->s.apos.trType == TR_DK_BOUNCE_STOP;
+        if ((linear || angular) && (!linear || level.time >= part->s.pos.trTime + part->s.pos.trDuration) &&
+            (!angular || level.time >= part->s.apos.trTime + part->s.apos.trDuration)) {
             if (part->reached) part->reached(part);
         }
 	}

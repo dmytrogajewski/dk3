@@ -74,7 +74,7 @@ void DK_InitCompanionInventory(gentity_t *actor) {
     gentity_t saved;
     trap_Cvar_VariableStringBuffer("mapname", map, sizeof(map));
     episode = map[0] == 'e' && map[1] >= '1' && map[1] <= '4' ? map[1] - '0' : 1;
-    weapon = episode == 1 ? DK_W_ION : episode == 2 ? DK_W_VENOM : episode == 3 ? DK_W_BOLTER : DK_W_GLOCK;
+    weapon = DK_CompanionFirstWeapon(episode);
     actor->health = actor->dk.maxHealth = 100;
     actor->dk.actorLevel = 1;
     actor->s.weapon = weapon;

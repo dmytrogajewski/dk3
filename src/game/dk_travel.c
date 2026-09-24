@@ -113,12 +113,8 @@ void DK_ReadTravel(gentity_t *player) {
         char map[MAX_QPATH];
         trap_Cvar_VariableStringBuffer("mapname", map, sizeof(map));
         if (map[0] == 'e' && map[1] >= '1' && map[1] <= '4' && map[1] - '0' != state.dk3Episode) {
-            int sword = state.dk3Inventory & (1u << DK_W_SWORD);
             state.dk3Episode = map[1] - '0'; state.dk3Keys = state.dk3Quest = 0;
-            state.dk3Inventory = player->client->ps.dk3Inventory | sword;
-            state.weapon = player->client->ps.weapon;
-            state.powerups[PW_DK3_GASHANDS] = 0;
-            memcpy(state.ammo, player->client->ps.ammo, sizeof(state.ammo));
+            DK_WeaponChangeEpisode(&state, &player->client->ps);
         }
     }
     player->client->ps = state;
@@ -140,6 +136,7 @@ qboolean DK_ClientCommand(gentity_t *player, const char *command) {
     int i;
     if (DK_SaveCommand(player, command)) return qtrue;
     if (DK_CompanionCommand(player, command)) return qtrue;
+    if (DK_SpawnActorCommand(player, command)) return qtrue;
     if (!Q_stricmp(command, "cin_skip")) { if (!DK_StopMonitor(player, qfalse)) DK_SkipCinematic(); return qtrue; }
     if (!Q_stricmp(command, "detonate") || !Q_stricmp(command, "c4_detonate")) {
         if (player->health > 0 && player->client->sess.sessionTeam != TEAM_SPECTATOR &&
@@ -174,6 +171,17 @@ qboolean DK_ClientCommand(gentity_t *player, const char *command) {
             ++player->client->ps.dk3Attributes[i];
             trap_SendServerCommand(player->s.number, va("cp \"%s increased\"", names[i]));
         } else trap_SendServerCommand(player->s.number, "print \"No point available or attribute is at its limit.\n\"");
+        return qtrue;
+    }
+    if (!Q_stricmp(command, "swordxp")) {
+        if (!trap_Cvar_VariableIntegerValue("sv_cheats")) {
+            trap_SendServerCommand(player->s.number, "print \"Cheats are not enabled on this server.\n\"");
+            return qtrue;
+        }
+        trap_Argv(1, argument, sizeof(argument));
+        player->client->ps.dk3SwordExperience = atoi(argument) > 0 ? atoi(argument) : 0;
+        trap_SendServerCommand(player->s.number, va("print \"Sword experience %d, level %d.\n\"",
+            player->client->ps.dk3SwordExperience, DK_SwordLevel(player->client->ps.dk3SwordExperience)));
         return qtrue;
     }
     return qfalse;

@@ -136,6 +136,12 @@ const file_rules = [_]FileRule{
     // a shift into the sign bit for every index of 128 or more (code/thirdparty/libvorbis-1.3.7/lib/sharedbook.c:425), so the first Ogg
     // Vorbis file a client decodes traps from `vorbis_synthesis_init` (FRD-020). The file keeps its reference `-w` (disable_warnings).
     .{ .product = .client, .paths = &.{"code/thirdparty/libvorbis-1.3.7/lib/sharedbook.c"}, .flags = &(c_flags ++ client_sanitizer ++ shift_off ++ .{"-w"}) },
+    // libjpeg's integer DCTs scale signed coefficients with left shifts that are negative for ordinary image data
+    // (`dcval << PASS1_BITS`, `z2 <<= CONST_BITS`, code/thirdparty/jpeg-9f/jidctint.c:213, :236), so the first JPEG a
+    // renderer decodes (a save preview in the load menu through `RE_RegisterShaderNoMip`) traps in `jpeg_idct_islow`.
+    // The forward DCTs share the idiom. The files keep their reference `-w` (disable_warnings).
+    .{ .product = .renderer_opengl1, .paths = &lists.jpeg_sources, .flags = &(c_flags ++ nonnull_attribute_off ++ shift_off ++ .{"-w"}) },
+    .{ .product = .renderer_opengl2, .paths = &lists.jpeg_sources, .flags = &(c_flags ++ renderer_gl2_sanitizer ++ shift_off ++ .{"-w"}) },
     // `NETCHAN_GENCHECKSUM(challenge, sequence)` is `(challenge) ^ ((sequence) * (challenge))` on `int`s (code/qcommon/qcommon.h:191),
     // which overflows for most random challenges; the first netchan packet over a real socket traps in `Netchan_Transmit`
     // (code/qcommon/net_chan.c:210) in the server and the client of the Step 62 wire suite. Loopback runs never sent one. Only this file

@@ -2,18 +2,7 @@
 #include "g_local.h"
 #include "dk_weapons.h"
 #include "dk_inventory.h"
-
-typedef struct { const char *classname; int weapon; } dkAmmo_t;
-static const dkAmmo_t ammunition[] = {
-    {"ammo_ionpack", DK_W_ION}, {"ammo_c4", DK_W_C4}, {"ammo_shells", DK_W_SHOTCYCLER},
-    {"ammo_rockets", DK_W_SIDEWINDER}, {"ammo_shocksphere", DK_W_SHOCKWAVE},
-    {"ammo_tritips", DK_W_TRIDENT}, {"ammo_venomous", DK_W_VENOM}, {"ammo_zeus", DK_W_ZEUS},
-    {"ammo_bolts", DK_W_BOLTER}, {"ammo_ballista", DK_W_BALLISTA}, {"ammo_stavros", DK_W_STAVROS},
-    {"ammo_wisp", DK_W_WYNDRAX}, {"ammo_bullets", DK_W_GLOCK}, {"ammo_ripgun", DK_W_RIPGUN},
-    {"ammo_slugger", DK_W_SLUGGER}, {"ammo_cordite", DK_W_CORDITE}, {"ammo_kineticore", DK_W_KINETICORE},
-    {"ammo_novabeam", DK_W_NOVABEAM}, {"ammo_metamaser", DK_W_METAMASER}
-};
-
+#include "../qcommon/qfiles.h"
 
 static const char *boosts[] = {"item_power_boost", "item_attack_boost", "item_speed_boost", "item_acro_boost", "item_vita_boost"};
 
@@ -39,103 +28,26 @@ qboolean DK_HasKey(gentity_t *player, const char *name) {
     return ((unsigned int)player->client->ps.dk3Keys & (1u << index)) != 0;
 }
 
-static qboolean AddWeapon(int *inventory, int *ammo, int *selected, int weapon, int rounds) {
-    dkWeaponInfo_t *info = &dk_weapons[weapon];
-    qboolean owned = ((unsigned int)*inventory & (1u << weapon)) != 0;
-    if (owned && (!info->ammoMax || ammo[weapon] >= info->ammoMax)) return qfalse;
-    *inventory |= 1u << weapon;
-    ammo[weapon] += rounds;
-    if (ammo[weapon] > info->ammoMax) ammo[weapon] = info->ammoMax;
-    if (!owned && weapon != DK_W_FLASHLIGHT) *selected = weapon;
-    if (weapon == DK_W_SLUGGER) {
-        *inventory |= 1u << DK_W_CORDITE;
-        ammo[DK_W_CORDITE] += dk_weapons[DK_W_CORDITE].initialAmmo;
-        if (ammo[DK_W_CORDITE] > dk_weapons[DK_W_CORDITE].ammoMax) ammo[DK_W_CORDITE] = dk_weapons[DK_W_CORDITE].ammoMax;
-    }
-    return qtrue;
-}
-
-static qboolean GiveWeapon(gentity_t *player, int weapon, int rounds) {
-    playerState_t *ps = &player->client->ps;
-    if (weapon == DK_W_GASHANDS && g_gametype.integer == GT_SINGLE_PLAYER) {
-        int duration = (int)(Com_Clamp(0, DK_MAX_GASHANDS_TIME / 1000, dk_weapons[weapon].lifetime) * 1000);
-        int remaining = ps->powerups[PW_DK3_GASHANDS] - level.time;
-        if (duration <= 0) G_Error("dk3: weapon_gashands requires a positive supplied lifetime");
-        if (remaining < 0) remaining = 0;
-        if (remaining >= DK_MAX_GASHANDS_TIME) return qfalse;
-        if (duration > DK_MAX_GASHANDS_TIME - remaining) duration = DK_MAX_GASHANDS_TIME - remaining;
-        ps->powerups[PW_DK3_GASHANDS] = level.time + remaining + duration;
-        ps->dk3Inventory |= 1u << weapon;
-        ps->weapon = weapon;
-        G_AddEvent(player, EV_GENERAL_SOUND, DK_SoundIndex("e1/we_gasstart.wav"));
-        trap_SendServerCommand(player->s.number, va("dk3_weapon %d", weapon));
-        return qtrue;
-    }
-    return AddWeapon(&ps->dk3Inventory, ps->ammo, &ps->weapon, weapon, rounds);
-}
-
-void DK_RunItemEffects(void) {
+static void ArmorInfo(const char *name, int *capacity, int *absorption) {
+    static const struct { const char *name; int capacity, absorption; } armor[] = {
+        {"plasteel", 200, 75}, {"chromatic", 100, 50}, {"silver", 150, 65},
+        {"gold", 200, 75}, {"chainmail", 125, 50}, {"black_adamant", 250, 80},
+        {"kevlar", 100, 40}, {"ebonite", 200, 75}, {"megashield", 400, 75}
+    };
     int i;
-    if (g_gametype.integer != GT_SINGLE_PLAYER) return;
-    for (i = 0; i < level.maxclients; ++i) {
-        gentity_t *player = &g_entities[i];
-        playerState_t *ps;
-        if (!player->inuse || !player->client) continue;
-        ps = &player->client->ps;
-        if (!DK_HasWeapon(ps, DK_W_GASHANDS)) continue;
-        if (player->health <= 0) {
-            DK_ExpireGasHands(ps);
-            continue;
-        }
-        if (ps->dk3CameraActive && ps->powerups[PW_DK3_GASHANDS] > 0)
-            ps->powerups[PW_DK3_GASHANDS] += level.time - level.previousTime;
-        if (ps->powerups[PW_DK3_GASHANDS] > level.time) continue;
-        DK_ExpireGasHands(ps);
-        G_AddEvent(player, EV_GENERAL_SOUND, DK_SoundIndex("e1/we_gasstopa.wav"));
-        trap_SendServerCommand(i, va("dk3_weapon %d", ps->weapon));
-        trap_SendServerCommand(i, "print \"Gas Hands has expired.\n\"");
+    *capacity = 100; *absorption = 50;
+    for (i = 0; i < ARRAY_LEN(armor); ++i) if (strstr(name, armor[i].name)) {
+        *capacity = armor[i].capacity; *absorption = armor[i].absorption; return;
     }
-}
-
-int DK_PlayerWeaponLoop(gentity_t *player) {
-    playerState_t *ps = &player->client->ps;
-    if (player->health > 0 && ps->pm_type == PM_NORMAL && !ps->dk3CameraActive &&
-        ps->weapon == DK_W_GASHANDS && DK_HasWeapon(ps, DK_W_GASHANDS))
-        return DK_SoundIndex("e1/we_gasloop.wav");
-    return 0;
-}
-
-void DK_StartingInventory(gentity_t *player) {
-    char map[MAX_QPATH];
-    int episode, initial;
-    trap_Cvar_VariableStringBuffer("mapname", map, sizeof(map));
-    episode = map[0] == 'e' && map[1] >= '1' && map[1] <= '4' ? map[1] - '0' : 1;
-    initial = DK_FirstWeapon(episode);
-    player->health = player->client->ps.stats[STAT_HEALTH] = player->client->ps.stats[STAT_MAX_HEALTH];
-    player->client->ps.dk3Inventory = 0;
-    memset(player->client->ps.ammo, 0, sizeof(player->client->ps.ammo));
-    GiveWeapon(player, initial, dk_weapons[initial].initialAmmo);
-    player->client->ps.weapon = initial;
-    player->client->ps.stats[STAT_WEAPONS] = 0;
-    player->client->ps.dk3Level = 1;
-    player->client->ps.dk3Episode = episode;
-    player->client->ps.dk3SoundEnvironment = 0;
-    player->client->ps.dk3Reverb = 0;
-    player->client->ps.dk3SoundGain = 1;
 }
 
 static qboolean Give(gentity_t *item, gentity_t *player) {
     playerState_t *ps = &player->client->ps;
     const char *name = item->classname;
     int i, weapon = DK_WeaponId(name), amount = item->count;
-    if (weapon) return GiveWeapon(player, weapon, amount > 0 ? amount : dk_weapons[weapon].initialAmmo);
-    for (i = 0; i < ARRAY_LEN(ammunition); ++i) if (!strcmp(name, ammunition[i].classname)) {
-        weapon = ammunition[i].weapon;
-        if (ps->ammo[weapon] >= dk_weapons[weapon].ammoMax) return qfalse;
-        ps->ammo[weapon] += amount > 0 ? amount : dk_weapons[weapon].initialAmmo;
-        if (ps->ammo[weapon] > dk_weapons[weapon].ammoMax) ps->ammo[weapon] = dk_weapons[weapon].ammoMax;
-        return qtrue;
-    }
+    if (weapon) return DK_GiveWeapon(player, weapon, amount > 0 ? amount : dk_weapons[weapon].initialAmmo);
+    weapon = DK_AmmoWeapon(name);
+    if (weapon) return DK_AddAmmunition(ps->ammo, weapon, amount);
     i = KeyIndex(name);
     if (i >= 0) {
         unsigned int bombParts = 0x0003c000u;
@@ -161,9 +73,12 @@ static qboolean Give(gentity_t *item, gentity_t *player) {
         return qtrue;
     }
     if (strstr(name, "_armor") || !strcmp(name, "item_megashield")) {
-        amount = amount > 0 ? amount : !strcmp(name, "item_megashield") ? 200 : 100;
-        if (ps->stats[STAT_ARMOR] >= amount) return qfalse;
+        int capacity, absorption;
+        ArmorInfo(name, &capacity, &absorption);
+        amount = amount > 0 ? amount : capacity;
+        if (ps->stats[STAT_ARMOR] >= amount && ps->dk3ArmorAbsorption >= absorption) return qfalse;
         ps->stats[STAT_ARMOR] = amount;
+        ps->dk3ArmorAbsorption = absorption;
         return qtrue;
     }
     if (!strcmp(name, "item_antidote")) {
@@ -172,7 +87,7 @@ static qboolean Give(gentity_t *item, gentity_t *player) {
         return qtrue;
     }
     if (!strcmp(name, "item_invincibility")) { ps->dk3InvincibleUntil = level.time + 30000; return qtrue; }
-    if (!strcmp(name, "item_wraithorb")) { ps->powerups[PW_INVIS] = level.time + 30000; return qtrue; }
+    if (!strcmp(name, "item_wraithorb")) { ps->powerups[PW_INVIS] = level.time + 60000; return qtrue; }
     if (!strcmp(name, "item_envirosuit")) { ps->dk3EnvUntil = level.time + 60000; return qtrue; }
     if (!strcmp(name, "item_ring_of_fire") || !strcmp(name, "item_ring_of_lightning") || !strcmp(name, "item_ring_of_undead")) {
         ps->dk3Status |= !strcmp(name, "item_ring_of_fire") ? 16 : !strcmp(name, "item_ring_of_lightning") ? 32 : 64;
@@ -214,7 +129,11 @@ static void Taken(gentity_t *item, gentity_t *collector) {
     G_UseTargets(item, collector);
     if (!item->inuse) return;
     if (item->dk.expires) { G_FreeEntity(item); return; }
-    if (g_gametype.integer != GT_SINGLE_PLAYER) { item->think = Respawn; item->nextthink = level.time + 30000; }
+    if (g_gametype.integer != GT_SINGLE_PLAYER && strcmp(name, "item_savegem")) {
+        int delay = strstr(name, "_boost") || !strcmp(name, "item_goldensoul") ? 60000 :
+            !strcmp(name, "item_wraithorb") || !strcmp(name, "item_megashield") || !strcmp(name, "item_invincibility") ? 300000 : 30000;
+        item->think = Respawn; item->nextthink = level.time + delay;
+    }
     if (collector->client) {
         int weapon = DK_WeaponId(item->classname);
         trap_SendServerCommand(collector->s.number, va("print \"Picked up %s\n\"", weapon ? dk_weapons[weapon].label : item->classname));
@@ -227,12 +146,51 @@ static void ItemTouch(gentity_t *item, gentity_t *other, trace_t *trace) {
     if (Give(item, other)) Taken(item, other);
 }
 
+/* Match the supplied mesh for floor collision, so small ammunition does not
+   hang against a neighbouring ledge through an oversized generic hull. */
+static void ItemFloorBounds(gentity_t *item) {
+    md3Header_t header;
+    md3Frame_t frame;
+    fileHandle_t file;
+    char path[MAX_QPATH];
+    int length, offset, axis;
+    if (!item->model || Q_stricmp(COM_GetExtension(item->model), "dkm")) return;
+    Com_sprintf(path, sizeof(path), "%s.md3", item->model);
+    length = trap_FS_FOpenFile(path, &file, FS_READ);
+    if (length < sizeof(header)) { if (file) trap_FS_FCloseFile(file); return; }
+    trap_FS_Read(&header, sizeof(header), file);
+    offset = LittleLong(header.ofsFrames);
+    if (LittleLong(header.ident) == MD3_IDENT && LittleLong(header.numFrames) > 0 &&
+        offset >= sizeof(header) && offset <= length - (int)sizeof(frame)) {
+        trap_FS_Seek(file, offset, FS_SEEK_SET);
+        trap_FS_Read(&frame, sizeof(frame), file);
+        for (axis = 0; axis < 3; ++axis) {
+            float lower = LittleFloat(frame.bounds[0][axis]), upper = LittleFloat(frame.bounds[1][axis]);
+            if (Q_isnan(lower) || Q_isnan(upper) || lower < -256 || upper > 256 || lower > upper) break;
+        }
+        if (axis == 3) for (axis = 0; axis < 3; ++axis) {
+            item->r.mins[axis] = LittleFloat(frame.bounds[0][axis]);
+            item->r.maxs[axis] = LittleFloat(frame.bounds[1][axis]);
+        }
+    }
+    trap_FS_FCloseFile(file);
+}
+
+static void ItemGravity(gentity_t *item) {
+    item->physicsObject = qtrue;
+    item->physicsBounce = 0.2f;
+    item->clipmask = MASK_SOLID;
+    item->s.groundEntityNum = ENTITYNUM_NONE;
+    item->s.pos.trType = TR_GRAVITY;
+    item->s.pos.trTime = level.time;
+}
+
 qboolean DK_SpawnItem(gentity_t *item) {
     if (!strcmp(item->classname, "item_vitality_boost")) item->classname = "item_vita_boost";
     int weapon = DK_WeaponId(item->classname), i;
     qboolean supported = weapon != 0 || KeyIndex(item->classname) >= 0;
     const char *name = item->classname;
-    for (i = 0; i < ARRAY_LEN(ammunition); ++i) if (!strcmp(name, ammunition[i].classname)) supported = qtrue;
+    if (DK_AmmoWeapon(name)) supported = qtrue;
     for (i = 0; i < ARRAY_LEN(boosts); ++i) if (!strcmp(name, boosts[i])) supported = qtrue;
     if (!strncmp(name, "item_health_", 12) || strstr(name, "_armor") ||
         !strcmp(name, "item_megashield") || !strcmp(name, "item_antidote") || !strcmp(name, "item_invincibility") ||
@@ -247,6 +205,8 @@ qboolean DK_SpawnItem(gentity_t *item) {
     if (!item->model) item->model = DK_ItemModel(item->classname);
     if (item->model) item->s.modelindex = G_ModelIndex(item->model);
     G_SetOrigin(item, item->s.origin);
+    ItemFloorBounds(item);
+    ItemGravity(item);
     trap_LinkEntity(item);
     return qtrue;
 }
@@ -285,9 +245,9 @@ void DK_DeathSpawn(gentity_t *source) {
     trap_LinkEntity(spawn);
 }
 
-void DK_AwardExperience(gentity_t *player, int amount, qboolean sword) {
+void DK_AwardExperience(gentity_t *player, int amount, int swordAmount) {
     playerState_t *ps;
-    if (!player || amount <= 0) return;
+    if (!player || (amount <= 0 && swordAmount <= 0)) return;
     if (DK_IsCompanion(player)) {
         player->dk.experience += amount;
         while (player->dk.actorLevel < 25 && player->dk.experience >= DK_ExperienceThreshold(player->dk.actorLevel)) {
@@ -302,7 +262,7 @@ void DK_AwardExperience(gentity_t *player, int amount, qboolean sword) {
     if (!player->client) return;
     ps = &player->client->ps;
     ps->dk3Experience += amount;
-    if (sword) ps->dk3SwordExperience += amount;
+    if (swordAmount > 0) ps->dk3SwordExperience += swordAmount;
     while (ps->dk3Level < 25 && ps->dk3Experience >= DK_ExperienceThreshold(ps->dk3Level)) {
         ++ps->dk3Level;
         ++ps->dk3AttributePoints;
@@ -311,24 +271,14 @@ void DK_AwardExperience(gentity_t *player, int amount, qboolean sword) {
 }
 
 void DK_RestoreItem(gentity_t *ent) {
+    DK_RestoreWeaponItem(ent);
+    ItemFloorBounds(ent);
+    if ((ent->r.contents & CONTENTS_TRIGGER) && !ent->physicsObject) {
+        G_SetOrigin(ent, ent->r.currentOrigin);
+        ItemGravity(ent);
+    }
     ent->touch = ItemTouch;
     ent->think = ent->dk.expires ? G_FreeEntity : ent->nextthink > 0 ? Respawn : NULL;
-}
-
-void DK_DropInventory(gentity_t *player) {
-    int weapon = player->client->ps.weapon;
-    gentity_t *item;
-    DK_DropObjective(player);
-    if (g_gametype.integer == GT_SINGLE_PLAYER || weapon <= DK_W_NONE || weapon >= DK_W_FLASHLIGHT ||
-        !dk_weapons[weapon].ammoMax || player->client->ps.ammo[weapon] <= 0) return;
-    item = G_Spawn();
-    item->classname = G_NewString(dk_weapons[weapon].classname);
-    item->count = player->client->ps.ammo[weapon];
-    VectorCopy(player->r.currentOrigin, item->s.origin);
-    if (!DK_SpawnItem(item)) { G_FreeEntity(item); return; }
-    item->dk.expires = level.time + 30000;
-    item->think = G_FreeEntity;
-    item->nextthink = item->dk.expires;
 }
 
 float DK_CompanionItemValue(gentity_t *actor, gentity_t *item) {
@@ -337,14 +287,15 @@ float DK_CompanionItemValue(gentity_t *actor, gentity_t *item) {
     if (!item->inuse || item->s.eType != ET_DK3_ITEM || !(item->r.contents & CONTENTS_TRIGGER)) return 0;
     if ((item->spawnflags & 3) && !(item->spawnflags & (mikiko ? 2 : 1))) return 0;
     weapon = DK_WeaponId(item->classname);
-    if (weapon && weapon != DK_W_SWORD && weapon != DK_W_FLASHLIGHT && weapon != DK_W_GASHANDS) {
-        if (!((unsigned int)actor->dk.inventory & (1u << weapon))) return 300;
-        if (actor->dk.ammunition[weapon] < dk_weapons[weapon].ammoMax) return 60;
-    }
-    for (i = 0; i < ARRAY_LEN(ammunition); ++i)
-        if (!strcmp(item->classname, ammunition[i].classname) && actor->dk.ammunition[ammunition[i].weapon] < dk_weapons[ammunition[i].weapon].ammoMax) return 50;
+    if (weapon) return DK_CompanionWeaponValue(actor, weapon);
+    weapon = DK_AmmoWeapon(item->classname);
+    if (weapon && actor->dk.ammunition[weapon] < dk_weapons[weapon].ammoMax) return 50;
     if (!strncmp(item->classname, "item_health_", 12) && actor->health < actor->dk.maxHealth) return 400 - actor->health;
-    if (strstr(item->classname, "_armor") && actor->dk.armor < 100) return 100;
+    if (strstr(item->classname, "_armor")) {
+        int capacity, absorption;
+        ArmorInfo(item->classname, &capacity, &absorption);
+        if (actor->dk.armor < capacity || actor->dk.armorAbsorption < absorption) return 100;
+    }
     return 0;
 }
 
@@ -352,18 +303,17 @@ qboolean DK_CompanionPickup(gentity_t *actor, gentity_t *item) {
     int i, weapon, amount = item->count;
     if (!DK_CompanionItemValue(actor, item)) return qfalse;
     weapon = DK_WeaponId(item->classname);
-    if (weapon) AddWeapon(&actor->dk.inventory, actor->dk.ammunition, &actor->s.weapon, weapon,
+    if (weapon) DK_AddWeapon(&actor->dk.inventory, actor->dk.ammunition, &actor->s.weapon, weapon,
                           amount > 0 ? amount : dk_weapons[weapon].initialAmmo);
     else if (!strncmp(item->classname, "item_health_", 12)) {
         actor->health += amount > 0 ? amount : atoi(item->classname + 12);
         if (actor->health > actor->dk.maxHealth) actor->health = actor->dk.maxHealth;
-    } else if (strstr(item->classname, "_armor")) actor->dk.armor = amount > 0 ? amount : 100;
-    else for (i = 0; i < ARRAY_LEN(ammunition); ++i) if (!strcmp(item->classname, ammunition[i].classname)) {
-        weapon = ammunition[i].weapon;
-        actor->dk.ammunition[weapon] += amount > 0 ? amount : dk_weapons[weapon].initialAmmo;
-        if (actor->dk.ammunition[weapon] > dk_weapons[weapon].ammoMax) actor->dk.ammunition[weapon] = dk_weapons[weapon].ammoMax;
-        break;
+    } else if (strstr(item->classname, "_armor")) {
+        int capacity;
+        ArmorInfo(item->classname, &capacity, &actor->dk.armorAbsorption);
+        actor->dk.armor = amount > 0 ? amount : capacity;
     }
+    else { weapon = DK_AmmoWeapon(item->classname); if (weapon) DK_AddAmmunition(actor->dk.ammunition, weapon, amount); }
     Taken(item, actor);
     return qtrue;
 }

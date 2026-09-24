@@ -4,6 +4,15 @@
 #include <limits.h>
 
 const dkSaveMember_t dk_entityMembers[] = {
+    {"dk_monsterattack", DK_SAVE_INT, offsetof(gentity_t, dk.monsterAttack), 1, qfalse},
+    {"dk_moveraccel", DK_SAVE_INT, offsetof(gentity_t, dk.moverAccel), 1, qfalse},
+    {"dk_moverbounce", DK_SAVE_INT, offsetof(gentity_t, dk.moverBounce), 1, qfalse},
+    {"dk_moverdust", DK_SAVE_INT, offsetof(gentity_t, dk.moverDust), 1, qfalse},
+    {"dk_moverquake", DK_SAVE_INT, offsetof(gentity_t, dk.moverQuake), 1, qfalse},
+    {"dk_movermass", DK_SAVE_FLOAT, offsetof(gentity_t, dk.moverMass), 1, qfalse},
+
+    {"dk_combathitbits", DK_SAVE_INT, offsetof(gentity_t, dk.combatHitBits), MAX_GENTITIES / 32, qfalse},
+    {"dk_lightstyle", DK_SAVE_INT, offsetof(gentity_t, dk.lightStyle), 1, qfalse},
     {"s_number", DK_SAVE_INT, offsetof(gentity_t, s.number), 1, qfalse},
     {"neverfree", DK_SAVE_INT, offsetof(gentity_t, neverFree), 1, qfalse},
     {"soundpos1", DK_SAVE_INT, offsetof(gentity_t, soundPos1), 1, qfalse},
@@ -151,6 +160,7 @@ const dkSaveMember_t dk_entityMembers[] = {
     {"dk_rotationdelta", DK_SAVE_FLOAT, offsetof(gentity_t, dk.rotationDelta), 3, qfalse},
     {"dk_rotationrate", DK_SAVE_FLOAT, offsetof(gentity_t, dk.rotationRate), 3, qfalse},
     {"dk_secretend", DK_SAVE_FLOAT, offsetof(gentity_t, dk.secretEnd), 3, qfalse},
+    {"dk_groundedflight", DK_SAVE_INT, offsetof(gentity_t, dk.groundedFlight), 1, qfalse},
     {"dk_actorkind", DK_SAVE_INT, offsetof(gentity_t, dk.actorKind), 1, qfalse},
     {"dk_action", DK_SAVE_INT, offsetof(gentity_t, dk.action), 1, qfalse},
     {"dk_actiontime", DK_SAVE_INT, offsetof(gentity_t, dk.actionTime), 1, qtrue},
@@ -160,6 +170,7 @@ const dkSaveMember_t dk_entityMembers[] = {
     {"dk_animationtime", DK_SAVE_INT, offsetof(gentity_t, dk.animationTime), 1, qtrue},
     {"dk_inventory", DK_SAVE_INT, offsetof(gentity_t, dk.inventory), 1, qfalse},
     {"dk_ammunition", DK_SAVE_INT, offsetof(gentity_t, dk.ammunition), 32, qfalse},
+    {"dk_armorabsorption", DK_SAVE_INT, offsetof(gentity_t, dk.armorAbsorption), 1, qfalse},
     {"dk_armor", DK_SAVE_INT, offsetof(gentity_t, dk.armor), 1, qfalse},
     {"dk_attributes", DK_SAVE_INT, offsetof(gentity_t, dk.attributes), 5, qfalse},
     {"dk_actorlevel", DK_SAVE_INT, offsetof(gentity_t, dk.actorLevel), 1, qfalse},
@@ -213,7 +224,11 @@ const dkSaveMember_t dk_entityMembers[] = {
     {"dk_yawspeed", DK_SAVE_FLOAT, offsetof(gentity_t, dk.yawSpeed), 1, qfalse},
     {"dk_sightrange", DK_SAVE_FLOAT, offsetof(gentity_t, dk.sightRange), 1, qfalse},
     {"dk_attackrange", DK_SAVE_FLOAT, offsetof(gentity_t, dk.attackRange), 1, qfalse},
-    {"dk_fireinterval", DK_SAVE_INT, offsetof(gentity_t, dk.fireInterval), 1, qfalse},
+    {"dk_speakrange", DK_SAVE_FLOAT, offsetof(gentity_t, dk.speakRange), 1, qfalse, qtrue},
+    {"dk_evadeuntil", DK_SAVE_INT, offsetof(gentity_t, dk.evadeUntil), 1, qtrue, qtrue},
+    {"dk_covertime", DK_SAVE_INT, offsetof(gentity_t, dk.coverTime), 1, qtrue, qtrue},
+    {"dk_evadekind", DK_SAVE_INT, offsetof(gentity_t, dk.evadeKind), 1, qfalse, qtrue},
+    {"dk_evadegoal", DK_SAVE_FLOAT, offsetof(gentity_t, dk.evadeGoal), 3, qfalse, qtrue},    {"dk_fireinterval", DK_SAVE_INT, offsetof(gentity_t, dk.fireInterval), 1, qfalse},
     {"dk_attackdamage", DK_SAVE_INT, offsetof(gentity_t, dk.attackDamage), 1, qfalse},
     {"dk_attackrandomdamage", DK_SAVE_INT, offsetof(gentity_t, dk.attackRandomDamage), 1, qfalse},
     {"dk_savedwalkspeed", DK_SAVE_FLOAT, offsetof(gentity_t, dk.savedWalkSpeed), 1, qfalse},
@@ -227,6 +242,23 @@ const dkSaveMember_t dk_entityMembers[] = {
     {"dk_eventcursor", DK_SAVE_INT, offsetof(gentity_t, dk.eventCursor), 1, qfalse},
     {"dk_ownerid", DK_SAVE_INT, offsetof(gentity_t, dk.ownerId), 1, qfalse},
     {"dk_expires", DK_SAVE_INT, offsetof(gentity_t, dk.expires), 1, qtrue},
+    {"dk_combatstate", DK_SAVE_INT, offsetof(gentity_t, dk.combatState), 1, qfalse},
+    {"dk_combatcount", DK_SAVE_INT, offsetof(gentity_t, dk.combatCount), 1, qfalse},
+    {"dk_combatnext", DK_SAVE_INT, offsetof(gentity_t, dk.combatNext), 1, qtrue},
+    {"dk_combatend", DK_SAVE_INT, offsetof(gentity_t, dk.combatEnd), 1, qtrue},
+    {"dk_poisonend", DK_SAVE_INT, offsetof(gentity_t, dk.poisonEnd), 1, qtrue},
+    {"dk_poisonnext", DK_SAVE_INT, offsetof(gentity_t, dk.poisonNext), 1, qtrue},
+    {"dk_poisoninterval", DK_SAVE_INT, offsetof(gentity_t, dk.poisonInterval), 1, qfalse},
+    {"dk_burnend", DK_SAVE_INT, offsetof(gentity_t, dk.burnEnd), 1, qtrue},
+    {"dk_burnnext", DK_SAVE_INT, offsetof(gentity_t, dk.burnNext), 1, qtrue},
+    {"dk_freezenext", DK_SAVE_INT, offsetof(gentity_t, dk.freezeNext), 1, qtrue},
+    {"dk_freezestart", DK_SAVE_INT, offsetof(gentity_t, dk.freezeStart), 1, qtrue},
+    {"dk_healinguser", DK_SAVE_INT, offsetof(gentity_t, dk.healingUser), 1, qfalse},
+    {"dk_poisondamage", DK_SAVE_FLOAT, offsetof(gentity_t, dk.poisonDamage), 1, qfalse},
+    {"dk_poisonfraction", DK_SAVE_FLOAT, offsetof(gentity_t, dk.poisonFraction), 1, qfalse},
+    {"dk_freezelevel", DK_SAVE_FLOAT, offsetof(gentity_t, dk.freezeLevel), 1, qfalse},
+    {"dk_combattargets", DK_SAVE_INT, offsetof(gentity_t, dk.combatTargets), 32, qfalse},
+    {"dk_launchorigin", DK_SAVE_FLOAT, offsetof(gentity_t, dk.launchOrigin), 3, qfalse},
     {"dk_projectile", DK_SAVE_INT, offsetof(gentity_t, dk.projectile), 1, qfalse},
     {"dk_status", DK_SAVE_INT, offsetof(gentity_t, dk.status), 1, qfalse},
     {"dk_statusexpires", DK_SAVE_INT, offsetof(gentity_t, dk.statusExpires), 1, qtrue},
@@ -270,11 +302,17 @@ const dkSaveMember_t dk_playerMembers[] = {
     {"dk3reverb", DK_SAVE_FLOAT, offsetof(playerState_t, dk3Reverb), 1, qfalse},
     {"dk3soundgain", DK_SAVE_FLOAT, offsetof(playerState_t, dk3SoundGain), 1, qfalse},
     {"dk3keys", DK_SAVE_INT, offsetof(playerState_t, dk3Keys), 1, qfalse},
+    {"dk3psyend", DK_SAVE_INT, offsetof(playerState_t, dk3PsyEnd), 1, qtrue},
+    {"dk3freezelevel", DK_SAVE_FLOAT, offsetof(playerState_t, dk3FreezeLevel), 1, qfalse},
     {"dk3status", DK_SAVE_INT, offsetof(playerState_t, dk3Status), 1, qfalse},
     {"dk3savegems", DK_SAVE_INT, offsetof(playerState_t, dk3SaveGems), 1, qfalse},
     {"dk3attributepoints", DK_SAVE_INT, offsetof(playerState_t, dk3AttributePoints), 1, qfalse},
     {"dk3attackheld", DK_SAVE_INT, offsetof(playerState_t, dk3AttackHeld), 1, qfalse},
     {"dk3burst", DK_SAVE_INT, offsetof(playerState_t, dk3Burst), 1, qfalse},
+    {"dk3armorabsorption", DK_SAVE_INT, offsetof(playerState_t, dk3ArmorAbsorption), 1, qfalse},
+    {"dk3glockclip", DK_SAVE_INT, offsetof(playerState_t, dk3GlockClip), 1, qfalse},
+    {"dk3weaponsequence", DK_SAVE_INT, offsetof(playerState_t, dk3WeaponSequence), 1, qfalse},
+    {"dk3novaspent", DK_SAVE_INT, offsetof(playerState_t, dk3NovaSpent), 1, qfalse},
     {"dk3charge", DK_SAVE_INT, offsetof(playerState_t, dk3Charge), 1, qfalse},
     {"dk3cameraactive", DK_SAVE_INT, offsetof(playerState_t, dk3CameraActive), 1, qfalse},
     {"origin", DK_SAVE_FLOAT, offsetof(playerState_t, origin), 3, qfalse},
@@ -361,7 +399,7 @@ qboolean DK_ReadObject(dkSaveReader_t *reader, void *object, const dkSaveMember_
         }
     }
     if (*reader->error) return qfalse;
-    for (i = 0; i < count; ++i) if (!seen[i]) {
+    for (i = 0; i < count; ++i) if (!seen[i] && !members[i].optional) {
         Com_sprintf(reader->error, sizeof(reader->error), "missing object field %s", members[i].name); return qfalse;
     }
     return qtrue;

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Daikatana map semantics on ioquake3's trajectory and transactional pusher. */
 #include "g_local.h"
+#include "dk_effects.h"
 
 void InitMover(gentity_t *ent);
 static void BinaryUse(gentity_t *, gentity_t *, gentity_t *);
@@ -33,6 +34,13 @@ static void Stop(gentity_t *ent) {
     trap_LinkEntity(ent);
 }
 
+static void MovementSound(gentity_t *ent, int sound) {
+    qboolean loop = !strcmp(ent->classname, "func_plat") ||
+        (ent->spawnflags & (ent->dk.moverAngular ? 2048 : 128));
+    ent->s.loopSound = loop ? sound : 0;
+    if (sound && !loop) G_AddEvent(ent, EV_GENERAL_SOUND, sound);
+}
+
 static void BinaryMove(gentity_t *ent, qboolean open, qboolean delayed) {
     gentity_t *part;
     int longest = 1;
@@ -52,20 +60,44 @@ static void BinaryMove(gentity_t *ent, qboolean open, qboolean delayed) {
         VectorScale(motion->trDelta, 1000.0f / longest, motion->trDelta);
         /* Native stop trajectories hold their base until trTime. Each door
            part retains its authored delay through snapshots and saves. */
-        motion->trTime = level.time + delay; motion->trDuration = longest; motion->trType = TR_LINEAR_STOP;
+        motion->trTime = level.time + delay; motion->trDuration = longest;
+        motion->trType = part->dk.moverBounce ? TR_DK_BOUNCE_STOP : part->dk.moverAccel ? TR_DK_ACCEL_STOP : TR_LINEAR_STOP;
         part->dk.actionTime = delay ? motion->trTime : 0;
         part->moverState = open ? MOVER_1TO2 : MOVER_2TO1;
         part->nextthink = 0;
         if (!delay && (open ? part->sound1to2 : part->sound2to1))
-            G_AddEvent(part, EV_GENERAL_SOUND, open ? part->sound1to2 : part->sound2to1);
+            MovementSound(part, open ? part->sound1to2 : part->sound2to1);
     }
 }
 
 static void BinaryReturn(gentity_t *ent) { BinaryMove(ent, ent->moverState == MOVER_POS1, qfalse); }
 
+static void StopEffects(gentity_t *ent) {
+    int i;
+    for (i = 0; i < 2; ++i) {
+        gentity_t *effect;
+        vec3_t origin;
+        if (!(i ? ent->dk.moverQuake : ent->dk.moverDust)) continue;
+        effect = G_Spawn(); effect->classname = "dk3_mover_effect";
+        effect->s.eType = ET_DK3_EFFECT;
+        effect->s.dk3Effect = i ? DK_FX_QUAKE : DK_FX_PARTICLES;
+        effect->s.dk3EffectFlags = DK_FX_ENABLED | (i ? 0 : DK_FX_SMOKE);
+        effect->s.dk3EffectStart = level.time; effect->s.dk3EffectDuration = 1000;
+        effect->s.dk3EffectRadius = i ? ent->dk.moverMass * 100 : 4;
+        effect->s.dk3EffectSpeed = i ? 400 : 40; effect->s.dk3EffectRate = ent->dk.moverMass * 100 / 35;
+        effect->s.dk3EffectSpread = 180; effect->s.dk3Alpha = 0.5f;
+        VectorSet(effect->s.dk3EffectColor, 0.45f, 0.4f, 0.35f);
+        VectorAdd(ent->r.absmin, ent->r.absmax, origin); VectorScale(origin, 0.5f, origin);
+        G_SetOrigin(effect, origin); VectorMA(origin, 64, axisDefault[2], effect->s.dk3EffectEnd);
+        effect->think = G_FreeEntity; effect->nextthink = level.time + 1000;
+        trap_LinkEntity(effect);
+    }
+}
+
 static void BinaryReached(gentity_t *ent) {
     qboolean opened = ent->moverState == MOVER_1TO2;
     Stop(ent);
+    StopEffects(ent);
     ent->dk.actionTime = 0;
     ent->moverState = opened ? MOVER_POS2 : MOVER_POS1;
     if (!opened && ent->dk.maxHealth > 0) { ent->health = ent->dk.maxHealth; ent->takedamage = qtrue; }
@@ -309,6 +341,12 @@ qboolean DK_SpawnMover(gentity_t *ent) {
     G_SpawnInt("dmg", "2", &ent->damage);
     G_SpawnInt("damage", va("%d", ent->damage), &ent->damage);
     G_SpawnInt("forcemove", "0", &ent->dk.forceMove);
+    G_SpawnInt("boing", "0", &ent->dk.moverBounce);
+    G_SpawnInt("accelerate", "0", &ent->dk.moverAccel);
+    G_SpawnInt("dust", "0", &ent->dk.moverDust);
+    G_SpawnInt("spawnquake", "0", &ent->dk.moverQuake);
+    G_SpawnFloat("mass", "1", &ent->dk.moverMass);
+    ent->dk.moverMass = Com_Clamp(0.1f, 100, ent->dk.moverMass);
     if ((!rotate && (ent->spawnflags & 512)) || (!strcmp(name, "func_train") && (ent->spawnflags & 64))) ent->dk.forceMove = 1;
     if (ent->model) trap_SetBrushModel(ent, ent->model);
     VectorCopy(ent->s.origin, position); VectorCopy(position, ent->pos1); VectorCopy(position, ent->pos2);
@@ -396,7 +434,7 @@ void DK_RunMovers(void) {
         if (ent->inuse && ent->dk.moverKind == 1 && ent->dk.actionTime && ent->dk.actionTime <= level.time) {
             int sound = ent->moverState == MOVER_1TO2 ? ent->sound1to2 : ent->sound2to1;
             ent->dk.actionTime = 0;
-            if (sound) G_AddEvent(ent, EV_GENERAL_SOUND, sound);
+            MovementSound(ent, sound);
         }
         if (!ent->inuse || ent->dk.moverKind != 1 || (ent->flags & FL_TEAMMEMBER) ||
             ent->moverState == MOVER_1TO2 || ent->dk.key || ent->health > 0 ||

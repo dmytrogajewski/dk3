@@ -34,13 +34,19 @@ static sprite_t *Load(const char *name) {
 
 qboolean DK_DrawSpriteAt(const char *name, int index, const vec3_t origin, const vec3_t angles,
                          float scale, float alpha, const vec3_t color, int flags) {
+    return DK_DrawSpriteScaled(name, index, origin, angles, scale, scale, alpha, color, flags);
+}
+
+qboolean DK_DrawSpriteScaled(const char *name, int index, const vec3_t origin, const vec3_t angles,
+                             float width, float height, float alpha, const vec3_t color, int flags) {
     sprite_t *sprite;
     spriteFrame_t *frame;
     polyVert_t vertices[4];
     vec3_t right, up, axes[3];
-    if (scale <= 0) scale = 1;
     const float uv[4][2] = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
     int i;
+    if (width <= 0) width = 1;
+    if (height <= 0) height = 1;
     if (Q_stricmp(COM_GetExtension(name), "sp2")) return qfalse;
     sprite = Load(name);
     if (flags & DK_SPRITE_CLAMP) index = (int)Com_Clamp(0, sprite->count - 1, index);
@@ -50,8 +56,8 @@ qboolean DK_DrawSpriteAt(const char *name, int index, const vec3_t origin, const
     VectorScale(axes[1], -1, right); VectorCopy(axes[2], up);
     memset(vertices, 0, sizeof(vertices));
     for (i = 0; i < 4; ++i) {
-        float horizontal = (uv[i][0] * frame->width - frame->x) * scale;
-        float vertical = ((1 - uv[i][1]) * frame->height - frame->y) * scale;
+        float horizontal = (uv[i][0] * frame->width - frame->x) * width;
+        float vertical = ((1 - uv[i][1]) * frame->height - frame->y) * height;
         VectorMA(origin, horizontal, right, vertices[i].xyz);
         VectorMA(vertices[i].xyz, vertical, up, vertices[i].xyz);
         vertices[i].st[0] = uv[i][0]; vertices[i].st[1] = uv[i][1];

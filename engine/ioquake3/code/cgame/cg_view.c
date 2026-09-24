@@ -864,6 +864,7 @@ void CG_DrawActiveFrame( int serverTime, stereoFrame_t stereoView, qboolean demo
 	// update audio positions
 #ifdef DK3_GAME
     trap_S_Environment(cg.snap->ps.dk3SoundEnvironment, cg.snap->ps.dk3Reverb, cg.snap->ps.dk3SoundGain);
+    DK_SubmitWorldFog();
 #endif
 	trap_S_Respatialize( cg.snap->ps.clientNum, cg.refdef.vieworg, cg.refdef.viewaxis, inwater );
 

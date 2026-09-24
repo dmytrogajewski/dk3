@@ -28,11 +28,21 @@ static void StartParticles(gentity_t *entity, qboolean enabled) {
     entity->dk.expires = enabled && entity->dk.effectStopTime ? level.time + entity->dk.effectStopTime : 0;
 }
 
+static void LightStyle(gentity_t *entity, int value) {
+    char styles[257];
+    if (entity->dk.lightStyle < 32 || entity->dk.lightStyle >= 256) return;
+    trap_GetConfigstring(CS_DK3_LIGHTSTYLES, styles, sizeof(styles));
+    if (strlen(styles) != 256) { memset(styles, '*', 256); styles[256] = 0; }
+    styles[entity->dk.lightStyle] = 'a' + (int)Com_Clamp(0, 25, value);
+    trap_SetConfigstring(CS_DK3_LIGHTSTYLES, styles);
+}
+
 static void EffectUse(gentity_t *entity, gentity_t *other, gentity_t *activator) {
     (void)other;
     entity->s.dk3EffectFlags ^= DK_FX_ENABLED;
     entity->s.dk3EffectStart = level.time;
     entity->activator = activator;
+    if (entity->s.dk3Effect == DK_FX_LIGHT) LightStyle(entity, entity->s.dk3EffectFlags & DK_FX_ENABLED ? 12 : 0);
     if (entity->s.dk3Effect == DK_FX_PARTICLES) {
         StartParticles(entity, !(entity->spawnflags & 2048) || !entity->dk.effectActive);
     } else if (entity->s.dk3Effect == DK_FX_BEAM && (entity->s.dk3EffectFlags & DK_FX_LIGHTNING)) {
@@ -186,11 +196,40 @@ void DK_WorldDebris(gentity_t *entity, int material) {
     burst->s.dk3EffectFlags = DK_FX_ENABLED;
     burst->s.dk3EffectStart = level.time;
     burst->s.dk3EffectDuration = material;
+    /* Small robotic actors must not shed full-sized scenery chunks. */
+    if (entity->dk.actorKind)
+        burst->s.dk3Scale = Com_Clamp(0.2f, 1, (entity->r.maxs[0] - entity->r.mins[0]) / 128.0f);
     burst->s.dk3EffectRate = entity->count > 0 ? Com_Clamp(1, 64, entity->count) : 12;
     burst->s.dk3EffectSpeed = entity->speed > 0 ? entity->speed : 180;
     VectorSubtract(entity->r.maxs, entity->r.mins, burst->s.dk3EffectMaxs);
     G_SetOrigin(burst, center);
     burst->think = G_FreeEntity; burst->nextthink = level.time + 500;
+    trap_LinkEntity(burst);
+}
+
+/* AI_StartGibFest: the client throws both AI_GibFest volleys and the blood cloud
+   from what the original read off the victim at the moment it burst. */
+void DK_ActorGib(gentity_t *actor, gentity_t *attacker, const vec3_t mins, const vec3_t maxs,
+                 int fragtype, float mass, int damage) {
+    gentity_t *burst = G_Spawn();
+    burst->classname = "dk3_gib_burst";
+    burst->s.eType = ET_DK3_EFFECT;
+    burst->s.dk3Effect = DK_FX_GIB;
+    burst->s.dk3EffectFlags = DK_FX_ENABLED;
+    burst->s.dk3EffectStart = level.time;
+    burst->s.dk3EffectDuration = fragtype;
+    burst->s.dk3EffectRate = Com_Clamp(1, 500, mass);
+    burst->s.dk3EffectSpeed = Com_Clamp(0, 100, damage);
+    VectorCopy(mins, burst->s.dk3EffectMins);
+    VectorCopy(maxs, burst->s.dk3EffectMaxs);
+    if (attacker && attacker != actor)
+        VectorSubtract(attacker->r.currentOrigin, actor->r.currentOrigin, burst->s.dk3EffectEnd);
+    VectorNormalize(burst->s.dk3EffectEnd);
+    VectorCopy(actor->s.pos.trDelta, burst->s.dk3EffectGravity);
+    burst->s.modelindex2 = actor->s.modelindex;
+    burst->s.dk3SoundVolume = 0.75f; burst->s.dk3SoundMin = 300; burst->s.dk3SoundMax = 800;
+    G_SetOrigin(burst, actor->r.currentOrigin);
+    burst->think = G_FreeEntity; burst->nextthink = level.time + 1000;
     trap_LinkEntity(burst);
 }
 
@@ -243,6 +282,7 @@ static void RampThink(gentity_t *entity) {
         if (light->s.eType != ET_DK3_EFFECT) continue;
         light->s.dk3EffectFlags |= DK_FX_ENABLED;
         light->s.dk3Alpha = (start + fraction * (finish - start)) / 25.0f;
+        LightStyle(light, start + fraction * (finish - start));
     }
     if (fraction < 1) entity->nextthink = level.time + 100;
     else if (entity->spawnflags & 1) entity->dk.action ^= 1;
@@ -252,6 +292,36 @@ static void RampUse(gentity_t *entity, gentity_t *other, gentity_t *activator) {
     (void)other; (void)activator;
     entity->s.dk3EffectStart = level.time;
     entity->nextthink = level.time + FRAMETIME;
+}
+
+static void RainParameters(gentity_t *entity) {
+    float area = (entity->s.dk3EffectMaxs[0] - entity->s.dk3EffectMins[0]) *
+                 (entity->s.dk3EffectMaxs[1] - entity->s.dk3EffectMins[1]);
+    float height = entity->s.dk3EffectMaxs[2] - entity->s.dk3EffectMins[2];
+    if (entity->s.dk3Effect == DK_FX_SNOW) {
+        /* One flake per 4096 square units, falling 50-60 units/s; spawnflag 1
+           keeps flakes straight, otherwise each drifts up to 20 units/s. */
+        entity->s.dk3EffectSpeed = 50;
+        entity->s.dk3EffectRate = Com_Clamp(0, 2000, floor(area / 4096) * 55 / (height > 1 ? height : 1));
+        entity->s.dk3EffectSpread = entity->spawnflags & 1 ? 0 : 20;
+        entity->s.dk3Alpha = 1;
+        VectorClear(entity->s.dk3EffectGravity);
+        VectorSet(entity->s.dk3EffectColor, 1, 1, 1);
+        VectorClear(entity->s.dk3EffectEnd);
+        return;
+    }
+    if (entity->s.dk3Effect != DK_FX_RAIN) return;
+    entity->s.dk3EffectSpeed = 400;
+    /* Keep an area-based population with a simulation-time emission rate. */
+    entity->s.dk3EffectRate = Com_Clamp(1, 2000, area * 0.01f * 400 / (height > 1 ? height : 1));
+    entity->s.dk3Alpha = 0.4f;
+    VectorClear(entity->s.dk3EffectGravity);
+    VectorSet(entity->s.dk3EffectColor, 1, 1, 1);
+    VectorClear(entity->s.dk3EffectEnd);
+    if (entity->spawnflags & 1) entity->s.dk3EffectEnd[1] = 300;
+    else if (entity->spawnflags & 2) entity->s.dk3EffectEnd[1] = -300;
+    else if (entity->spawnflags & 4) entity->s.dk3EffectEnd[0] = 300;
+    else if (entity->spawnflags & 8) entity->s.dk3EffectEnd[0] = -300;
 }
 
 qboolean DK_SpawnWorldEffect(gentity_t *entity) {
@@ -287,7 +357,11 @@ qboolean DK_SpawnWorldEffect(gentity_t *entity) {
     }
     if (!strcmp(name, "effect_rain")) kind = DK_FX_RAIN;
     else if (!strcmp(name, "effect_snow")) kind = DK_FX_SNOW;
-    else if (!strcmp(name, "effect_drip")) kind = DK_FX_DRIP;
+    else if (!strcmp(name, "effect_drip")) {
+        /* Gold withdrew effect_drip from the exported spawn functions. */
+        G_FreeEntity(entity);
+        return qtrue;
+    }
     else if (!strcmp(name, "sfx_complex_particle") || !strcmp(name, "target_splash") || !strcmp(name, "target_effect")) kind = DK_FX_PARTICLES;
     else if (!strcmp(name, "monster_firefly")) kind = DK_FX_FIREFLIES;
     else if (!strcmp(name, "light_flame") || !strcmp(name, "light_e1") || !strcmp(name, "light_e2") || !strcmp(name, "light_e3") || !strcmp(name, "light_e4")) kind = DK_FX_FLAME;
@@ -316,13 +390,25 @@ qboolean DK_SpawnWorldEffect(gentity_t *entity) {
         if (!entity->model) G_Error("dk3: weather entity %u has no volume", entity->dk.id);
         trap_SetBrushModel(entity, entity->model); entity->r.contents = 0;
         trap_LinkEntity(entity);
-        VectorCopy(entity->r.absmin, entity->s.dk3EffectMins); VectorCopy(entity->r.absmax, entity->s.dk3EffectMaxs);
-        entity->s.dk3EffectMins[2] = entity->s.dk3EffectMaxs[2] - Value("height", va("%f", entity->r.maxs[2] - entity->r.mins[2]), 1, 65536);
+        /* Collision submodel bounds are spread by one unit and linked bounds by
+           another; the authored floor must meet the ground or liquid surface. */
+        for (axis = 0; axis < 3; ++axis) {
+            entity->s.dk3EffectMins[axis] = entity->r.currentOrigin[axis] + entity->r.mins[axis] + 1;
+            entity->s.dk3EffectMaxs[axis] = entity->r.currentOrigin[axis] + entity->r.maxs[axis] - 1;
+        }
+        entity->s.dk3EffectMins[2] = entity->s.dk3EffectMaxs[2] - Value("height",
+            va("%f", entity->s.dk3EffectMaxs[2] - entity->s.dk3EffectMins[2]), 1, 65536);
+        /* The authored brush is a thin sheet near the sky, often in clusters the
+           viewer cannot see. Link the fall volume so PVS follows the weather. */
+        VectorSubtract(entity->s.dk3EffectMins, entity->r.currentOrigin, entity->r.mins);
+        VectorSubtract(entity->s.dk3EffectMaxs, entity->r.currentOrigin, entity->r.maxs);
+        trap_LinkEntity(entity);
         entity->s.dk3EffectRate = kind == DK_FX_DRIP ? 3 : kind == DK_FX_SNOW ? 32 : 100;
         entity->s.dk3EffectSpeed = kind == DK_FX_SNOW ? 75 : 700;
         if (kind == DK_FX_RAIN) entity->s.dk3EffectFlags |= DK_FX_STREAK;
         entity->s.dk3EffectEnd[0] = (entity->spawnflags & 1 ? 100 : 0) - (entity->spawnflags & 2 ? 100 : 0);
         entity->s.dk3EffectEnd[1] = (entity->spawnflags & 4 ? 100 : 0) - (entity->spawnflags & 8 ? 100 : 0);
+        RainParameters(entity);
         entity->nextthink = 0;
     } else if (kind == DK_FX_PARTICLES) {
         float fade = Value("delta_alpha", "0.75", 0.01f, 100);
@@ -365,6 +451,8 @@ qboolean DK_SpawnWorldEffect(gentity_t *entity) {
     } else if (kind == DK_FX_FLAME || kind == DK_FX_FLARE || kind == DK_FX_LIGHT) {
         entity->s.dk3EffectRadius = Value("light", "180", 0, 4096);
         if (kind != DK_FX_FLAME && (entity->spawnflags & 1)) entity->s.dk3EffectFlags &= ~DK_FX_ENABLED;
+        G_SpawnInt("style", "0", &entity->dk.lightStyle);
+        LightStyle(entity, entity->s.dk3EffectFlags & DK_FX_ENABLED ? 12 : 0);
         if (!strcmp(name, "light_strobe")) entity->s.dk3EffectFlags |= DK_FX_STROBE;
         if (kind == DK_FX_FLAME) {
             entity->model = G_NewString(!strcmp(name, "light_e3") ? "models/global/e3_firea.sp2" :
@@ -372,6 +460,15 @@ qboolean DK_SpawnWorldEffect(gentity_t *entity) {
             entity->s.dk3RenderFlags |= 1 | 2;
             if (Text("sound")) entity->s.loopSound = DK_SoundIndex(Text("sound"));
         } else if (!entity->model) entity->model = G_NewString("models/global/e_flare2.sp2");
+        if (kind == DK_FX_FLARE) {
+            /* Per-axis sprite width and height scale; an omitted or zero axis is 1. */
+            char *cursor;
+            G_SpawnString("scale", "", &cursor);
+            for (axis = 0; axis < 3; ++axis) {
+                float scale = atof(COM_Parse(&cursor));
+                entity->s.dk3EffectEnd[axis] = scale > 0 && scale <= 100 ? scale : 1;
+            }
+        }
         entity->s.modelindex = G_ModelIndex(entity->model); entity->nextthink = 0;
     } else if (kind == DK_FX_BEAM) {
         entity->think = BeamThink;
@@ -400,8 +497,10 @@ qboolean DK_SpawnWorldEffect(gentity_t *entity) {
 }
 
 void DK_RestoreWorldEffect(gentity_t *entity) {
+    RainParameters(entity);
     if (entity->dk.decorKind == -2) { entity->use = Destroy; entity->die = DestroyDie; return; }
     if (!strcmp(entity->classname, "dk3_debris_burst")) { entity->think = G_FreeEntity; return; }
+    if (!strcmp(entity->classname, "dk3_mover_effect")) { entity->think = G_FreeEntity; entity->nextthink = entity->s.dk3EffectStart + entity->s.dk3EffectDuration; return; }
     if (!strcmp(entity->classname, "target_lightramp")) { entity->use = RampUse; entity->think = RampThink; return; }
     if (!strcmp(entity->classname, "func_gib")) { entity->use = GibUse; entity->think = GibThink; return; }
     entity->use = EffectUse; entity->think = (entity->s.dk3Effect == DK_FX_BEAM || entity->s.dk3Effect == DK_FX_SPOTLIGHT) ? BeamThink : EffectThink;
@@ -427,6 +526,8 @@ qboolean DK_ValidateWorldEffect(gentity_t *entity) {
         entity->dk.effectGroundChance < 0 || entity->dk.effectGroundChance > 1) return qfalse;
     if (state->eType != ET_DK3_EFFECT) {
         if (!state->dk3Effect) return qtrue;
+        if (state->eType == ET_DK3_MISSILE && entity->dk.projectile && state->dk3Effect >= DK_FX_WEAPON_RING) return qtrue;
+        if (state->eType == ET_GENERAL && entity->dk.decorKind && state->dk3Effect == DK_FX_PARTICLES) return qtrue;
         if (state->eType != ET_GENERAL || !entity->dk.actorKind ||
             strcmp(entity->classname, "monster_cambot") || state->dk3Effect != DK_FX_SPOTLIGHT) return qfalse;
     }

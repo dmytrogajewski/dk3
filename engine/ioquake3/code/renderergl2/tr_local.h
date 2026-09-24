@@ -710,6 +710,9 @@ typedef enum
 
 	UNIFORM_GREYSCALE,
 
+	UNIFORM_DK3FOGCOLOR,
+	UNIFORM_DK3FOGRANGE,
+
 	UNIFORM_COUNT
 } uniform_t;
 
@@ -777,6 +780,10 @@ typedef struct {
 
 	float       autoExposureMinMax[2];
 	float       toneMinAvgMaxLinear[3];
+
+	qboolean	dk3Fog;
+	vec3_t		dk3FogColor;
+	float		dk3FogStart, dk3FogEnd, dk3FogSkyEnd;
 } trRefdef_t;
 
 
@@ -1489,6 +1496,7 @@ typedef struct {
 	qboolean	skyRenderedThisView;	// flag for drawing sun
 
 	qboolean	projection2D;	// if qtrue, drawstretchpic doesn't need to change modes
+	qboolean	dk3FogSky;
 	byte		color2D[4];
 	qboolean	vertexes2D;		// shader needs to be finished
 	trRefEntity_t	entity2D;	// currentEntity will point at this when doing 2D rendering
@@ -1714,6 +1722,7 @@ extern cvar_t	*r_lodbias;				// push/pull LOD transitions
 extern cvar_t	*r_lodscale;
 
 extern cvar_t	*r_inGameVideo;				// controls whether in game video should be draw
+extern cvar_t	*r_dk3Fog;
 extern cvar_t	*r_fastsky;				// controls whether sky should be cleared or drawn
 extern cvar_t	*r_drawSun;				// controls drawing of sun quad
 extern cvar_t	*r_dynamiclight;		// dynamic lights enabled/disabled
@@ -2096,6 +2105,7 @@ void RB_CheckOverflow( int verts, int indexes );
 
 void R_DrawElements( int numIndexes, int firstIndex );
 void RB_StageIteratorGeneric( void );
+void GLSL_SetDk3Fog( shaderProgram_t *sp, unsigned long stateBits );
 void RB_StageIteratorSky( void );
 void RB_StageIteratorVertexLitTexture( void );
 void RB_StageIteratorLightmappedMultitexture( void );
@@ -2282,6 +2292,7 @@ void RE_AddRefEntityToScene( const refEntity_t *ent );
 void RE_AddPolyToScene( qhandle_t hShader , int numVerts, const polyVert_t *verts, int num );
 void RE_AddLightToScene( const vec3_t org, float intensity, float r, float g, float b );
 void RE_AddAdditiveLightToScene( const vec3_t org, float intensity, float r, float g, float b );
+void RE_SetDk3Fog( const vec3_t color, float start, float end, float skyEnd );
 void RE_BeginScene( const refdef_t *fd );
 void RE_RenderScene( const refdef_t *fd );
 void RE_EndScene( void );
@@ -2528,3 +2539,5 @@ void R_ConvertTextureFormat( const byte *in, int width, int height, GLenum forma
 
 
 #endif //TR_LOCAL_H
+
+void R_UpdateDkLightstyles(const refdef_t *view);

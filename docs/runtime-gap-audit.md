@@ -96,3 +96,176 @@ and X11 pixels, not physical compositor scanout. Both renderers load the marsh a
 brighten with gamma1.3 after restart. Ordinary keyboard selection in Video changes
 Brightness from1.0 to1.3; Apply reloads the renderer and returns to gameplay. The menu
 and resulting images were inspected. Existing saves remain compatible.
+
+### Combat, pickup bindings and trigger contact (second shared repair batch)
+
+Reference inspection exposed three distinctions lost by the native generic paths:
+perception versus shot collision, attack range versus projectile range, and trigger
+bounds versus solid brush contact. The e1m1b red barrier's `trigger_hurt` (`*32`,
+`dmg=5000`) has a contentless collision brush. Exact solid-brush contact consequently
+never activated it. Native trigger admission now uses the authored bounds for players,
+actors and bot hazard avoidance, including brush event generators. Stock baseq3 keeps
+its own contact path. Toggle-disabled hurt volumes require both toggle and start-off
+flags. This shared change needs broader later-episode traversal coverage.
+
+The thunderskeet now approaches above its target, holds position for its late pair of
+shots, then retreats through collision-tested flight and the existing authored air
+navigation. The supplied `attack_distance` (600 here) governs approach, independently
+of projectile range (2000). Other actors no longer obscure perception; projectiles keep
+their own collision rules. Its green/yellow sprite pulses, travels toward the target at
+160 units/s, lights a 400-unit area, and deals a 40-point/256-unit contact blast instead
+of creating a persistent cloud. Native pain admission uses its 10-percent reference
+chance; a pain interruption retains the pending retreat. Cambots seek a height 72 units
+above the target and retain a 72–192 horizontal separation band while alerting allies.
+These are independent state machines, not an assertion of identical original navigation.
+
+Froginator spit now uses the poison attack and the supplied sludge carrier at scale0.15,
+with a six-unit hull. Client inspection found that the carrier is effect-only: it is now
+hidden behind green CP4 particles and darker smoke rather than drawn as a brown bullet.
+Small robotic deaths use scaled metal fragments and both supplied metal variants; scale
+survives the existing local-entity tumbling update. Exact 1.3 gib selection remains an
+open visual comparison: the reference source's robot-gib filenames are absent from the
+supplied asset profile, which provides `e_metal1` and `e_metal2` instead.
+
+Weapon pickups/held models and ammunition models had reversed bindings across Episodes
+1–4. Shared bindings now distinguish them, including the counterintuitive ripgun/slugger
+ammo filenames. Pickup collision bounds follow the supplied mesh and stock item gravity
+settles pickups, including existing saved map items. Known old swapped bindings are
+repaired on restore without changing custom models. Experience awards now use one tenth
+of monster health multiplied by episode, and cumulative promotion thresholds start at
+500 XP. Native level1 remains displayed level0; existing earned levels are preserved.
+Ion uses additive illumination at the reference radius300, so it can illuminate dark
+surfaces rather than only multiplying their existing light. Menu music plays the supplied
+converted intro/loop. FFA converts authored team starts to ordinary deathmatch starts,
+allowing the menu's CTF edition of “Gibbler On The Roof” to work in deathmatch.
+
+Verification and limits (private evidence: `zig-out/reports/combat-reference-04/`):
+
+- Integrated ReleaseSafe build and final `make lint` pass; 41 Python checks plus the
+  existing Zig checks. The added asset-free C fixture exercises contentless trigger
+  overlap, non-trigger fallback, cumulative thresholds and weapon/ammo identities.
+- Fresh e1m1b barrier contact, without god mode: health100 takes damage5000 and the
+  normal death-checkpoint path restores the world. The earlier run crossed its bounds
+  without ever setting the hurt cooldown. No converter or asset-generation change.
+- The bridge encounter spawns its boss. Live attack/retreat samples show paired linear
+  toxic projectiles, the aircraft leaving its firing position and re-approaching using
+  flight navigation. Captured paired globs and green surface illumination inspected.
+  A first repair still stalled behind a mosquito; a second still stalled on scenery
+  after retreat. Those failures drove the perception and navigation corrections.
+- Live Froginator frame-event dispatch creates poison weapon11 at supplied speed400,
+  damage5–10 and range450; its carrier scale/hull are verified. A fired projectile was
+  held for a diagnostic rendered comparison; the final frame shows green particles.
+- An ordinary Ion attack against a diagnostically positioned one-health frog produces
+  its 3-XP kill award: XP497→500, native level1→2, one available attribute point. This
+  tests real weapon/damage/death/progression delivery, not campaign traversal.
+- A normal Ion shot kills a diagnostically positioned mosquito; the rendered death
+  shows the smaller metal pieces after their tumbling update. Exact reference gib
+  selection remains unverified as noted above.
+- Restored Ion ammunition uses `wa_ion`, with model-derived bounds and settled ground
+  entities. Narrowing the collision hull also lets the shelf-adjacent pack settle;
+  the generic 32-unit hull had caught it on neighbouring geometry.
+- Menu intro/loop decodes as 44.1kHz stereo Ogg and produces nonzero mixer samples.
+  Audio runs use dummy SDL output; this establishes dispatch/decoding, not speaker quality.
+- e1ctf1 with the player and seven bots reaches eight playing clients, combat and scoring
+  without the reported spawn failure. An earlier run observes a bot alive after a death
+  with its spawn count incremented. This does not close all multiplayer acceptance.
+
+Public code still does not require the private reference source or executable. All
+captures, saves and converted assets stay outside the public tree. Full campaign and
+frame-for-frame presentation parity remain unverified.
+
+### Ion surface-light regression repair
+
+The additive-light change in the second repair batch bypassed the surface texture
+in ioquake3's projected-light pass. A controlled Ion projectile at the marsh
+waterfall reproduced the reported neon stripe on the slope. Private reference
+inspection confirms that the original renderer adds dynamic illumination to the
+surface lightmap before applying the material; it does not paint untextured green
+onto the completed scene.
+
+Both projected-light renderers now multiply additive illumination by the material's
+animated diffuse texture, including its texture-coordinate modifiers. The existing
+multitexture and GLSL paths supply this independently implemented correction. If a
+suitable material or multitexture support is unavailable, the existing framebuffer
+modulation path is used. Ion radius300 and colour(0,.8,0) are unchanged.
+
+Matched camera/projectile captures show restored rock detail in OpenGL1 and OpenGL2
+at the waterfall. OpenGL2's alternate forward-light path also renders successfully;
+its existing attenuation is brighter and is not a visual-equivalence claim.
+Live attack input consumes Ion ammunition and produces projectile/impact activity.
+Private evidence: `zig-out/reports/ion-material-light-05/`. These are diagnostic
+lighting scenarios, not an original-engine pixel match or campaign acceptance.
+
+### Ion and rain source comparison (third presentation repair batch)
+
+The supplied original screenshots expose effects missing beyond the surface-light
+repair. Private reference inspection used `Projectile_fx.cpp` (`Proj_Ion_Fly`,
+`Proj_Ion_Special`, `Proj_Ion_Die`), `ionblaster.cpp` (`blastTrack`, contact handling),
+`cl_pv.cpp` (`CL_RainParticles`), `gl_particle.cpp`, and the beam texture bindings.
+These supplied behaviour and asset contracts; no reference implementation was imported.
+
+- Ion flight now composes four rotating, irregular lightning arms (24–32-unit reach,
+  width6, initial alpha.75), the supplied .8-scale/.8-alpha flare, trailing beam sparks,
+  and the source's150–450 green light variation. The tiny server-carrier mesh is no
+  longer enlarged into the visible projectile. Rotation/emission use simulation time
+  with a60Hz presentation reference rather than the original frame-dependent timing.
+- Wall contact emits ten beam sparks and the supplied translucent `we_ioexp` mesh;
+  terminal effects emit25 sparkle particles and a smaller, faint dissipating sprite.
+  Beam textures come from supplied `w_zap001` and `beamspark` artwork. Liquid-discharge
+  expanding rings and exact original beam tessellation remain outside this repair.
+- Rain uses its atlas rectangle, a64-by2.56 triangular drop, initial effective opacity.2
+  and age-based fading. Fall speed400, directional wind300, and area-based emission
+  replace the generic glow ribbon and fixed700 speed. Rain parameters are refreshed
+  when restoring old saves. Collision-triggered splashes use supplied atlas artwork.
+  A bounded4096-particle pool and collision clipping are intentional implementation
+  differences; exact original particle population/random phase is not claimed.
+
+A preserved-original waterfall capture supplies direct rain evidence at the existing
+comparison viewpoint. Its attempted weapon commands did not equip the Ion blaster;
+that capture is not Ion-flight evidence. Ion comparison uses the supplied original
+screenshots and the source contract above. Native OpenGL1 flight, rotated phases and
+rain frames were inspected. In OpenGL2 an actual shot triggered wall contact at
+(1684,-2272,511), normal(-.147506,.295012,.944039), and the impact/sparks were rendered.
+One intermediate shader filename collision was fixed; final runs have no null-poly
+shader or missing-image warnings. A debugger-terminated diagnostic caused the private
+launcher's recovery dialog; dismissing it restored the OpenGL2 run. Failed probes are
+not acceptance evidence. Private captures/logs: `zig-out/reports/ion-rain-reference-06/`.
+
+Code-owned shader definitions now install with the runtime at
+`share/dk3/scripts/dk3-projectile-weather.shader`; they reference existing supplied
+artwork. Their hashes participate in runtime installation verification, separately
+from gameplay asset identity. A synthetic regression verifies that updating these
+shaders preserves that identity and that a damaged installed shader is rejected.
+
+### Rain impacts on water (fourth presentation repair batch)
+
+`CL_RainParticles` does not trace drops: they die at the volume floor (`height` below the
+brush top), and splash sprites are scattered over that floor using `PARTICLE_SPLASH1`
+or `PARTICLE_SPLASH3`, alpha .4, 101ms life, and a `4*(1+depth*.004)` leg length.
+Authored e1m1a floors coincide with the water surfaces (352 and 288). Original volumes
+use client-side lists culled only by horizontal distance, not PVS.
+
+Three measured port defects prevented splashes on water:
+
+- Drops traced solids only, so drops ending on the authored water floor never splashed.
+  Rain now also stops at liquids, and drops reaching the floor unobstructed splash there.
+  The per-drop trace is retained, so roofs still stop rain and receive splashes.
+- Weather bounds used padded linked bounds (collision spread plus link spread): floors
+  sat 2 units above the water and adjacent footprints overlapped. Authored bounds are used.
+- The thin sky-level brushes were PVS-culled; at the waterfall only 12 of 45 volumes
+  reached the client. Weather entities now link over their fall volume. Broadcasting
+  was rejected because e1dt1 alone has 224 rain volumes.
+
+Weather emission now scales by the fraction of the volume inside the ±512 emission
+window and stops, like the original's exhausted list, instead of recycling drops that
+have not landed. Old saves keep their saved bounds/linking until the map is reloaded.
+
+Verified in native OpenGL1 and OpenGL2 at diagnostic noclip viewpoints over the e1m1a
+pool: splash crowns render on the water surface; the pre-change installed build shows
+none at the same viewpoint. Live client memory showed 45/45 volumes transmitted and 671
+splash records at the water surface. A BSP check of 300 sampled splashes found 259 on
+solids, 30 on liquids, 11 on volume floors and none beneath solid cover. The OpenGL2
+yellow saturation near that pool also occurs with the prior installed build; it is a
+separate, unresolved renderer defect. No ripples exist in the original rain path.
+Exact original population, random phase and frame-dependent splash density are not
+claimed. Private evidence: `zig-out/reports/rain-water-07/`.

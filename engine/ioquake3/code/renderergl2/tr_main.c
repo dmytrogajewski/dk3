@@ -1786,7 +1786,7 @@ void R_RenderDlightCubemaps(const refdef_t *fd)
 		int j;
 
 		// use previous frame to determine visible dlights
-		if ((1 << i) & tr.refdef.dlightMask)
+		if ((1U << i) & tr.refdef.dlightMask)
 			continue;
 
 		Com_Memset( &shadowParms, 0, sizeof( shadowParms ) );

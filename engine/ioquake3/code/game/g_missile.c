@@ -479,6 +479,12 @@ void G_RunMissile( gentity_t *ent ) {
 		// ignore interactions with the missile owner
 		passent = ent->r.ownerNum;
 	}
+#ifdef DK3_GAME
+	/* Damageable projectiles carry contents and must never clip their own hull. */
+	if ( passent == ENTITYNUM_NONE && ent->r.contents ) {
+		passent = ent->s.number;
+	}
+#endif
 	// trace a line from the previous position to the current position
 	trap_Trace( &tr, ent->r.currentOrigin, ent->r.mins, ent->r.maxs, origin, passent, ent->clipmask );
 

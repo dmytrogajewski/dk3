@@ -71,6 +71,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	SURF_SKIP				0x200	// completely ignore, allowing non-closed brushes
 #define	SURF_NOLIGHTMAP			0x400	// surface doesn't need a lightmap
 #define	SURF_POINTLIGHT			0x800	// generate lighting info at vertexes
+#define SURF_DK_WOOD 0x100000
+#define SURF_DK_HOLY 0x200000
 #define	SURF_METALSTEPS			0x1000	// clanking footsteps
 #define	SURF_NOSTEPS			0x2000	// no footstep sounds
 #define	SURF_NONSOLID			0x4000	// don't collide against curves with this set

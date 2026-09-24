@@ -671,6 +671,9 @@ void CG_EntityEvent( centity_t *cent, vec3_t position ) {
 	}
 
 	case EV_JUMP_PAD:
+#ifdef DK3_GAME
+        break; /* The trigger dispatches its authored sound. */
+#endif
 		DEBUGNAME("EV_JUMP_PAD");
 //		CG_Printf( "EV_JUMP_PAD w/effect #%i\n", es->eventParm );
 		{

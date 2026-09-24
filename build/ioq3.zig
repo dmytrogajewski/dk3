@@ -78,7 +78,13 @@ fn installPath(product: config.Product) []const u8 {
 }
 
 pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, settings: config.Config, product: config.Product, dk3: bool) *std.Build.Step.Compile {
-    const module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true });
+    const native_weapons = dk3 and (product == .qagame or product == .cgame);
+    const module = b.createModule(.{
+        .root_source_file = if (native_weapons) b.path(if (product == .qagame) "src/weapons/server.zig" else "src/weapons/client.zig") else null,
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
     @import("header_inputs.zig").track(b, module, if (dk3) &.{ source_root, "src" } else &.{source_root});
     const generated = b.addWriteFiles();
     var seen: std.StringHashMapUnmanaged(void) = .empty;
@@ -109,15 +115,16 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     }
     if (dk3) {
         module.addCMacro("DK3_GAME", "1");
+        module.addIncludePath(b.path("engine/ioquake3/code/qcommon"));
         module.addIncludePath(b.path("src/game"));
         module.addIncludePath(b.path("src/shared"));
         module.addIncludePath(b.path("engine/ioquake3/code/game"));
         module.addIncludePath(b.path("engine/ioquake3/code/cgame"));
         module.addIncludePath(b.path("engine/ioquake3/code/ui"));
         const sources: []const []const u8 = switch (product) {
-            .qagame => &.{ "src/game/dk_world.c", "src/game/dk_movers.c", "src/game/dk_attachments.c", "src/game/dk_actors.c", "src/game/dk_navigation.c", "src/game/dk_companions.c", "src/game/dk_bots.c", "src/game/dk_multiplayer.c", "src/game/dk_scripts.c", "src/game/dk_cinematics.c", "src/game/dk_combat.c", "src/game/dk_items.c", "src/game/dk_resources.c", "src/game/dk_decor.c", "src/game/dk_media.c", "src/game/dk_interactions.c", "src/game/dk_effects.c", "src/game/dk_travel.c", "src/game/dk_saves.c", "src/game/dk_save_format.c", "src/game/dk_save_schema.c", "src/game/dk_tables.c", "src/shared/dk_weapons.c", "src/shared/dk_inventory.c" },
+            .qagame => &.{ "src/game/dk_world.c", "src/game/dk_movers.c", "src/game/dk_attachments.c", "src/game/dk_actors.c", "src/game/dk_navigation.c", "src/game/dk_companions.c", "src/game/dk_bots.c", "src/game/dk_multiplayer.c", "src/game/dk_scripts.c", "src/game/dk_cinematics.c", "src/game/dk_items.c", "src/game/dk_resources.c", "src/game/dk_decor.c", "src/game/dk_media.c", "src/game/dk_interactions.c", "src/game/dk_effects.c", "src/game/dk_travel.c", "src/game/dk_saves.c", "src/game/dk_save_format.c", "src/game/dk_save_schema.c", "src/game/dk_tables.c", "src/shared/dk_inventory.c" },
             .ui => &.{"src/ui/dk_ui.c"},
-            .cgame => &.{ "src/cgame/dk_presentation.c", "src/cgame/dk_effects.c", "src/cgame/dk_subtitles.c", "src/cgame/dk_inventory.c", "src/cgame/dk_models.c", "src/cgame/dk_sprites.c", "src/game/dk_tables.c", "src/shared/dk_weapons.c", "src/shared/dk_inventory.c" },
+            .cgame => &.{ "src/cgame/dk_presentation.c", "src/cgame/dk_effects.c", "src/cgame/dk_subtitles.c", "src/cgame/dk_inventory.c", "src/cgame/dk_models.c", "src/cgame/dk_sprites.c", "src/game/dk_tables.c", "src/shared/dk_inventory.c" },
             else => unreachable,
         };
         for (sources) |path| module.addCSourceFile(.{ .file = b.path(path), .flags = config.sourceFlags(product, path) });

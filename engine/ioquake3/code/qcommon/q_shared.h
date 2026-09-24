@@ -1210,6 +1210,8 @@ typedef struct playerState_s {
     int dk3Quest;
     int dk3SoundEnvironment;
     float dk3Reverb, dk3SoundGain;
+    int dk3PsyEnd;
+    float dk3FreezeLevel;
     int dk3Status;
     int dk3SaveGems;
     int dk3AttributePoints;
@@ -1217,6 +1219,10 @@ typedef struct playerState_s {
     int dk3EnvUntil;
     int dk3AttackHeld;
     int dk3Burst;
+    int dk3ArmorAbsorption;
+    int dk3GlockClip;
+    int dk3WeaponSequence;
+    int dk3NovaSpent;
     int dk3Charge;
     int dk3CameraActive;
     vec3_t dk3CameraOrigin;
@@ -1282,7 +1288,8 @@ typedef enum {
 	TR_LINEAR,
 	TR_LINEAR_STOP,
 	TR_SINE,					// value = base + sin( time / duration ) * delta
-	TR_GRAVITY
+	TR_GRAVITY,
+    TR_DK_ACCEL_STOP, TR_DK_BOUNCE_STOP
 } trType_t;
 
 typedef struct {

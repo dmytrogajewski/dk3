@@ -110,6 +110,7 @@ void P_WorldEffects( gentity_t *ent ) {
 	envirosuit = ent->client->ps.powerups[PW_BATTLESUIT] > level.time;
 #ifdef DK3_GAME
     envirosuit = ent->client->ps.dk3EnvUntil > level.time;
+    DK_ColdWater(ent, envirosuit || DK_WeaponProtectsWater(ent->client->ps.weapon));
 #endif
 
 	//
@@ -117,7 +118,11 @@ void P_WorldEffects( gentity_t *ent ) {
 	//
 	if ( waterlevel == 3 ) {
 		// envirosuit give air
-		if ( envirosuit ) {
+		if ( envirosuit
+#ifdef DK3_GAME
+			|| DK_WeaponProtectsWater(ent->client->ps.weapon)
+#endif
+			) {
 			ent->client->airOutTime = level.time + 10000;
 		}
 
@@ -293,7 +298,11 @@ void	G_TouchTriggers( gentity_t *ent ) {
 				continue;
 			}
 		} else {
-			if ( !trap_EntityContact( mins, maxs, hit ) ) {
+#ifdef DK3_GAME
+            if ( !DK_TriggerContact( mins, maxs, hit ) ) {
+#else
+            if ( !trap_EntityContact( mins, maxs, hit ) ) {
+#endif
 				continue;
 			}
 		}
@@ -854,7 +863,8 @@ void ClientThink_real( gentity_t *ent ) {
 #ifdef DK3_GAME
     client->ps.stats[STAT_MAX_HEALTH] = 100 + 20 * DK_Attribute(&client->ps, 4, level.time);
     client->ps.speed *= 1.0f + 0.08f * DK_Attribute(&client->ps, 2, level.time);
-    if (client->ps.dk3Status & 4) client->ps.speed *= 0.5f;
+    if (client->ps.dk3Status & 4) client->ps.speed *= 1 - 0.8f * client->ps.dk3FreezeLevel;
+    if (client->ps.dk3Status & 128) { client->ps.speed = 0; VectorClear(client->ps.velocity); }
 #endif
 
 #ifdef MISSIONPACK

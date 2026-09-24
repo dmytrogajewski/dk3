@@ -1541,12 +1541,12 @@ Generates weapon events and modifes the weapon counter
 ==============
 */
 #ifdef DK3_GAME
-#include "dk_weapon_move.inc"
+#include "dk_weapons.h"
 #endif
 
 static void PM_Weapon( void ) {
 #ifdef DK3_GAME
-    DK_WeaponMove();
+    DK_WeaponMoveZig(pm, pml.msec);
     return;
 #endif
 	int		addTime;

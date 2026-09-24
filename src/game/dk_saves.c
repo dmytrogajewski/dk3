@@ -6,7 +6,7 @@
 
 #define SAVE_STRINGS (4 * 1024 * 1024)
 #define SAVE_PENDING "dk3-resume-internal"
-#define SAVE_REVISION 5
+#define SAVE_REVISION 6
 #define SAVE_RESTART "dk3-restart-internal"
 #define SAVE_PRE_ENVIRONMENT_REVISION 2
 #define REF_COUNT 13
@@ -107,7 +107,7 @@ static gentity_t *Reference(int id) {
 }
 
 static qboolean ResourceSlot(int index) {
-    return index == CS_MUSIC || index == CS_SHADERSTATE || (index >= CS_MODELS && index < CS_PLAYERS);
+    return index == CS_DK3_LIGHTSTYLES || index == CS_DK3_SKY || index == CS_MUSIC || index == CS_SHADERSTATE || (index >= CS_MODELS && index < CS_PLAYERS);
 }
 
 static qboolean WriteSnapshot(gentity_t *player) {
@@ -133,6 +133,7 @@ static qboolean WriteSnapshot(gentity_t *player) {
             if (!DK_FindEntity(saved.dk.destinationId)) saved.dk.destinationId = 0;
             if (!DK_FindEntity(saved.dk.statusOwnerId)) saved.dk.statusOwnerId = 0;
             if (!DK_FindEntity(saved.dk.monitorId)) saved.dk.monitorId = 0;
+            if (!DK_FindEntity(saved.dk.healingUser)) saved.dk.healingUser = 0;
             if (!DK_FindEntity(saved.dk.parentId)) saved.dk.parentId = 0;
             if (!DK_FindEntity(saved.dk.pickupId)) saved.dk.pickupId = 0;
             if (!DK_SaveRecord(&writer, "entity", ent->dk.id) ||
@@ -194,8 +195,8 @@ static qboolean EntityValues(gentity_t *ent, unsigned int id) {
         (ent->s.number < MAX_CLIENTS && (id != (unsigned int)metadata.player || ent->s.number != 0)) ||
         (ent->s.number >= MAX_CLIENTS && id <= MAX_CLIENTS) ||
         ent->s.eType < 0 || ent->s.eType >= ET_EVENTS || ent->dk.moverKind < 0 || ent->dk.moverKind > 4 ||
-        ent->s.pos.trType < TR_STATIONARY || ent->s.pos.trType > TR_GRAVITY ||
-        ent->s.apos.trType < TR_STATIONARY || ent->s.apos.trType > TR_GRAVITY ||
+        ent->s.pos.trType < TR_STATIONARY || ent->s.pos.trType > TR_DK_BOUNCE_STOP ||
+        ent->s.apos.trType < TR_STATIONARY || ent->s.apos.trType > TR_DK_BOUNCE_STOP ||
         ent->s.pos.trDuration < 0 || ent->s.apos.trDuration < 0 ||
         (ent->dk.moverKind && (ent->speed < 1 || ent->speed > 100000)) ||
         ent->dk.delay < 0 || ent->dk.delay > 3600000 ||
@@ -204,7 +205,12 @@ static qboolean EntityValues(gentity_t *ent, unsigned int id) {
         ent->dk.eventCursor < 0 || ent->dk.eventCursor > ent->dk.eventCount ||
         ent->s.modelindex < 0 || ent->s.modelindex >= MAX_MODELS || ent->s.modelindex2 < 0 || ent->s.modelindex2 >= MAX_MODELS ||
         ent->s.loopSound < 0 || ent->s.loopSound >= MAX_SOUNDS || ent->s.dk3Carrier < 0 || ent->s.dk3Carrier > MAX_CLIENTS || !DK_ValidateActorState(ent, metadata.map) ||
-        !DK_ValidateDecorState(ent) || !DK_ValidateWorldEffect(ent) ||
+        !DK_ValidateDecorState(ent) || !DK_ValidateWorldEffect(ent) || !DK_ValidateWeaponEntity(ent) ||
+        ent->dk.combatState < 0 || ent->dk.combatState > 10 || ent->dk.combatCount < 0 ||
+        ent->dk.combatCount > DK_WeaponControllerLimit(ent->s.weapon) ||
+        ent->dk.monsterAttack < 0 || ent->dk.monsterAttack > 3 || ent->dk.lightStyle < 0 || ent->dk.lightStyle >= 256 ||
+        ent->dk.freezeLevel < 0 || ent->dk.freezeLevel > 1 || ent->dk.poisonDamage < 0 || ent->dk.poisonDamage > 10000 ||
+        ent->dk.armorAbsorption < 0 || ent->dk.armorAbsorption > 100 ||
         ent->dk.environmentStyle < 0 || ent->dk.environmentStyle > 4 ||
         ent->dk.environmentReverb < 0 || ent->dk.environmentReverb > 1 ||
         ent->dk.environmentGain < 0 || ent->dk.environmentGain > 1 ||
@@ -214,7 +220,7 @@ static qboolean EntityValues(gentity_t *ent, unsigned int id) {
         ent->s.dk3SoundVolume < 0 || ent->s.dk3SoundVolume > 1 || ent->s.dk3SoundMin < 0 ||
         ent->s.dk3SoundMax < 0 || ent->s.dk3SoundMax > 65536 || (ent->s.dk3SoundFlags & ~1) ||
         (ent->s.dk3SoundMax && ent->s.dk3SoundMin >= ent->s.dk3SoundMax) ||
-        (ent->s.dk3RenderFlags & ~(3 | DK3_RF_ANIM_REVERSE)) || (ent->dk.monitorId && (ent->dk.cameraFov < 0 || ent->dk.cameraFov > 160)) ||
+        (ent->s.dk3RenderFlags & ~(3 | DK3_RF_ANIM_REVERSE | DK3_RF_STONE | DK3_RF_FROZEN | DK3_RF_MELT)) || (ent->dk.monitorId && (ent->dk.cameraFov < 0 || ent->dk.cameraFov > 160)) ||
         (ent->dk.moverKind == 4 && (ent->dk.action < 0 || ent->dk.action > 5))) return qfalse;
     for (i = 0; i < ent->dk.soundCount; ++i)
         if (ent->dk.soundIndices[i] < 1 || ent->dk.soundIndices[i] >= MAX_SOUNDS) return qfalse;
@@ -241,7 +247,7 @@ static qboolean ValidateWorld(int length, qboolean allowVisited) {
     if (!DK_SaveNextRecord(&reader, kind, &id) || strcmp(kind, "campaign") || id ||
         !DK_ReadObject(&reader, &metadata, metadataMembers, ARRAY_LEN(metadataMembers), &strings)) return Reject("invalid campaign record");
     NewRecord(1, 0);
-    if (metadata.revision != SAVE_REVISION && metadata.revision != 3 && metadata.revision != SAVE_PRE_ENVIRONMENT_REVISION)
+    if (metadata.revision != SAVE_REVISION)
         return Reject(va("save gameplay revision %d is incompatible with revision %d", metadata.revision, SAVE_REVISION));
     if (metadata.player != 1 || metadata.entities < 1 || metadata.entities >= ENTITYNUM_MAX_NORMAL ||
         metadata.skill < 1 || metadata.skill > 5 || !Name(metadata.map, 40)) return Reject("incompatible campaign or map identifier");
@@ -290,15 +296,14 @@ static qboolean ValidateWorld(int length, qboolean allowVisited) {
         !DK_HasWeapon(&stagedPlayer, stagedPlayer.weapon) || stagedPlayer.dk3Objective ||
         stagedPlayer.dk3Episode < 1 || stagedPlayer.dk3Episode > 4 || stagedPlayer.dk3AttributePoints < 0 ||
         stagedPlayer.dk3Experience < 0 || stagedPlayer.dk3SwordExperience < 0 || (stagedPlayer.dk3Quest & ~1) ||
+        stagedPlayer.dk3ArmorAbsorption < 0 || stagedPlayer.dk3ArmorAbsorption > 100 ||
+        !DK_ValidWeaponPlayer(&stagedPlayer, level.time) ||
+        stagedPlayer.dk3FreezeLevel < 0 || stagedPlayer.dk3FreezeLevel > 1 ||
         stagedPlayer.dk3SoundEnvironment < 0 || stagedPlayer.dk3SoundEnvironment > 4 ||
         stagedPlayer.dk3Reverb < 0 || stagedPlayer.dk3Reverb > 1 ||
         stagedPlayer.dk3SoundGain < 0 || stagedPlayer.dk3SoundGain > 1) return Reject("player state is outside supported limits");
     for (i = 0; i < MAX_WEAPONS; ++i) if (stagedPlayer.ammo[i] < 0 || stagedPlayer.ammo[i] > 32767) return Reject("invalid saved ammunition");
     for (i = 0; i < 5; ++i) if (stagedPlayer.dk3Attributes[i] < 0 || stagedPlayer.dk3Attributes[i] > 5) return Reject("invalid saved attribute");
-    if (stagedPlayer.powerups[PW_DK3_GASHANDS] &&
-        (!DK_HasWeapon(&stagedPlayer, DK_W_GASHANDS) ||
-         (long long)stagedPlayer.powerups[PW_DK3_GASHANDS] - level.time > DK_MAX_GASHANDS_TIME))
-        return Reject("invalid Gas Hands lifetime");
     DK_SaveOpen(&reader, buffer, length);
     while (DK_SaveNextRecord(&reader, kind, &id)) {
         if (!strcmp(kind, "references")) {
@@ -343,7 +348,7 @@ static qboolean ValidateWorld(int length, qboolean allowVisited) {
             parent = staged[identities[index].slot].dk.parentId;
         }
         if (ent->dk.eventFirst > eventRecords - ent->dk.eventCount || !identities[i].references || !DK_SaveReferenceExists(ent->dk.ownerId) ||
-            !DK_SaveReferenceExists(ent->dk.destinationId) || !DK_SaveReferenceExists(ent->dk.statusOwnerId) || !DK_SaveReferenceExists(ent->dk.pickupId) || !DK_SaveReferenceExists(ent->dk.parentId) || !DK_SaveReferenceExists(ent->dk.monitorId)) return Reject("dangling gameplay reference");
+            !DK_SaveReferenceExists(ent->dk.destinationId) || !DK_SaveReferenceExists(ent->dk.statusOwnerId) || !DK_SaveReferenceExists(ent->dk.pickupId) || !DK_SaveReferenceExists(ent->dk.parentId) || !DK_SaveReferenceExists(ent->dk.monitorId) || !DK_SaveReferenceExists(ent->dk.healingUser)) return Reject("dangling gameplay reference");
         if ((!ent->r.bmodel && ent->s.modelindex && !resources[CS_MODELS + ent->s.modelindex]) ||
             (ent->s.modelindex2 && !resources[CS_MODELS + ent->s.modelindex2]) ||
             (ent->s.loopSound && !resources[CS_SOUNDS + ent->s.loopSound])) return Reject("missing model or sound binding");
@@ -650,6 +655,26 @@ qboolean DK_RestartAfterDeath(gentity_t *player) {
     return qtrue;
 }
 
+static void SavePresentation(gentity_t *player, const char *slot) {
+    char text[1024], map[MAX_QPATH];
+    int i, total = 0, found = 0, living = 0, dead = 0, companionHealth[2] = {0, 0};
+    trap_Cvar_VariableStringBuffer("mapname", map, sizeof(map));
+    for (i = MAX_CLIENTS; i < level.num_entities; ++i) {
+        gentity_t *ent = &g_entities[i];
+        if (!ent->inuse || !ent->classname) continue;
+        if (!strcmp(ent->classname, "trigger_secret")) { ++total; if (ent->dk.uses) ++found; }
+        if (DK_IsCompanion(ent)) companionHealth[strstr(ent->classname, "mikiko") ? 0 : 1] = ent->health;
+        else if (ent->dk.actorKind) { if (ent->health > 0) ++living; else ++dead; }
+    }
+    Com_sprintf(text, sizeof(text), "dk3_save_info 1\nmap %s\nepisode %d\nhealth %d\narmor %d\nlevel %d\n"
+        "mikiko %d\nsuperfly %d\nsecrets %d %d\nactors %d %d\nseconds %d\n",
+        map, player->client->ps.dk3Episode, player->health, player->client->ps.stats[STAT_ARMOR],
+        player->client->ps.dk3Level - 1, companionHealth[0], companionHealth[1], found, total, dead, living,
+        (level.time - level.startTime) / 1000);
+    if (trap_DK3SaveWrite(2, slot, text, strlen(text)) != strlen(text)) G_Printf("dk3: save %s metadata write failed\n", slot);
+    trap_SendServerCommand(player->s.number, va("dk3_savepreview %s", slot));
+}
+
 qboolean DK_SaveCommand(gentity_t *player, const char *command) {
     char slot[64], option[32];
     qboolean writing = !Q_stricmp(command, "save"), reading = !Q_stricmp(command, "load");
@@ -680,6 +705,7 @@ qboolean DK_SaveCommand(gentity_t *player, const char *command) {
             if (WriteSnapshot(player) && ValidateSnapshot(snapshotLength)) {
                 if (trap_DK3SaveWrite(1, slot, buffer, snapshotLength) != snapshotLength) Reject("atomic save write failed; existing save retained");
                 else {
+                    SavePresentation(player, slot);
                     restartAvailable = trap_DK3SaveWrite(1, SAVE_RESTART, buffer, snapshotLength) == snapshotLength;
                     if (!restartAvailable) G_Printf("dk3: game saved, but death checkpoint write failed\n");
                 }

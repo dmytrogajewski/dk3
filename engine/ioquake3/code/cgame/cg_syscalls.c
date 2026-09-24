@@ -222,6 +222,10 @@ void trap_S_Environment(int style, float reverb, float gain) {
     syscall(CG_DK3_SOUND_ENVIRONMENT_V1, style, PASSFLOAT(reverb), PASSFLOAT(gain));
 }
 
+void trap_R_Dk3Fog(const vec3_t color, float start, float end, float skyEnd) {
+    syscall(CG_DK3_R_FOG_V1, color, PASSFLOAT(start), PASSFLOAT(end), PASSFLOAT(skyEnd));
+}
+
 void	trap_S_Respatialize( int entityNum, const vec3_t origin, vec3_t axis[3], int inwater ) {
 	syscall( CG_S_RESPATIALIZE, entityNum, origin, axis, inwater );
 }

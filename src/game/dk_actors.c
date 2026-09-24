@@ -24,8 +24,8 @@ typedef struct {
 } dkActorAttack_t;
 typedef struct {
     char classname[64], model[MAX_QPATH], baseModel[MAX_QPATH];
-    int health, frames, animationCount;
-    float speed, walkSpeed, sightRange, fov, scale;
+    int health, baseHealth, frames, animationCount;
+    float mass, speed, walkSpeed, sightRange, attackDistance, fov, scale, yawRate, painChance;
     dkActorAttack_t attacks[3];
     vec3_t mins, maxs, modelScale;
     float *frameBottoms;
@@ -68,6 +68,8 @@ static void ChapterModel(const char *classname, const char *base, const char *ma
 }
 
 enum { ACTOR_IDLE, ACTOR_CHASE, ACTOR_ATTACK, ACTOR_PAIN, ACTOR_DEAD, ACTOR_WAIT, ACTOR_DOWN };
+static void GarrothSummon(gentity_t *actor, gentity_t *enemy);
+static void TraceAttack(gentity_t *actor, const char *animation);
 
 /* Collision at death follows the supplied final pose, rather than retaining
    the live actor's hull below a body whose mesh has folded upward. */
@@ -158,10 +160,28 @@ static void ReadActor(const dkRecord_t *row) {
         ChapterModel(name, info->baseModel, map, info->model);
     }
     info->health = DK_Number(row, "health", 100);
+    info->baseHealth = DK_Number(row, "basehealth", info->health);
+    info->mass = DK_Number(row, "mass", 200);
     info->speed = DK_Number(row, "run_speed", 120);
     info->walkSpeed = DK_Number(row, "walk_speed", info->speed * 0.5f);
     info->sightRange = DK_Number(row, "active_distance", 1200);
+    info->attackDistance = DK_Number(row, "attack_distance", 600);
     info->fov = DK_Number(row, "fov", 180);
+    {
+        /* com_ChangeYaw steps angle_speed degrees once per 100 ms think;
+           several spawn functions replace the table value. */
+        static const struct { const char *classname; float yaw; } turns[] = {
+            {"monster_wyndrax", 180}, {"monster_wizard", 180}, {"monster_thunderskeet", 180}, {"monster_stavros", 180},
+            {"monster_rotworm", 180}, {"monster_lasergat", 10}, {"monster_labmonkey", 150}, {"monster_inmater", 180},
+            {"hiro", 720}, {"monster_protopod", 90}, {"mikiko", 90}, {"superfly", 90}, {"mikikofly", 90},
+            {"monster_deathsphere", 135}
+        };
+        float pitch, yaw = 20, roll;
+        const char *value = DK_Field(row, "angle_speed");
+        if (*value && sscanf(value, "%f %f %f", &pitch, &yaw, &roll) < 2) yaw = 20;
+        for (i = 0; i < (int)ARRAY_LEN(turns); ++i) if (!strcmp(name, turns[i].classname)) yaw = turns[i].yaw;
+        info->yawRate = Com_Clamp(10, 7200, yaw * 10);
+    }
     VectorSet(info->modelScale, 1, 1, 1);
     {
         const char *value = DK_Field(row, "render_scale");
@@ -191,14 +211,21 @@ static void ReadActor(const dkRecord_t *row) {
         }
         if (attack->range < 1) attack->range = 64;
         attack->weapon = attack->range > 160 ? DK_W_BOLTER : DK_W_DISRUPTOR;
-        if (strstr(name, "venom") || strstr(name, "rotworm") || strstr(name, "spider")) attack->weapon = DK_W_VENOM;
+        if ((!strcmp(name, "monster_froginator") && i == 1) || strstr(name, "venom") || strstr(name, "rotworm") || strstr(name, "spider")) attack->weapon = DK_W_VENOM;
         else if (strstr(name, "rocket")) attack->weapon = DK_W_SIDEWINDER;
         else if (strstr(name, "stavros") || strstr(name, "dragon")) attack->weapon = DK_W_STAVROS;
         else if (strstr(name, "wyndrax")) attack->weapon = DK_W_WYNDRAX;
         else if (strstr(name, "nharre")) attack->weapon = DK_W_NIGHTMARE;
         else if (strstr(name, "cryotech")) attack->weapon = DK_W_KINETICORE;
         else if (strstr(name, "lasergat")) attack->weapon = DK_W_NOVABEAM;
+        if (!strcmp(name, "monster_garroth")) attack->weapon = i == 0 ? DK_W_DISRUPTOR : i == 1 ? DK_W_STAVROS : DK_W_WYNDRAX;
+        /* Boargun bullets and explosive BoarRockets. */
+        if (!strcmp(name, "monster_battleboar")) attack->weapon = i == 1 ? DK_W_SIDEWINDER : DK_W_RIPGUN;
     }
+    /* The psyclaw punch is a melee trace; its table speed is unused. */
+    if (!strcmp(name, "monster_psyclaw")) info->attacks[0].speed = 0;
+    /* The froginator punches anywhere inside its 80-unit spit cutoff. */
+    if (!strcmp(name, "monster_froginator") && info->attacks[0].range < 80) info->attacks[0].range = 80;
     for (i = 0; i < 3; ++i) {
         char key[32];
         Com_sprintf(key, sizeof(key), "size_min_%c", 'x' + i);
@@ -223,7 +250,8 @@ static void ReadActor(const dkRecord_t *row) {
     info->companion = !strcmp(name, "mikiko") || !strcmp(name, "superfly") || !strcmp(name, "mikikofly");
     info->civilian = strstr(name, "worker") || (!strncmp(name, "e_", 2) && strcmp(name, "e_dopefish")) ||
                       !strncmp(name, "cine_", 5) || !strcmp(name, "hiro") || !strcmp(name, "monster_priest") ||
-                      !strcmp(name, "monster_prisoner") || !strcmp(name, "monster_prisonerb") || !strcmp(name, "monster_wisp");
+                      !strcmp(name, "monster_prisoner") || !strcmp(name, "monster_prisonerb") || !strcmp(name, "monster_wisp") ||
+                      !strcmp(name, "monster_surgeon");
     if (!*name || !*info->model || info->health <= 0) G_Error("dk3: incomplete actor definition %s", name);
     ReadAnimations(info, qfalse);
 }
@@ -280,7 +308,7 @@ static void ReadCinematicActors(void) {
         ChapterModel(cast[i], info->baseModel, map, info->model);
         info->health = 100; info->scale = 1; VectorSet(info->modelScale, 1, 1, 1);
         info->speed = 240; info->walkSpeed = 120;
-        info->sightRange = 1200; info->fov = 180;
+        info->sightRange = 1200; info->fov = 180; info->yawRate = 200;
         info->civilian = qtrue;
         VectorSet(info->mins, -16, -16, -24);
         VectorSet(info->maxs, 16, 16, 32);
@@ -303,6 +331,14 @@ static unsigned int ActorRandom(gentity_t *actor) {
     return actor->dk.actorRandom >> 8;
 }
 
+static float ActorFraction(gentity_t *actor) { return (ActorRandom(actor) & 0xffff) / 65536.0f; }
+
+static void ActorSound(gentity_t *actor, const char *name, float volume, float minimum, float maximum) {
+    gentity_t *event = G_TempEntity(actor->r.currentOrigin, EV_GENERAL_SOUND);
+    event->s.eventParm = DK_SoundIndex(name);
+    event->s.dk3SoundVolume = volume; event->s.dk3SoundMin = minimum; event->s.dk3SoundMax = maximum;
+}
+
 static int AnimationIndex(dkActorInfo_t *info, const char *name) {
     int i, selected = -1;
     for (i = 0; i < info->animationCount; ++i) {
@@ -312,10 +348,13 @@ static int AnimationIndex(dkActorInfo_t *info, const char *name) {
     return selected;
 }
 
+static qboolean Swimming(gentity_t *actor);
+
 static void Animation(gentity_t *ent, const char *name, int state) {
     dkActorInfo_t *info = Info(ent);
     int selected = AnimationIndex(info, name);
     if (selected < 0 && !strcmp(name, "pain")) selected = AnimationIndex(info, "hit");
+    if (!strcmp(name, "run") && !info->swimming && Swimming(ent) && AnimationIndex(info, "swim") >= 0) selected = AnimationIndex(info, "swim");
     if (selected < 0 && !strcmp(name, "run")) selected = AnimationIndex(info, info->flying ? "fly" : info->swimming ? "swim" : "walk");
     if (selected < 0) selected = 0;
     if (ent->dk.action == state && ent->dk.animationTime && selected == ent->dk.animationIndex) return;
@@ -367,14 +406,69 @@ static void FrameEvents(gentity_t *actor) {
         if (actor->dk.action == ACTOR_ATTACK && !info->companion && !info->turret && actor->enemy && actor->enemy->inuse &&
             !actor->dk.cinematicControlled && level.time >= actor->dk.scriptUntil) {
             dkActorAttack_t *attack = &info->attacks[actor->dk.attackGroup];
+            qboolean sludge = !strcmp(actor->classname, "monster_sludgeminion");
+            if (!strcmp(actor->classname, "monster_cryotech")) {
+                /* Eight bursts sweep right to left across the spray clip. */
+                static const vec3_t spray[8] = {
+                    {27.28f, 17.30f, 11.96f}, {29.27f, 12.44f, 14.44f}, {30.87f, 6.15f, 16.48f}, {31.36f, 0.15f, 18.29f},
+                    {30.82f, -5.34f, 19.59f}, {29.94f, -8.84f, 19.62f}, {29.48f, -11.23f, 17.42f}, {29.53f, -11.39f, 13.50f}};
+                int burst = (frame - 9) / 2;
+                if (!Q_stricmp(animation->name, "bambb") && frame >= 9 && !((frame - 9) & 1) && burst < 8) {
+                    int damage = attack->damage;
+                    if (attack->randomDamage > 0) damage += ActorRandom(actor) % (attack->randomDamage + 1);
+                    DK_ActorStrike(actor, actor->enemy, attack->weapon, spray[burst],
+                                   attack->speed, damage, attack->range, attack->spreadX, attack->spreadZ);
+                }
+                continue;
+            }
+            if (!strcmp(actor->classname, "monster_thunderskeet")) {
+                /* THUNDERSKEET_Attack: green charge flares on model frames 22-24,
+                   then globs on 27, 28, 31 and 32, the second pair on the sine phase. */
+                int model = actor->dk.firstFrame + frame - 1;
+                if (Q_stricmpn(animation->name, "atak", 4)) continue;
+                if (model >= 22 && model <= 24) {
+                    vec3_t toward, angles, forward, point;
+                    VectorSubtract(actor->enemy->r.currentOrigin, actor->r.currentOrigin, toward);
+                    vectoangles(toward, angles); angles[PITCH] -= 35; angles[YAW] += 2;
+                    AngleVectors(angles, forward, NULL, NULL);
+                    VectorMA(actor->r.currentOrigin, 40, forward, point); point[2] += 40;
+                    DK_ZapFlare(point, "models/global/e_flgreen.sp2", 1, 600);
+                }
+                if (model == 27 || model == 28 || model == 31 || model == 32) {
+                    int damage = attack->damage;
+                    if (attack->randomDamage > 0) damage += ActorRandom(actor) % (attack->randomDamage + 1);
+                    DK_DropToxicBomb(actor, actor->enemy, damage, model >= 31);
+                }
+                continue;
+            }
+            if (!strcmp(actor->classname, "monster_inmater") && !Q_stricmp(animation->name, "atakc")) {
+                /* aThirdAttackInfo: six laser shots walking across the arm cannon. */
+                static const int sweep[6] = {10, 14, 18, 22, 26, 36};
+                static const vec3_t muzzle[6] = {{16, 5, 16}, {16, -3, 16}, {16, -11, 16},
+                                                 {16, -19, 16}, {16, -27, 16}, {16, -18, 16}};
+                int shot;
+                attack = &info->attacks[1];
+                for (shot = 0; shot < 6; ++shot) if (frame - 1 == sweep[shot]) {
+                    int damage = attack->damage;
+                    if (attack->randomDamage > 0) damage += ActorRandom(actor) % (attack->randomDamage + 1);
+                    DK_ActorStrike(actor, actor->enemy, attack->weapon, muzzle[shot],
+                                   attack->speed, damage, attack->range, attack->spreadX, attack->spreadZ);
+                }
+                continue;
+            }
             for (event = 0; event < 2; ++event) {
                 int strike = animation->strikes[event];
+                if (sludge) {
+                    if (Q_stricmpn(animation->name, "atak", 4)) break;
+                    attack = &info->attacks[event];
+                }
                 if (!event && !strike) strike = (frames + 1) / 2;
                 if (strike > frames) strike = frames;
                 if (strike && frame == strike) {
                     int damage = attack->damage;
                     if (attack->randomDamage > 0) damage += ActorRandom(actor) % (attack->randomDamage + 1);
-                    if (!strcmp(actor->classname, "monster_thunderskeet")) DK_DropToxicBomb(actor, actor->enemy, damage);
+                    if (sludge) --actor->dk.abilityCharges;
+                    if (!strcmp(actor->classname, "monster_garroth") && actor->dk.abilityState == 1) GarrothSummon(actor, actor->enemy);
                     else DK_ActorStrike(actor, actor->enemy, attack->weapon, attack->offset,
                                         attack->speed, damage, attack->range, attack->spreadX, attack->spreadZ);
                 }
@@ -390,8 +484,8 @@ static qboolean Enemy(gentity_t *actor, gentity_t *other) {
     dkActorInfo_t *info = Info(actor);
     if (!other->inuse || other == actor || other->health <= 0 || !other->takedamage) return qfalse;
     if (other->dk.cinematicControlled || (other->client && other->client->ps.dk3CameraActive)) return qfalse;
-    if (other->client && other->client->ps.powerups[PW_INVIS] > level.time &&
-        other->client->ps.weaponstate != WEAPON_FIRING && Distance(actor->r.currentOrigin, other->r.currentOrigin) > 128) return qfalse;
+    /* The wraith orb hides the player from monsters that have not yet seen them. */
+    if (other->client && other->client->ps.powerups[PW_INVIS] > level.time && !actor->dk.lastSeenTime) return qfalse;
     if (info->companion) return other->dk.actorKind && !Info(other)->companion && !Info(other)->civilian;
     if (info->civilian) return other == actor->enemy;
     return (other->client && other->client->sess.sessionTeam != TEAM_SPECTATOR) ||
@@ -405,8 +499,45 @@ static qboolean Visible(gentity_t *actor, gentity_t *target) {
     from[2] += actor->r.maxs[2] * 0.6f;
     VectorCopy(target->r.currentOrigin, to);
     to[2] += target->r.maxs[2] * 0.5f;
-    trap_Trace(&trace, from, NULL, NULL, to, actor->s.number, MASK_SHOT);
+    /* Perception is occluded by architecture, not by other actors. A crowd
+       below an aircraft must not permanently hide the player from its AI. */
+    trap_Trace(&trace, from, NULL, NULL, to, actor->s.number,
+               MASK_SOLID | CONTENTS_PLAYERCLIP | CONTENTS_MONSTERCLIP);
     return trace.entityNum == target->s.number || trace.fraction == 1;
+}
+
+/* Workers, the surgeon and prisoners run from a threat and cower. */
+static qboolean Timid(gentity_t *actor) {
+    const char *name = Info(actor)->classname;
+    return strstr(name, "worker") || !strcmp(name, "monster_surgeon") ||
+           !strcmp(name, "monster_prisoner") || !strcmp(name, "monster_prisonerb");
+}
+
+/* AI_EnemyAlert: monsters without an enemy inside the alerter's speak radius
+   (default 15% of its active distance) join in when either side can see the
+   other or the enemy. The wraith orb keeps the alarm from spreading. */
+static void EnemyAlert(gentity_t *actor, gentity_t *enemy) {
+    float speak = actor->dk.speakRange > 0 ? actor->dk.speakRange : Info(actor)->sightRange * 0.15f;
+    int i;
+    if (!enemy || !enemy->inuse || enemy->health <= 0 || (!enemy->client && !enemy->dk.actorKind)) return;
+    if (enemy->client && enemy->client->ps.powerups[PW_INVIS] > level.time) return;
+    for (i = MAX_CLIENTS; i < level.num_entities; ++i) {
+        gentity_t *other = &g_entities[i];
+        dkActorInfo_t *info;
+        if (other == actor || other == enemy || !other->inuse || !other->dk.actorKind || other->health <= 0 ||
+            other->enemy || other->dk.ignorePlayer || other->dk.cinematicControlled) continue;
+        info = Info(other);
+        if (info->companion || (info->civilian && !Timid(other)) || info->turret) continue;
+        if (!trap_InPVS(actor->r.currentOrigin, other->r.currentOrigin) &&
+            !trap_InPVS(other->r.currentOrigin, enemy->r.currentOrigin)) continue;
+        if (Distance(other->r.currentOrigin, actor->r.currentOrigin) >= speak &&
+            Distance(other->r.currentOrigin, enemy->r.currentOrigin) >= speak) continue;
+        if (!Visible(actor, other) && !Visible(other, enemy)) continue;
+        other->enemy = enemy;
+        if (other->dk.sightRange < 4000) other->dk.sightRange = 4000;
+        other->dk.lastSeenTime = level.time;
+        VectorCopy(enemy->r.currentOrigin, other->dk.lastSeenOrigin);
+    }
 }
 
 static void Acquire(gentity_t *actor) {
@@ -431,18 +562,18 @@ static void Acquire(gentity_t *actor) {
             distance = VectorLength(delta);
         }
         if (distance < nearest && Visible(actor, other)) {
-            vec3_t forward, toward;
-            float threshold = cos(Info(actor)->fov * (M_PI / 360.0f));
-            AngleVectors(actor->s.angles, forward, NULL, NULL);
-            VectorSubtract(other->r.currentOrigin, actor->r.currentOrigin, toward); VectorNormalize(toward);
-            if (!pod && distance > 160 && !Info(actor)->companion && DotProduct(forward, toward) < threshold &&
-                !(other->client && distance < 768 && other->client->ps.weaponstate == WEAPON_FIRING)) continue;
+            /* AI_IsVisible: players need a yaw-only FOV of fov/2 or an XY distance under 256. */
+            vec3_t toward;
+            VectorSubtract(other->r.currentOrigin, actor->r.currentOrigin, toward);
+            if (!pod && !Info(actor)->companion && other->client &&
+                fabs(AngleSubtract(vectoyaw(toward), actor->s.angles[YAW])) > Info(actor)->fov * 0.5f &&
+                sqrt(toward[0] * toward[0] + toward[1] * toward[1]) >= 256) continue;
             actor->enemy = other; nearest = distance;
         }
     }
     if (actor->enemy) {
         dkActorInfo_t *info = Info(actor);
-        if (!previous && (!actor->dk.lastSeenTime || level.time - actor->dk.lastSeenTime > 8000)) {
+        if (!previous && (!actor->dk.lastSeenTime || level.time - actor->dk.lastSeenTime > 10000)) {
             int total = 0, choice, cue;
             for (cue = 0; cue < info->sightSoundCount; ++cue) total += info->sightSounds[cue].weight;
             if (total > 0) {
@@ -464,11 +595,31 @@ static void Acquire(gentity_t *actor) {
 static qboolean Flying(gentity_t *actor) {
     trace_t trace;
     vec3_t ceiling;
-    if (!Info(actor)->flying || (actor->spawnflags & 64)) return qfalse;
+    if (!Info(actor)->flying || actor->dk.groundedFlight || (actor->spawnflags & 64)) return qfalse;
     if (strcmp(actor->classname, "monster_chaingang")) return qtrue;
     VectorCopy(actor->r.currentOrigin, ceiling); ceiling[2] += 96;
     trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, ceiling, actor->s.number, MASK_SOLID);
     return trace.fraction == 1;
+}
+
+static int WaterLevel(gentity_t *actor) {
+    vec3_t point;
+    int level = 0;
+    VectorCopy(actor->r.currentOrigin, point); point[2] += actor->r.mins[2] + 1;
+    if (!(trap_PointContents(point, actor->s.number) & MASK_WATER)) return 0;
+    ++level;
+    point[2] = actor->r.currentOrigin[2] + (actor->r.mins[2] + actor->r.maxs[2]) * 0.5f;
+    if (!(trap_PointContents(point, actor->s.number) & MASK_WATER)) return level;
+    ++level;
+    point[2] = actor->r.currentOrigin[2] + actor->r.maxs[2] - 2;
+    return trap_PointContents(point, actor->s.number) & MASK_WATER ? 3 : level;
+}
+
+/* The crox and froginator switch to MOVETYPE_SWIM at waist depth. */
+static qboolean Swimming(gentity_t *actor) {
+    if (Info(actor)->swimming) return qtrue;
+    if (strcmp(actor->classname, "monster_crox") && strcmp(actor->classname, "monster_froginator")) return qfalse;
+    return WaterLevel(actor) >= 2;
 }
 
 /* Authored origins can leave a newly assigned hull slightly below a floor.
@@ -494,8 +645,9 @@ static qboolean ClearActorHull(gentity_t *actor) {
     }
     VectorClear(actor->dk.actorVelocity);
     if (!actor->dk.blockedSince) {
-        G_Printf("dk3: actor %u (%s) obstructed at %.0f %.0f %.0f\n", actor->dk.id, actor->classname,
-            actor->r.currentOrigin[0], actor->r.currentOrigin[1], actor->r.currentOrigin[2]);
+        G_Printf("dk3: actor %u (%s) obstructed at %.0f %.0f %.0f hull %.0f %.0f %.0f .. %.0f %.0f %.0f\n", actor->dk.id,
+            actor->classname, actor->r.currentOrigin[0], actor->r.currentOrigin[1], actor->r.currentOrigin[2],
+            actor->r.mins[0], actor->r.mins[1], actor->r.mins[2], actor->r.maxs[0], actor->r.maxs[1], actor->r.maxs[2]);
         actor->dk.blockedSince = level.time;
     }
     return qfalse;
@@ -506,7 +658,7 @@ static void Physics(gentity_t *actor) {
     vec3_t destination;
     float dt = DK_ACTOR_TICK / 1000.0f, impact;
     if (actor->dk.parentId || Info(actor)->turret ||
-        (actor->health > 0 && (Flying(actor) || Info(actor)->swimming))) return;
+        (actor->health > 0 && (Flying(actor) || Swimming(actor)))) return;
     if (!ClearActorHull(actor)) return;
     VectorCopy(actor->r.currentOrigin, destination); destination[2] -= 2;
     trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, destination, actor->s.number, MASK_PLAYERSOLID);
@@ -532,15 +684,28 @@ static void Physics(gentity_t *actor) {
         G_Damage(actor, NULL, NULL, NULL, NULL, (impact - 600) * 0.1f, DAMAGE_NO_ARMOR, MOD_FALLING);
 }
 
+/* Turns toward yaw at the actor's rate; returns the remaining difference. */
+static float TurnToward(gentity_t *actor, float yaw) {
+    float step = Info(actor)->yawRate * DK_ACTOR_TICK / 1000.0f;
+    float delta = AngleSubtract(yaw, actor->s.angles[YAW]);
+    if (actor->dk.cinematicControlled || fabs(delta) <= step) actor->s.angles[YAW] = AngleNormalize360(yaw);
+    else actor->s.angles[YAW] = AngleNormalize360(actor->s.angles[YAW] + (delta < 0 ? -step : step));
+    VectorCopy(actor->s.angles, actor->r.currentAngles);
+    return fabs(AngleSubtract(yaw, actor->s.angles[YAW]));
+}
+
 static void Move(gentity_t *actor, vec3_t goal, float speed) {
     dkActorInfo_t *info = Info(actor);
     vec3_t direction, end, raised, floor;
     trace_t move, ground;
-    float step = speed * DK_ACTOR_TICK / 1000.0f * ((actor->dk.status & 4) ? 0.35f : 1);
+    float step = speed * DK_ACTOR_TICK / 1000.0f * (1 - 0.8f * actor->dk.freezeLevel);
     float distance;
+    qboolean swim = Swimming(actor);
+    /* FROG_Think damps horizontal swimming velocity by 0.55 each think. */
+    if (swim && !info->swimming && !strcmp(actor->classname, "monster_froginator")) step *= 0.55f;
     if (!ClearActorHull(actor)) return;
     VectorSubtract(goal, actor->r.currentOrigin, direction);
-    if (!Flying(actor) && !info->swimming && !info->turret) direction[2] = 0;
+    if (!Flying(actor) && !swim && !info->turret) direction[2] = 0;
     distance = VectorNormalize(direction);
     if (distance < step) step = distance;
     if ((actor->spawnflags & 128) || step <= 0 || actor->dk.actorVelocity[2] > 0) return;
@@ -550,7 +715,7 @@ static void Move(gentity_t *actor, vec3_t goal, float speed) {
         return;
     }
     trap_Trace(&move, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, end, actor->s.number, MASK_PLAYERSOLID);
-    if (move.fraction < 1 && !Flying(actor) && !info->swimming && !info->turret) {
+    if (move.fraction < 1 && !Flying(actor) && !swim && !info->turret) {
         VectorCopy(actor->r.currentOrigin, raised); raised[2] += DK_STEP_HEIGHT;
         trap_Trace(&ground, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, raised, actor->s.number, MASK_PLAYERSOLID);
         if (ground.fraction == 1) {
@@ -559,7 +724,7 @@ static void Move(gentity_t *actor, vec3_t goal, float speed) {
             if (ground.fraction > move.fraction) move = ground;
         }
     }
-    if (!Flying(actor) && !info->swimming && !info->turret) {
+    if (!Flying(actor) && !swim && !info->turret) {
         VectorCopy(move.endpos, floor); floor[2] -= DK_STEP_HEIGHT + 24;
         trap_Trace(&ground, move.endpos, actor->r.mins, actor->r.maxs, floor, actor->s.number, MASK_PLAYERSOLID);
         /* Ground routes cannot cross a ledge just because the next area is reachable. */
@@ -571,19 +736,17 @@ static void Move(gentity_t *actor, vec3_t goal, float speed) {
         if (!actor->dk.blockedSince) actor->dk.blockedSince = level.time;
     } else actor->dk.blockedSince = 0;
     G_SetOrigin(actor, move.endpos);
-    if (!actor->dk.cinematicControlled || !actor->dk.turnActive)
-        actor->s.angles[YAW] = vectoyaw(direction);
-    VectorCopy(actor->s.angles, actor->r.currentAngles);
+    if (!actor->dk.cinematicControlled || !actor->dk.turnActive) TurnToward(actor, vectoyaw(direction));
     trap_LinkEntity(actor);
 }
 
-static void PursuePosition(gentity_t *actor, const vec3_t position, int target) {
+static void PursueAt(gentity_t *actor, const vec3_t position, int target, float speed) {
     vec3_t goal;
     trace_t trace;
     VectorCopy(position, goal);
     trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, goal, actor->s.number, MASK_PLAYERSOLID);
     if (trace.fraction < 1 && trace.entityNum != target &&
-        !Flying(actor) && !Info(actor)->swimming && !Info(actor)->turret && trap_AAS_Initialized()) {
+        !Flying(actor) && !Swimming(actor) && !Info(actor)->turret && trap_AAS_Initialized()) {
         int travel;
         DK_GroundWaypoint(actor, goal,
             TFL_WALK | TFL_CROUCH | TFL_BARRIERJUMP | TFL_ELEVATOR | TFL_WATER | TFL_AIR, goal, &travel);
@@ -593,11 +756,11 @@ static void PursuePosition(gentity_t *actor, const vec3_t position, int target) 
         if (!DK_NavigationGoal(actor, goal, 8, target, waypoint)) return;
         VectorCopy(waypoint, goal);
     }
-    if (Flying(actor) || Info(actor)->swimming) {
+    if (Flying(actor) || Swimming(actor)) {
         vec3_t waypoint;
         if (DK_NavigationGoal(actor, goal, Flying(actor) ? 4 : 2, target, waypoint)) VectorCopy(waypoint, goal);
     }
-    Move(actor, goal, Info(actor)->speed * (1 + actor->dk.attributes[2] * 0.1f));
+    Move(actor, goal, speed);
     if (!Info(actor)->turret && actor->dk.blockedSince && level.time - actor->dk.blockedSince > 500) {
         vec3_t forward, side, alternative, before;
         int attempt;
@@ -607,11 +770,15 @@ static void PursuePosition(gentity_t *actor, const vec3_t position, int target) 
             VectorCopy(actor->r.currentOrigin, before);
             VectorMA(before, (attempt & 1) ? -72 : 72, side, alternative);
             VectorMA(alternative, attempt < 2 ? 24 : -48, forward, alternative);
-            Move(actor, alternative, Info(actor)->speed);
+            Move(actor, alternative, speed);
             if (Distance(before, actor->r.currentOrigin) > 1) break;
         }
     }
     Animation(actor, actor->dk.movingAnimation ? actor->dk.movingAnimation : "run", ACTOR_CHASE);
+}
+
+static void PursuePosition(gentity_t *actor, const vec3_t position, int target) {
+    PursueAt(actor, position, target, Info(actor)->speed * (1 + actor->dk.attributes[2] * 0.1f));
 }
 
 static void Pursue(gentity_t *actor, gentity_t *target) {
@@ -626,6 +793,39 @@ static int AttackGroup(gentity_t *actor, float distance) {
     int i, selected = -1, alternatives = 0;
     float range = 100000;
     if (info->turret) return distance <= actor->dk.attackRange ? 0 : -1;
+    if (!strcmp(actor->classname, "monster_psyclaw")) {
+        /* Beyond 135 units it blasts, unless the target's view is already
+           warped; then it closes in to punch. */
+        qboolean warped = actor->enemy && actor->enemy->client && actor->enemy->client->ps.dk3PsyEnd > level.time;
+        if (distance > 135 && !warped && info->attacks[1].damage > 0 && distance <= info->attacks[1].range) return 1;
+        return distance <= 135 && distance <= info->attacks[0].range ? 0 : -1;
+    }
+    if (!strcmp(actor->classname, "monster_sludgeminion"))
+        return info->attacks[0].damage > 0 && distance <= info->attacks[0].range ? 0 : -1;
+    if (!strcmp(actor->classname, "monster_cryotech"))
+        return info->attacks[1].damage > 0 && distance <= info->attacks[1].range ? 1 : -1;
+    if (!strcmp(actor->classname, "monster_garroth"))
+        return distance < 200 ? (distance < info->attacks[0].range ? 0 : -1) : distance <= 600 ? 1 : -1;
+    if (!strcmp(actor->classname, "monster_battleboar")) {
+        if (distance > 120 && distance <= info->attacks[1].range && ActorRandom(actor) % 100 >= 15) return 1;
+        return distance <= info->attacks[0].range ? 0 : distance <= info->attacks[1].range ? 1 : -1;
+    }
+    if (!strcmp(actor->classname, "monster_froginator")) {
+        vec3_t feet;
+        VectorCopy(actor->r.currentOrigin, feet); feet[2] += actor->r.mins[2] + 1;
+        if (distance <= 80) return 0;
+        return distance <= info->attacks[1].range && !(trap_PointContents(feet, actor->s.number) & MASK_WATER) ? 1 : -1;
+    }
+    if (!strcmp(actor->classname, "monster_inmater")) {
+        if (distance <= 128) return 0;
+        if (distance > info->attacks[1].range) return -1;
+        return ActorRandom(actor) % 4 ? 1 : 2;
+    }
+    if (!strcmp(actor->classname, "monster_venomvermin"))
+        return distance <= 40 ? 0 : distance <= 192 && actor->s.groundEntityNum != ENTITYNUM_NONE ? 1 :
+            distance <= info->attacks[2].range ? 2 : -1;
+    if (!strcmp(actor->classname, "monster_ragemaster"))
+        return distance <= info->attacks[0].range ? 0 : -1;
     for (i = 0; i < 3; ++i) {
         if (info->attacks[i].damage <= 0 || distance > info->attacks[i].range) continue;
         if (!strcmp(actor->classname, "monster_wyndrax") && i == 1 && actor->dk.abilityCharges <= 0) continue;
@@ -636,6 +836,19 @@ static int AttackGroup(gentity_t *actor, float distance) {
     return selected;
 }
 
+static void TraceAttack(gentity_t *actor, const char *animation) {
+    vec3_t feet;
+    if (!trap_Cvar_VariableIntegerValue("dk3_actorTrace")) return;
+    VectorCopy(actor->r.currentOrigin, feet); feet[2] += actor->r.mins[2] + 1;
+    G_Printf("dk3: actor %u (%s) attack %s group %d charges %d distance %.0f%s\n", actor->dk.id, actor->classname,
+        animation, actor->dk.attackGroup, actor->dk.abilityCharges,
+        actor->enemy ? Distance(actor->r.currentOrigin, actor->enemy->r.currentOrigin) : 0,
+        trap_PointContents(feet, actor->s.number) & MASK_WATER ? " in liquid" : "");
+}
+
+static qboolean StartEvade(gentity_t *actor);
+static qboolean Evade(gentity_t *actor);
+
 static void Attack(gentity_t *actor, int group) {
     dkActorInfo_t *info = Info(actor);
     vec3_t direction;
@@ -643,9 +856,21 @@ static void Attack(gentity_t *actor, int group) {
     gentity_t *target = actor->enemy;
     if (!target || level.time < actor->dk.actionTime) return;
     VectorSubtract(target->r.currentOrigin, actor->r.currentOrigin, direction);
-    if (!actor->dk.cinematicControlled || !actor->dk.turnActive)
-        actor->s.angles[YAW] = vectoyaw(direction);
-    VectorCopy(actor->s.angles, actor->r.currentAngles);
+    if (!actor->dk.cinematicControlled || !actor->dk.turnActive) {
+        /* AI_IsFacingEnemy: no attack until within 5 degrees of the target. */
+        qboolean lasergat = !strcmp(actor->classname, "monster_lasergat");
+        if (TurnToward(actor, vectoyaw(direction)) > (lasergat || !strcmp(actor->classname, "monster_inmater") ? 1 : 5) &&
+            !info->companion) {
+            /* LASERGAT_Turn: servo whine every 0.4 s while it tracks. */
+            if (lasergat && level.time % 400 < DK_ACTOR_TICK) ActorSound(actor, "e1/m_lazergatservo.wav", 0.35f, 356, 512);
+            if (actor->dk.action != ACTOR_IDLE && !info->turret) Animation(actor, "amba", ACTOR_IDLE);
+            return;
+        }
+    }
+    if (!info->companion && !info->turret && !actor->dk.cinematicControlled && StartEvade(actor)) {
+        Evade(actor);
+        return;
+    }
     if (info->companion) {
         int interval = DK_FireCompanionWeapon(actor, target);
         Animation(actor, "atak", ACTOR_ATTACK);
@@ -666,46 +891,624 @@ static void Attack(gentity_t *actor, int group) {
     }
     actor->dk.attackGroup = group;
     if (!strcmp(actor->classname, "monster_wyndrax") && group == 1) --actor->dk.abilityCharges;
-    Com_sprintf(animation, sizeof(animation), "atak%c", 'a' + group);
+    if (!strcmp(actor->classname, "monster_sludgeminion")) {
+        /* Out of sludge while standing in it, the minion scoops more before
+           resuming its alternating left/right throws. */
+        vec3_t feet;
+        VectorCopy(actor->r.currentOrigin, feet); feet[2] += actor->r.mins[2] + 1;
+        if ((actor->dk.abilityState || actor->dk.abilityCharges <= 0) && (trap_PointContents(feet, actor->s.number) & MASK_WATER) &&
+            (!actor->dk.abilityState || actor->dk.abilityCharges < 3 + (int)(ActorRandom(actor) % 6))) {
+            if (!actor->dk.abilityState) actor->dk.abilityCharges = actor->dk.abilityCharges < 0 ? 2 + ActorRandom(actor) % 8 : actor->dk.abilityCharges + 3;
+            else actor->dk.abilityCharges += 2 + ActorRandom(actor) % 6;
+            actor->dk.abilityState = 1;
+            G_Sound(actor, CHAN_AUTO, DK_SoundIndex("e1/m_sludgegetmud.wav"));
+            actor->dk.animationTime = 0;
+            Animation(actor, "ambb", ACTOR_ATTACK); TraceAttack(actor, "ambb");
+            actor->dk.actionTime = level.time + AnimationDuration(actor);
+            return;
+        }
+        actor->dk.abilityState = 0;
+        Q_strncpyz(animation, ActorRandom(actor) % 5 == 0 ? "atakb" : "ataka", sizeof(animation));
+    } else if (!strcmp(actor->classname, "monster_garroth")) {
+        /* Punch up close; otherwise, by a skill-scaled chance, cast the stave's
+           meteor, a wisp or a Buboid summons, falling back by reach. */
+        static const int chance[] = {30, 70, 85};
+        float distance = Distance(actor->r.currentOrigin, target->r.currentOrigin);
+        float stave = info->attacks[1].range, wisp = info->attacks[2].range;
+        int skill = (int)Com_Clamp(0, 2, (trap_Cvar_VariableIntegerValue("g_spSkill") - 1) / 2), choice;
+        actor->dk.abilityState = 0;
+        if (distance < info->attacks[0].range) {
+            actor->dk.attackGroup = 0; Q_strncpyz(animation, "atakc", sizeof(animation));
+        } else if ((int)(ActorRandom(actor) % 100) < chance[skill]) {
+            choice = ActorRandom(actor) % 3;
+            if (choice == 1) group = distance <= stave ? 1 : distance <= wisp ? 2 : -1;
+            else if (choice == 2) group = distance <= wisp ? 2 : distance <= stave ? 1 : -1;
+            else group = distance <= stave ? -1 : 2;
+            if (group < 0) { actor->dk.abilityState = 1; group = 1; }
+            actor->dk.attackGroup = group; Q_strncpyz(animation, "ataka", sizeof(animation));
+        } else {
+            actor->dk.animationTime = 0;
+            Animation(actor, "amba", ACTOR_WAIT); TraceAttack(actor, "amba");
+            actor->dk.actionTime = level.time + AnimationDuration(actor);
+            return;
+        }
+    } else if (!strcmp(actor->classname, "monster_cryotech")) {
+        /* Its only weapon is the sweeping cryo spray, rested three seconds. */
+        if (level.time < actor->dk.abilityTime) {
+            Animation(actor, "amba", ACTOR_WAIT);
+            actor->dk.actionTime = level.time + 100;
+            return;
+        }
+        actor->dk.abilityTime = level.time + 3000;
+        Q_strncpyz(animation, "bambb", sizeof(animation));
+    } else if (!strcmp(actor->classname, "monster_psyclaw") || !strcmp(actor->classname, "monster_froginator"))
+        Q_strncpyz(animation, group == 1 ? "ataka" : "atakb", sizeof(animation));
+    else if (!strcmp(actor->classname, "monster_inmater"))
+        Q_strncpyz(animation, group == 0 ? "atakb" : group == 1 ? "ataka" : "atakc", sizeof(animation));
+    else if (!strcmp(actor->classname, "monster_ragemaster"))
+        Q_strncpyz(animation, "atake", sizeof(animation));
+    else if (!strcmp(actor->classname, "monster_crox")) {
+        /* Surface bites are atakc/atakd; fully submerged, atakb/ataka. */
+        qboolean third = ActorFraction(actor) < 0.666f;
+        Q_strncpyz(animation, WaterLevel(actor) < 3 ? (third ? "atakc" : "atakd") : (third ? "atakb" : "ataka"), sizeof(animation));
+    }
+    else if (!strcmp(actor->classname, "monster_venomvermin")) {
+        /* Gold asks for atakd mid-leap; the model lacks it, so the run clip plays. */
+        Q_strncpyz(animation, group == 0 ? "ataka" : group == 1 ? "runa" : "atakc", sizeof(animation));
+        if (group == 1) {
+            vec3_t forward;
+            AngleVectors(actor->s.angles, forward, NULL, NULL);
+            VectorScale(forward, actor->dk.runSpeed * 1.5f, actor->dk.actorVelocity);
+            actor->dk.actorVelocity[2] = 150;
+            actor->s.groundEntityNum = ENTITYNUM_NONE;
+        }
+    } else if (!strcmp(actor->classname, "monster_mishimaguard")) {
+        /* An eight-round pistol: reload when empty, change pose every four shots. */
+        if (actor->dk.abilityCharges <= 0) {
+            actor->dk.abilityCharges = 8;
+            actor->dk.animationTime = 0;
+            Animation(actor, "reload", ACTOR_WAIT); TraceAttack(actor, "reload");
+            ActorSound(actor, "global/i_scammo.wav", 0.75f, 256, 512);
+            actor->dk.actionTime = level.time + AnimationDuration(actor) + 500 + (int)(ActorFraction(actor) * 1000);
+            return;
+        }
+        if (actor->dk.abilityCharges % 4 == 0) Com_sprintf(animation, sizeof(animation), "atak%c", 'a' + ActorRandom(actor) % 3);
+        else Q_strncpyz(animation, "ataka", sizeof(animation));
+        --actor->dk.abilityCharges;
+    } else Com_sprintf(animation, sizeof(animation), "atak%c", 'a' + group);
     if (AnimationIndex(info, animation) < 0) Q_strncpyz(animation, "atak", sizeof(animation));
     actor->dk.animationTime = 0;
-    Animation(actor, animation, ACTOR_ATTACK);
+    Animation(actor, animation, ACTOR_ATTACK); TraceAttack(actor, actor->dk.abilityState == 1 &&
+        !strcmp(actor->classname, "monster_garroth") ? "summon" : animation);
     actor->dk.actionTime = level.time + AnimationDuration(actor) + 200;
 }
 
-/* A thunderskeet attacks on moving passes above its target. The local arc
-   follows collision-tested waypoints and never pulls the aircraft to eye height. */
+static float Room(gentity_t *actor, float reach) {
+    trace_t trace;
+    vec3_t end;
+    VectorCopy(actor->r.currentOrigin, end); end[2] += reach;
+    trap_Trace(&trace, actor->r.currentOrigin, NULL, NULL, end, actor->s.number, MASK_SOLID);
+    return trace.fraction * fabs(reach);
+}
+
+/* thunderskeet.cpp: chase toward a point 96 units above the target, fire,
+   then hover 2.75 s. Too low or out of sight, it hovers, rising at 64 units
+   per second while there is headroom. abilityState is chase, hover, attack;
+   abilityCharges marks a rising hover. */
+enum { THUNDER_CHASE, THUNDER_HOVER, THUNDER_ATTACK };
+
+static void ThunderHover(gentity_t *actor) {
+    actor->dk.abilityState = THUNDER_HOVER; actor->dk.abilityTime = level.time + 2750;
+    actor->dk.abilityCharges = Room(actor, 1024) > 128;
+    Animation(actor, "flya", ACTOR_CHASE);
+}
+
 static void ThunderFlight(gentity_t *actor) {
     gentity_t *target = actor->enemy;
-    vec3_t goal, ceiling, center, facing, before;
-    trace_t trace;
-    float phase, distance;
+    vec3_t goal, facing;
+    float distance;
     if (!target) return;
-    phase = level.time * 0.0008f + actor->dk.id;
-    VectorCopy(target->r.currentOrigin, center); center[2] += target->r.maxs[2] + 280;
-    VectorCopy(center, goal);
-    goal[0] += cos(phase) * 240; goal[1] += sin(phase) * 240;
-    VectorCopy(target->r.currentOrigin, ceiling); ceiling[2] += target->r.maxs[2] + 1;
-    trap_Trace(&trace, ceiling, NULL, NULL, center, target->s.number, MASK_SOLID);
-    if (trace.fraction < 1) goal[2] = trace.endpos[2] - actor->r.maxs[2] - 16;
-    if (goal[2] < target->r.currentOrigin[2] + 96) {
-        /* A low roof calls for another flight route, never a melee approach. */
-        VectorCopy(actor->r.currentOrigin, goal);
-        goal[0] += cos(phase) * 160; goal[1] += sin(phase) * 160;
-    }
-    VectorCopy(actor->r.currentOrigin, before);
-    Move(actor, goal, Info(actor)->speed);
-    if (Distance(before, actor->r.currentOrigin) < 1) {
-        VectorCopy(before, goal); goal[2] += 64;
-        Move(actor, goal, Info(actor)->speed);
-    }
     VectorSubtract(target->r.currentOrigin, actor->r.currentOrigin, facing);
-    actor->s.angles[YAW] = vectoyaw(facing);
     distance = VectorLength(facing);
-    if (level.time >= actor->dk.actionTime) {
-        if (actor->r.currentOrigin[2] > target->r.currentOrigin[2] + 96 &&
-            distance <= Info(actor)->attacks[0].range && Visible(actor, target)) Attack(actor, 0);
-        else Animation(actor, "fly", ACTOR_CHASE);
+    if (actor->dk.abilityState == THUNDER_ATTACK || actor->dk.action == ACTOR_ATTACK) {
+        actor->s.angles[YAW] = vectoyaw(facing); VectorCopy(actor->s.angles, actor->r.currentAngles);
+        if (level.time < actor->dk.actionTime) return;
+        ThunderHover(actor);
+    }
+    if (actor->dk.abilityState == THUNDER_HOVER) {
+        TurnToward(actor, vectoyaw(facing));
+        if (level.time < actor->dk.abilityTime) {
+            if (actor->dk.abilityCharges || (distance < 128 && Room(actor, -1024) > 128)) {
+                trace_t trace;
+                vec3_t end;
+                VectorCopy(actor->r.currentOrigin, end); end[2] += 64 * DK_ACTOR_TICK / 1000.0f;
+                trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, end, actor->s.number, MASK_PLAYERSOLID);
+                if (!trace.startsolid) { G_SetOrigin(actor, trace.endpos); trap_LinkEntity(actor); }
+                if (trace.fraction < 1) actor->dk.abilityCharges = 0;
+            }
+            return;
+        }
+        actor->dk.abilityState = THUNDER_CHASE;
+    }
+    if (!Visible(actor, target) || (target->client && target->client->ps.powerups[PW_INVIS] > level.time) ||
+        fabs(facing[2]) < 96) {
+        ThunderHover(actor);
+        return;
+    }
+    if (distance < Info(actor)->attackDistance) {
+        if (level.time >= actor->dk.actionTime) {
+            Attack(actor, 0);
+            if (actor->dk.action == ACTOR_ATTACK) actor->dk.abilityState = THUNDER_ATTACK;
+        }
+        return;
+    }
+    VectorCopy(target->r.currentOrigin, goal); goal[2] += 96;
+    PursuePosition(actor, goal, ENTITYNUM_NONE);
+    Animation(actor, "flya", ACTOR_CHASE);
+}
+
+/* cambot.cpp: a camera that never attacks. It patrols path corners at walk
+   speed until it sees a player, then turns red, sounds the alarm, alerts nearby
+   monsters and tails that player for good, 72 to 192 units away. abilityState
+   is 0 searching, 1 alerted, 2 alerted and dodging; abilityCharges marks a
+   floor or ceiling clearance move toward moveGoal until abilityTime. */
+enum { CAMBOT_SEARCHING, CAMBOT_ALERTED, CAMBOT_DODGING };
+static const float cambotWave[12] = {0.017f, 0.515f, 0.874f, 0.999f, 0.857f, 0.484f,
+                                     -0.017f, -0.515f, -0.874f, -0.999f, -0.857f, -0.484f};
+
+/* CAMBOT_IsVisible: 60% up both hulls, within 75 degrees of its yaw, and clear
+   from both sides of its body. */
+static qboolean CambotSees(gentity_t *actor, gentity_t *target) {
+    trace_t trace;
+    vec3_t from, to, toward, side, point;
+    float half = (actor->r.maxs[0] - actor->r.mins[0]) * 0.6f, yaw;
+    int i;
+    VectorCopy(actor->r.currentOrigin, from); from[2] += (actor->r.maxs[2] - actor->r.mins[2]) * 0.6f;
+    VectorCopy(target->r.currentOrigin, to); to[2] += (target->r.maxs[2] - target->r.mins[2]) * 0.6f;
+    if (!trap_InPVS(from, to)) return qfalse;
+    trap_Trace(&trace, from, NULL, NULL, to, actor->s.number, MASK_SOLID);
+    if (trace.fraction < 1) return qfalse;
+    VectorSubtract(target->r.currentOrigin, actor->r.currentOrigin, toward);
+    yaw = fabs(AngleSubtract(vectoyaw(toward), actor->s.angles[YAW]));
+    if (yaw >= 75) return qfalse;
+    toward[2] = 0; VectorNormalize(toward);
+    VectorSet(side, -toward[1], toward[0], 0);
+    for (i = 0; i < 2; ++i) {
+        VectorMA(from, i ? -half : half, side, point);
+        trap_Trace(&trace, point, NULL, NULL, to, actor->s.number, MASK_SOLID);
+        if (trace.fraction < 1) return qfalse;
+    }
+    return qtrue;
+}
+
+/* CAMBOT_FoundPlayer: the alarm and the alert are sent once. The original
+   compares the camera-to-player distance, not each monster's, against 1024. */
+static void CambotFound(gentity_t *actor, gentity_t *enemy) {
+    int i;
+    actor->enemy = enemy; actor->dk.abilityState = CAMBOT_ALERTED; actor->dk.sightRange = 5000;
+    actor->dk.lastSeenTime = level.time; VectorCopy(enemy->r.currentOrigin, actor->dk.lastSeenOrigin);
+    ActorSound(actor, "e1/m_cambotalarm.wav", 0.85f, 128, 1000);
+    if (Distance(actor->r.currentOrigin, enemy->r.currentOrigin) >= 1024) return;
+    for (i = MAX_CLIENTS; i < level.num_entities; ++i) {
+        gentity_t *ally = &g_entities[i];
+        if (ally == actor || !ally->inuse || !ally->dk.actorKind || ally->health <= 0 ||
+            Info(ally)->civilian || Info(ally)->companion || !trap_InPVS(actor->r.currentOrigin, ally->r.currentOrigin)) continue;
+        ally->enemy = enemy; ally->dk.lastSeenTime = level.time;
+        VectorCopy(enemy->r.currentOrigin, ally->dk.lastSeenOrigin);
+    }
+}
+
+static void CambotFace(gentity_t *actor, const vec3_t point, qboolean pitch) {
+    vec3_t toward, angles;
+    float step = 90 * DK_ACTOR_TICK / 1000.0f;
+    int axis;
+    VectorSubtract(point, actor->r.currentOrigin, toward);
+    vectoangles(toward, angles);
+    if (!pitch) angles[PITCH] = 0;
+    for (axis = PITCH; axis <= YAW; ++axis) {
+        float delta = AngleSubtract(angles[axis], actor->s.angles[axis]);
+        actor->s.angles[axis] = AngleNormalize360(actor->s.angles[axis] + Com_Clamp(-step, step, delta));
+    }
+    actor->s.angles[ROLL] = 0;
+    VectorCopy(actor->s.angles, actor->r.currentAngles);
+}
+
+/* Flight moves keep the camera's own facing rather than the travel yaw. */
+static void CambotMove(gentity_t *actor, const vec3_t goal, float speed) {
+    vec3_t angles;
+    VectorCopy(actor->s.angles, angles);
+    Move(actor, (float *)goal, speed);
+    VectorCopy(angles, actor->s.angles); VectorCopy(angles, actor->r.currentAngles);
+}
+
+/* A player targets the camera when it sits under the crosshair; monsters when facing it. */
+static qboolean CambotTargeted(gentity_t *actor, gentity_t *enemy) {
+    vec3_t forward, toward;
+    if (enemy->client) AngleVectors(enemy->client->ps.viewangles, forward, NULL, NULL);
+    else AngleVectors(enemy->s.angles, forward, NULL, NULL);
+    VectorSubtract(actor->r.currentOrigin, enemy->r.currentOrigin, toward);
+    VectorNormalize(toward);
+    return DotProduct(forward, toward) > (enemy->client ? 0.97f : 0.5f);
+}
+
+/* CAMBOT_FindBackAwayPointFromEnemy: straight back and a little up, else the
+   clearer of the two sides 60 degrees off it. */
+static qboolean CambotBackAway(gentity_t *actor, gentity_t *enemy, vec3_t point) {
+    static const vec3_t mins = {-8, -8, -8}, maxs = {8, 8, 8};
+    trace_t trace;
+    vec3_t direction, sides[2], end;
+    float clear[2], speed = Info(actor)->walkSpeed * 2 * 0.15f;
+    int i;
+    VectorSubtract(actor->r.currentOrigin, enemy->r.currentOrigin, direction);
+    direction[2] = 0; VectorNormalize(direction);
+    if (fabs(actor->r.currentOrigin[2] - enemy->r.currentOrigin[2]) < 72) direction[2] = 0.2f;
+    VectorNormalize(direction);
+    VectorMA(actor->r.currentOrigin, 72, direction, point);
+    trap_Trace(&trace, actor->r.currentOrigin, mins, maxs, point, actor->s.number, MASK_SOLID);
+    if (trace.fraction >= 1) return qtrue;
+    for (i = 0; i < 2; ++i) {
+        float angle = (i ? 60 : -60) * M_PI / 180;
+        sides[i][0] = direction[0] * cos(angle) - direction[1] * sin(angle);
+        sides[i][1] = direction[0] * sin(angle) + direction[1] * cos(angle);
+        sides[i][2] = direction[2];
+        VectorMA(actor->r.currentOrigin, 1024, sides[i], end);
+        trap_Trace(&trace, actor->r.currentOrigin, mins, maxs, end, actor->s.number, MASK_SOLID);
+        clear[i] = trace.fraction * 1024;
+    }
+    i = clear[0] >= 72 && (clear[1] < 72 || clear[0] >= clear[1]) ? 0 : clear[1] >= 72 ? 1 : -1;
+    if (i < 0) return qfalse;
+    VectorMA(actor->r.currentOrigin, speed, sides[i], point);
+    return qtrue;
+}
+
+/* AI_ComputeFlyAwayPoint: 250 units at a random bearing, shrinking by 35%
+   while blocked, through a hull a quarter larger than the camera's. */
+static qboolean CambotDodge(gentity_t *actor) {
+    trace_t trace;
+    vec3_t mins, maxs, point;
+    float distance = 250, bearing = ActorFraction(actor) * 360, turn = ActorFraction(actor) > 0.5f ? 10 : -10;
+    int i;
+    VectorScale(actor->r.mins, 1.25f, mins); VectorScale(actor->r.maxs, 1.25f, maxs);
+    for (; distance > 100; distance *= 0.65f) {
+        for (i = 0; i < 36; ++i, bearing += turn) {
+            float angle = bearing * M_PI / 180;
+            VectorCopy(actor->r.currentOrigin, point);
+            point[0] += cos(angle) * distance; point[1] += sin(angle) * distance;
+            point[2] += (ActorFraction(actor) * 2 - 1) * distance * 0.5f;
+            trap_Trace(&trace, actor->r.currentOrigin, mins, maxs, point, actor->s.number, MASK_SOLID | CONTENTS_BODY);
+            if (trace.fraction >= 1) {
+                VectorCopy(point, actor->dk.moveGoal);
+                actor->dk.abilityState = CAMBOT_DODGING;
+                return qtrue;
+            }
+        }
+    }
+    return qfalse;
+}
+
+static void CambotFollow(gentity_t *actor) {
+    gentity_t *enemy = actor->enemy;
+    float speed = Info(actor)->walkSpeed * 2, distance;
+    vec3_t delta, point;
+    if (!Visible(actor, enemy)) {
+        actor->dk.abilityState = CAMBOT_ALERTED;
+        PursueAt(actor, enemy->r.currentOrigin, enemy->s.number, Info(actor)->speed);
+        CambotFace(actor, enemy->r.currentOrigin, qtrue);
+        Animation(actor, "fly", ACTOR_CHASE);
+        return;
+    }
+    actor->dk.lastSeenTime = level.time; VectorCopy(enemy->r.currentOrigin, actor->dk.lastSeenOrigin);
+    CambotFace(actor, enemy->r.currentOrigin, qtrue);
+    if (actor->dk.abilityState == CAMBOT_DODGING) {
+        vec3_t before;
+        VectorCopy(actor->r.currentOrigin, before);
+        CambotMove(actor, actor->dk.moveGoal, speed);
+        if (Distance(actor->r.currentOrigin, actor->dk.moveGoal) < 16 || Distance(before, actor->r.currentOrigin) < 0.5f)
+            actor->dk.abilityState = CAMBOT_ALERTED;
+        Animation(actor, "fly", ACTOR_CHASE);
+        return;
+    }
+    VectorSubtract(enemy->r.currentOrigin, actor->r.currentOrigin, delta); delta[2] = 0;
+    distance = VectorLength(delta);
+    if (distance < 72) {
+        trace_t trace;
+        if (CambotBackAway(actor, enemy, point) && trap_InPVS(enemy->r.currentOrigin, point)) {
+            trap_Trace(&trace, enemy->r.currentOrigin, NULL, NULL, point, enemy->s.number, MASK_SOLID);
+            if (trace.fraction >= 1) { CambotMove(actor, point, speed); Animation(actor, "fly", ACTOR_CHASE); return; }
+        }
+    } else if (distance <= 192) {
+        /* A quarter of the original's 100 ms decisions, at this 50 ms tick. */
+        if (ActorFraction(actor) < 0.134f && CambotTargeted(actor, enemy) && CambotDodge(actor)) return;
+    } else {
+        VectorCopy(enemy->r.currentOrigin, point); point[2] += 72;
+        CambotMove(actor, point, speed);
+        Animation(actor, "fly", ACTOR_CHASE);
+        return;
+    }
+    Animation(actor, "amba", ACTOR_IDLE);
+}
+
+static void CambotPatrol(gentity_t *actor) {
+    gentity_t *corner = actor->dk.pathTarget ? DK_FindNamed(actor->dk.pathTarget) : NULL;
+    vec3_t delta;
+    if (!corner) {
+        if (actor->dk.pathTarget)
+            G_Printf("dk3: actor %u (%s): missing path corner %s\n", actor->dk.id, actor->classname, actor->dk.pathTarget);
+        actor->dk.pathTarget = NULL;
+        Animation(actor, "amba", ACTOR_IDLE);
+        return;
+    }
+    VectorSubtract(corner->r.currentOrigin, actor->r.currentOrigin, delta);
+    if (fabs(delta[2]) < 32 && sqrt(delta[0] * delta[0] + delta[1] * delta[1]) < 24) {
+        actor->dk.pathTarget = corner->target;
+        actor->dk.scriptUntil = level.time + (int)(corner->wait * 1000);
+        if (corner->dk.aiScript) DK_StartScript(corner->dk.aiScript, actor, actor, qfalse);
+        return;
+    }
+    PursueAt(actor, corner->r.currentOrigin, ENTITYNUM_NONE, Info(actor)->walkSpeed);
+    CambotFace(actor, corner->r.currentOrigin, qfalse);
+    Animation(actor, "fly", ACTOR_CHASE);
+}
+
+/* CAMBOT_Think: a 1.2 s sine bob of 15 units/s, the hover tone and random
+   control chatter on that cycle, and 32 units of floor and ceiling clearance. */
+static void CambotPresence(gentity_t *actor) {
+    trace_t trace;
+    vec3_t end;
+    int phase = (level.time / 100) % 12;
+    qboolean patrolling = actor->dk.abilityState == CAMBOT_SEARCHING && actor->dk.pathTarget;
+    VectorCopy(actor->r.currentOrigin, end);
+    end[2] += 15 * cambotWave[phase] * DK_ACTOR_TICK / 1000.0f;
+    trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, end, actor->s.number, MASK_PLAYERSOLID);
+    if (!trace.startsolid) { G_SetOrigin(actor, trace.endpos); trap_LinkEntity(actor); }
+    if (level.time % 100 < DK_ACTOR_TICK) {
+        if (phase == 1) {
+            if (patrolling) ActorSound(actor, "global/e_roomtoned.wav", 0.65f, 256, 648);
+            else ActorSound(actor, "global/e_roomtonee.wav", 0.75f, 256, 648);
+        } else if (phase == 5 && ActorFraction(actor) > (actor->enemy && !Visible(actor, actor->enemy) ? 0.30f : 0.65f)) {
+            ActorSound(actor, va("global/e_cntrltone%c.wav", 'a' + (int)(ActorFraction(actor) * 9)), 0.65f, 256, 648);
+        }
+    }
+    if (actor->dk.abilityCharges) {
+        CambotMove(actor, actor->dk.moveGoal, Info(actor)->walkSpeed * 2);
+        if (level.time >= actor->dk.abilityTime || Distance(actor->r.currentOrigin, actor->dk.moveGoal) < 16)
+            actor->dk.abilityCharges = 0;
+        return;
+    }
+    VectorCopy(actor->r.currentOrigin, end); end[2] -= 300;
+    trap_Trace(&trace, actor->r.currentOrigin, NULL, NULL, end, actor->s.number, MASK_PLAYERSOLID);
+    if (trace.fraction * 300 < 32) {
+        VectorCopy(actor->r.currentOrigin, actor->dk.moveGoal); actor->dk.moveGoal[2] += 96 + 128 * ActorFraction(actor);
+    } else {
+        VectorCopy(actor->r.currentOrigin, end); end[2] += 300;
+        trap_Trace(&trace, actor->r.currentOrigin, NULL, NULL, end, actor->s.number, MASK_SOLID);
+        if (trace.fraction * 300 >= 32) return;
+        VectorCopy(actor->r.currentOrigin, actor->dk.moveGoal); actor->dk.moveGoal[2] -= 96 + 128 * ActorFraction(actor);
+    }
+    actor->dk.abilityCharges = 1; actor->dk.abilityTime = level.time + 3000;
+}
+
+static void CambotThink(gentity_t *actor) {
+    int i;
+    CambotPresence(actor);
+    if (actor->dk.abilityCharges) return;
+    if (actor->enemy && (!actor->enemy->inuse || actor->enemy->health <= 0)) {
+        actor->enemy = NULL; actor->dk.abilityState = CAMBOT_SEARCHING;
+    }
+    if (actor->enemy && actor->dk.abilityState == CAMBOT_SEARCHING) CambotFound(actor, actor->enemy);
+    if (!actor->enemy && !actor->dk.ignorePlayer) {
+        for (i = 0; i < level.num_entities; ++i) {
+            gentity_t *other = &g_entities[i];
+            if ((other->client || DK_IsCompanion(other)) && Enemy(actor, other) &&
+                Distance(actor->r.currentOrigin, other->r.currentOrigin) < actor->dk.sightRange && CambotSees(actor, other)) {
+                CambotFound(actor, other);
+                break;
+            }
+        }
+    }
+    if (actor->enemy) CambotFollow(actor);
+    else CambotPatrol(actor);
+    if (level.time % 1000 < DK_ACTOR_TICK && trap_Cvar_VariableIntegerValue("dk3_actorTrace")) {
+        vec3_t delta;
+        if (actor->enemy) VectorSubtract(actor->enemy->r.currentOrigin, actor->r.currentOrigin, delta);
+        else VectorClear(delta);
+        G_Printf("dk3: actor %u (%s) camera state %d path %s xy %.0f height %.0f\n", actor->dk.id, actor->classname,
+            actor->dk.abilityState, actor->dk.pathTarget ? actor->dk.pathTarget : "-",
+            sqrt(delta[0] * delta[0] + delta[1] * delta[1]), -delta[2]);
+    }
+}
+
+static qboolean Targeted(gentity_t *actor, gentity_t *enemy);
+static qboolean SideStepPoint(gentity_t *actor, float distance, vec3_t point);
+
+/* AI_ComputeBestAwayYawPoint: the clearest of the yaw samples, favoring
+   directions away from the enemy. */
+static qboolean AwayPoint(gentity_t *actor, float distance, int resolution, qboolean pitch, vec3_t point) {
+    float best = -100000, start = ActorFraction(actor) * 360;
+    int i;
+    for (i = 0; i < 360 / resolution; ++i) {
+        trace_t trace;
+        vec3_t angles, direction, goal, away;
+        float score;
+        VectorSet(angles, pitch ? (ActorFraction(actor) * 2 - 1) * 30 : 0, start + i * resolution, 0);
+        AngleVectors(angles, direction, NULL, NULL);
+        VectorMA(actor->r.currentOrigin, distance, direction, goal);
+        trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, goal, actor->s.number, MASK_PLAYERSOLID);
+        if (trace.startsolid || trace.fraction * distance < 48) continue;
+        score = trace.fraction * distance;
+        if (actor->enemy) {
+            VectorSubtract(actor->r.currentOrigin, actor->enemy->r.currentOrigin, away); VectorNormalize(away);
+            score += DotProduct(away, direction) * 128;
+        }
+        if (score > best) { best = score; VectorCopy(trace.endpos, point); }
+    }
+    return best > -100000;
+}
+
+/* deathsphere.cpp: a hovering orb that bobs, steams away from floors and
+   ceilings, charges for 0.75 s, then fires its four muzzles on the ready frame
+   and twice more four frames later. Aimed at, it darts off. abilityState is
+   chase, charge, attack, or a short dart toward moveGoal until abilityTime. */
+enum { SPHERE_CHASE, SPHERE_CHARGE, SPHERE_ATTACK, SPHERE_MOVE };
+
+static void SphereDart(gentity_t *actor, const vec3_t goal) {
+    VectorCopy(goal, actor->dk.moveGoal);
+    actor->dk.abilityState = SPHERE_MOVE; actor->dk.abilityTime = level.time + 250;
+    ActorSound(actor, "e1/m_dspheresteama.wav", 0.85f, 256, 512);
+    TraceAttack(actor, "dart");
+}
+
+static qboolean SphereAvoid(gentity_t *actor) {
+    vec3_t point;
+    if (actor->dk.abilityState == SPHERE_MOVE || !AwayPoint(actor, 500, 20, qfalse, point)) return qfalse;
+    SphereDart(actor, point);
+    return qtrue;
+}
+
+static void SphereVolley(gentity_t *actor) {
+    /* Gold muzzles are right, forward, up; strikes take forward, right, up. */
+    static const vec3_t muzzles[4] = {{10.90f, 1.21f, 27.18f}, {11.05f, 23.99f, 9.38f},
+                                      {11.05f, 0.77f, -7.40f}, {11.05f, -24.23f, 9.21f}};
+    dkActorAttack_t *attack = &Info(actor)->attacks[0];
+    int i;
+    ActorSound(actor, "e1/m_dsphereatak.wav", 1, 256, 648);
+    for (i = 0; i < 4; ++i) {
+        int damage = attack->damage;
+        if (attack->randomDamage > 0) damage += ActorRandom(actor) % (attack->randomDamage + 1);
+        DK_ActorStrike(actor, actor->enemy, attack->weapon, muzzles[i], attack->speed, damage, attack->range, 0, 0);
+    }
+}
+
+static qboolean SpherePresence(gentity_t *actor) {
+    trace_t trace;
+    vec3_t end;
+    int phase = (level.time / 100) % 12;
+    VectorCopy(actor->r.currentOrigin, end);
+    end[2] += 15 * cambotWave[phase] * DK_ACTOR_TICK / 1000.0f;
+    trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, end, actor->s.number, MASK_PLAYERSOLID);
+    if (!trace.startsolid) { G_SetOrigin(actor, trace.endpos); trap_LinkEntity(actor); }
+    actor->s.loopSound = DK_SoundIndex(actor->enemy ? "e1/m_dspherehovera.wav" : "e1/m_dspherehoverf.wav");
+    if (actor->dk.abilityState == SPHERE_MOVE) {
+        if (level.time < actor->dk.abilityTime && Distance(actor->r.currentOrigin, actor->dk.moveGoal) > 34) {
+            float yaw = actor->s.angles[YAW];
+            Move(actor, actor->dk.moveGoal, Info(actor)->speed);
+            actor->s.angles[YAW] = yaw; VectorCopy(actor->s.angles, actor->r.currentAngles);
+            Animation(actor, "flya", ACTOR_CHASE);
+            return qtrue;
+        }
+        actor->dk.abilityState = SPHERE_CHASE;
+    }
+    if (actor->dk.abilityState != SPHERE_CHASE) return qfalse;
+    VectorCopy(actor->r.currentOrigin, end); end[2] -= 300;
+    trap_Trace(&trace, actor->r.currentOrigin, NULL, NULL, end, actor->s.number, MASK_SOLID);
+    if (trace.fraction * 300 < 32) {
+        VectorCopy(actor->r.currentOrigin, end); end[2] += 96 + 128 * ActorFraction(actor);
+        SphereDart(actor, end);
+        return qtrue;
+    }
+    VectorCopy(actor->r.currentOrigin, end); end[2] += 300;
+    trap_Trace(&trace, actor->r.currentOrigin, NULL, NULL, end, actor->s.number, MASK_SOLID);
+    if (trace.fraction * 300 < 32) {
+        VectorCopy(actor->r.currentOrigin, end); end[2] -= 96 + 128 * ActorFraction(actor);
+        SphereDart(actor, end);
+        return qtrue;
+    }
+    return qfalse;
+}
+
+static void SphereThink(gentity_t *actor) {
+    dkActorInfo_t *info = Info(actor);
+    gentity_t *enemy = actor->enemy;
+    vec3_t toward, ahead, forward;
+    trace_t trace;
+    int ataka = AnimationIndex(info, "ataka"), frame, strike;
+    float facing;
+    VectorSubtract(enemy->r.currentOrigin, actor->r.currentOrigin, toward);
+    if (actor->dk.abilityState == SPHERE_CHASE) {
+        if (VectorLength(toward) > info->attackDistance || !Visible(actor, enemy)) { Pursue(actor, enemy); return; }
+        actor->dk.abilityState = SPHERE_CHARGE; actor->dk.abilityTime = level.time + 750;
+        actor->dk.animationTime = 0; Animation(actor, "ready", ACTOR_WAIT); TraceAttack(actor, "ready");
+        ActorSound(actor, "e1/m_dspherechargea.wav", 0.4f, 400, 512);
+    }
+    facing = TurnToward(actor, vectoyaw(toward));
+    if (actor->dk.abilityState == SPHERE_CHARGE) {
+        if (level.time < actor->dk.abilityTime) return;
+        actor->dk.abilityState = SPHERE_ATTACK; actor->dk.abilityCharges = -1;
+    }
+    if (level.time % 100 < DK_ACTOR_TICK && Targeted(actor, enemy) && ActorFraction(actor) >= 0.5f && SphereAvoid(actor)) return;
+    AngleVectors(actor->s.angles, forward, NULL, NULL);
+    VectorMA(actor->r.currentOrigin, 64, forward, ahead);
+    trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, ahead, actor->s.number, MASK_SOLID);
+    if (trace.fraction < 1) {
+        if (SideStepPoint(actor, 96, ahead)) SphereDart(actor, ahead);
+        else actor->dk.abilityState = SPHERE_CHASE;
+        return;
+    }
+    if (actor->dk.abilityCharges < 0) {
+        /* deathsphere_set_attack_seq: within 2 degrees, or it avoids. */
+        if (facing > 2) { if (!SphereAvoid(actor)) Animation(actor, "amba", ACTOR_WAIT); return; }
+        actor->dk.abilityCharges = 0;
+        actor->dk.animationTime = 0; Animation(actor, "ataka", ACTOR_WAIT); TraceAttack(actor, "ataka");
+    }
+    if (ataka < 0 || actor->dk.animationIndex != ataka) { actor->dk.abilityState = SPHERE_CHASE; return; }
+    frame = actor->s.frame - actor->dk.firstFrame + 1;
+    strike = info->animations[ataka].strikes[0];
+    if (!strike) strike = (actor->dk.lastFrame - actor->dk.firstFrame + 2) / 2;
+    if (actor->dk.abilityCharges == 0 && frame >= strike) { SphereVolley(actor); actor->dk.abilityCharges = 1; }
+    if (actor->dk.abilityCharges == 1 && frame >= strike + 4) { SphereVolley(actor); actor->dk.abilityCharges = 2; }
+    if (actor->dk.abilityCharges == 2 && frame >= strike + 5) { SphereVolley(actor); actor->dk.abilityCharges = 3; }
+    if (level.time - actor->dk.animationTime >= AnimationDuration(actor)) actor->dk.abilityState = SPHERE_CHASE;
+}
+
+/* skeeter.cpp: fly to within 178 units, dart in at one and a half times run
+   speed, punch through ataka, then fly 512 units away and repeat. */
+enum { SKEET_CHASE, SKEET_DART, SKEET_ATTACK, SKEET_AWAY };
+
+static void SkeeterThink(gentity_t *actor) {
+    dkActorInfo_t *info = Info(actor);
+    gentity_t *enemy = actor->enemy;
+    vec3_t goal, toward;
+    float distance = Distance(actor->r.currentOrigin, enemy->r.currentOrigin);
+    VectorCopy(enemy->r.currentOrigin, goal); goal[2] += 24;
+    VectorSubtract(goal, actor->r.currentOrigin, toward);
+    switch (actor->dk.abilityState) {
+    case SKEET_DART:
+        if (distance - 32 > info->attackDistance && level.time < actor->dk.abilityTime && !actor->dk.blockedSince) {
+            PursueAt(actor, goal, enemy->s.number, info->speed * 1.5f);
+            return;
+        }
+        actor->dk.abilityState = SKEET_ATTACK;
+        actor->dk.attackGroup = 0; actor->dk.animationTime = 0;
+        TurnToward(actor, vectoyaw(toward));
+        Animation(actor, "ataka", ACTOR_ATTACK); TraceAttack(actor, "ataka");
+        actor->dk.actionTime = level.time + AnimationDuration(actor);
+        return;
+    case SKEET_ATTACK:
+        TurnToward(actor, vectoyaw(toward));
+        if (level.time < actor->dk.actionTime) return;
+        if (!AwayPoint(actor, 512, 12, qtrue, actor->dk.moveGoal)) {
+            VectorCopy(enemy->r.currentOrigin, actor->dk.moveGoal); actor->dk.moveGoal[2] += 178;
+        }
+        actor->dk.abilityState = SKEET_AWAY; actor->dk.abilityTime = level.time + 3000;
+        TraceAttack(actor, "flyaway");
+        /* fall through */
+    case SKEET_AWAY:
+        if (Distance(actor->r.currentOrigin, actor->dk.moveGoal) > 64 && level.time < actor->dk.abilityTime) {
+            PursuePosition(actor, actor->dk.moveGoal, ENTITYNUM_NONE);
+            return;
+        }
+        actor->dk.abilityState = SKEET_CHASE;
+        /* fall through */
+    default:
+        if (!Visible(actor, enemy)) {
+            if (level.time - actor->dk.lastSeenTime < 10000) PursuePosition(actor, actor->dk.lastSeenOrigin, ENTITYNUM_NONE);
+            else actor->enemy = NULL;
+            return;
+        }
+        actor->dk.lastSeenTime = level.time; VectorCopy(enemy->r.currentOrigin, actor->dk.lastSeenOrigin);
+        if (distance >= 178) { PursuePosition(actor, goal, enemy->s.number); return; }
+        actor->dk.abilityState = SKEET_DART; actor->dk.abilityTime = level.time + 3000; actor->dk.blockedSince = 0;
+        PursueAt(actor, goal, enemy->s.number, info->speed * 1.5f);
     }
 }
 
@@ -824,6 +1627,26 @@ static gentity_t *Summon(gentity_t *owner, const char *classname, float height) 
     return spawned;
 }
 
+/* Garroth conjures a Buboid 100 units from its enemy, on an open side. */
+static void GarrothSummon(gentity_t *actor, gentity_t *enemy) {
+    gentity_t *buboid;
+    int attempt;
+    if (!enemy || !enemy->inuse || !(buboid = Summon(actor, "monster_buboid", 0))) return;
+    for (attempt = 0; attempt < 8; ++attempt) {
+        vec3_t candidate;
+        trace_t trace;
+        float angle = (attempt + (ActorRandom(actor) & 7)) * M_PI / 4;
+        VectorCopy(enemy->r.currentOrigin, candidate);
+        candidate[0] += cos(angle) * 100; candidate[1] += sin(angle) * 100;
+        trap_Trace(&trace, enemy->r.currentOrigin, NULL, NULL, candidate, enemy->s.number, MASK_SOLID);
+        if (trace.startsolid || trace.fraction < 1) continue;
+        trap_Trace(&trace, candidate, buboid->r.mins, buboid->r.maxs, candidate, buboid->s.number, MASK_PLAYERSOLID);
+        if (trace.startsolid || trace.allsolid) continue;
+        G_SetOrigin(buboid, candidate); trap_LinkEntity(buboid);
+        break;
+    }
+}
+
 static qboolean Resurrect(gentity_t *actor) {
     dkActorInfo_t *info = Info(actor);
     trace_t trace;
@@ -864,7 +1687,13 @@ static qboolean Medusa(gentity_t *actor) {
         AngleVectors(target->client ? target->client->ps.viewangles : target->s.angles, forward, NULL, NULL);
         if (DotProduct(forward, direction) > 0.82f && Visible(actor, target)) {
             if (target->client) trap_SendServerCommand(target->s.number, "cp \"Medusa's gaze turned you to stone.\"");
-            G_Damage(target, actor, actor, NULL, NULL, 100000, DAMAGE_NO_PROTECTION, MOD_UNKNOWN);
+            target->s.dk3RenderFlags |= DK3_RF_STONE;
+            G_Damage(target, actor, actor, NULL, NULL, target->health + 1, DAMAGE_NO_PROTECTION, MOD_UNKNOWN);
+            if (target->inuse) {
+                target->takedamage = qfalse; VectorClear(target->dk.actorVelocity);
+                target->s.dk3AnimationRate = 0; target->s.dk3Alpha = 1;
+                if (target->client) { target->client->ps.dk3Status |= 128; VectorClear(target->client->ps.velocity); }
+            }
         }
         if (level.time >= actor->dk.abilityTime) {
             actor->dk.abilityState = 0; actor->dk.abilityTime = level.time + 10000;
@@ -964,7 +1793,7 @@ static qboolean Leap(gentity_t *actor) {
     trace_t trace;
     float distance, seconds = 0.65f;
     if (!actor->enemy || actor->s.groundEntityNum == ENTITYNUM_NONE || level.time < actor->dk.abilityTime ||
-        (actor->spawnflags & 128) || !Visible(actor, actor->enemy)) return qfalse;
+        (actor->spawnflags & 128) || Swimming(actor) || !Visible(actor, actor->enemy)) return qfalse;
     VectorSubtract(actor->enemy->r.currentOrigin, actor->r.currentOrigin, direction);
     distance = VectorLength(direction);
     if (distance < 128 || distance > 420 || fabs(direction[2]) > 96) return qfalse;
@@ -979,6 +1808,10 @@ static qboolean Leap(gentity_t *actor) {
     Animation(actor, "jump", ACTOR_WAIT);
     actor->dk.animationLoop = qfalse;
     actor->dk.abilityState = 1;
+    if (!strcmp(actor->classname, "monster_froginator")) {
+        ActorSound(actor, "e1/m_frogjumpa.wav", 0.85f, 256, 648);
+        ActorSound(actor, "e1/m_frogamba.wav", 0.65f, 256, 648);
+    }
     return qtrue;
 }
 
@@ -1008,12 +1841,31 @@ static void Roam(gentity_t *actor) {
         float angle = (ActorRandom(actor) % 65536) * (2 * M_PI / 65536);
         VectorCopy(actor->r.currentOrigin, actor->dk.roamGoal);
         actor->dk.roamGoal[0] += cos(angle) * 128; actor->dk.roamGoal[1] += sin(angle) * 128;
-        if (Flying(actor) || info->swimming) actor->dk.roamGoal[2] += (int)(ActorRandom(actor) % 97) - 48;
+        if (Flying(actor) || Swimming(actor)) actor->dk.roamGoal[2] += (int)(ActorRandom(actor) % 97) - 48;
         actor->dk.roamUntil = level.time + 2500 + ActorRandom(actor) % 2500;
         actor->dk.blockedSince = 0;
     }
     Move(actor, actor->dk.roamGoal, info->walkSpeed > 0 ? info->walkSpeed : 35);
     Animation(actor, "walk", ACTOR_CHASE);
+}
+
+/* The Buboid sinks into a smoky puddle, becoming untouchable until it rises again. */
+static void BuboidMelt(gentity_t *actor) {
+    actor->dk.abilityState = 3; actor->dk.combatEnd = level.time;
+    actor->takedamage = qfalse; actor->r.contents = 0; actor->s.dk3Alpha = 0.8f;
+    actor->s.dk3RenderFlags |= DK3_RF_MELT;
+    actor->dk.animationTime = 0;
+    Animation(actor, "atakc", ACTOR_WAIT); actor->dk.abilityTime = level.time + AnimationDuration(actor);
+    trap_LinkEntity(actor); TraceAttack(actor, "melt");
+}
+
+/* Buboids will not walk onto, or rise beside a target standing on, holy ground. */
+static qboolean HolyGround(gentity_t *ent, const vec3_t point, float depth) {
+    trace_t trace;
+    vec3_t end;
+    VectorCopy(point, end); end[2] -= depth;
+    trap_Trace(&trace, point, NULL, NULL, end, ent->s.number, MASK_SOLID);
+    return trace.fraction < 1 && (trace.surfaceFlags & SURF_DK_HOLY);
 }
 
 static qboolean SpecialActor(gentity_t *actor) {
@@ -1027,6 +1879,87 @@ static qboolean SpecialActor(gentity_t *actor) {
             if (!strcmp(name, "monster_froginator"))
                 G_Sound(actor, CHAN_VOICE, DK_SoundIndex("e1/m_frogambb.wav"));
         } else if (Leap(actor)) return qtrue;
+    }
+    if (!strcmp(name, "monster_griffon") && target) {
+        if (!actor->dk.groundedFlight && Distance(actor->r.currentOrigin, target->r.currentOrigin) < 350) {
+            vec3_t floor;
+            trace_t trace;
+            VectorCopy(actor->r.currentOrigin, floor); floor[2] -= 512;
+            trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, floor, actor->s.number, MASK_SOLID);
+            if (!trace.startsolid && trace.fraction < 1 && trace.plane.normal[2] > 0.7f) {
+                if (Distance(trace.endpos, actor->r.currentOrigin) > 12) { Move(actor, trace.endpos, actor->dk.walkSpeed); Animation(actor, "hovera", ACTOR_CHASE); return qtrue; }
+                actor->dk.groundedFlight = 1; Animation(actor, "drop", ACTOR_PAIN);
+                actor->dk.actionTime = level.time + AnimationDuration(actor);
+                G_Sound(actor, CHAN_AUTO, DK_SoundIndex("e2/m_griffondrop.wav")); return qtrue;
+            }
+        } else if (actor->dk.groundedFlight && Distance(actor->r.currentOrigin, target->r.currentOrigin) > 600) {
+            actor->dk.groundedFlight = 0; actor->dk.actorVelocity[2] = 180;
+        }
+    }
+    if (!strcmp(name, "monster_buboid") && actor->dk.abilityState >= 3) {
+        float elapsed = (level.time - actor->dk.combatEnd) / 1000.0f;
+        if (actor->dk.abilityState == 3) {
+            actor->s.dk3Alpha = elapsed < 0.3f ? 0.8f - 2.5f * elapsed : 0.05f;
+            if (level.time >= actor->dk.abilityTime) {
+                actor->s.eFlags |= EF_NODRAW; actor->s.dk3RenderFlags &= ~DK3_RF_MELT; actor->dk.abilityState = 4;
+                actor->dk.abilityTime = level.time + 3000 + ActorRandom(actor) % 4 * 1000;
+                TraceAttack(actor, "hidden");
+            }
+        } else if (actor->dk.abilityState == 4 && level.time >= actor->dk.abilityTime) {
+            /* Resurface beside a grounded enemy, on the first clear side found. */
+            int attempt;
+            qboolean placed = qfalse;
+            gentity_t *enemy = actor->enemy;
+            vec3_t mins, maxs, feet;
+            if (enemy && enemy->inuse) {
+                VectorCopy(enemy->r.currentOrigin, feet); feet[2] += enemy->r.mins[2] + 1;
+                if (HolyGround(actor, feet, 8)) { actor->dk.abilityTime = level.time + 3000; return qtrue; }
+            }
+            VectorScale(actor->r.mins, 1.35f, mins); VectorScale(actor->r.maxs, 1.35f, maxs);
+            for (attempt = 0; enemy && enemy->inuse && enemy->health > 0 && attempt < 8 && !placed; ++attempt) {
+                vec3_t from, to, bottom;
+                trace_t side, floor;
+                float angle = attempt * M_PI / 4;
+                if (enemy->client ? enemy->client->ps.groundEntityNum == ENTITYNUM_NONE : enemy->s.groundEntityNum == ENTITYNUM_NONE) break;
+                VectorCopy(enemy->r.currentOrigin, from); from[0] += cos(angle) * 32; from[1] += sin(angle) * 32;
+                VectorCopy(enemy->r.currentOrigin, to); to[0] += cos(angle) * 64; to[1] += sin(angle) * 64;
+                /* The widened hull stands on the enemy's floor, not below it. */
+                from[2] += enemy->r.mins[2] - mins[2] + 1; to[2] = from[2];
+                trap_Trace(&side, from, mins, maxs, to, enemy->s.number, MASK_PLAYERSOLID);
+                if (side.startsolid || side.fraction < 1) continue;
+                to[2] += 32; VectorCopy(to, bottom); bottom[2] -= 160;
+                trap_Trace(&floor, to, actor->r.mins, actor->r.maxs, bottom, actor->s.number, MASK_PLAYERSOLID);
+                if (floor.startsolid || floor.fraction == 1 || floor.plane.normal[2] < 0.7f) continue;
+                G_SetOrigin(actor, floor.endpos); placed = qtrue;
+            }
+            if (!placed) actor->dk.abilityTime = level.time + 1000;
+            else {
+                vec3_t direction;
+                VectorSubtract(enemy->r.currentOrigin, actor->r.currentOrigin, direction);
+                actor->s.angles[YAW] = vectoyaw(direction); VectorCopy(actor->s.angles, actor->r.currentAngles);
+                actor->s.eFlags &= ~EF_NODRAW; actor->s.dk3RenderFlags |= DK3_RF_MELT; actor->dk.abilityState = 5;
+                actor->dk.animationTime = 0;
+                Animation(actor, "atakd", ACTOR_WAIT); actor->dk.abilityTime = level.time + AnimationDuration(actor);
+                actor->dk.combatEnd = level.time; actor->s.dk3Alpha = 0.05f;
+                actor->r.contents = CONTENTS_BODY; trap_LinkEntity(actor); TraceAttack(actor, "resurface");
+            }
+        } else if (actor->dk.abilityState == 5) {
+            actor->s.dk3Alpha = elapsed < 0.95f ? 0.05f + elapsed : 1;
+            if (level.time >= actor->dk.abilityTime) {
+                actor->dk.abilityState = 0; actor->s.dk3RenderFlags &= ~DK3_RF_MELT;
+                actor->s.dk3Alpha = 1; actor->takedamage = qtrue; TraceAttack(actor, "unmelted");
+            }
+        }
+        return qtrue;
+    }
+    if (!strcmp(name, "monster_buboid") && target && !actor->dk.abilityState && actor->dk.action != ACTOR_DOWN) {
+        vec3_t forward, ahead;
+        AngleVectors(actor->s.angles, forward, NULL, NULL);
+        VectorMA(actor->r.currentOrigin, 36, forward, ahead);
+        if ((Distance(actor->r.currentOrigin, target->r.currentOrigin) > 300 && !Visible(actor, target)) ||
+            HolyGround(actor, ahead, 200)) {
+            BuboidMelt(actor); return qtrue;
+        }
     }
     if (!strcmp(name, "monster_medusa")) return Medusa(actor);
     if (!strcmp(name, "monster_wyndrax") && RechargeWyndrax(actor)) return qtrue;
@@ -1067,21 +2000,29 @@ static qboolean SpecialActor(gentity_t *actor) {
             G_FreeEntity(actor); return qtrue;
         }
     }
+    if (!strcmp(name, "monster_kage")) {
+        int skill = (int)Com_Clamp(0, 2, (trap_Cvar_VariableIntegerValue("g_spSkill") - 1) / 2);
+        const float limits[] = {0.25f, 0.5f, 0.75f};
+        const int gains[] = {1, 5, 10}, intervals[] = {2000, 1500, 1000};
+        if (!actor->dk.abilityState && actor->dk.abilityCharges > 0 && level.time >= actor->dk.combatEnd &&
+            actor->health < actor->dk.maxHealth * limits[skill]) {
+            actor->dk.abilityState = 1; actor->dk.combatNext = level.time + 1000;
+            Animation(actor, "atake", ACTOR_WAIT); actor->dk.animationLoop = qtrue;
+            actor->s.loopSound = DK_SoundIndex("e4/m_kage_ghost_am.wav");
+        }
+        if (actor->dk.abilityState == 1) {
+            actor->s.constantLight = 120 | (100 << 8) | (255 << 16) | (40 << 24);
+            if (level.time >= actor->dk.combatNext) { actor->health += gains[skill]; actor->dk.combatNext = level.time + intervals[skill]; }
+            if (actor->health >= actor->dk.maxHealth * limits[skill]) {
+                --actor->dk.abilityCharges; actor->dk.abilityState = 0; actor->s.loopSound = actor->s.constantLight = 0;
+                actor->dk.combatEnd = level.time + (skill == 0 ? 15000 : skill == 1 ? 7500 : 4500);
+            }
+            return qtrue;
+        }
+    }
     if (!strcmp(name, "monster_kage") && target && level.time >= actor->dk.abilityTime && Visible(actor, target)) {
         Summon(actor, "monster_ghost", actor->r.maxs[2] + 32);
         actor->dk.abilityTime = level.time + 6000;
-    }
-    if (!strcmp(name, "monster_cambot") && target && level.time >= actor->dk.abilityTime) {
-        int i;
-        for (i = MAX_CLIENTS; i < level.num_entities; ++i) {
-            gentity_t *ally = &g_entities[i];
-            if (ally == actor || !ally->inuse || !ally->dk.actorKind || ally->health <= 0 ||
-                Info(ally)->civilian || Info(ally)->companion || Distance(actor->r.currentOrigin, ally->r.currentOrigin) > 1200 ||
-                !Visible(actor, ally)) continue;
-            ally->enemy = target; ally->dk.lastSeenTime = level.time;
-            VectorCopy(target->r.currentOrigin, ally->dk.lastSeenOrigin);
-        }
-        actor->dk.abilityTime = level.time + 3000;
     }
     return qfalse;
 }
@@ -1161,6 +2102,209 @@ void DK_ActorMoveTo(gentity_t *actor, const vec3_t goal) {
     actor->dk.moveActive = 1;
 }
 
+enum { EVADE_SIDESTEP = 1, EVADE_STRAFE, EVADE_DODGE, EVADE_COVER, EVADE_PEEK };
+
+/* AI_IsEnemyTargetingMe: a player's crosshair is on the actor; other
+   enemies are facing it within five degrees. */
+static qboolean Targeted(gentity_t *actor, gentity_t *enemy) {
+    vec3_t forward, toward, angles;
+    VectorSubtract(actor->r.currentOrigin, enemy->r.currentOrigin, toward);
+    if (enemy->client) {
+        vec3_t eye;
+        VectorCopy(enemy->client->ps.origin, eye); eye[2] += enemy->client->ps.viewheight;
+        VectorSubtract(actor->r.currentOrigin, eye, toward); VectorNormalize(toward);
+        AngleVectors(enemy->client->ps.viewangles, forward, NULL, NULL);
+        return DotProduct(forward, toward) > 0.97f;
+    }
+    VectorCopy(enemy->s.angles, angles);
+    return fabs(AngleSubtract(vectoyaw(toward), angles[YAW])) < 5;
+}
+
+/* AI_ComputeSideStepPoint. */
+static qboolean SideStepPoint(gentity_t *actor, float distance, vec3_t point) {
+    gentity_t *enemy = actor->enemy;
+    trace_t trace;
+    vec3_t side, bottom;
+    float yaw = actor->s.angles[YAW] * M_PI / 180;
+    if (Flying(actor) || Swimming(actor)) {
+        vec3_t away, angles, direction;
+        static const float yaws[] = {45, -45, 45, -45, 45, -45}, pitches[] = {0, 0, -10, -10, 25, 25};
+        int choice = ActorRandom(actor) % 6;
+        VectorSubtract(actor->r.currentOrigin, enemy->r.currentOrigin, away);
+        vectoangles(away, angles);
+        angles[PITCH] += pitches[choice] - 40; angles[YAW] += yaws[choice];
+        AngleVectors(angles, direction, NULL, NULL);
+        VectorMA(enemy->r.currentOrigin, Info(actor)->attackDistance * 0.5f, direction, point);
+        trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, point, actor->s.number, MASK_PLAYERSOLID);
+        VectorCopy(trace.endpos, point);
+        return !trace.startsolid && Distance(point, actor->r.currentOrigin) > 16;
+    }
+    distance -= 44;
+    VectorSet(side, -sin(yaw), cos(yaw), 0);
+    if (ActorRandom(actor) & 1) VectorNegate(side, side);
+    VectorMA(actor->r.currentOrigin, distance, side, point);
+    trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, point, actor->s.number, MASK_PLAYERSOLID);
+    if (trace.fraction < 1) {
+        VectorNegate(side, side);
+        VectorMA(actor->r.currentOrigin, distance, side, point);
+        trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, point, actor->s.number, MASK_PLAYERSOLID);
+        if (trace.fraction * distance < 24) return qfalse;
+    }
+    VectorCopy(trace.endpos, point);
+    VectorCopy(point, bottom); bottom[2] -= DK_STEP_HEIGHT + 24;
+    trap_Trace(&trace, point, actor->r.mins, actor->r.maxs, bottom, actor->s.number, MASK_PLAYERSOLID);
+    return trace.fraction < 1;
+}
+
+/* AI_DoEvasiveAction as called from each monster's attack start. */
+static qboolean StartEvade(gentity_t *actor) {
+    static const struct { const char *classname; float chance; qboolean targeted; } evaders[] = {
+        {"monster_venomvermin", 0.25f, qtrue}, {"monster_centurion", 0.25f, qtrue}, {"monster_whiteprisoner", 0.3f, qtrue},
+        {"monster_blackprisoner", 0.3f, qtrue}, {"monster_rocketdude", 0.8f, qtrue}, {"monster_fletcher", 0.3f, qtrue},
+        {"monster_femgang", 0.5f, qtrue}, {"monster_lycanthir", 0.2f, qfalse}, {"monster_knight2", 0.75f, qfalse}
+    };
+    dkActorInfo_t *info = Info(actor);
+    qboolean ranged = qfalse;
+    float distance;
+    int i, kind, duration;
+    for (i = 0; i < (int)ARRAY_LEN(evaders); ++i) if (!strcmp(info->classname, evaders[i].classname)) break;
+    if (i == (int)ARRAY_LEN(evaders) || (actor->spawnflags & 128) || !actor->enemy) return qfalse;
+    if (evaders[i].targeted && !Targeted(actor, actor->enemy)) return qfalse;
+    if (ActorFraction(actor) >= evaders[i].chance) return qfalse;
+    for (i = 0; i < 3; ++i) if (info->attacks[i].damage > 0 && info->attacks[i].range > 160) ranged = qtrue;
+    if (ranged) {
+        if ((actor->spawnflags & 32) || ActorFraction(actor) < 0.5f) kind = ActorFraction(actor) > 0.5f ? EVADE_STRAFE : EVADE_SIDESTEP;
+        else kind = EVADE_DODGE;
+        duration = 2000;
+    } else { kind = ActorFraction(actor) < 0.5f ? EVADE_SIDESTEP : EVADE_STRAFE; duration = 500; }
+    distance = kind == EVADE_DODGE ? 128 : kind == EVADE_SIDESTEP ? 96 : 80;
+    if (!SideStepPoint(actor, distance, actor->dk.evadeGoal)) return qfalse;
+    actor->dk.evadeKind = kind; actor->dk.evadeUntil = level.time + duration;
+    TraceAttack(actor, kind == EVADE_DODGE ? "dodge" : kind == EVADE_STRAFE ? "strafe" : "sidestep");
+    return qtrue;
+}
+
+static qboolean Evade(gentity_t *actor) {
+    gentity_t *enemy = actor->enemy;
+    vec3_t delta, toward;
+    float yaw = actor->s.angles[YAW];
+    if (!enemy || level.time >= actor->dk.evadeUntil || actor->dk.evadeKind >= EVADE_COVER) {
+        if (actor->dk.evadeKind < EVADE_COVER) actor->dk.evadeUntil = 0;
+        return qfalse;
+    }
+    VectorSubtract(actor->dk.evadeGoal, actor->r.currentOrigin, delta);
+    if (sqrt(delta[0] * delta[0] + delta[1] * delta[1]) < 16 && fabs(delta[2]) < 32) { actor->dk.evadeUntil = 0; return qfalse; }
+    Move(actor, actor->dk.evadeGoal, actor->dk.runSpeed);
+    if (actor->dk.blockedSince) { actor->dk.evadeUntil = 0; return qfalse; }
+    if (actor->dk.evadeKind == EVADE_STRAFE) {
+        /* Strafing keeps facing the enemy while moving sideways. */
+        actor->s.angles[YAW] = yaw;
+        VectorSubtract(enemy->r.currentOrigin, actor->r.currentOrigin, toward);
+        TurnToward(actor, vectoyaw(toward));
+    }
+    Animation(actor, "run", ACTOR_CHASE);
+    return qtrue;
+}
+
+/* AI_TakeCover for SPAWN_TAKECOVER gunmen: fire when fully exposed, then
+   run to a spot out of the enemy's sight and wait to peek again. */
+static qboolean CoverPoint(gentity_t *actor, vec3_t point) {
+    gentity_t *enemy = actor->enemy;
+    static const float reach[] = {96, 160, 256};
+    float best = 100000;
+    int ring, step;
+    vec3_t eye;
+    VectorCopy(enemy->r.currentOrigin, eye); eye[2] += enemy->client ? enemy->client->ps.viewheight : enemy->r.maxs[2] * 0.6f;
+    for (ring = 0; ring < 3; ++ring) for (step = 0; step < 16; ++step) {
+        trace_t trace, floor, sight;
+        vec3_t goal, bottom, head;
+        float angle = step * M_PI / 8;
+        VectorCopy(actor->r.currentOrigin, goal);
+        goal[0] += cos(angle) * reach[ring]; goal[1] += sin(angle) * reach[ring];
+        trap_Trace(&trace, actor->r.currentOrigin, actor->r.mins, actor->r.maxs, goal, actor->s.number, MASK_PLAYERSOLID);
+        if (trace.startsolid || Distance(trace.endpos, actor->r.currentOrigin) < 48) continue;
+        VectorCopy(trace.endpos, bottom); bottom[2] -= DK_STEP_HEIGHT + 24;
+        trap_Trace(&floor, trace.endpos, actor->r.mins, actor->r.maxs, bottom, actor->s.number, MASK_PLAYERSOLID);
+        if (floor.fraction == 1) continue;
+        VectorCopy(trace.endpos, head); head[2] += actor->r.maxs[2] * 0.6f;
+        trap_Trace(&sight, eye, NULL, NULL, head, enemy->s.number, MASK_SOLID);
+        if (sight.fraction == 1) continue;
+        if (Distance(trace.endpos, actor->r.currentOrigin) < best) { best = Distance(trace.endpos, actor->r.currentOrigin); VectorCopy(trace.endpos, point); }
+    }
+    return best < 100000;
+}
+
+static qboolean TakeCover(gentity_t *actor, int group) {
+    static const char *types[] = {"monster_mishimaguard", "monster_thief", "monster_dwarf", "monster_fletcher", "monster_rocketdude",
+                                  "monster_sealgirl", "monster_sealcommando", "monster_sealcaptain", "monster_rocketmp"};
+    gentity_t *enemy = actor->enemy;
+    qboolean visible;
+    int i;
+    for (i = 0; i < (int)ARRAY_LEN(types); ++i) if (!strcmp(Info(actor)->classname, types[i])) break;
+    if (i == (int)ARRAY_LEN(types) || !(actor->spawnflags & 0x200) || !enemy) return qfalse;
+    visible = Visible(actor, enemy);
+    if (actor->dk.evadeKind == EVADE_COVER && level.time < actor->dk.evadeUntil) {
+        if (Distance(actor->r.currentOrigin, actor->dk.evadeGoal) > 16 && !actor->dk.blockedSince) {
+            Move(actor, actor->dk.evadeGoal, actor->dk.runSpeed); Animation(actor, "run", ACTOR_CHASE); return qtrue;
+        }
+        actor->dk.evadeUntil = 0;
+    }
+    if (actor->dk.evadeKind == EVADE_PEEK && level.time < actor->dk.evadeUntil && !visible) { Pursue(actor, enemy); return qtrue; }
+    if (visible && level.time >= actor->dk.coverTime && group >= 0) {
+        actor->dk.evadeKind = 0; actor->dk.evadeUntil = 0;
+        Attack(actor, group);
+        if (actor->dk.action == ACTOR_ATTACK) actor->dk.coverTime = level.time + 2000;
+        return qtrue;
+    }
+    if (visible && CoverPoint(actor, actor->dk.evadeGoal)) {
+        actor->dk.evadeKind = EVADE_COVER; actor->dk.evadeUntil = level.time + 3000; TraceAttack(actor, "cover");
+        Move(actor, actor->dk.evadeGoal, actor->dk.runSpeed); Animation(actor, "run", ACTOR_CHASE);
+        return qtrue;
+    }
+    if (!visible && ActorRandom(actor) % 160 == 0) {
+        actor->dk.evadeKind = EVADE_PEEK; actor->dk.evadeUntil = level.time + 3000; TraceAttack(actor, "peek");
+        return qtrue;
+    }
+    if (visible && group >= 0) return qfalse;
+    Animation(actor, "amba", ACTOR_IDLE);
+    return qtrue;
+}
+
+/* Gold's runaway goal: flee the threat, then cower in gamba/gambc. */
+static void Cower(gentity_t *actor) {
+    gentity_t *threat = actor->enemy;
+    dkActorInfo_t *info = Info(actor);
+    float distance;
+    if (!threat || !threat->inuse || threat->health <= 0) { actor->dk.abilityState = 0; actor->enemy = NULL; return; }
+    distance = Distance(actor->r.currentOrigin, threat->r.currentOrigin);
+    if (level.time >= actor->dk.abilityTime) {
+        if (distance < 512 && Visible(actor, threat)) {
+            actor->dk.abilityState = 1; actor->dk.abilityTime = level.time + 10000;
+        } else { actor->dk.abilityState = 0; actor->enemy = NULL; return; }
+    }
+    if (actor->dk.abilityState == 1) {
+        vec3_t away, goal, before;
+        VectorSubtract(actor->r.currentOrigin, threat->r.currentOrigin, away); away[2] = 0;
+        if (VectorNormalize(away) < 1) AngleVectors(actor->s.angles, away, NULL, NULL);
+        VectorMA(actor->r.currentOrigin, 96, away, goal);
+        VectorCopy(actor->r.currentOrigin, before);
+        if (distance < 512) Move(actor, goal, actor->dk.runSpeed);
+        if (distance >= 512 || Distance(before, actor->r.currentOrigin) < 1) {
+            actor->dk.abilityState = 2; TraceAttack(actor, "cower");
+            if (!strcmp(actor->classname, "monster_fatworker") && ActorFraction(actor) < 0.75f)
+                ActorSound(actor, "e1/fart4.wav", 1, 256, 648);
+        } else { Animation(actor, "run", ACTOR_CHASE); return; }
+    }
+    {
+        const char *pose = AnimationIndex(info, "gamba") >= 0 ? "gamba" : "amba";
+        if (actor->dk.action != ACTOR_IDLE || level.time - actor->dk.animationTime >= AnimationDuration(actor)) {
+            if (AnimationIndex(info, "gambc") >= 0 && ActorRandom(actor) & 1) pose = "gambc";
+            actor->dk.animationTime = 0;
+            Animation(actor, pose, ACTOR_IDLE);
+        }
+    }
+}
+
 static void ActorThink(gentity_t *actor) {
     dkActorInfo_t *info = Info(actor);
     unsigned int id = actor->dk.id;
@@ -1172,6 +2316,7 @@ static void ActorThink(gentity_t *actor) {
         if (actor->inuse && actor->dk.id == id) G_FreeEntity(actor);
         return;
     }
+    if (actor->s.dk3RenderFlags & DK3_RF_STONE) { actor->nextthink = level.time + DK_ACTOR_TICK; return; }
     FrameEvents(actor);
     if (!actor->inuse || actor->dk.id != id) return;
     actor->nextthink = level.time + DK_ACTOR_TICK;
@@ -1179,6 +2324,13 @@ static void ActorThink(gentity_t *actor) {
     if (!actor->inuse || actor->dk.id != id) return;
     DK_TouchActorTriggers(actor);
     if (!actor->inuse || actor->dk.id != id) return;
+    if (actor->health <= 0 && actor->dk.action == ACTOR_DEAD && !Info(actor)->companion &&
+        !actor->dk.cinematicControlled && !actor->dk.cinematicOwned && strncmp(actor->classname, "cine_", 5) &&
+        level.time >= actor->dk.animationTime + AnimationDuration(actor) + 3000) {
+        /* AI_ThinkFade: alpha x0.92 per 100 ms, removed below 0.1. */
+        actor->s.dk3Alpha *= 0.9592f;
+        if (actor->s.dk3Alpha < 0.1f) { G_FreeEntity(actor); return; }
+    }
     if (Resurrect(actor) || actor->health <= 0 || (!actor->dk.cinematicControlled && level.time < actor->dk.scriptUntil)) return;
     if (actor->dk.turnActive) {
         int axis, turning = 0;
@@ -1190,6 +2342,7 @@ static void ActorThink(gentity_t *actor) {
         }
         VectorCopy(actor->s.angles, actor->r.currentAngles);
         actor->dk.turnActive = turning;
+        return;
     }
     if (actor->dk.moveActive) {
         float speed = actor->dk.speedOverride > 0 ? actor->dk.speedOverride : info->speed;
@@ -1202,6 +2355,7 @@ static void ActorThink(gentity_t *actor) {
     }
     if (actor->dk.cinematicControlled) return;
     if (!strcmp(actor->classname, "monster_rockgat")) { RockgatThink(actor); return; }
+    if (!strcmp(actor->classname, "monster_cambot")) { CambotThink(actor); return; }
     if (actor->dk.abilityState == 1 && (!strcmp(actor->classname, "monster_froginator") ||
         !strcmp(actor->classname, "monster_psyclaw") || !strcmp(actor->classname, "monster_spider") ||
         !strcmp(actor->classname, "monster_smallspider") || !strcmp(actor->classname, "monster_lycanthir"))) {
@@ -1209,6 +2363,15 @@ static void ActorThink(gentity_t *actor) {
     }
     /* Patrol routes do not suppress perception. Scripted moves have already
        been handled above; an alerted patrol resumes its route after combat. */
+    if (info->companion && actor->dk.companionOrder == 4) {
+        gentity_t *threat = actor->enemy;
+        if (threat && threat->inuse && Distance(actor->r.currentOrigin, threat->r.currentOrigin) < 256) {
+            vec3_t away, goal;
+            VectorSubtract(actor->r.currentOrigin, threat->r.currentOrigin, away); away[2] = 0; VectorNormalize(away);
+            VectorMA(actor->r.currentOrigin, 96, away, goal); Move(actor, goal, actor->dk.walkSpeed);
+        } else { actor->enemy = NULL; Animation(actor, "amba", ACTOR_IDLE); }
+        return;
+    }
     if (actor->enemy && !Enemy(actor, actor->enemy)) actor->enemy = NULL;
     if (!actor->enemy && !actor->dk.ignorePlayer && !info->companion) Acquire(actor);
     if (actor->dk.pathTarget && !actor->enemy) {
@@ -1233,22 +2396,47 @@ static void ActorThink(gentity_t *actor) {
     if ((actor->dk.action == ACTOR_PAIN || actor->dk.action == ACTOR_ATTACK) && level.time < actor->dk.actionTime &&
         strcmp(actor->classname, "monster_thunderskeet")) return;
     if (actor->enemy && !Enemy(actor, actor->enemy)) actor->enemy = NULL;
+    if (Timid(actor)) {
+        if (actor->enemy) {
+            if (!actor->dk.abilityState) { actor->dk.abilityState = 1; actor->dk.abilityTime = level.time + 10000; TraceAttack(actor, "flee"); }
+            Cower(actor);
+        }
+        else { actor->dk.abilityState = 0; Roam(actor); }
+        return;
+    }
     if (!strcmp(actor->classname, "monster_thunderskeet")) {
         if (!actor->enemy) Acquire(actor);
         if (actor->enemy) { ThunderFlight(actor); return; }
     }
+    if (!strcmp(actor->classname, "monster_deathsphere")) {
+        if (SpherePresence(actor)) return;
+        if (!actor->enemy) Acquire(actor);
+        if (actor->enemy) { SphereThink(actor); return; }
+        actor->dk.abilityState = SPHERE_CHASE;
+    }
+    if (!strcmp(actor->classname, "monster_crox") && actor->dk.action == ACTOR_CHASE && Swimming(actor) &&
+        level.time % 2000 < DK_ACTOR_TICK)
+        ActorSound(actor, va("hiro/swim%d.wav", 1 + (int)(ActorRandom(actor) % 3)), 0.85f, 256, 648);
+    if (!strcmp(actor->classname, "monster_slaughterskeet")) {
+        if (!actor->enemy) Acquire(actor);
+        if (actor->enemy) { SkeeterThink(actor); return; }
+        actor->dk.abilityState = SKEET_CHASE;
+    }
     if (actor->enemy && Visible(actor, actor->enemy)) {
         actor->dk.lastSeenTime = level.time;
         VectorCopy(actor->enemy->r.currentOrigin, actor->dk.lastSeenOrigin);
-    } else if (actor->enemy && level.time - actor->dk.lastSeenTime < 8000) {
+        if (!info->companion && level.time % 10000 < DK_ACTOR_TICK) EnemyAlert(actor, actor->enemy);
+    } else if (actor->enemy && level.time - actor->dk.lastSeenTime < 10000) {
         if (!info->companion || actor->dk.companionOrder != 1)
             PursuePosition(actor, actor->dk.lastSeenOrigin, ENTITYNUM_NONE);
         return;
     } else Acquire(actor);
     if (SpecialActor(actor)) return;
+    if (actor->enemy && actor->dk.evadeUntil && Evade(actor)) return;
     if (actor->enemy) {
         float distance = Distance(actor->r.currentOrigin, actor->enemy->r.currentOrigin);
         int group = info->companion ? (distance <= 1200 ? 0 : -1) : AttackGroup(actor, distance);
+        if (!info->companion && TakeCover(actor, group)) return;
         if (group >= 0 && Visible(actor, actor->enemy)) Attack(actor, group);
         else if ((!info->companion || actor->dk.companionOrder != 1) && !(actor->spawnflags & 32)) Pursue(actor, actor->enemy);
     } else if (info->companion) {
@@ -1282,18 +2470,99 @@ static void ActorThink(gentity_t *actor) {
     } else Roam(actor);
 }
 
+/* Spawn-time pain_chance and ai_generic_pain_handler heavy-hit limits;
+   unlisted monsters keep AI_InitHook's 75 and no heavy-hit roll. */
+static qboolean PainRoll(gentity_t *actor, int damage) {
+    static const struct { const char *classname; int chance, limit; } table[] = {
+        {"monster_battleboar", 25, 0}, {"monster_blackprisoner", 10, 35}, {"monster_centurion", 30, 0},
+        {"monster_cerberus", 10, 0}, {"monster_crox", 20, 0}, {"monster_cryotech", 25, 35}, {"monster_deathsphere", 10, 0},
+        {"monster_dwarf", 20, 15}, {"monster_femgang", 20, 35}, {"monster_ferryman", 20, 0}, {"monster_fletcher", 20, 25},
+        {"monster_froginator", 20, 0}, {"monster_garroth", 5, 0}, {"monster_griffon", 10, 0}, {"monster_harpy", 10, 25},
+        {"monster_inmater", 5, 0}, {"monster_kage", 2, 0}, {"monster_knight1", 5, 35}, {"monster_knight2", 5, 35},
+        {"monster_labmonkey", 20, 35}, {"monster_lycanthir", 15, 35}, {"monster_medusa", 1, 0}, {"monster_mikiko", 10, 35},
+        {"monster_nharre", 1, 35}, {"monster_piperat", 10, 0}, {"monster_plague_rat", 25, 35}, {"monster_priest", 20, 0},
+        {"monster_protopod", 0, 0}, {"monster_psyclaw", 15, 35}, {"monster_ragemaster", 5, 65}, {"monster_rocketdude", 10, 50},
+        {"monster_rocketmp", 20, 25}, {"monster_sealcommando", 20, 45}, {"monster_sdiver", 20, 0}, {"monster_sealdiver", 20, 0},
+        {"monster_sealcaptain", 20, 35}, {"monster_sealgirl", 20, 35}, {"monster_shark", 100, 25}, {"monster_sludgeminion", 5, 45},
+        {"monster_stavros", 1, 35}, {"monster_thief", 30, 35}, {"monster_thunderskeet", 10, 0}, {"monster_uzigang", 20, 50},
+        {"monster_venomvermin", 50, 35}, {"monster_whiteprisoner", 20, 40}, {"monster_wyndrax", 5, 0},
+        {"monster_mishimaguard", 75, 35}, {"monster_smallspider", 75, 15}, {"monster_column", 20, 0}, {"hiro", 10, 0}
+    };
+    int i, chance = 75, limit = 0;
+    if (Info(actor)->companion || damage <= 0) return qfalse;
+    for (i = 0; i < (int)ARRAY_LEN(table); ++i)
+        if (!strcmp(Info(actor)->classname, table[i].classname)) { chance = table[i].chance; limit = table[i].limit; break; }
+    if ((int)(ActorFraction(actor) * 99.9f) < chance) return qtrue;
+    return limit > 0 && damage >= limit && (int)(ActorFraction(actor) * 99.9f) < chance;
+}
+
 static void Pain(gentity_t *actor, gentity_t *attacker, int damage) {
-    (void)damage;
     if (!strcmp(actor->classname, "monster_rockgat") || !strcmp(actor->classname, "monster_protopod")) return;
-    if (attacker && attacker != actor) {
+    if (!strcmp(actor->classname, "monster_kage") && actor->dk.abilityState == 1) {
+        if (actor->health < actor->dk.maxHealth * 0.2f) actor->health = actor->dk.maxHealth * 0.25f + damage;
+        else actor->health += damage * 1.05f;
+        if (level.time >= actor->pain_debounce_time) {
+            G_Sound(actor, CHAN_AUTO, DK_SoundIndex("e4/ykeypickup.wav"));
+            G_TempEntity(actor->r.currentOrigin, EV_DK3_BLAST)->s.weapon = DK_W_ZEUS;
+            actor->pain_debounce_time = level.time + 1000;
+        }
+        return;
+    }
+    if (attacker && attacker != actor &&
+        !(attacker->dk.actorKind && attacker->dk.actorKind == actor->dk.actorKind && !Info(actor)->companion)) {
+        qboolean player = attacker->client || (attacker->dk.actorKind && Info(attacker)->companion);
+        if (player && !Info(actor)->companion) {
+            actor->dk.ignorePlayer = 0;
+            actor->dk.sightRange = 5000;
+        }
         actor->enemy = attacker;
         actor->dk.lastSeenTime = level.time;
         VectorCopy(attacker->r.currentOrigin, actor->dk.lastSeenOrigin);
+        if (attacker->client || attacker->dk.actorKind) EnemyAlert(actor, attacker);
+        if (Timid(actor) && actor->health > 0) {
+            actor->dk.abilityState = 1;
+            actor->dk.abilityTime = level.time + (strcmp(actor->classname, "monster_surgeon") ? 10000 : 15000);
+            TraceAttack(actor, "flee");
+        }
     }
     if (actor->dk.action == ACTOR_DOWN || level.time < actor->pain_debounce_time) return;
-    actor->pain_debounce_time = level.time + 1000;
+    if (!strcmp(actor->classname, "monster_buboid") && !actor->dk.abilityState && damage > 0 && actor->health > 0 &&
+        actor->enemy && Distance(actor->r.currentOrigin, actor->enemy->r.currentOrigin) > 250 && ActorRandom(actor) % 100 < 75) {
+        BuboidMelt(actor); return;
+    }
+    if (!PainRoll(actor, damage)) return;
     Animation(actor, "pain", ACTOR_PAIN);
     actor->dk.actionTime = level.time + AnimationDuration(actor);
+    actor->pain_debounce_time = actor->dk.actionTime;
+    actor->dk.evadeUntil = 0;
+}
+
+/* Fragtypes each Gold monster sets at spawn; rockgat bursts itself on death. */
+static int Fragtype(gentity_t *actor) {
+    enum { N = DK_FRAG_NOBLOOD, R = DK_FRAG_ROBOTIC, A = DK_FRAG_ALWAYSGIB };
+    static const struct { const char *classname; int fragtype; } table[] = {
+        {"monster_cambot", R | N | A}, {"monster_deathsphere", R | N | A}, {"monster_lasergat", R | N | A},
+        {"monster_protopod", R | N | A}, {"monster_thunderskeet", R | N | A}, {"monster_slaughterskeet", R | N | A},
+        {"monster_rockgat", R | N | A}, {"monster_battleboar", R | N}, {"monster_crox", R | N},
+        {"monster_venomvermin", R | N}, {"monster_ragemaster", R | N}, {"monster_inmater", R | N},
+        {"monster_sludgeminion", R | N}, {"monster_froginator", R | N}, {"monster_fatworker", A},
+        {"monster_dragon", A}, {"monster_harpy", A}, {"monster_griffon", A}, {"monster_lycanthir", A},
+        {"e_dopefish", A}, {"e_guppy", A}, {"e_guppy2", A}, {"e_greyfish", A}, {"e_goldfish", A}, {"e_seagull", A},
+        {"monster_ghost", DK_FRAG_NEVERGIB | N}, {"monster_garroth", DK_FRAG_NEVERGIB},
+        {"monster_column", DK_FRAG_NEVERGIB | N | R}, {"monster_skeleton", DK_FRAG_BONE | N}
+    };
+    int i, fragtype = 0;
+    for (i = 0; i < (int)ARRAY_LEN(table); ++i)
+        if (!strcmp(Info(actor)->classname, table[i].classname)) { fragtype = table[i].fragtype; break; }
+    if (actor->spawnflags & 0x400) fragtype |= DK_FRAG_ALWAYSGIB;
+    return fragtype;
+}
+
+/* AI_GibLimit against the definition's base health, not the scaled current one. */
+static qboolean GibLimit(gentity_t *actor, int fragtype, int damage) {
+    float base = Info(actor)->baseHealth > 0 ? Info(actor)->baseHealth : actor->dk.maxHealth;
+    if (fragtype & DK_FRAG_NEVERGIB) return qfalse;
+    return (fragtype & DK_FRAG_ALWAYSGIB) || damage >= 0.3f * base || actor->health < -0.5f * base;
 }
 
 static void Die(gentity_t *actor, gentity_t *inflictor, gentity_t *attacker, int damage, int mod) {
@@ -1302,20 +2571,20 @@ static void Die(gentity_t *actor, gentity_t *inflictor, gentity_t *attacker, int
         attacker && attacker->client ? attacker->client->ps.weapon : attacker ? attacker->s.weapon : 0;
     qboolean lycan = !strcmp(actor->classname, "monster_lycanthir");
     qboolean buboid = !strcmp(actor->classname, "monster_buboid");
-    qboolean robotic = strstr(actor->classname, "skeet") || strstr(actor->classname, "cambot") ||
-        strstr(actor->classname, "deathsphere") || strstr(actor->classname, "rockgat") || strstr(actor->classname, "lasergat") ||
-        !strcmp(actor->classname, "monster_protopod");
-    qboolean gib = robotic || damage >= actor->dk.maxHealth || actor->health < -actor->dk.maxHealth / 2;
+    int fragtype = Fragtype(actor);
+    qboolean gib = GibLimit(actor, fragtype, damage);
+    vec3_t mins, maxs;
     (void)mod;
+    VectorCopy(actor->r.mins, mins); VectorCopy(actor->r.maxs, maxs);
     if (actor->dk.action == ACTOR_DEAD) {
-        if (actor->health < -actor->dk.maxHealth / 2) {
-            DK_WorldDebris(actor, DK_DEBRIS_FLESH);
+        if (gib && !(actor->s.dk3RenderFlags & DK3_RF_STONE) && !Info(actor)->companion) {
+            DK_ActorGib(actor, attacker, mins, maxs, fragtype, Info(actor)->mass, damage);
             G_FreeEntity(actor);
         }
         return;
     }
-    if ((lycan && weapon != DK_W_SILVERCLAW) ||
-        (buboid && weapon != DK_W_SILVERCLAW && damage < actor->dk.maxHealth / 2)) {
+    if (!(actor->s.dk3RenderFlags & DK3_RF_STONE) && ((lycan && !DK_WeaponSlaysRevenants(weapon)) ||
+        (buboid && !DK_WeaponSlaysRevenants(weapon) && damage < actor->dk.maxHealth / 2))) {
         actor->health = 1;
         if (actor->dk.action != ACTOR_DOWN) {
             Animation(actor, "die", ACTOR_DOWN);
@@ -1327,7 +2596,17 @@ static void Die(gentity_t *actor, gentity_t *inflictor, gentity_t *attacker, int
         return;
     }
     actor->s.constantLight = 0;
-    Animation(actor, "die", ACTOR_DEAD);
+    if (attacker && attacker != actor && !Info(actor)->companion) EnemyAlert(actor, attacker);
+    if (actor->s.dk3RenderFlags & DK3_RF_STONE) { actor->dk.action = ACTOR_DEAD; gib = qfalse; }
+    else if (strstr(actor->classname, "skeleton") && attacker) {
+        vec3_t forward, toward;
+        const char *pose;
+        float dot;
+        AngleVectors(actor->s.angles, forward, NULL, NULL);
+        VectorSubtract(attacker->r.currentOrigin, actor->r.currentOrigin, toward); VectorNormalize(toward);
+        dot = DotProduct(forward, toward); pose = dot > 0.5f ? "diea" : dot < -0.5f ? "died" : "dieb";
+        Animation(actor, AnimationIndex(Info(actor), pose) >= 0 ? pose : "die", ACTOR_DEAD);
+    } else Animation(actor, "die", ACTOR_DEAD);
     actor->takedamage = qtrue;
     actor->r.contents = CONTENTS_CORPSE;
     if (Info(actor)->frameBottoms)
@@ -1335,16 +2614,20 @@ static void Die(gentity_t *actor, gentity_t *inflictor, gentity_t *attacker, int
             Info(actor)->modelScale[2] * actor->s.dk3Scale / Info(actor)->scale;
     actor->r.maxs[2] = actor->r.mins[2] + 12;
     trap_LinkEntity(actor);
-    DK_AwardExperience(attacker, Info(actor)->health, weapon == DK_W_SWORD);
+    {
+        char map[MAX_QPATH];
+        int episode;
+        trap_Cvar_VariableStringBuffer("mapname", map, sizeof(map));
+        episode = map[0] == 'e' && map[1] >= '1' && map[1] <= '4' ? map[1] - '0' : 1;
+        DK_AwardExperience(attacker, Info(actor)->health * episode / 10, DK_WeaponSwordExperience(weapon, Info(actor)->health));
+    }
     DK_DeathSpawn(actor);
     DK_FireNamed(actor->dk.deathTarget, actor, attacker);
     if (!actor->inuse || actor->dk.id != id) return;
     G_UseTargets(actor, attacker);
     if (actor->inuse && actor->dk.id == id && gib && !Info(actor)->companion) {
-        DK_WorldDebris(actor, robotic ? DK_DEBRIS_METAL : DK_DEBRIS_FLESH);
-        G_AddEvent(actor, EV_GENERAL_SOUND, DK_SoundIndex("global/m_gibexpa.wav"));
-        actor->s.modelindex = 0; actor->r.contents = 0; actor->takedamage = qfalse;
-        actor->freeAfterEvent = qtrue; trap_LinkEntity(actor);
+        DK_ActorGib(actor, attacker, mins, maxs, fragtype, Info(actor)->mass, damage);
+        G_FreeEntity(actor);
     }
     if (actor->inuse && actor->dk.id == id && Info(actor)->companion && !actor->dk.cinematicOwned && g_gametype.integer == GT_SINGLE_PLAYER) {
         gentity_t *player = &g_entities[0];
@@ -1376,6 +2659,11 @@ qboolean DK_SpawnActor(gentity_t *actor) {
     if (level.spawning) G_SpawnFloat("sight", va("%g", actor->dk.sightRange), &actor->dk.sightRange);
     if (!(actor->dk.sightRange > 0 && actor->dk.sightRange <= 131072))
         G_Error("dk3: actor %u (%s): sight must be between 0 and 131072", actor->dk.id, name);
+    actor->dk.speakRange = 0;
+    if (level.spawning) G_SpawnFloat("speak", "0", &actor->dk.speakRange);
+    if (!(actor->dk.speakRange >= 0 && actor->dk.speakRange <= 131072))
+        G_Error("dk3: actor %u (%s): speak must be between 0 and 131072", actor->dk.id, name);
+    if (!strcmp(name, "monster_mishimaguard")) actor->dk.abilityCharges = 8;
     if (definitions[i].turret) {
         float interval = !strcmp(name, "monster_rockgat") ? 0.13f : 0.2f;
         actor->dk.attackRange = 512;
@@ -1399,6 +2687,10 @@ qboolean DK_SpawnActor(gentity_t *actor) {
     actor->dk.maxHealth = actor->health;
     if (!strcmp(name, "monster_ghost")) actor->dk.abilityTime = level.time + 15000;
     if (!strcmp(name, "monster_wyndrax")) actor->dk.abilityCharges = 4;
+    if (!strcmp(name, "monster_kage")) {
+        int skill = (int)Com_Clamp(0, 2, (trap_Cvar_VariableIntegerValue("g_spSkill") - 1) / 2);
+        actor->dk.abilityCharges = skill == 0 ? 2 : skill == 1 ? 5 : 10;
+    }
     if (definitions[i].companion) DK_InitCompanionInventory(actor);
     actor->s.dk3Scale = definitions[i].scale;
     if (level.spawning) {
@@ -1446,15 +2738,52 @@ qboolean DK_SpawnActor(gentity_t *actor) {
     return qtrue;
 }
 
+static void CommandVoice(gentity_t *actor, const char *code) {
+    qboolean mikiko = strstr(actor->classname, "mikiko") && !strstr(actor->classname, "mikikofly");
+    const char *path = va("sounds/voices/%s/cmd_%s_%s_01.mp3.ogg", mikiko ? "mikiko" : "superfly", mikiko ? "mi" : "su", code);
+    if (trap_FS_FOpenFile(path, NULL, FS_READ) > 0) G_Sound(actor, CHAN_VOICE, G_SoundIndex(path));
+    else G_Printf("dk3: companion %u: missing command voice %s\n", actor->dk.id, path);
+}
+
+/* Developer cheat: `spawnactor <classname> [distance]` places an actor ahead of the player. */
+qboolean DK_SpawnActorCommand(gentity_t *player, const char *command) {
+    char classname[64], distance[16];
+    vec3_t forward, origin, angles;
+    gentity_t *actor;
+    trace_t trace;
+    if (Q_stricmp(command, "spawnactor")) return qfalse;
+    if (!trap_Cvar_VariableIntegerValue("sv_cheats")) {
+        trap_SendServerCommand(player->s.number, "print \"Cheats are not enabled on this server.\n\"");
+        return qtrue;
+    }
+    trap_Argv(1, classname, sizeof(classname)); trap_Argv(2, distance, sizeof(distance));
+    VectorSet(angles, 0, player->client->ps.viewangles[YAW], 0);
+    AngleVectors(angles, forward, NULL, NULL);
+    VectorMA(player->r.currentOrigin, *distance ? atof(distance) : 160, forward, origin);
+    trap_Trace(&trace, player->r.currentOrigin, NULL, NULL, origin, player->s.number, MASK_SOLID);
+    VectorCopy(trace.endpos, origin); origin[2] += 16;
+    actor = G_Spawn();
+    actor->classname = G_NewString(classname);
+    VectorCopy(origin, actor->s.origin);
+    angles[YAW] += 180; VectorCopy(angles, actor->s.angles);
+    if (!DK_SpawnActor(actor)) {
+        G_FreeEntity(actor);
+        trap_SendServerCommand(player->s.number, va("print \"Unknown actor %s.\n\"", classname));
+        return qtrue;
+    }
+    trap_SendServerCommand(player->s.number, va("print \"Spawned %s as entity %d.\n\"", classname, actor->s.number));
+    return qtrue;
+}
+
 qboolean DK_CompanionCommand(gentity_t *player, const char *command) {
     char operation[64], selection[32];
     gentity_t *target = NULL;
     int i, affected = 0;
     if (Q_stricmp(command, "companion")) return qfalse;
     trap_Argv(1, operation, sizeof(operation)); trap_Argv(2, selection, sizeof(selection));
-    if ((strcmp(operation, "follow") && strcmp(operation, "wait") && strcmp(operation, "attack") && strcmp(operation, "pickup")) ||
+    if ((strcmp(operation, "follow") && strcmp(operation, "wait") && strcmp(operation, "attack") && strcmp(operation, "pickup") && strcmp(operation, "noattack") && strcmp(operation, "backoff")) ||
         (*selection && strcmp(selection, "all") && strcmp(selection, "mikiko") && strcmp(selection, "superfly"))) {
-        trap_SendServerCommand(player->s.number, "print \"Use companion <follow|wait|attack|pickup> [mikiko|superfly|all].\n\"");
+        trap_SendServerCommand(player->s.number, "print \"Use companion <follow|wait|attack|pickup|noattack|backoff> [mikiko|superfly|all].\n\"");
         return qtrue;
     }
     if (!strcmp(operation, "attack") || !strcmp(operation, "pickup")) {
@@ -1485,15 +2814,17 @@ qboolean DK_CompanionCommand(gentity_t *player, const char *command) {
         if (!strcmp(selection, "mikiko") && !mikiko) continue;
         if (!strcmp(selection, "superfly") && mikiko) continue;
         if (!strcmp(operation, "pickup")) {
-            if (!target || !DK_CompanionItemValue(actor, target)) continue;
+            if (!target || !DK_CompanionItemValue(actor, target)) { CommandVoice(actor, "no"); continue; }
             actor->dk.pickupId = target->dk.id; actor->dk.companionOrder = 3;
         } else if (!strcmp(operation, "attack")) {
             if (target && Enemy(actor, target)) actor->enemy = target; else Acquire(actor);
             actor->dk.companionOrder = 2;
         } else {
-            actor->dk.companionOrder = !strcmp(operation, "wait") ? 1 : 0;
+            actor->dk.companionOrder = !strcmp(operation, "wait") ? 1 : (!strcmp(operation, "noattack") || !strcmp(operation, "backoff")) ? 4 : 0;
             actor->dk.pickupId = 0;
         }
+        CommandVoice(actor, actor->dk.companionOrder == 4 ? "ba" : actor->dk.companionOrder == 3 ? "pu" :
+            actor->dk.companionOrder == 2 ? "at" : actor->dk.companionOrder == 1 ? "st" : "co");
         Animation(actor, "amba", ACTOR_IDLE);
         ++affected;
     }
@@ -1516,6 +2847,7 @@ qboolean DK_ValidateActorState(gentity_t *actor, const char *savedMap) {
     if (!strcmp(name, "fish_dopefish")) name = "e_dopefish";
     info = Info(actor);
     if (!(actor->dk.sightRange > 0 && actor->dk.sightRange <= 131072)) return qfalse;
+    if (!(actor->dk.speakRange >= 0 && actor->dk.speakRange <= 131072)) return qfalse;
     if (info->turret && (!(actor->dk.attackRange > 0 && actor->dk.attackRange <= 131072) ||
         actor->dk.fireInterval < 50 || actor->dk.fireInterval > 3600000 ||
         actor->dk.attackDamage < 0 || actor->dk.attackDamage > 65535 ||
@@ -1534,13 +2866,13 @@ qboolean DK_ValidateActorState(gentity_t *actor, const char *savedMap) {
     if (info->companion) {
         int i;
         if (actor->dk.maxHealth < 1 || actor->dk.maxHealth > 10000 || actor->dk.armor < 0 || actor->dk.armor > 10000 ||
-            actor->dk.actorLevel < 1 || actor->dk.actorLevel > 25 || actor->dk.companionOrder < 0 || actor->dk.companionOrder > 3 ||
+            actor->dk.actorLevel < 1 || actor->dk.actorLevel > 25 || actor->dk.companionOrder < 0 || actor->dk.companionOrder > 4 ||
             actor->s.weapon < 1 || actor->s.weapon >= DK_WEAPON_COUNT) return qfalse;
         for (i = 0; i < MAX_WEAPONS; ++i) if (actor->dk.ammunition[i] < 0 || actor->dk.ammunition[i] > 32767) return qfalse;
         for (i = 0; i < 5; ++i) if (actor->dk.attributes[i] < 0 || actor->dk.attributes[i] > 5) return qfalse;
     }
     return !strcmp(info->classname, name) && actor->dk.attackGroup >= 0 && actor->dk.attackGroup < 3 &&
-        actor->dk.action >= ACTOR_IDLE && actor->dk.action <= ACTOR_DOWN && actor->dk.abilityState >= 0 && actor->dk.abilityState <= 3 && actor->dk.animationCursor >= -1 &&
+        actor->dk.action >= ACTOR_IDLE && actor->dk.action <= ACTOR_DOWN && actor->dk.abilityState >= 0 && actor->dk.abilityState <= (!strcmp(actor->classname, "monster_buboid") ? 5 : 3) && actor->dk.animationCursor >= -1 &&
         actor->dk.turretFrames >= 0 && actor->dk.turretFrames < info->frames &&
         actor->dk.turretEnabled >= 0 && actor->dk.turretEnabled <= 1 &&
         actor->dk.animationIndex >= 0 && actor->dk.animationIndex < (info->animationCount ? info->animationCount : 1) &&
@@ -1562,7 +2894,7 @@ static void CameraLight(gentity_t *actor) {
     actor->s.dk3EffectFlags = actor->health > 0 && !actor->dk.cinematicControlled ? DK_FX_ENABLED : 0;
     actor->s.dk3EffectRadius = 2;
     VectorSet(actor->s.dk3EffectColor, 0.6f, 0.6f, 0.1f);
-    if (actor->enemy && actor->enemy->health > 0) {
+    if (actor->enemy && actor->enemy->health > 0 && actor->dk.abilityState != CAMBOT_SEARCHING) {
         VectorSubtract(actor->enemy->r.currentOrigin, actor->r.currentOrigin, direction);
         VectorNormalize(direction);
         VectorSet(actor->s.dk3EffectColor, 0.8f, 0.1f, 0.1f);
@@ -1595,7 +2927,7 @@ void DK_PublishActors(void) {
         actor->s.dk3AnimationStart = actor->dk.animationTime;
         actor->s.dk3AnimationFirst = actor->dk.firstFrame;
         actor->s.dk3AnimationLast = actor->dk.lastFrame;
-        actor->s.dk3AnimationRate = actor->dk.animationRate;
+        actor->s.dk3AnimationRate = actor->s.dk3RenderFlags & DK3_RF_STONE ? 0 : actor->dk.animationRate;
         actor->s.dk3AnimationLoop = actor->dk.animationLoop;
     }
 }

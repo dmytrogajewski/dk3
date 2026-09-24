@@ -287,6 +287,12 @@ void CG_AddFragment( localEntity_t *le ) {
 
 			BG_EvaluateTrajectory( &le->angles, cg.time, angles );
 			AnglesToAxis( angles, le->refEntity.axis );
+            if (le->dk3FragmentScale > 0) {
+                int axis;
+                for (axis = 0; axis < 3; ++axis)
+                    VectorScale(le->refEntity.axis[axis], le->dk3FragmentScale, le->refEntity.axis[axis]);
+                le->refEntity.nonNormalizedAxes = qtrue;
+            }
 		}
 
 		trap_R_AddRefEntityToScene( &le->refEntity );

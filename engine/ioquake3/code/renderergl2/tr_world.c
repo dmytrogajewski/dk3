@@ -162,14 +162,14 @@ static int R_DlightSurface( msurface_t *surf, int dlightBits ) {
 	if ( surf->cullinfo.type & CULLINFO_PLANE )
 	{
 		for ( i = 0 ; i < tr.refdef.num_dlights ; i++ ) {
-			if ( ! ( dlightBits & ( 1 << i ) ) ) {
+			if ( ! ( dlightBits & ( 1U << i ) ) ) {
 				continue;
 			}
 			dl = &tr.refdef.dlights[i];
 			d = DotProduct( dl->origin, surf->cullinfo.plane.normal ) - surf->cullinfo.plane.dist;
 			if ( d < -dl->radius || d > dl->radius ) {
 				// dlight doesn't reach the plane
-				dlightBits &= ~( 1 << i );
+				dlightBits &= ~( 1U << i );
 			}
 		}
 	}
@@ -177,7 +177,7 @@ static int R_DlightSurface( msurface_t *surf, int dlightBits ) {
 	if ( surf->cullinfo.type & CULLINFO_BOX )
 	{
 		for ( i = 0 ; i < tr.refdef.num_dlights ; i++ ) {
-			if ( ! ( dlightBits & ( 1 << i ) ) ) {
+			if ( ! ( dlightBits & ( 1U << i ) ) ) {
 				continue;
 			}
 			dl = &tr.refdef.dlights[i];
@@ -188,7 +188,7 @@ static int R_DlightSurface( msurface_t *surf, int dlightBits ) {
 				|| dl->origin[2] - dl->radius > surf->cullinfo.bounds[1][2]
 				|| dl->origin[2] + dl->radius < surf->cullinfo.bounds[0][2] ) {
 				// dlight doesn't reach the bounds
-				dlightBits &= ~( 1 << i );
+				dlightBits &= ~( 1U << i );
 			}
 		}
 	}
@@ -196,14 +196,14 @@ static int R_DlightSurface( msurface_t *surf, int dlightBits ) {
 	if ( surf->cullinfo.type & CULLINFO_SPHERE )
 	{
 		for ( i = 0 ; i < tr.refdef.num_dlights ; i++ ) {
-			if ( ! ( dlightBits & ( 1 << i ) ) ) {
+			if ( ! ( dlightBits & ( 1U << i ) ) ) {
 				continue;
 			}
 			dl = &tr.refdef.dlights[i];
 			if (!SpheresIntersect(dl->origin, dl->radius, surf->cullinfo.localOrigin, surf->cullinfo.radius))
 			{
 				// dlight doesn't reach the bounds
-				dlightBits &= ~( 1 << i );
+				dlightBits &= ~( 1U << i );
 			}
 		}
 	}
@@ -245,14 +245,14 @@ static int R_PshadowSurface( msurface_t *surf, int pshadowBits ) {
 	if ( surf->cullinfo.type & CULLINFO_PLANE )
 	{
 		for ( i = 0 ; i < tr.refdef.num_pshadows ; i++ ) {
-			if ( ! ( pshadowBits & ( 1 << i ) ) ) {
+			if ( ! ( pshadowBits & ( 1U << i ) ) ) {
 				continue;
 			}
 			ps = &tr.refdef.pshadows[i];
 			d = DotProduct( ps->lightOrigin, surf->cullinfo.plane.normal ) - surf->cullinfo.plane.dist;
 			if ( d < -ps->lightRadius || d > ps->lightRadius ) {
 				// pshadow doesn't reach the plane
-				pshadowBits &= ~( 1 << i );
+				pshadowBits &= ~( 1U << i );
 			}
 		}
 	}
@@ -260,7 +260,7 @@ static int R_PshadowSurface( msurface_t *surf, int pshadowBits ) {
 	if ( surf->cullinfo.type & CULLINFO_BOX )
 	{
 		for ( i = 0 ; i < tr.refdef.num_pshadows ; i++ ) {
-			if ( ! ( pshadowBits & ( 1 << i ) ) ) {
+			if ( ! ( pshadowBits & ( 1U << i ) ) ) {
 				continue;
 			}
 			ps = &tr.refdef.pshadows[i];
@@ -272,7 +272,7 @@ static int R_PshadowSurface( msurface_t *surf, int pshadowBits ) {
 				|| ps->lightOrigin[2] + ps->lightRadius < surf->cullinfo.bounds[0][2] 
 				|| BoxOnPlaneSide(surf->cullinfo.bounds[0], surf->cullinfo.bounds[1], &ps->cullPlane) == 2 ) {
 				// pshadow doesn't reach the bounds
-				pshadowBits &= ~( 1 << i );
+				pshadowBits &= ~( 1U << i );
 			}
 		}
 	}
@@ -280,7 +280,7 @@ static int R_PshadowSurface( msurface_t *surf, int pshadowBits ) {
 	if ( surf->cullinfo.type & CULLINFO_SPHERE )
 	{
 		for ( i = 0 ; i < tr.refdef.num_pshadows ; i++ ) {
-			if ( ! ( pshadowBits & ( 1 << i ) ) ) {
+			if ( ! ( pshadowBits & ( 1U << i ) ) ) {
 				continue;
 			}
 			ps = &tr.refdef.pshadows[i];
@@ -288,7 +288,7 @@ static int R_PshadowSurface( msurface_t *surf, int pshadowBits ) {
 				|| DotProduct( surf->cullinfo.localOrigin, ps->cullPlane.normal ) - ps->cullPlane.dist < -surf->cullinfo.radius)
 			{
 				// pshadow doesn't reach the bounds
-				pshadowBits &= ~( 1 << i );
+				pshadowBits &= ~( 1U << i );
 			}
 		}
 	}
@@ -485,15 +485,15 @@ static void R_RecursiveWorldNode( mnode_t *node, uint32_t planeBits, uint32_t dl
 				dlight_t	*dl;
 				float		dist;
 
-				if ( dlightBits & ( 1 << i ) ) {
+				if ( dlightBits & ( 1U << i ) ) {
 					dl = &tr.refdef.dlights[i];
 					dist = DotProduct( dl->origin, node->plane->normal ) - node->plane->dist;
 					
 					if ( dist > -dl->radius ) {
-						newDlights[0] |= ( 1 << i );
+						newDlights[0] |= ( 1U << i );
 					}
 					if ( dist < dl->radius ) {
-						newDlights[1] |= ( 1 << i );
+						newDlights[1] |= ( 1U << i );
 					}
 				}
 			}
@@ -508,15 +508,15 @@ static void R_RecursiveWorldNode( mnode_t *node, uint32_t planeBits, uint32_t dl
 				pshadow_t	*shadow;
 				float		dist;
 
-				if ( pshadowBits & ( 1 << i ) ) {
+				if ( pshadowBits & ( 1U << i ) ) {
 					shadow = &tr.refdef.pshadows[i];
 					dist = DotProduct( shadow->lightOrigin, node->plane->normal ) - node->plane->dist;
 					
 					if ( dist > -shadow->lightRadius ) {
-						newPShadows[0] |= ( 1 << i );
+						newPShadows[0] |= ( 1U << i );
 					}
 					if ( dist < shadow->lightRadius ) {
-						newPShadows[1] |= ( 1 << i );
+						newPShadows[1] |= ( 1U << i );
 					}
 				}
 			}

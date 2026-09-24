@@ -132,6 +132,7 @@ typedef struct {
 	// time in milliseconds for shader effects and other time dependent rendering issues
 	int			time;
 
+	float dk3Lightstyles[256];
 	int			rdflags;			// RDF_NOWORLDMODEL, etc
 
 	// 1 bits will prevent the associated area from rendering at all

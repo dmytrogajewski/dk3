@@ -66,10 +66,38 @@ RE_ClearScene
 
 ====================
 */
+static qboolean	sceneFog;
+static vec3_t	sceneFogColor;
+static float	sceneFogStart, sceneFogEnd, sceneFogSkyEnd;
+
 void RE_ClearScene( void ) {
 	r_firstSceneDlight = r_numdlights;
 	r_firstSceneEntity = r_numentities;
 	r_firstScenePoly = r_numpolys;
+	sceneFog = qfalse;
+}
+
+/*
+=====================
+RE_SetDk3Fog
+
+Linear distance fog for the next world scene. The sky uses skyEnd as its end distance.
+=====================
+*/
+void RE_SetDk3Fog( const vec3_t color, float start, float end, float skyEnd ) {
+	int i;
+	if ( !color || !( start > -1e7f && start < 1e7f ) || !( end > -1e7f && end < 1e7f ) ||
+		!( skyEnd > -1e7f && skyEnd < 1e7f ) ) {
+		sceneFog = qfalse;
+		return;
+	}
+	for ( i = 0; i < 3; i++ ) {
+		sceneFogColor[i] = color[i] >= 0 ? ( color[i] <= 1 ? color[i] : 1 ) : 0;
+	}
+	sceneFogStart = start;
+	sceneFogEnd = end != start ? end : start + 1;
+	sceneFogSkyEnd = skyEnd;
+	sceneFog = qtrue;
 }
 
 /*
@@ -303,6 +331,12 @@ void RE_BeginScene(const refdef_t *fd)
 	tr.refdef.time = fd->time;
 	tr.refdef.rdflags = fd->rdflags;
 
+	tr.refdef.dk3Fog = sceneFog && r_dk3Fog->integer && !( fd->rdflags & RDF_NOWORLDMODEL );
+	VectorCopy( sceneFogColor, tr.refdef.dk3FogColor );
+	tr.refdef.dk3FogStart = sceneFogStart;
+	tr.refdef.dk3FogEnd = sceneFogEnd;
+	tr.refdef.dk3FogSkyEnd = sceneFogSkyEnd;
+
 	// copy the areamask data over and note if it has changed, which
 	// will force a reset of the visible leafs even if the view hasn't moved
 	tr.refdef.areamaskModified = qfalse;
@@ -462,6 +496,7 @@ void RE_RenderScene( const refdef_t *fd ) {
 	if ( !tr.registered ) {
 		return;
 	}
+    R_UpdateDkLightstyles(fd);
 	GLimp_LogComment( "====== RE_RenderScene =====\n" );
 
 	if ( r_norefresh->integer ) {

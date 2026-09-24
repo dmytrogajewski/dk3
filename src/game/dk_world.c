@@ -188,6 +188,15 @@ static void TriggerUse(gentity_t *ent, gentity_t *other, gentity_t *activator) {
         return;
     }
     ++ent->dk.uses;
+    if (Is(ent, "trigger_secret")) {
+        int i, found = 0, total = 0, episode = mapName[1] >= '1' && mapName[1] <= '4' ? mapName[1] - '0' : 1;
+        for (i = MAX_CLIENTS; i < level.num_entities; ++i)
+            if (g_entities[i].inuse && Is(&g_entities[i], "trigger_secret")) {
+                ++total; if (g_entities[i].dk.uses) ++found;
+            }
+        trap_SendServerCommand(-1, va("cp \"Secret discovered (%d/%d).\"", found, total));
+        if (activator) G_Sound(activator, CHAN_AUTO, DK_SoundIndex(va("e%d/e%d_secret.wav", episode, episode)));
+    }
     ent->dk.nextUse = level.time + (ent->wait > 0 ? (int)(ent->wait * 1000) : DK_TRIGGER_WAIT);
     if (ent->message && LivingPlayer(activator))
         trap_SendServerCommand(activator->s.number, va("cp \"%s\"", ent->message));

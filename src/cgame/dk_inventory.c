@@ -93,7 +93,7 @@ void DK_DrawInventory(float scale) {
     if (scale < 0.7f) scale = 0.7f;
     if (!font.shader) DK_LoadNamedFont(&font, "statbar_font");
     if (cgs.gametype == GT_SINGLE_PLAYER) {
-        int level = player->dk3Level > 0 ? player->dk3Level : 1;
+        int level = player->dk3Level;
         int lower = DK_ExperienceThreshold(level - 1), upper = DK_ExperienceThreshold(level);
         int progress = level >= 25 ? 10 : (int)Com_Clamp(0, 10, 10.0f * (player->dk3Experience - lower) / (upper - lower));
         for (i = 0; i < 5; ++i) {
@@ -114,7 +114,7 @@ void DK_DrawInventory(float scale) {
         }
         trap_R_SetColor(NULL);
     }
-    for (i = 1; i < DK_WEAPON_COUNT; ++i) if (DK_HasWeapon(player, i) && i != DK_W_FLASHLIGHT) {
+    for (i = 1; i < DK_WEAPON_COUNT; ++i) if (DK_HasWeapon(player, i) && DK_WeaponInventoryVisible(i)) {
         if (i == cg.weaponSelect) selected = count;
         owned[count++] = i;
     }
@@ -126,12 +126,10 @@ void DK_DrawInventory(float scale) {
             Picture(x, y, 128 * scale, 128 * scale, "weapn_win", 0.7f);
             if (i < count) {
                 int weapon = owned[i];
-                const char *model = weapon == DK_W_DISRUPTOR ? dk_weapons[weapon].model : DK_WeaponWorldModel(weapon);
+                const char *model = DK_WeaponInventoryModel(weapon);
                 Model(x + 8 * scale, y + 10 * scale, 73 * scale, 39 * scale, model);
                 if (i == selected) Picture(x, y, 128 * scale, 128 * scale, "selec_weapn", 0.7f);
-                if (weapon == DK_W_GASHANDS) Com_sprintf(text, sizeof(text), "%ds", (player->powerups[PW_DK3_GASHANDS] - cg.time + 999) / 1000);
-                else if (dk_weapons[weapon].ammoMax) Com_sprintf(text, sizeof(text), "%d", player->ammo[weapon]);
-                else text[0] = 0;
+                DK_WeaponInventoryText(player, weapon, cg.time, text, sizeof(text));
                 DK_Text(&font, x + 48 * scale, y + 50 * scale, scale * 0.65f, text, normal);
             }
         }

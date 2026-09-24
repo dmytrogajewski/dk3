@@ -1,10 +1,14 @@
 {
   "base": "UPSTREAM.json",
-  "description": "Independent dk3 native runtime and protocol 1344, native media/startup, campaign map mode, defined field offsets and JPEG encoding, authored audio and nine-bit AAS mover indices. Local restore world-hold service v1 and stationary native projectile handling. Local pause excludes menu elapsed time from the client simulation clock. Reserved powerup slot 15 for Gas Hands lifetime. Native equipped weapon sound loop for Gas Hands. Zero velocity before a delayed stop trajectory begins. Explicit per-axis actor scale and simulation-based animation ranges, render interpolation, cinematic facing, native HUD/menu hooks and bounded damage tint. Original loading art/progress, weapon contact audio and surface marks, supplied pain sounds, and cambot spotlight presentation. Save service accepts bounded campaign archives. Both renderers share cloud geometry across shader stages to avoid unreferenced duplicate vertices. Finite reverse turret animation and campaign death checkpoint restart. Standalone software gamma avoids compositor-dependent fullscreen darkening. Exact ignore exceptions preserve the complete pinned upstream tree in Git.",
+  "description": "Independent dk3 native runtime and protocol 1344, native media/startup, campaign map mode, defined field offsets and JPEG encoding, authored audio and nine-bit AAS mover indices. Local restore world-hold service v1 and stationary native projectile handling. Local pause excludes menu elapsed time from the client simulation clock. Reserved powerup slot 15 for Gas Hands lifetime. Native equipped weapon sound loop for Gas Hands. Zero velocity before a delayed stop trajectory begins. Explicit per-axis actor scale and simulation-based animation ranges, render interpolation, cinematic facing, native HUD/menu hooks and bounded damage tint. Original loading art/progress, weapon contact audio and surface marks, supplied pain sounds, and cambot spotlight presentation. Save service accepts bounded campaign archives. Both renderers share cloud geometry across shader stages to avoid unreferenced duplicate vertices. Finite reverse turret animation and campaign death checkpoint restart. Standalone software gamma avoids compositor-dependent fullscreen darkening. Exact ignore exceptions preserve the complete pinned upstream tree in Git. Native trigger bounds contact and persistent fragment scale during tumbling. Projected additive lights modulate the surface material and its animated texture coordinates in both renderers. Native Ion flight and contact presentation entry points. Damageable missiles never clip their own hull, and setviewpos accepts an optional pitch. Save previews are written as small thumbnails so high-resolution menus can load them. Renderer dlight and pshadow bit masks use unsigned shifts so a full 32-light scene stays defined. Intermission and spectator placement fall back to team starts on maps without deathmatch spawns. Native Zig weapons own prediction, water protection, grants and kill hooks; C module callers use the narrow integration ABI.",
   "files": {
     ".gitignore": {
       "current_sha256": "5300b0caf48f9694dff85321aaecf4ea38f926a0df2f7287442d6867c3242d57",
       "upstream_sha256": "a32ca1369c4b982cd614ede67cb102ac3ec065824e4ccd55d48ef691396e9147"
+    },
+    "cmake/renderer_gl1.cmake": {
+      "current_sha256": "ee7d7eeba3922fc09cb5aa363b9145843b93a007d3612313ef035b8dd1138e89",
+      "upstream_sha256": "15aa2c5faef7678b21b7ca1e2843a0c859de5c736f04b2d86cdbabb7c12fc71e"
     },
     "code/botlib/aasfile.h": {
       "current_sha256": "4411d7e7da509ce20e78137ffae5a6da7f2ce6d6e0b934139aca25646c0d16d3",
@@ -31,11 +35,11 @@
       "upstream_sha256": "96fab3b2dd809b76c950c752704eebc09a8974ad938280859ce5bb2e6f62822d"
     },
     "code/cgame/cg_ents.c": {
-      "current_sha256": "4be39b84aea0254f889342bf43ccb93350fe94b019f3b32cb838ed9e1fd61d73",
+      "current_sha256": "8904fa4a4dae3603cba2359619d768e71d99715d10c5f2bec587bd98497c12f7",
       "upstream_sha256": "1a565e198ecb986a42e94d031a0d4dd95d808b998f8622c88fdd8530d044262e"
     },
     "code/cgame/cg_event.c": {
-      "current_sha256": "5586ac02b9f2ae2e23984e5b00f7673aefa91f8324c73c2b82312d0d9d79295e",
+      "current_sha256": "99751a78b6545f11eb16f5a9845a4beeba8f49ed9969988d01da1c2af0b8c2eb",
       "upstream_sha256": "f1d1e90e16e50a3c01dc7fb2982c4ce0a7d43df138f2676a24f0dc386879150a"
     },
     "code/cgame/cg_info.c": {
@@ -43,11 +47,11 @@
       "upstream_sha256": "1e1fbfa7a538e9f706531c8918ae4dc0ae257a6470bb54224fbe36d731f66c73"
     },
     "code/cgame/cg_local.h": {
-      "current_sha256": "d615580a272949803c3c6351489576aba88ebc57da3e405bfbda33dba189a19b",
+      "current_sha256": "a20b8dea0cb1e182a8dc5892fb6ed84f13a2792e58491ef63357a45704a0e7ab",
       "upstream_sha256": "73492ba8a1da0998aa71fa1f86b908422ec596956a84fc93815006f8a43178b1"
     },
     "code/cgame/cg_localents.c": {
-      "current_sha256": "da1428a42b3e246b2cf656e736b05dc2d5767c37873fb07eeef8ae2137a9c006",
+      "current_sha256": "b4ab2d05e7215c40a65c0d0642334d6caaef63a4955c9ff57a5a9907c2ec5c6e",
       "upstream_sha256": "5312f152106a4b2a7fbe84fbe239da10e09e04271c6e082b9c22dddaa453c643"
     },
     "code/cgame/cg_main.c": {
@@ -59,7 +63,7 @@
       "upstream_sha256": "23db1a659f83183be0ccab1d4db74677e16aeb8b6c1d73eeded55c57bc1e52c4"
     },
     "code/cgame/cg_players.c": {
-      "current_sha256": "d1df73ac010c168e0b556664d9e39e478d89588ac1c65645451d549c07e390e5",
+      "current_sha256": "bdc9fc6a3801f5d81cd16e99ffa27c7eabdc77e645b0371eb77a951078d393c1",
       "upstream_sha256": "b08f4ab722c36015066df7d9d19bf0d0857392c0960e9f3dc363c7b2219875b7"
     },
     "code/cgame/cg_playerstate.c": {
@@ -67,23 +71,23 @@
       "upstream_sha256": "54a1038ad856020dba425ab88862c5190fe23b3826179f4b0db940dbc572102e"
     },
     "code/cgame/cg_public.h": {
-      "current_sha256": "8161697bde0eb780feb69fc8a044d081b14c2d18bcf5f8c2c1c9f26ef59f1527",
+      "current_sha256": "29fe95323f62b394b102cf95e2c69585ac3643fdbcfa1efdbf6b309a99a45283",
       "upstream_sha256": "51da13a15cd192ef840a7e56643d5f58f055a00af8201b7c49432551df86dfe1"
     },
     "code/cgame/cg_servercmds.c": {
-      "current_sha256": "d1b065e6b576ec2a9134d521ba0e4cb9fb455cee28f7cda610107cd3c0909b6f",
+      "current_sha256": "05bef0dca714132c5ff39286a50b2fc520946795dc93e82dbd749bb3e88144a2",
       "upstream_sha256": "919b5fe2892522d0070aca72f5964361594d89cb34e9e1b64a09466de0cecfe8"
     },
     "code/cgame/cg_syscalls.asm": {
-      "current_sha256": "13d7489977705517c785baf8443bfb88d04d975dd87debf4b886121982d0f7e2",
+      "current_sha256": "4ae9023d2c3ae160d1f26d20409546ef0933d6cb864d7055667a60dad6c717cd",
       "upstream_sha256": "789224d7c6caa67b7a0c161e3e68bd35615b498907c5a0f9d1c3bfe1b83b3682"
     },
     "code/cgame/cg_syscalls.c": {
-      "current_sha256": "1c1ddb6411773728326caa6cda78bbf99dc52749fcd691c745ae76fcf1ee210b",
+      "current_sha256": "a9a790951876afe76b91929ad12ff05331468e30d5a79e9e69342f64dd5c9aef",
       "upstream_sha256": "a44d65e8c89a8b794573aac3de8f3695695a4f5b0f34981e740be6b626322323"
     },
     "code/cgame/cg_view.c": {
-      "current_sha256": "b98868544df99dfbd4085ec873d6e836192024530e74477c51a119552961de86",
+      "current_sha256": "511e726b72b267b822f55b0ea6921269041147e2a4737761ffb5b43d3d443535",
       "upstream_sha256": "06218ad49ec08f02247b04b5ce1909eaac96cd03e3d91e5e0704551b274b2270"
     },
     "code/cgame/cg_weapons.c": {
@@ -91,7 +95,7 @@
       "upstream_sha256": "5473fed95fa65d1c4c942c681a231b470813106aa5beeebb2675bae83cce1371"
     },
     "code/client/cl_cgame.c": {
-      "current_sha256": "8fac116f6f96401fb320bfef5a0800735b0ebf1c3e3ab42d3eea53a35a6b6f5e",
+      "current_sha256": "7340a80d3fa9de01db091c5a7aa7213bf73767dd6c26ae91ad867b6674d51426",
       "upstream_sha256": "9dd3ee3ce2c6eaaac002bbd590e4de0b74141c027156b24c81c22eb0b362dfca"
     },
     "code/client/cl_input.c": {
@@ -147,19 +151,19 @@
       "upstream_sha256": "4ec633d4581a39b2b86c2c496ab6aa614af7fae782e6ed41a4411d82b9168a84"
     },
     "code/game/bg_misc.c": {
-      "current_sha256": "2df215438deb716de2a5fa4b2c00acd1a744561c5ae1b74ae34003382c271059",
+      "current_sha256": "5beebc9529af72663a7dea7d6fb1806377820989856135870402c76dea70740f",
       "upstream_sha256": "a5eee6fcadc65cc4a54a18487f50c3bb42c85e2af7e6ef17d373476184abf945"
     },
     "code/game/bg_pmove.c": {
-      "current_sha256": "df161ebbcbd919f8769ac12a4946120c06f08710638e614d2b482b9b49495604",
+      "current_sha256": "80d502fb7a8fe2485047db1cc260d53c0abca25920114801fc9d09156a127936",
       "upstream_sha256": "ac260d7f0cc28351c02746d17a985fea15332e1db593a69a04bec4ed49cd310f"
     },
     "code/game/bg_public.h": {
-      "current_sha256": "538e2eea6fe4791a005a384f6b5741db2cbb5c290d2d6a6dfd909027007b4903",
+      "current_sha256": "8889ad00e747b46dc64161590645fa888afca7c9a79afc2d784cfbd38eae45a2",
       "upstream_sha256": "71dfc588cba8d7ef80ff0153ad6fc96d365bf11c3f62696bd9d43b1131339400"
     },
     "code/game/g_active.c": {
-      "current_sha256": "8c9c14b7ab63d0d303edf6293d00fc32f775eef30ad19a9a6b60f06c8cba322d",
+      "current_sha256": "88c22c60ebf1b2226a180f5f9a095123299f5ef2a3df04c0fd5a50c41e602ceb",
       "upstream_sha256": "2cc6043d7e05127293451085e635aed8afba3a06acfcdb069aa5c6218ad5c93d"
     },
     "code/game/g_bot.c": {
@@ -171,11 +175,11 @@
       "upstream_sha256": "b0aeb5cc2afa9a0657d3af7bb3ac38a67a0a5b66a591b9355fd6a90aa0aeb8ab"
     },
     "code/game/g_cmds.c": {
-      "current_sha256": "dfa40c811531376044e89b416d1e59123c2c408c0fd28d023b444ab2f1f55ee7",
+      "current_sha256": "aae79a69a84097d049077ebb942b430ba60beefd7f6ac509df7e47677f0c5de6",
       "upstream_sha256": "fac3229033557ab8f922207e818551d71618d33f46bd6d2197c23d530f6c4c38"
     },
     "code/game/g_combat.c": {
-      "current_sha256": "fc50168a07d9beecd44201e70dd845c14858fb792dbdd8fed375de115ea89935",
+      "current_sha256": "0aa498fc22521e472dd766acb6e6e5a7155431ef4e53a5eee9322a7f8dad2508",
       "upstream_sha256": "cf48c2586a8a4c5966c631cb8506fbf78a82455d6471dbe1469cc92457285d54"
     },
     "code/game/g_local.h": {
@@ -183,7 +187,7 @@
       "upstream_sha256": "aaf3664eeecd6e5a3d95f3ca769e2c19708f62fe91df7c2e0aa7f06e92fbab7e"
     },
     "code/game/g_main.c": {
-      "current_sha256": "625ae2a53870e9e508b8e29044476c90d2fbf4c0333cd26090d007b8ea5e7c89",
+      "current_sha256": "5e006cdaf7e62c9122b0f5b0b320f806baa9cea5016f0ae21d75b2068550ba9d",
       "upstream_sha256": "4466e251560a494ff996b0da6dcc55b99956dc7c006fa9fc9050a42e200faeff"
     },
     "code/game/g_mem.c": {
@@ -191,11 +195,11 @@
       "upstream_sha256": "afa5c80e421b37919fef56b70dcde8d9546586a71e0b359603e59a2d144beff2"
     },
     "code/game/g_missile.c": {
-      "current_sha256": "fd349b0e60cb0bad5cd7d251753fd25eb6f9c8b29e6f578c5665a9b353d39b2a",
+      "current_sha256": "998ce101a145997c686db9a5b2e11077d0f8e0a849bd206a26222f82a207d778",
       "upstream_sha256": "cca0598e85aa5cc385d5c919d801bb721f4bfe80e460e51bfbfccd8d5f7a48d0"
     },
     "code/game/g_mover.c": {
-      "current_sha256": "dcf7f5016d5246c5e1bc05ca944863580289dd3705108cea531d5eb711be09cc",
+      "current_sha256": "2122db055ae9e9ce5790009d82bc76c17f4cf5febbdf9135c005de7e7af551f1",
       "upstream_sha256": "c71d2a5cf1d5a4a956226af6cbbc954bd3e87a11c1fe824e531d31f36aa5cc46"
     },
     "code/game/g_public.h": {
@@ -238,12 +242,16 @@
       "current_sha256": "142e6b1a3386187410014e923855686496b5c79be7e450b904ece65bd5e7bfa4",
       "upstream_sha256": "c1c17157f4107b6dab5a4a534cab5b7890a7fb924758446835af628ae2e7bd39"
     },
+    "code/qcommon/dk3_save.inc": {
+      "current_sha256": "1875b1ebbbb4d6f0837dd34e3f2c9a39920255576de6689564fb3e47fb069803",
+      "upstream_sha256": null
+    },
     "code/qcommon/files.c": {
       "current_sha256": "9816464dad4d4dfff22225b2e7d3e501338a90925aab74c8dfdfd18244bbc552",
       "upstream_sha256": "c47de51f8a3798a6158c3bc8ff282c9a82ece037a08a128d5e67ebb820a67142"
     },
     "code/qcommon/msg.c": {
-      "current_sha256": "d36a1d61a6ccadf57b1e8b2a3cf67c9dd53cae81bc10ec0244dfe4d8fc1af621",
+      "current_sha256": "30259ab6059a31d4586c83af944694869a065d9038b28e084b560fcea1eaf81b",
       "upstream_sha256": "4bec709886666852b248f9974c4ccdee169a812c48d93f0ee5df71b76a8fe3a1"
     },
     "code/qcommon/net_chan.c": {
@@ -251,36 +259,144 @@
       "upstream_sha256": "51f5bf0dd123df4c5f554d822487d3bccc0013dde13b36884c943adee6256d19"
     },
     "code/qcommon/q_shared.h": {
-      "current_sha256": "f28635f28abe120f4bb1c55485bf6615a838c70a244bef6c3c9665f79f09c346",
+      "current_sha256": "0a75d4cc92f2b4e9fe1b0fa52718a8dddc7ea999ed43f12e30fb284303d4a773",
       "upstream_sha256": "bd2515c5eae4e0e49304285e47b999650e52cd2468e40cfbe6fe9ec69a69e3f2"
     },
     "code/qcommon/qcommon.h": {
-      "current_sha256": "8446a76eb0d9cc6f10ba45e5f30bab42a78415925980149da05d73c0b4cf9bc3",
+      "current_sha256": "563a34a7f2c1d6dc969be56993afd041d30ef1e4b87710f8c07e4e43a31958de",
       "upstream_sha256": "1bc3f8ad1c47a540cd999367453d053b68b6baee9716f059bae970e79cbd12fe"
+    },
+    "code/qcommon/surfaceflags.h": {
+      "current_sha256": "ea689d182e991e45e2b7d090c269e710444c9e7539fd38f185d44be62bf35905",
+      "upstream_sha256": "db143be27dff77047353074431a723e98816e3231dea9c3aac8a0f33b5d8d807"
     },
     "code/qcommon/vm.c": {
       "current_sha256": "bf784b32da17626c92831f7e782e0678adce7925e516864475f7e21ae598108f",
       "upstream_sha256": "f863eca67436fd11a41a56ddf43488e987682c0353264b5cc44d1e5f76a1fcdc"
     },
+    "code/renderercommon/dk3_lightstyles.inc": {
+      "current_sha256": "54e10e290c1240fa017ea6611105739bf648017176f85362047c951ee7ad21e2",
+      "upstream_sha256": null
+    },
+    "code/renderercommon/dk3_savepreview.inc": {
+      "current_sha256": "a7a52f55cfd353789f4c7071978b6f2da73a6919a57d63820b7d12e31bcc8619",
+      "upstream_sha256": null
+    },
+    "code/renderercommon/qgl.h": {
+      "current_sha256": "cf27fc2b3b51eb768a0d0d950be29d76bf9a37c676aba1561ad56b303d1a43c0",
+      "upstream_sha256": "6f5014b62507fee2e83b0a15abd1b117e17258b6f0f0843ae03698c074fb2ca8"
+    },
+    "code/renderercommon/tr_public.h": {
+      "current_sha256": "f5bf2ce244c0f80cf88035fcbd1d3f2c3319faf2effa6d2827ea7f269ed82e73",
+      "upstream_sha256": "8288050560e591e21c8da7ddaf8ce5a54fb0a1d0e1af8ca337b899b123f859d9"
+    },
+    "code/renderercommon/tr_types.h": {
+      "current_sha256": "de197076892a0f42fc78d46155549b757d4c00fe6129cb1a90fd1c044259e419",
+      "upstream_sha256": "03d97d5bf800a06cb7dd9a9449b917f18009bc0e4ff6982e468eb8804cc0eed0"
+    },
+    "code/renderergl1/tr_altivec.c": {
+      "current_sha256": "cae0fc9ee5e5fa9d4719d13804336214b6064bc45345d89f7df448061f001a6f",
+      "upstream_sha256": "573de726e693db6aee0df1975774d7df277c049c01a845d217d755a0e255bca1"
+    },
+    "code/renderergl1/tr_backend.c": {
+      "current_sha256": "52c2bd514b3aca96b30b13db78fe1a2e5f9a1f0f40e94ccf07c6498296d532c6",
+      "upstream_sha256": "83dbd0a41f0982815f6c34974fba4415f48a9853ee537767b87ea1717f172c04"
+    },
+    "code/renderergl1/tr_bloom.c": {
+      "current_sha256": "ef9b30dab4535587b90873ccc5b3550186d5baa3eb6a3d56c0196f6da2d19876",
+      "upstream_sha256": null
+    },
+    "code/renderergl1/tr_bsp.c": {
+      "current_sha256": "bf595c42d16a85e66f5c765de8e0460c10f5a4e59e4e2d9baac78db4616a8981",
+      "upstream_sha256": "84da317b393a4c60b65d3d17b911522259d75543c696826da36616c4065ad24a"
+    },
+    "code/renderergl1/tr_init.c": {
+      "current_sha256": "40fd4a58f31d72aba027a98a8510bb81d43d13cb8423a2a0efd26b9cfcc4814b",
+      "upstream_sha256": "ff2cceea00bf11fa2937ec58cc41c86d0e5e92e926136abb36804753f028ff6e"
+    },
+    "code/renderergl1/tr_light.c": {
+      "current_sha256": "3df49fbedb0de234501d155109caeb497aca21e1443a578d3e32683786f607a8",
+      "upstream_sha256": "81d32d73a4435adc2ed488c48114bcd23429a7da670498e94f61670eb72cfc45"
+    },
     "code/renderergl1/tr_local.h": {
-      "current_sha256": "a12e412db938c99e0dd9e7da9ff8679c05518a1d488009b3b4241bd93f3f611b",
+      "current_sha256": "5892d78477a602df47788e2d4bd8ef27213708e7895cb86c1290979829285051",
       "upstream_sha256": "5dd215ba8e9f27fbbe45a399d641811f1c92bfeccacc256a89ca7e8db0252b31"
     },
+    "code/renderergl1/tr_scene.c": {
+      "current_sha256": "263d5c966cc8f96919b4c4336a044dcfd8cd752b11ba66b99784115918b88fcf",
+      "upstream_sha256": "e0c96cb10efdcb82d9a1b37524ddba1b1331008900c955eccf0fe47bbe301609"
+    },
+    "code/renderergl1/tr_shade.c": {
+      "current_sha256": "bc41c30ff344b03f55dff81062b762619a171429b5e442b7fa3f6dbb425ca8d4",
+      "upstream_sha256": "5e39863aec6a1936de6dab6312059ab9df0bab2fe66594c1a74a9bf0cd9a0102"
+    },
     "code/renderergl1/tr_sky.c": {
-      "current_sha256": "fbe278924e9e882c8758dc6920eb81fb007a5502487ead54b1975335fb0d9629",
+      "current_sha256": "61642520530f486dc3e647edc5597f0313825d71143ce3aacf4253100056bff3",
       "upstream_sha256": "1bf7da9104364bdb99927d3affe4165eeff7bface0d4aac3cbc2a1ec4fe6db48"
     },
+    "code/renderergl1/tr_world.c": {
+      "current_sha256": "ff3668e567f3a73a0968d99f6ecd9e6c759255b5371f5d8bc1cd9fd68646a2c0",
+      "upstream_sha256": "588426819c5c1b6084e64b068c1ed4045c43f3953126674d2e2402b1b20b9433"
+    },
+    "code/renderergl2/glsl/dlight_fp.glsl": {
+      "current_sha256": "6bab5df51647cf7d109e694a5a906e97f8ce3b69dbf9201d3b903ec95a13f0bc",
+      "upstream_sha256": "63a2d9afa0f5435b163656a8d998491b598a90d0683b8733da3e062c0b011627"
+    },
+    "code/renderergl2/glsl/dlight_vp.glsl": {
+      "current_sha256": "fb267a3c46de1c265a9897ced2c8ae633663e7ec58ff1d3b564a9506eeb7e94f",
+      "upstream_sha256": "2600acfaceda6623c0dfd9cca1221fc0f03682e4f663a372436103d07f090e1a"
+    },
+    "code/renderergl2/glsl/generic_fp.glsl": {
+      "current_sha256": "5c65f018a84d32f263e8e01d686f459b82fae28f58ed96c789feabb4183da9e8",
+      "upstream_sha256": "c2abf4f8823ee214253a11c7305a334bdec343efd48b5938132f2c87613de2bd"
+    },
+    "code/renderergl2/glsl/lightall_fp.glsl": {
+      "current_sha256": "2dbf71fa9ec90c737eac3888d3403b9e294e1feff2d9d651857babcec2d50f36",
+      "upstream_sha256": "46b1467726d01d81ddb1f217f519aa7851790831b10715076fed8f8df4aa58a3"
+    },
+    "code/renderergl2/tr_bsp.c": {
+      "current_sha256": "0abc832708b919fe300f128648d4f6b9c70ec79a6092cf4162ce523153a368a8",
+      "upstream_sha256": "000e69566912aed05d5506e1bc19ba5467b25b7edb9ccb488a51633302ecf9fc"
+    },
+    "code/renderergl2/tr_glsl.c": {
+      "current_sha256": "7911a60910cfeb15ab9a591623951c6cf79a23c179927e8230658ffb7f59e1c7",
+      "upstream_sha256": "ac94459f906f8fa2da2e4f442aa71f6c600b36f06a28d06bed9217e12d0fb37c"
+    },
+    "code/renderergl2/tr_init.c": {
+      "current_sha256": "91c0fc46fc01b2c9eb045ae91e64ba6f5aac6d1f27b080d6e85b748d6f26f596",
+      "upstream_sha256": "f5684a837a676f654ba2f7faebcc3ddab2695a7544c7749a6bf52f8930869f1b"
+    },
+    "code/renderergl2/tr_light.c": {
+      "current_sha256": "9810820bd9f3f19f67349d995b74e970b55efd64d958ff4f1883091ff4f89b2b",
+      "upstream_sha256": "88375440930e37b74239147a01db299350e759f2085b3719e1eea80f24310574"
+    },
     "code/renderergl2/tr_local.h": {
-      "current_sha256": "2d17a2c299f2f2d11dc53034190a16842a3aa59e8406aee670c18354a31a0766",
+      "current_sha256": "be38396a9efeff58dd0c0438f5731d4e587758ed3bbbd1243250fefa3db36efb",
       "upstream_sha256": "859618b0c8e6ea69e7273660e1579cad202a8048360c296c5975baf365c9ffa3"
     },
+    "code/renderergl2/tr_main.c": {
+      "current_sha256": "4609dd9a7e9edd5dea93c422664bda6f33b7025893f96dda22de1b95411bc950",
+      "upstream_sha256": "ed70737574ede3bd53b6a769880f1d1f027ee8e2189dd09903157ac6d636213e"
+    },
+    "code/renderergl2/tr_scene.c": {
+      "current_sha256": "e644e493e86b2b02d7ed916586d3aa58c76a71166d68c575059ec49b39383cdd",
+      "upstream_sha256": "30b965d428c8d631ea9871bdfbeb8946d90a3328b3b16835133053a54016a86c"
+    },
+    "code/renderergl2/tr_shade.c": {
+      "current_sha256": "67e1014471bb4f22ce3eead792cb0f9add7bcbe3b86596f91bfbda5131c3fc90",
+      "upstream_sha256": "07dfe10740c35b1937a9b694051f2cb98440bc394ae4021e0228a4978df5a61a"
+    },
     "code/renderergl2/tr_sky.c": {
-      "current_sha256": "e2af849c04ef48bb8557fda63416a876c23b3281488d2c9789c721740be1fc18",
+      "current_sha256": "d95773dd88f5358593d776b57892a077606e00d6cea5dc80125a182eba67501c",
       "upstream_sha256": "7d895f9c0491be5d2aaac1c54d11c3db54daa1d19f07f21cfad2dad5c959ad87"
     },
     "code/renderergl2/tr_surface.c": {
       "current_sha256": "c38616317f3c95026e3d3e1a266d32ac2cee3d576e0a6c487672d45ca66bc802",
       "upstream_sha256": "a3dc568434e9ea8b057357a8ca6317443aea4209aeebe66fe6c9f1e644c94ac9"
+    },
+    "code/renderergl2/tr_world.c": {
+      "current_sha256": "bfcd8b64088853bd3d65bfccdeb6c6b2dd288175ebfc60929a234ba485d49631",
+      "upstream_sha256": "d7aa76d43c24afc1f4efdef365cea0f74cb369e444f52ca1722a106df1dbfd43"
     },
     "code/sdl/sdl_glimp.c": {
       "current_sha256": "a314fcd27843c9d2b5a7cbf1a3dbf323c516ac5cabaaad012e572dc8ad02959d",

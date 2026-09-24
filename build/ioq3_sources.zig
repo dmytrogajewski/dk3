@@ -135,6 +135,7 @@ pub const renderer_gl1_sources = [_][]const u8{
     "code/renderergl1/tr_altivec.c",
     "code/renderergl1/tr_animation.c",
     "code/renderergl1/tr_backend.c",
+    "code/renderergl1/tr_bloom.c",
     "code/renderergl1/tr_bsp.c",
     "code/renderergl1/tr_cmds.c",
     "code/renderergl1/tr_curve.c",

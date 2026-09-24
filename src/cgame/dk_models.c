@@ -65,10 +65,56 @@ static modelSequence_t *Sequence(animatedModel_t *model, const char *name) {
     return selected < 0 ? NULL : &model->sequences[selected];
 }
 
+/* A frozen creature gains a blue shell that deepens with its freeze level;
+   a melting Buboid sheds a grey smoke cloud around its feet. */
+void DK_AddStatusEffects(const entityState_t *state, const refEntity_t *model) {
+    static int smokeTime[MAX_GENTITIES];
+    refEntity_t shell;
+    int step = (state->dk3RenderFlags & DK3_RF_FROZEN) >> DK3_RF_FROZEN_SHIFT;
+    if ((state->dk3RenderFlags & DK3_RF_MELT) && (smokeTime[state->number] > cg.time || cg.time - smokeTime[state->number] >= 50)) {
+        vec3_t origin, velocity;
+        int puff;
+        smokeTime[state->number] = cg.time;
+        for (puff = 0; puff < 2; ++puff) {
+            float angle = random() * 2 * M_PI, spread = random() * 45;
+            VectorSet(origin, model->origin[0] + cos(angle) * spread, model->origin[1] + sin(angle) * spread, model->origin[2] - 24);
+            VectorSet(velocity, crandom() * 10, crandom() * 10, 20 + random() * 30);
+            CG_SmokePuff(origin, velocity, 12 + random() * 10, 0.25f, 0.25f, 0.25f, 0.45f, 1500, cg.time, 0, 0,
+                         cgs.media.smokePuffShader);
+        }
+    }
+    if (!step || (state->dk3RenderFlags & DK3_RF_STONE)) return;
+    shell = *model;
+    shell.customShader = trap_R_RegisterShader("dk3/fx/freeze");
+    shell.shaderRGBA[0] = shell.shaderRGBA[1] = 12 * step; shell.shaderRGBA[2] = 60 * step; shell.shaderRGBA[3] = 255;
+    trap_R_AddRefEntityToScene(&shell);
+}
+
 int DK_ModelAnimationDuration(const char *path, const char *name, int rate) {
-    modelSequence_t *sequence = Sequence(Model(path), name);
-    if (!sequence) return 0;
-    return (sequence->last - sequence->first + 1) * 1000 / (rate > 0 ? rate : sequence->rate);
+    animatedModel_t *model = Model(path);
+    int i;
+    /* Weapon bindings require the authored sequence, never a prefix match such
+       as shoot -> shoota. Other animated entities still use Sequence's fallback. */
+    for (i = 0; i < model->count; ++i) {
+        modelSequence_t *sequence = &model->sequences[i];
+        if (!Q_stricmp(sequence->name, name))
+            return (sequence->last - sequence->first + 1) * 1000 / (rate > 0 ? rate : sequence->rate);
+    }
+    return 0;
+}
+
+void DK_ModelAnimationFrame(const char *path, const char *name, float frame, refEntity_t *entity) {
+    animatedModel_t *model = Model(path);
+    modelSequence_t *sequence = Sequence(model, name);
+    int first, last, current;
+    if (!sequence) sequence = &model->sequences[0];
+    first = sequence->first; last = sequence->last;
+    frame = Com_Clamp(0, last - first, frame);
+    current = (int)frame;
+    entity->hModel = model->handle;
+    entity->oldframe = first + current;
+    entity->frame = first + (current < last - first ? current + 1 : current);
+    entity->backlerp = 1 - (frame - current);
 }
 
 void DK_ModelAnimationRate(const char *path, const char *name, int start, qboolean loop, int rate, refEntity_t *entity) {
@@ -97,7 +143,8 @@ void DK_DrawCharacter(centity_t *cent) {
     refEntity_t entity;
     entityState_t *state = &cent->currentState;
     vec3_t angles;
-    const char *animation;
+    const char *animation, *model = "models/global/m_hiro.dkm";
+    int skin = 0;
     int motion = state->legsAnim & ~ANIM_TOGGLEBIT, condition;
     qboolean loop = qtrue;
     if (state->eFlags & EF_NODRAW) return;
@@ -114,7 +161,14 @@ void DK_DrawCharacter(centity_t *cent) {
         characterState[state->number] = condition; characterStart[state->number] = cg.time;
     }
     memset(&entity, 0, sizeof(entity));
-    DK_ModelAnimation("models/global/m_hiro.dkm", animation, characterStart[state->number], loop, &entity);
+    if (cgs.gametype != GT_SINGLE_PLAYER && state->clientNum >= 0 && state->clientNum < MAX_CLIENTS) {
+        clientInfo_t *info = &cgs.clientinfo[state->clientNum];
+        if (!Q_stricmp(info->modelName, "mikiko")) model = "models/global/m_mikiko.dkm";
+        else if (!Q_stricmp(info->modelName, "superfly")) model = "models/global/m_superfly.dkm";
+        skin = (int)Com_Clamp(0, 2, atoi(info->skinName));
+    }
+    DK_ModelAnimation(model, animation, characterStart[state->number], loop, &entity);
+    entity.skinNum = skin;
     entity.reType = RT_MODEL;
     VectorCopy(cent->lerpOrigin, entity.origin);
     VectorCopy(entity.origin, entity.lightingOrigin);
@@ -134,7 +188,13 @@ void DK_DrawCharacter(centity_t *cent) {
             entity.shaderRGBA[2] = team == TEAM_BLUE ? 255 : 100;
         }
     }
+    if (state->dk3RenderFlags & DK3_RF_STONE) {
+        entity.customShader = trap_R_RegisterShader("dk3/fx/stone");
+        entity.frame = entity.oldframe = 0; entity.backlerp = 0;
+        entity.shaderRGBA[0] = entity.shaderRGBA[1] = entity.shaderRGBA[2] = 160; entity.shaderRGBA[3] = 178;
+    }
     trap_R_AddRefEntityToScene(&entity);
+    DK_AddStatusEffects(state, &entity);
     if (state->clientNum >= 0 && state->clientNum < MAX_CLIENTS) {
         characterModels[state->clientNum] = entity;
         characterFrames[state->clientNum] = cg.time;

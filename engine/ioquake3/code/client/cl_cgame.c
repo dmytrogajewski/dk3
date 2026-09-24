@@ -647,6 +647,9 @@ intptr_t CL_CgameSystemCalls( intptr_t *args ) {
     case CG_DK3_SOUND_ENVIRONMENT_V1:
         S_SetEnvironment(args[1], VMF(2), VMF(3));
         return 0;
+    case CG_DK3_R_FOG_V1:
+        re.SetDk3Fog(VMA(1), VMF(2), VMF(3), VMF(4));
+        return 0;
 	case CG_GETSERVERCOMMAND:
 		return CL_GetServerCommand( args[1] );
 	case CG_GETCURRENTCMDNUMBER:

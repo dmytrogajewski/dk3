@@ -93,7 +93,9 @@ static void SoundUse(gentity_t *entity, gentity_t *other, gentity_t *activator) 
 
 static void MusicUse(gentity_t *entity, gentity_t *other, gentity_t *activator) {
     (void)other;
-    if (!activator || !activator->client || entity->dk.uses) return;
+    if (!activator || (!activator->client && !activator->dk.cinematicOwned && !activator->dk.cinematicControlled) ||
+        level.time < entity->dk.nextUse) return;
+    entity->dk.nextUse = level.time + 1000;
     DK_SetMusic(entity->dk.mediaPath); ++entity->dk.uses; G_UseTargets(entity, activator);
 }
 

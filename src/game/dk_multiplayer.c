@@ -3,7 +3,7 @@
    own flag/bomb state, scoring, possession, drops and simulation-time deadlines. */
 #include "g_local.h"
 
-#define DK_FLAG_RETURN_MS 30000
+#define DK_FLAG_RETURN_MS 60000
 #define DK_BOMB_FUSE_MS 90000
 #define DK_BOMB_PLANTED_MS 5000
 #define DK_BOMB_RESPAWN_MS 10000
@@ -13,7 +13,7 @@ typedef struct {
     unsigned int entity, carrier;
     objectiveState_t state;
     vec3_t home, angles;
-    int deadline, nextBeep, pickupAfter;
+    int deadline, nextBeep, pickupAfter, nextHeartbeat, warned;
 } objective_t;
 static objective_t objectives[2];
 
@@ -64,6 +64,7 @@ static void Reset(objective_t *objective) {
     ClearCarrier(objective);
     objective->state = OBJ_HOME;
     objective->deadline = objective->nextBeep = objective->pickupAfter = 0;
+    objective->nextHeartbeat = objective->warned = 0;
     Place(objective, objective->home, qtrue, qtrue);
     Status();
 }
@@ -169,6 +170,18 @@ static void Capture(gentity_t *zone, gentity_t *player, trace_t *trace) {
     points = zone->count > 0 ? zone->count : 1;
     AddTeamScore(player->r.currentOrigin, team, points);
     AddScore(player, player->r.currentOrigin, points * 5);
+    if (g_gametype.integer == GT_CTF) {
+        int i;
+        vec3_t home;
+        VectorCopy(objectives[team - TEAM_RED].home, home);
+        for (i = 0; i < level.maxclients; ++i) {
+            gentity_t *mate = &g_entities[i];
+            if (!mate->inuse || !mate->client || mate->client->pers.connected != CON_CONNECTED ||
+                mate->client->sess.sessionTeam != team) continue;
+            AddScore(mate, mate->r.currentOrigin, 5);
+            if (mate != player && mate->health > 0 && CanDamage(mate, home)) AddScore(mate, mate->r.currentOrigin, 1);
+        }
+    }
     ++player->client->ps.persistant[PERS_CAPTURES];
     G_LogPrintf("DK3Capture: %d %d %d %d\n", player->s.number, team, points, level.teamScores[team]);
     if (g_gametype.integer == GT_CTF) Reset(objective);
@@ -188,6 +201,10 @@ qboolean DK_SpawnMultiplayer(gentity_t *entity) {
     const char *name = entity->classname;
     int team = !strcmp(name, "item_flag_team1") ? TEAM_RED : !strcmp(name, "item_flag_team2") ? TEAM_BLUE : TEAM_FREE;
     if (!strcmp(name, "info_player_team1") || !strcmp(name, "info_player_team2")) {
+        /* Team arenas are also offered for free-for-all. Reuse all authored
+           team starts there so the ordinary ioquake3 spawn/telefrag rules work. */
+        if (g_gametype.integer != GT_SINGLE_PLAYER && !DK_ObjectiveMode())
+            entity->classname = "info_player_deathmatch";
         entity->r.svFlags |= SVF_NOCLIENT;
         G_SetOrigin(entity, entity->s.origin);
         return qtrue;
@@ -264,6 +281,18 @@ void DK_RunMultiplayer(void) {
                 VectorMA(carrier->r.currentOrigin, -14, forward, origin); origin[2] += 12;
                 Place(objective, origin, qtrue, qfalse);
             }
+        }
+        if (g_gametype.integer == GT_DK3_DEATHTAG && objective->state == OBJ_CARRIED && carrier) {
+            int left = objective->deadline - level.time;
+            if (left <= 10000 && !objective->warned) {
+                trap_SendServerCommand(carrier->s.number, "cp \"Bomb timer: ten seconds remaining!\"");
+                objective->warned = 1;
+            }
+            if (left <= 10000 && level.time >= objective->nextHeartbeat) {
+                G_Sound(carrier, CHAN_ITEM, DK_SoundIndex("artifacts/goldensoulwait.wav"));
+                objective->nextHeartbeat = objective->nextBeep = level.time + 1000;
+            }
+            if (left <= 0) trap_SendServerCommand(carrier->s.number, "cp \"Bomb timer expired!\"");
         }
         if (objective->deadline && level.time >= objective->deadline) {
             if (g_gametype.integer == GT_CTF || objective->state == OBJ_RESETTING) Reset(objective);

@@ -84,9 +84,9 @@ PROJECTED_CONTENTS = ('LADDER',)
 SURFACES = (
     (0x1, 'LIGHT', 0), (0x2, 'FULLBRIGHT', Q.SURF_NOLIGHTMAP), (0x4, 'SKY', Q.SURF_SKY | Q.SURF_NOIMPACT | Q.SURF_NOLIGHTMAP),
     (0x8, 'WARP', 0), (0x10, 'TRANS33', 0), (0x20, 'TRANS66', 0), (0x40, 'FLOWING', 0), (0x80, 'NODRAW', Q.SURF_NODRAW),
-    (0x100, 'HINT', Q.SURF_HINT), (0x200, 'SKIP', Q.SURF_SKIP), (0x400, 'WOOD', 0), (0x800, 'METAL', Q.SURF_METALSTEPS),
+    (0x100, 'HINT', Q.SURF_HINT), (0x200, 'SKIP', Q.SURF_SKIP), (0x400, 'WOOD', 0x100000), (0x800, 'METAL', Q.SURF_METALSTEPS),
     (0x1000, 'STONE', 0), (0x2000, 'GLASS', 0), (0x4000, 'ICE', Q.SURF_SLICK), (0x8000, 'SNOW', 0), (0x10000, 'MIRROR', 0),
-    (0x20000, 'TRANSTHING', 0), (0x40000, 'ALPHACHAN', 0), (0x80000, 'MIDTEXTURE', 0), (0x100000, 'PUDDLE', 0),
+    (0x20000, 'TRANSTHING', 0x200000), (0x40000, 'ALPHACHAN', 0), (0x80000, 'MIDTEXTURE', 0), (0x100000, 'PUDDLE', 0),
     (0x200000, 'SURGE', 0), (0x400000, 'BIGSURGE', 0), (0x800000, 'BULLETLIGHT', 0), (0x1000000, 'FOGPLANE', 0),
     (0x2000000, 'SAND', 0),
 )
@@ -308,7 +308,11 @@ class Converter:
                      brushes=self.brushes, brushsides=self.brushsides, drawverts=self.drawverts,
                      drawindexes=self.drawindexes, fogs=b'', surfaces=self.surfaces, lightmaps=self.lightmaps,
                      lightgrid=self.build_lightgrid(verbatim), visibility=self.visibility)
-        return q3bsp.encode(lumps), q3bsp.encode(dict(lumps, entities=self.projection.lump)), self.report(lumps)
+        # Stock readers ignore the optional trailer. dk3 restores styles at render time.
+        import struct
+        trailer = b'DKLS' + struct.pack('<I', len(self.style_blocks)) + b''.join(self.style_blocks)
+        trailer += b'DKLT' + struct.pack('<I', len(trailer))
+        return q3bsp.encode(lumps) + trailer, q3bsp.encode(dict(lumps, entities=self.projection.lump)), self.report(lumps)
 
     # ------------------------------------------------------------------ limits
     def fail(self, error, detail):
@@ -375,7 +379,9 @@ class Converter:
     def build_lightmaps(self):
         """Gold's lightmap blocks (specs/assets/ASSET-bsp.md, "Lightmaps"): each drawn face Mod_LoadFaces lights, in face
         order, gets its style-0 luxels, scaled into ioquake3's byte range, on LM_AllocBlock pages."""
+        import struct
         lighting, atlas, self.face_lm = self.b.raw('lighting'), lightmap.Atlas(), {}
+        self.style_blocks = []
         for fi, f, points, t in lightmapped_faces(self.b, self.texinfo):
             smin, tmin, width, height = lightmap.surface_extents(points, t['vecs'])
             try:
@@ -383,7 +389,17 @@ class Converter:
                 page, x, y = atlas.alloc(width, height)
             except (lightmap.LightingOutOfBounds, lightmap.BlockTooLarge) as error:
                 self.fail(LightmapError, f'face {fi}: {error}')
-            self.losses['light_styles_dropped'].update(str(style) for style in sorted(set(dropped)))
+            if dropped:
+                styles = []
+                for value in f['styles']:
+                    if int(value) == 255: break
+                    styles.append(int(value))
+                if any(v >= 256 for v in styles):
+                    self.fail(LightmapError, f'face {fi}: unsupported style {styles}')
+                size = width * height * 3
+                offset = int(f['lightofs'])
+                self.style_blocks.append(struct.pack('<6If4I', page, x, y, width, height, len(styles),
+                    self.lightmap_scale, *(styles + [0] * (4 - len(styles)))) + bytes(lighting[offset:offset + size * len(styles)]))
             atlas.blit(page, x, y, lightmap.scale_luxels(luxels, self.lightmap_scale))
             self.face_lm[fi] = (page, x, y, width, height, smin, tmin)
         self.lightmaps = atlas.tobytes() if self.face_lm else b''

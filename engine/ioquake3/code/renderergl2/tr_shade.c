@@ -286,6 +286,46 @@ because a surface may be forced to perform a RB_End due
 to overflow.
 ==============
 */
+/*
+==============
+GLSL_SetDk3Fog
+
+Additive passes fade to black and modulating passes to white, so that blending
+them over a fogged destination neither adds nor filters the fog color. The sky
+uses the constant factor of the original 4096-unit sky box with the sky end.
+==============
+*/
+void GLSL_SetDk3Fog( shaderProgram_t *sp, unsigned long stateBits ) {
+	vec4_t color = { 0, 0, 0, 0 }, range = { 0, 1, 0, 0 };
+
+	if ( backEnd.refdef.dk3Fog && !backEnd.projection2D ) {
+		unsigned long src = stateBits & GLS_SRCBLEND_BITS, dst = stateBits & GLS_DSTBLEND_BITS;
+
+		if ( dst == GLS_DSTBLEND_ONE )
+			;
+		else if ( ( src == GLS_SRCBLEND_DST_COLOR && dst == GLS_DSTBLEND_ZERO ) ||
+			( src == GLS_SRCBLEND_ZERO && dst == GLS_DSTBLEND_SRC_COLOR ) )
+			color[0] = color[1] = color[2] = 1;
+		else if ( src == GLS_SRCBLEND_DST_COLOR && dst == GLS_DSTBLEND_SRC_COLOR )
+			color[0] = color[1] = color[2] = 0.5f;
+		else
+			VectorCopy( backEnd.refdef.dk3FogColor, color );
+		color[3] = 1;
+		range[0] = backEnd.refdef.dk3FogStart;
+		range[1] = backEnd.refdef.dk3FogEnd;
+		if ( backEnd.dk3FogSky ) {
+			float extent = backEnd.refdef.dk3FogSkyEnd - range[0], factor = 1;
+			if ( extent != 0 )
+				factor = ( backEnd.refdef.dk3FogSkyEnd - 4096 ) / extent;
+			factor = factor < 0 ? 0 : factor > 1 ? 1 : factor;
+			range[1] = factor * 1e6f;
+			range[0] = range[1] - 1e6f;
+		}
+	}
+	GLSL_SetUniformVec4( sp, UNIFORM_DK3FOGCOLOR, color );
+	GLSL_SetUniformVec4( sp, UNIFORM_DK3FOGRANGE, range );
+}
+
 void RB_BeginSurface( shader_t *shader, int fogNum, int cubemapIndex ) {
 
 	shader_t *state = (shader->remappedShader) ? shader->remappedShader : shader;
@@ -495,19 +535,30 @@ static void ProjectDlightTexture( void ) {
 	float	radius;
 	int deformGen;
 	vec5_t deformParams;
+	shaderStage_t *diffuse = NULL;
+	int stage;
 
 	if ( !backEnd.refdef.num_dlights ) {
 		return;
 	}
 
 	ComputeDeformValues(&deformGen, deformParams);
+	for ( stage = 0; stage < tess.numPasses; stage++ ) {
+		textureBundle_t *bundle = &tess.xstages[stage]->bundle[TB_DIFFUSEMAP];
+		if ( bundle->image[0] && !bundle->isLightmap && bundle->tcGen == TCGEN_TEXTURE ) {
+			diffuse = tess.xstages[stage];
+			break;
+		}
+	}
 
 	for ( l = 0 ; l < backEnd.refdef.num_dlights ; l++ ) {
 		dlight_t	*dl;
 		shaderProgram_t *sp;
 		vec4_t vector;
+		vec4_t texMatrix[8];
+		int matrix;
 
-		if ( !( tess.dlightBits & ( 1 << l ) ) ) {
+		if ( !( tess.dlightBits & ( 1U << l ) ) ) {
 			continue;	// this surface definitely doesn't have any of this light
 		}
 
@@ -546,10 +597,25 @@ static void ProjectDlightTexture( void ) {
 		GLSL_SetUniformVec4(sp, UNIFORM_DLIGHTINFO, vector);
 	  
 		GL_BindToTMU( tr.dlightImage, TB_COLORMAP );
+		/* Modulate additive light by the unlit material. Multiplying the already
+		 * lightmapped framebuffer cannot illuminate an otherwise dark surface. */
+		if ( dl->additive && diffuse ) {
+			R_BindAnimatedImageToTMU( &diffuse->bundle[TB_DIFFUSEMAP], TB_LIGHTMAP );
+			ComputeTexMods( diffuse, TB_DIFFUSEMAP, texMatrix );
+		} else {
+			GL_BindToTMU( tr.whiteImage, TB_LIGHTMAP );
+			for ( matrix = 0; matrix < 8; matrix++ ) {
+				VectorSet( texMatrix[matrix], !(matrix & 1), matrix & 1, 0 );
+				texMatrix[matrix][3] = 0;
+			}
+		}
+		for ( matrix = 0; matrix < 8; matrix++ ) {
+			GLSL_SetUniformVec4( sp, UNIFORM_DIFFUSETEXMATRIX0 + matrix, texMatrix[matrix] );
+		}
 
 		// include GLS_DEPTHFUNC_EQUAL so alpha tested surfaces don't add light
 		// where they aren't rendered
-		if ( dl->additive ) {
+		if ( dl->additive && diffuse ) {
 			GL_State( GLS_ATEST_GT_0 | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL );
 		}
 		else {
@@ -557,6 +623,7 @@ static void ProjectDlightTexture( void ) {
 		}
 
 		GLSL_SetUniformInt(sp, UNIFORM_ALPHATEST, 1);
+		GLSL_SetDk3Fog(sp, glState.glStateBits);
 
 		R_DrawElements(tess.numIndexes, tess.firstIndex);
 
@@ -823,7 +890,7 @@ static void ForwardDlight( void ) {
 		vec4_t vector;
 		vec4_t texMatrix[8];
 
-		if ( !( tess.dlightBits & ( 1 << l ) ) ) {
+		if ( !( tess.dlightBits & ( 1U << l ) ) ) {
 			continue;	// this surface definitely doesn't have any of this light
 		}
 
@@ -907,6 +974,7 @@ static void ForwardDlight( void ) {
 		// where they aren't rendered
 		GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL );
 		GLSL_SetUniformInt(sp, UNIFORM_ALPHATEST, 0);
+		GLSL_SetDk3Fog(sp, glState.glStateBits);
 
 		GLSL_SetUniformMat4(sp, UNIFORM_MODELMATRIX, backEnd.or.transformMatrix);
 
@@ -993,7 +1061,7 @@ static void ProjectPshadowVBOGLSL( void ) {
 		shaderProgram_t *sp;
 		vec4_t vector;
 
-		if ( !( tess.pshadowBits & ( 1 << l ) ) ) {
+		if ( !( tess.pshadowBits & ( 1U << l ) ) ) {
 			continue;	// this surface definitely doesn't have any of this shadow
 		}
 
@@ -1279,6 +1347,7 @@ static void RB_IterateStagesGeneric( shaderCommands_t *input )
 		}
 
 		GL_State( pStage->stateBits );
+		GLSL_SetDk3Fog(sp, pStage->stateBits);
 		if ((pStage->stateBits & GLS_ATEST_BITS) == GLS_ATEST_GT_0)
 		{
 			GLSL_SetUniformInt(sp, UNIFORM_ALPHATEST, 1);

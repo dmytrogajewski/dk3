@@ -188,6 +188,75 @@ void GL_TexEnv( int env )
 ** This routine is responsible for setting the most commonly changed state
 ** in Q3.
 */
+static qboolean dk3FogOn;
+
+/*
+** RB_Dk3FogColor
+**
+** Fixed-function fog blends each pass toward one color. Additive passes must fade
+** to black and modulating passes to white, or they would add or filter the fog.
+*/
+static void RB_Dk3FogColor( unsigned long stateBits )
+{
+	unsigned long src = stateBits & GLS_SRCBLEND_BITS, dst = stateBits & GLS_DSTBLEND_BITS;
+	GLfloat color[4] = { 0, 0, 0, 1 };
+
+	if ( dst == GLS_DSTBLEND_ONE )
+		;
+	else if ( ( src == GLS_SRCBLEND_DST_COLOR && dst == GLS_DSTBLEND_ZERO ) ||
+		( src == GLS_SRCBLEND_ZERO && dst == GLS_DSTBLEND_SRC_COLOR ) )
+		color[0] = color[1] = color[2] = 1;
+	else if ( src == GLS_SRCBLEND_DST_COLOR && dst == GLS_DSTBLEND_SRC_COLOR )
+		color[0] = color[1] = color[2] = 0.5f;
+	else
+		VectorCopy( backEnd.refdef.dk3FogColor, color );
+	qglFogfv( GL_FOG_COLOR, color );
+}
+
+void RB_Dk3FogBegin( void )
+{
+	if ( !backEnd.refdef.dk3Fog )
+		return;
+	qglFogf( GL_FOG_MODE, GL_LINEAR );
+	qglFogf( GL_FOG_START, backEnd.refdef.dk3FogStart );
+	qglFogf( GL_FOG_END, backEnd.refdef.dk3FogEnd );
+	RB_Dk3FogColor( glState.glStateBits );
+	qglEnable( GL_FOG );
+	dk3FogOn = qtrue;
+}
+
+/*
+** RB_Dk3FogSky
+**
+** The original sky box is 4096 units away with skyEnd as its fog end. Reproduce
+** that factor as a constant, independent of this renderer's sky distance.
+*/
+void RB_Dk3FogSky( qboolean sky )
+{
+	float start = backEnd.refdef.dk3FogStart, end = backEnd.refdef.dk3FogEnd;
+
+	if ( !dk3FogOn )
+		return;
+	if ( sky ) {
+		float range = backEnd.refdef.dk3FogSkyEnd - start, factor = 1;
+		if ( range != 0 )
+			factor = ( backEnd.refdef.dk3FogSkyEnd - 4096 ) / range;
+		factor = factor < 0 ? 0 : factor > 1 ? 1 : factor;
+		end = factor * 1e6f;
+		start = end - 1e6f;
+	}
+	qglFogf( GL_FOG_START, start );
+	qglFogf( GL_FOG_END, end );
+}
+
+void RB_Dk3FogEnd( void )
+{
+	if ( !dk3FogOn )
+		return;
+	qglDisable( GL_FOG );
+	dk3FogOn = qfalse;
+}
+
 void GL_State( unsigned long stateBits )
 {
 	unsigned long diff = stateBits ^ glState.glStateBits;
@@ -195,6 +264,11 @@ void GL_State( unsigned long stateBits )
 	if ( !diff )
 	{
 		return;
+	}
+
+	if ( dk3FogOn && ( diff & ( GLS_SRCBLEND_BITS | GLS_DSTBLEND_BITS ) ) )
+	{
+		RB_Dk3FogColor( stateBits );
 	}
 
 	//
@@ -516,6 +590,7 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 
 	// clear the z buffer, set the modelview, etc
 	RB_BeginDrawingView ();
+	RB_Dk3FogBegin();
 
 	// draw everything
 	oldEntityNum = -1;
@@ -668,6 +743,7 @@ void RB_RenderDrawSurfList( drawSurf_t *drawSurfs, int numDrawSurfs ) {
 	if ( depthRange ) {
 		qglDepthRange (0, 1);
 	}
+	RB_Dk3FogEnd();
 
 	if (r_drawSun->integer) {
 		RB_DrawSun(0.1f, tr.sunShader);
@@ -921,6 +997,8 @@ const void	*RB_DrawSurfs( const void *data ) {
 	backEnd.viewParms = cmd->viewParms;
 
 	RB_RenderDrawSurfList( cmd->drawSurfs, cmd->numDrawSurfs );
+	if ( !( backEnd.refdef.rdflags & RDF_NOWORLDMODEL ) )
+		backEnd.doneSurfaces = qtrue;
 
 	return (const void *)(cmd + 1);
 }
@@ -1094,6 +1172,8 @@ const void	*RB_SwapBuffers( const void *data ) {
 	GLimp_EndFrame();
 
 	backEnd.projection2D = qfalse;
+	backEnd.doneSurfaces = qfalse;
+	backEnd.doneBloom = qfalse;
 
 	return (const void *)(cmd + 1);
 }
@@ -1116,6 +1196,7 @@ void RB_ExecuteRenderCommands( const void *data ) {
 			data = RB_SetColor( data );
 			break;
 		case RC_STRETCH_PIC:
+			R_BloomScreen();
 			data = RB_StretchPic( data );
 			break;
 		case RC_DRAW_SURFS:
@@ -1125,12 +1206,15 @@ void RB_ExecuteRenderCommands( const void *data ) {
 			data = RB_DrawBuffer( data );
 			break;
 		case RC_SWAP_BUFFERS:
+			R_BloomScreen();
 			data = RB_SwapBuffers( data );
 			break;
 		case RC_SCREENSHOT:
+			R_BloomScreen();
 			data = RB_TakeScreenshotCmd( data );
 			break;
 		case RC_VIDEOFRAME:
+			R_BloomScreen();
 			data = RB_TakeVideoFrameCmd( data );
 			break;
 		case RC_COLORMASK:

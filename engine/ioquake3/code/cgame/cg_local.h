@@ -262,6 +262,7 @@ typedef struct localEntity_s {
 	trajectory_t	pos;
 	trajectory_t	angles;
 
+	float           dk3FragmentScale; // zero retains the stock unit scale
 	float			bounceFactor;		// 0.0 = no bounce, 1.0 = perfect
 
 	float			color[4];
@@ -1569,6 +1570,7 @@ void		trap_S_UpdateEntityPosition( int entityNum, const vec3_t origin );
 // given entityNum and position
 void		trap_S_Respatialize( int entityNum, const vec3_t origin, vec3_t axis[3], int inwater );
 void trap_S_Environment(int style, float reverb, float gain);
+void trap_R_Dk3Fog(const vec3_t color, float start, float end, float skyEnd);
 sfxHandle_t	trap_S_RegisterSound( const char *sample, qboolean compressed );		// returns buzz if not found
 void		trap_S_StartBackgroundTrack( const char *intro, const char *loop );	// empty name stops music
 void	trap_S_StopBackgroundTrack( void );
@@ -1706,10 +1708,14 @@ void DK_ResetWorldEffects(void);
 void trap_DK3SoundParams(int entity, float volume, float minimum, float maximum, int flags);
 void DK_ShakeView(void);
 void DK_AddWorldParticles(void);
+void DK_SubmitWorldFog(void);
+void DK_UpdateSky(void);
 qboolean DK_DrawSprite(centity_t *entity);
 enum { DK_SPRITE_ORIENTED = 1, DK_SPRITE_ADDITIVE = 2, DK_SPRITE_CLAMP = 4 };
 qboolean DK_DrawSpriteAt(const char *name, int index, const vec3_t origin, const vec3_t angles,
                          float scale, float alpha, const vec3_t color, int flags);
+qboolean DK_DrawSpriteScaled(const char *name, int index, const vec3_t origin, const vec3_t angles,
+                             float width, float height, float alpha, const vec3_t color, int flags);
 void DK_WeaponFireSound(centity_t *entity);
 void DK_AddCombatEffects(void);
 void DK_InitClientCommands(void);
@@ -1721,7 +1727,9 @@ void DK_DrawCharacter(centity_t *cent);
 qboolean DK_DrawCarriedObjective(centity_t *cent);
 void DK_ModelAnimation(const char *path, const char *name, int start, qboolean loop, refEntity_t *entity);
 void DK_ModelAnimationRate(const char *path, const char *name, int start, qboolean loop, int rate, refEntity_t *entity);
+void DK_ModelAnimationFrame(const char *path, const char *name, float frame, refEntity_t *entity);
 int DK_ModelAnimationDuration(const char *path, const char *name, int rate);
+void DK_AddStatusEffects(const entityState_t *state, const refEntity_t *model);
 #endif
 
 #ifdef DK3_GAME
@@ -1729,11 +1737,15 @@ int DK_ModelAnimationDuration(const char *path, const char *name, int rate);
 #endif
 
 #ifdef DK3_GAME
+void DK_ResetWeaponPresentation(void);
+void DK_WeaponOverlay(void);
+void DK_UpdateWeaponSelection(void);
 void DK_DrawViewWeapon(playerState_t *ps);
 void DK_DrawPlayerWeapon(refEntity_t *parent, centity_t *cent);
 void DK_SelectWeapon(int direction, int requested);
 void DK_OutOfAmmo(void);
 void DK_DrawProjectile(centity_t *cent);
+void DK_MonsterTrail(centity_t *cent);
 void DK_CombatEffect(centity_t *cent, qboolean blast);
 void DK_WeaponImpact(centity_t *cent);
 #endif

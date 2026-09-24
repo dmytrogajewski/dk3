@@ -488,6 +488,7 @@ void player_die( gentity_t *self, gentity_t *inflictor, gentity_t *attacker, int
 #ifdef DK3_GAME
     if (meansOfDeath > DK_MOD_WEAPON_BASE && meansOfDeath < DK_MOD_WEAPON_BASE + DK_WEAPON_COUNT) {
         obit = dk_weapons[meansOfDeath - DK_MOD_WEAPON_BASE].classname;
+        DK_WeaponKilled(self, attacker, meansOfDeath);
     } else
 #endif
 	if ( meansOfDeath < 0 || meansOfDeath >= ARRAY_LEN( modNames ) ) {
@@ -682,7 +683,7 @@ int CheckArmor (gentity_t *ent, int damage, int dflags)
 {
 #ifdef DK3_GAME
     if (DK_IsCompanion(ent)) {
-        int absorbed = (dflags & DAMAGE_NO_ARMOR) ? 0 : (damage * 2 + 2) / 3;
+        int absorbed = (dflags & DAMAGE_NO_ARMOR) ? 0 : (damage * (ent->dk.armorAbsorption > 0 ? ent->dk.armorAbsorption : 50) + 99) / 100;
         if (absorbed > ent->dk.armor) absorbed = ent->dk.armor;
         ent->dk.armor -= absorbed;
         return absorbed;
@@ -706,7 +707,11 @@ int CheckArmor (gentity_t *ent, int damage, int dflags)
 
 	// armor
 	count = client->ps.stats[STAT_ARMOR];
-	save = ceil( damage * ARMOR_PROTECTION );
+	#ifdef DK3_GAME
+    save = ceil(damage * (client->ps.dk3ArmorAbsorption > 0 ? client->ps.dk3ArmorAbsorption : 50) / 100.0f);
+#else
+    save = ceil( damage * ARMOR_PROTECTION );
+#endif
 	if (save >= count)
 		save = count;
 

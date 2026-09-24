@@ -12,6 +12,18 @@ static void Brush(gentity_t *entity, int contents, qboolean visible) {
     entity->s.eType = visible ? ET_MOVER : ET_GENERAL;
 }
 
+/* Authored Daikatana trigger volumes use bounds overlap, including brushes
+   with zero collision contents. They are not solid geometry to trace against. */
+qboolean DK_TriggerContact(const vec3_t mins, const vec3_t maxs, gentity_t *trigger) {
+    int axis;
+    if (!trigger->r.bmodel && (!trigger->classname || strncmp(trigger->classname, "trigger_", 8)))
+        return trap_EntityContact(mins, maxs, trigger);
+    for (axis = 0; axis < 3; ++axis)
+        if (maxs[axis] + 1 < trigger->r.absmin[axis] || mins[axis] - 1 > trigger->r.absmax[axis])
+            return qfalse;
+    return qtrue;
+}
+
 static void HurtUse(gentity_t *entity, gentity_t *other, gentity_t *activator) {
     (void)other; (void)activator;
     if (!(entity->spawnflags & 1)) return;
@@ -27,7 +39,7 @@ static void HurtTouch(gentity_t *entity, gentity_t *other, trace_t *trace) {
     for (i = 0; i < count; ++i) {
         gentity_t *victim = &g_entities[list[i]];
         if (victim->inuse && victim->takedamage && victim->health > 0 &&
-            trap_EntityContact(victim->r.absmin, victim->r.absmax, entity))
+            DK_TriggerContact(victim->r.absmin, victim->r.absmax, entity))
             G_Damage(victim, entity, entity, NULL, NULL, entity->damage, DAMAGE_NO_KNOCKBACK, MOD_TRIGGER_HURT);
     }
     if (entity->noise_index) G_AddEvent(entity, EV_GENERAL_SOUND, entity->noise_index);
@@ -43,7 +55,7 @@ void DK_TouchActorTriggers(gentity_t *actor) {
     for (i = 0; i < count; ++i) {
         gentity_t *trigger = &g_entities[list[i]];
         if (trigger->inuse && trigger->touch && (trigger->r.contents & CONTENTS_TRIGGER) &&
-            trap_EntityContact(actor->r.absmin, actor->r.absmax, trigger)) trigger->touch(trigger, actor, &trace);
+            DK_TriggerContact(actor->r.absmin, actor->r.absmax, trigger)) trigger->touch(trigger, actor, &trace);
         if (!actor->inuse || actor->dk.id != id || actor->health <= 0) return;
     }
 }
@@ -59,6 +71,8 @@ static void PushUse(gentity_t *entity, gentity_t *other, gentity_t *activator) {
 static void PushTouch(gentity_t *entity, gentity_t *other, trace_t *trace) {
     (void)trace;
     if (!other->client || other->health <= 0) return;
+    if (entity->noise_index && other->client->ps.jumppad_ent != entity->s.number)
+        G_Sound(other, CHAN_AUTO, entity->noise_index);
     BG_TouchJumpPad(&other->client->ps, &entity->s);
     if (entity->spawnflags & 1) { entity->r.contents = 0; entity->s.eType = ET_GENERAL; trap_UnlinkEntity(entity); }
 }
@@ -120,20 +134,8 @@ static void ConsoleUse(gentity_t *entity, gentity_t *other, gentity_t *activator
     (void)other;
     if (!activator || !activator->client || (entity->dk.uses && (entity->spawnflags & 1))) return;
     if (!strcmp(command, "disconnect")) trap_SendServerCommand(activator->s.number, "dk3_end");
-    else if (!strcmp(command, "s_daikatana") && DK_HasWeapon(&activator->client->ps, DK_W_SWORD)) {
-        activator->client->ps.weapon = DK_W_SWORD; trap_SendServerCommand(activator->s.number, va("dk3_weapon %d", DK_W_SWORD));
-    } else if (!strncmp(command, "weapon_select_", 14) && command[14] >= '1' && command[14] <= '6' && !command[15]) {
-        char map[MAX_QPATH];
-        int weapon, slot = command[14] - '0', episode;
-        trap_Cvar_VariableStringBuffer("mapname", map, sizeof(map)); episode = map[0] == 'e' ? map[1] - '0' : 1;
-        for (weapon = 1; weapon < DK_WEAPON_COUNT; ++weapon)
-            if (dk_weapons[weapon].episode == episode && --slot == 0) {
-                if (DK_HasWeapon(&activator->client->ps, weapon)) {
-                    activator->client->ps.weapon = weapon; trap_SendServerCommand(activator->s.number, va("dk3_weapon %d", weapon));
-                }
-                break;
-            }
-    } else G_Printf("dk3: console trigger %u: unsupported operation %s\n", entity->dk.id, command);
+    else if (!DK_ScriptWeaponCommand(activator, command))
+        G_Printf("dk3: console trigger %u: unsupported operation %s\n", entity->dk.id, command);
     ++entity->dk.uses; G_UseTargets(entity, activator);
 }
 
@@ -178,7 +180,7 @@ static void ToggleThink(gentity_t *entity) {
     count = trap_EntitiesInBox(entity->r.absmin, entity->r.absmax, list, ARRAY_LEN(list));
     for (i = 0; i < count; ++i) {
         gentity_t *other = &g_entities[list[i]];
-        if (ToggleAllowed(entity, other) && trap_EntityContact(other->r.absmin, other->r.absmax, entity)) { occupant = other; break; }
+        if (ToggleAllowed(entity, other) && DK_TriggerContact(other->r.absmin, other->r.absmax, entity)) { occupant = other; break; }
     }
     if (occupant && !entity->dk.action) { entity->dk.ownerId = occupant->dk.id; G_UseTargets(entity, occupant); }
     else if (!occupant && entity->dk.action && (entity->spawnflags & 1)) G_UseTargets(entity, DK_FindEntity(entity->dk.ownerId));
@@ -239,14 +241,14 @@ qboolean DK_SpawnInteraction(gentity_t *entity) {
         if (Is(entity, "target_attractor")) G_SpawnInt("triggerindex", "0", &entity->count);
     }
     else if (Is(entity, "trigger_hurt")) {
-        Brush(entity, entity->spawnflags & 2 ? 0 : CONTENTS_TRIGGER, qfalse);
+        Brush(entity, (entity->spawnflags & 3) == 3 ? 0 : CONTENTS_TRIGGER, qfalse);
         G_SpawnInt("dmg", "5", &entity->damage); G_SpawnInt("damage", va("%d", entity->damage), &entity->damage);
         G_SpawnFloat("wait", "0.5", &entity->wait); if (entity->wait < 0.05f) entity->wait = 0.05f;
     } else if (Is(entity, "trigger_push")) {
         Brush(entity, entity->spawnflags & 4 ? 0 : CONTENTS_TRIGGER, qfalse);
         entity->s.eType = entity->r.contents ? ET_PUSH_TRIGGER : ET_GENERAL; entity->r.svFlags &= ~SVF_NOCLIENT;
         if (entity->speed <= 0) entity->speed = 1000;
-        G_SetMovedir(entity->s.angles, entity->movedir); VectorScale(entity->movedir, entity->speed, entity->s.origin2);
+        G_SetMovedir(entity->s.angles, entity->movedir); VectorScale(entity->movedir, entity->speed * 10, entity->s.origin2);
         entity->nextthink = level.time + FRAMETIME;
     } else if (Is(entity, "func_timer")) {
         entity->r.svFlags |= SVF_NOCLIENT; if (entity->wait < 0.05f) entity->wait = 1;

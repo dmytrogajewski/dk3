@@ -199,7 +199,10 @@ R_LoadLightmaps
 ===============
 */
 #define	DEFAULT_LIGHTMAP_SIZE	128
-static	void R_LoadLightmaps( lump_t *l, lump_t *surfs ) {
+#define DK_LIGHTSTYLE_GL2
+#include "../renderercommon/dk3_lightstyles.inc"
+
+void R_LoadLightmaps( lump_t *l, lump_t *surfs ) {
 	imgFlags_t  imgFlags = IMGFLAG_NOLIGHTSCALE | IMGFLAG_NO_COMPRESSION | IMGFLAG_CLAMPTOEDGE;
 	byte		*buf, *buf_p;
 	dsurface_t  *surf;
@@ -2738,7 +2741,13 @@ void RE_LoadWorldMap( const char *name ) {
 	tr.worldMapLoaded = qtrue;
 
 	// load it
-    ri.FS_ReadFile( name, &buffer.v );
+    {
+        int dkLength = ri.FS_ReadFile(name, &buffer.v);
+        if (buffer.b && dkLength >= sizeof(dheader_t)) {
+            const dheader_t *dkHeader = (const dheader_t *)buffer.b;
+            R_LoadDkLightstyles(buffer.b, dkLength, LittleLong(dkHeader->lumps[LUMP_LIGHTMAPS].filelen) / (128*128*3));
+        } else { dkLightBlocks = NULL; dkLightBlockCount = 0; }
+    }
 	if ( !buffer.b ) {
 		ri.Error (ERR_DROP, "RE_LoadWorldMap: %s not found", name);
 	}

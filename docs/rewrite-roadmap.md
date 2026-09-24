@@ -15,8 +15,10 @@ Development uses the [implementation-first workflow](development-workflow.md).
 - Reuse ioquake3 and reviewed independent components. Replace Gold implementations,
   interface headers, DLL emulation, mechanically translated code, and generated dependencies.
   Gold is optional private reference material, never a public build/check/runtime dependency.
-- Native C game code; C client/UI modules compatible with QVM tooling; Zig 0.16 build/tools.
-  Share movement and prediction. Use ioquake3 lifecycle and services directly.
+- Native C game and client/UI foundations; Zig 0.16 build/tools. The owner-authorized
+  [complete weapons rewrite](weapons-zig.md) uses native Zig on server and client,
+  including shared prediction. C UI remains compatible with QVM tooling; the native
+  Zig weapon modules are not a qualified QVM target. Use ioquake3 lifecycle and services directly.
 - New versioned saves with no legacy migration. Original saves stay with the preserved build.
 - Linux x86-64. All four single-player episodes, companions, cinematics, endings,
   deathmatch, CTF, deathtag, and multiplayer bots. Co-op and other operating systems are outside scope.
@@ -123,6 +125,13 @@ Risks: authored trigger order and cinematic cleanup; preserve target relationshi
 Verification: V4, V5, V6, V8.
 
 ### Step 5: Weapons, inventory, and progression
+
+All 28 selectable weapons now execute in native Zig concrete types, with compile-time
+interface checks and shared components. Prediction, combat/controllers, view/world
+presentation, weapon sounds/effects, inventory exceptions, and restoration dispatch
+through those owners. The removed C implementations are not linked. This explicit
+owner-authorized exception supersedes the earlier C-only subsystem guidance. See
+[architecture](weapons-zig.md) and sequence 199 in the run log for verification evidence.
 
 Implement all campaign weapons and attack families using ioquake3 foundations: ammo,
 switching, melee, ricochets, return paths, splash, status effects, armor, artifacts, keys,

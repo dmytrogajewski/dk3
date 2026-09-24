@@ -29,6 +29,12 @@ typedef struct {
     unsigned int progressGoal;
     dkBotControl_t controls[8];
     unsigned int random;
+    /* Combat memory: the last seen opponent, who last hurt us, and the
+       sampled aim error/strafe side that keep aiming and dodging human-like. */
+    int enemy, enemySeen, enemyAcquired, hurtBy, hurtTime, lastHealth;
+    int weapon, weaponUntil, aimUntil, aimTime, strafeUntil;
+    float aimYaw, aimPitch;
+    qboolean strafeRight;
 } dkBot_t;
 static dkBot_t bots[MAX_CLIENTS];
 static int lastLibraryTime, populationTime;
@@ -53,7 +59,7 @@ qboolean DK_ConnectBot(int client) {
     bot->skill = Com_Clamp(1, 5, atof(Info_ValueForKey(userinfo, "skill")));
     bot->movement = trap_BotAllocMoveState();
     if (!bot->movement) return qfalse;
-    bot->active = qtrue; bot->goal = -1;
+    bot->active = qtrue; bot->goal = -1; bot->enemy = bot->hurtBy = -1;
     bot->random = (client + 1) * 747796405u;
     return qtrue;
 }
@@ -107,17 +113,51 @@ static qboolean Visible(gentity_t *self, gentity_t *other) {
     return trace.fraction == 1 || trace.entityNum == other->s.number;
 }
 
-static gentity_t *Enemy(gentity_t *self) {
+static qboolean Hostile(gentity_t *self, gentity_t *other) {
+    return other != self && other->inuse && other->client && other->health > 0 &&
+        other->client->sess.sessionTeam != TEAM_SPECTATOR && !OnSameTeam(self, other);
+}
+
+/* New opponents must be inside the view cone; the current opponent, a recent
+   attacker and anyone close enough to be heard are tracked all around. */
+static gentity_t *Enemy(gentity_t *self, dkBot_t *bot, int time) {
     gentity_t *best = NULL;
-    float nearest = 2400;
+    float bestScore = 1e30f;
+    vec3_t forward;
     int i;
+    AngleVectors(self->client->ps.viewangles, forward, NULL, NULL);
     for (i = 0; i < level.maxclients; ++i) {
         gentity_t *other = &g_entities[i];
-        float distance;
-        if (other == self || !other->inuse || !other->client || other->health <= 0 ||
-            other->client->sess.sessionTeam == TEAM_SPECTATOR || OnSameTeam(self, other)) continue;
-        distance = Distance(self->r.currentOrigin, other->r.currentOrigin);
-        if (distance < nearest && Visible(self, other)) { best = other; nearest = distance; }
+        vec3_t delta;
+        float distance, score;
+        qboolean current = i == bot->enemy && bot->enemySeen && time - bot->enemySeen < 1500;
+        qboolean attacker = i == bot->hurtBy && bot->hurtTime && time - bot->hurtTime < 2000;
+        if (!Hostile(self, other)) continue;
+        VectorSubtract(other->r.currentOrigin, self->r.currentOrigin, delta);
+        distance = VectorNormalize(delta);
+        if (distance > 3000) continue;
+        if (!current && !attacker && distance > 256 && DotProduct(forward, delta) < 0.35f) continue;
+        if (!Visible(self, other)) continue;
+        score = distance * (current ? 0.6f : 1) * (attacker ? 0.7f : 1) * (other->client->ps.dk3Objective ? 0.5f : 1);
+        if (score < bestScore) { best = other; bestScore = score; }
+    }
+    if (best) {
+        if (best->s.number != bot->enemy || !bot->enemySeen || time - bot->enemySeen > 1500) bot->enemyAcquired = time;
+        bot->enemy = best->s.number; bot->enemySeen = time;
+    } else if (!bot->enemySeen || time - bot->enemySeen > 1500) {
+        /* Gunfire is audible through walls; remember the shooter as a chase
+           target without granting sight of it. */
+        float nearest = 1200;
+        for (i = 0; i < level.maxclients; ++i) {
+            gentity_t *other = &g_entities[i];
+            float distance;
+            if (!Hostile(self, other) || other->client->ps.weaponstate != WEAPON_FIRING) continue;
+            distance = Distance(self->r.currentOrigin, other->r.currentOrigin);
+            if (distance < nearest) {
+                nearest = distance; bot->enemy = i;
+                bot->enemySeen = time - 1500; bot->enemyAcquired = time;
+            }
+        }
     }
     return best;
 }
@@ -146,7 +186,17 @@ static gentity_t *Goal(gentity_t *self, dkBot_t *bot) {
             benefit = 600 - self->health * 4;
         else if (strstr(item->classname, "armor") && self->client->ps.stats[STAT_ARMOR] < 100) benefit = 200;
         else if (!strncmp(item->classname, "ammo_", 5)) benefit = 60;
+        if (benefit <= 0) continue;
         distance = Distance(self->r.currentOrigin, item->r.currentOrigin);
+        /* Keep the current pickup unless another is clearly better, and spread
+           bots over items instead of herding every one onto the same pickup. */
+        if (i == bot->goal) benefit *= 1.5f;
+        else {
+            int other, claims = 0;
+            for (other = 0; other < level.maxclients; ++other)
+                if (other != self->s.number && bots[other].active && bots[other].goal == i) ++claims;
+            benefit /= 1 + 0.75f * claims;
+        }
         if (benefit / (distance + 100) > bestScore) {
             vec3_t approach;
             if (!CanReturnFrom(self, GoalArea(self, item, approach), approach)) continue;
@@ -166,21 +216,62 @@ static gentity_t *Goal(gentity_t *self, dkBot_t *bot) {
     return best;
 }
 
-static int Weapon(gentity_t *self, float distance) {
+/* Every switch costs a drop and a raise, so keep the held weapon briefly and
+   only change for a clearly better choice. */
+static int Weapon(gentity_t *self, dkBot_t *bot, float distance, int time) {
     int i, selected = 0;
-    float best = -1;
+    float best = -1, current = DK_BotWeaponScore(self, bot->weapon, distance);
+    if (current > 0 && time < bot->weaponUntil) return bot->weapon;
     for (i = 1; i < DK_WEAPON_COUNT; ++i) {
-        const dkWeaponInfo_t *weapon = &dk_weapons[i];
-        float score;
-        if (!DK_HasWeapon(&self->client->ps, i) || i == DK_W_FLASHLIGHT ||
-            (i == DK_W_ION && self->waterlevel == 3) ||
-            (weapon->ammoCost && self->client->ps.ammo[i] < weapon->ammoCost)) continue;
-        score = weapon->damage / (weapon->interval + 1.0f);
-        if (weapon->range < distance && weapon->speed <= 0) score *= 0.05f;
-        if ((i == DK_W_C4 || i == DK_W_SIDEWINDER || i == DK_W_SHOCKWAVE) && distance < 160) score *= 0.1f;
+        float score = DK_BotWeaponScore(self, i, distance);
         if (score > best) { selected = i; best = score; }
     }
+    if (current > 0 && best < current * 1.3f) selected = bot->weapon;
+    if (selected != bot->weapon) bot->weaponUntil = time + 1500;
+    bot->weapon = selected;
     return selected;
+}
+
+/* Aim with skill-scaled lead, sampled error and a limited turn rate. Returns
+   the remaining angular error so firing can wait until the sight is on. */
+static float Aim(gentity_t *self, dkBot_t *bot, gentity_t *enemy, int weapon, int time, vec3_t angles) {
+    const dkWeaponInfo_t *info = &dk_weapons[weapon];
+    vec3_t eye, target, delta;
+    float dt = bot->aimTime ? Com_Clamp(0.01f, 0.1f, (time - bot->aimTime) * 0.001f) : 0.05f;
+    float turn = (180 + 108 * bot->skill) * dt, error = 0, spread;
+    int i;
+    bot->aimTime = time;
+    VectorCopy(self->client->ps.origin, eye); eye[2] += self->client->ps.viewheight;
+    VectorCopy(enemy->r.currentOrigin, target); target[2] += enemy->client->ps.viewheight * 0.7f;
+    if (weapon && info->speed > 0) {
+        float flight = Distance(eye, target) / info->speed, lead = 0.3f + 0.14f * bot->skill;
+        vec3_t velocity;
+        VectorCopy(enemy->client->ps.velocity, velocity);
+        if (enemy->client->ps.groundEntityNum != ENTITYNUM_NONE) velocity[2] = 0;
+        VectorMA(target, flight * lead, velocity, target);
+        if (DK_WeaponSplash(weapon) && enemy->client->ps.groundEntityNum != ENTITYNUM_NONE) {
+            trace_t trace;
+            vec3_t feet;
+            VectorCopy(target, feet); feet[2] = enemy->r.currentOrigin[2] + enemy->r.mins[2] + 8;
+            trap_Trace(&trace, eye, NULL, NULL, feet, self->s.number, MASK_SHOT);
+            if (trace.fraction == 1 || trace.entityNum == enemy->s.number) VectorCopy(feet, target);
+        }
+    }
+    if (time >= bot->aimUntil) {
+        spread = (5.5f - bot->skill) * 1.0f;
+        bot->aimYaw = (Random(bot) * 2 - 1) * spread;
+        bot->aimPitch = (Random(bot) * 2 - 1) * spread * 0.5f;
+        bot->aimUntil = time + 300 + (int)(Random(bot) * 400);
+    }
+    VectorSubtract(target, eye, delta);
+    vectoangles(delta, angles);
+    angles[YAW] += bot->aimYaw; angles[PITCH] += bot->aimPitch;
+    for (i = 0; i < 2; ++i) {
+        float difference = AngleSubtract(angles[i], self->client->ps.viewangles[i]);
+        if (fabs(difference) - turn > error) error = fabs(difference) - turn;
+        angles[i] = self->client->ps.viewangles[i] + Com_Clamp(-turn, turn, difference);
+    }
+    return error;
 }
 
 static void GoalOrigin(gentity_t *goal, vec3_t origin) {
@@ -383,12 +474,9 @@ static int GoalArea(gentity_t *self, gentity_t *target, vec3_t point) {
     return best;
 }
 
-static qboolean Navigate(gentity_t *self, dkBot_t *bot, gentity_t *target, int time,
-                         bot_input_t *input, bot_moveresult_t *result) {
+static float InitMove(gentity_t *self, dkBot_t *bot, int time) {
     bot_initmove_t move;
-    bot_goal_t goal;
-    if (!trap_AAS_Initialized()) return qfalse;
-    memset(&goal, 0, sizeof(goal)); memset(&move, 0, sizeof(move));
+    memset(&move, 0, sizeof(move));
     VectorCopy(self->client->ps.origin, move.origin);
     VectorCopy(self->client->ps.velocity, move.velocity);
     VectorCopy(self->client->ps.viewangles, move.viewangles);
@@ -403,6 +491,16 @@ static qboolean Navigate(gentity_t *self, dkBot_t *bot, gentity_t *target, int t
     bot->lastMoveTime = time;
     trap_EA_ResetInput(self->s.number);
     trap_BotInitMoveState(bot->movement, &move);
+    return move.thinktime;
+}
+
+static qboolean Navigate(gentity_t *self, dkBot_t *bot, gentity_t *target, int time,
+                         bot_input_t *input, bot_moveresult_t *result) {
+    bot_goal_t goal;
+    float thinktime;
+    if (!trap_AAS_Initialized()) return qfalse;
+    memset(&goal, 0, sizeof(goal));
+    thinktime = InitMove(self, bot, time);
     goal.areanum = GoalArea(self, target, goal.origin);
     bot->routeArea = goal.areanum;
     if (!goal.areanum) return qfalse;
@@ -413,7 +511,7 @@ static qboolean Navigate(gentity_t *self, dkBot_t *bot, gentity_t *target, int t
     VectorSubtract(target->r.absmin, goal.origin, goal.mins);
     VectorSubtract(target->r.absmax, goal.origin, goal.maxs);
     trap_BotMoveToGoal(result, bot->movement, &goal, TravelFlags(self));
-    trap_EA_GetInput(self->s.number, move.thinktime, input);
+    trap_EA_GetInput(self->s.number, thinktime, input);
     /* Botlib can return without a reachability while airborne, with neither
        failure nor movement. Keep ordinary local steering in that case; only
        an explicit mover wait should suppress input indefinitely. */
@@ -433,7 +531,7 @@ static qboolean RecoveryHazard(gentity_t *self, const vec3_t origin) {
     for (i = 0; i < count; ++i) {
         gentity_t *touch = &g_entities[entities[i]];
         if (touch->inuse && touch->r.linked && (touch->r.contents & CONTENTS_TRIGGER) &&
-            touch->classname && !strcmp(touch->classname, "trigger_hurt") && trap_EntityContact(mins, maxs, touch)) return qtrue;
+            touch->classname && !strcmp(touch->classname, "trigger_hurt") && DK_TriggerContact(mins, maxs, touch)) return qtrue;
     }
     return qfalse;
 }
@@ -637,6 +735,47 @@ static gentity_t *TeleportDetour(gentity_t *self, gentity_t *goal) {
     return best;
 }
 
+/* Circle-strafe at a weapon-appropriate distance. Botlib validates each
+   direction against ledges and hazards; a refused side flips the strafe. */
+static qboolean CombatMove(gentity_t *self, dkBot_t *bot, gentity_t *enemy, int weapon, int time, bot_input_t *input) {
+    vec3_t toward, side, direction;
+    float distance, approach = 0, strafe = 1;
+    int attempt;
+    if (!trap_AAS_Initialized() || self->waterlevel > 1) return qfalse;
+    VectorSubtract(enemy->r.currentOrigin, self->r.currentOrigin, toward); toward[2] = 0;
+    distance = VectorNormalize(toward);
+    if (weapon && dk_weapons[weapon].speed <= 0 && DK_BotWeaponRange(weapon) < 256) {
+        /* Melee closes straight in, weaving only slightly. */
+        approach = distance > DK_BotWeaponRange(weapon) * 0.6f ? 1 : 0;
+        strafe = distance > 256 ? 0.35f : 0.6f;
+    } else {
+        float ideal = DK_WeaponSplash(weapon) ? 480 : 320;
+        if (distance > ideal + 160) approach = 0.8f;
+        else if (distance < ideal - 120) approach = -0.8f;
+    }
+    if (time >= bot->strafeUntil) {
+        if (Random(bot) < 0.6f) bot->strafeRight = !bot->strafeRight;
+        bot->strafeUntil = time + 400 + (int)(Random(bot) * 900);
+    }
+    InitMove(self, bot, time);
+    for (attempt = 0; attempt < 2; ++attempt) {
+        VectorSet(side, -toward[1], toward[0], 0);
+        if (bot->strafeRight) VectorNegate(side, side);
+        VectorScale(side, strafe, side);
+        VectorMA(side, approach, toward, direction);
+        VectorNormalize(direction);
+        trap_EA_ResetInput(self->s.number);
+        if (trap_BotMoveInDirection(bot->movement, direction, 400, MOVE_WALK)) {
+            trap_EA_GetInput(self->s.number, 0.05f, input);
+            if (bot->skill >= 3 && self->client->ps.groundEntityNum != ENTITYNUM_NONE && Random(bot) < 0.004f * bot->skill)
+                input->actionflags |= ACTION_JUMP;
+            return input->speed > 0 || input->actionflags;
+        }
+        bot->strafeRight = !bot->strafeRight;
+    }
+    return qfalse;
+}
+
 static void Think(int client, int time) {
     gentity_t *self = &g_entities[client], *enemy, *goal, *objective;
     dkBot_t *bot = &bots[client];
@@ -644,9 +783,9 @@ static void Think(int client, int time) {
     bot_input_t input;
     bot_moveresult_t movement;
     vec3_t destination, direction, angles, travel, forward, right;
-    int i;
+    int i, weapon;
     float moveScale = 127;
-    qboolean routed, yielding = qfalse;
+    qboolean routed, yielding = qfalse, pickup, fighting;
     char message[MAX_STRING_CHARS];
     /* Bots have no network client to acknowledge reliable server commands.
        Consume announcements/config updates through the engine's bot service. */
@@ -668,15 +807,44 @@ static void Think(int client, int time) {
         trap_BotUserCommand(client, &command);
         return;
     }
-    enemy = Enemy(self);
+    if (self->health < bot->lastHealth && self->client->lasthurt_client >= 0 &&
+        self->client->lasthurt_client < level.maxclients && self->client->lasthurt_client != client) {
+        bot->hurtBy = self->client->lasthurt_client; bot->hurtTime = time;
+    }
+    bot->lastHealth = self->health;
+    enemy = Enemy(self, bot, time);
     objective = TeamGoal(self, DK_ObjectiveGoal(self));
     goal = bot->goal >= 0 && bot->goal < level.num_entities ? &g_entities[bot->goal] : NULL;
     if (!goal || !goal->inuse || !(goal->r.contents & CONTENTS_TRIGGER) || time >= bot->nextDecision ||
         Distance(goal->r.currentOrigin, self->r.currentOrigin) < 32) {
         goal = Goal(self, bot); bot->goal = goal ? goal->s.number : -1; bot->nextDecision = time + 1000;
     }
-    if (objective && (self->client->ps.dk3Objective || self->health > 40)) goal = objective;
+    /* A nearby pickup is worth grabbing mid-fight; so is any health when hurt,
+       and any gun while only a melee weapon is in hand. */
+    pickup = goal && goal->s.eType == ET_DK3_ITEM && (Distance(goal->r.currentOrigin, self->r.currentOrigin) < 400 ||
+        (self->health < 40 && !strncmp(goal->classname, "item_health", 11)) ||
+        (DK_WeaponId(goal->classname) && !DK_HasWeapon(&self->client->ps, DK_WeaponId(goal->classname)) && bot->weapon && dk_weapons[bot->weapon].speed <= 0 &&
+         DK_BotWeaponRange(bot->weapon) < 256 && Distance(goal->r.currentOrigin, self->r.currentOrigin) < 1200));
+    if (objective && (self->client->ps.dk3Objective || self->health > 40)) goal = objective, pickup = qfalse;
+    else if (!enemy && !pickup && self->health >= 50 && bot->enemySeen && time - bot->enemySeen < 4000 &&
+             bot->enemy >= 0 && Hostile(self, &g_entities[bot->enemy])) goal = &g_entities[bot->enemy];
+    else if (!enemy && !objective && self->health >= 80 && (!bot->enemySeen || time - bot->enemySeen > 8000) &&
+             (!goal || !strcmp(goal->classname, "info_player_deathmatch") || !strncmp(goal->classname, "ammo_", 5) ||
+              (DK_WeaponId(goal->classname) && DK_HasWeapon(&self->client->ps, DK_WeaponId(goal->classname))))) {
+        /* Stocked and idle: head for the nearest opponent to find a fight. */
+        float nearest = 1e30f;
+        for (i = 0; i < level.maxclients; ++i) {
+            gentity_t *other = &g_entities[i];
+            if (Hostile(self, other) && Distance(self->r.currentOrigin, other->r.currentOrigin) < nearest) {
+                nearest = Distance(self->r.currentOrigin, other->r.currentOrigin); goal = other;
+            }
+        }
+    }
     if (!goal) goal = enemy;
+    fighting = enemy && !pickup && !self->client->ps.dk3Objective && (!objective || goal != objective || goal == enemy);
+    weapon = enemy ? Weapon(self, bot, Distance(enemy->r.currentOrigin, self->r.currentOrigin), time) :
+        Weapon(self, bot, 400, time);
+    if (fighting) goal = enemy;
     if (bot->teleportDetour && (time >= bot->detourUntil ||
         (self->client->ps.eFlags & EF_TELEPORT_BIT) != bot->teleportBit)) bot->teleportDetour = 0;
     if (!bot->teleportDetour && bot->routeFailed && objective && self->client->ps.dk3Objective) {
@@ -693,7 +861,8 @@ static void Think(int client, int time) {
     GoalOrigin(goal, destination);
     VectorSubtract(destination, self->r.currentOrigin, travel);
     travel[2] = 0; VectorNormalize(travel);
-    routed = goal != enemy && Navigate(self, bot, goal, time, &input, &movement);
+    routed = fighting ? CombatMove(self, bot, enemy, weapon, time, &input) :
+        goal != enemy && Navigate(self, bot, goal, time, &input, &movement);
     if (bot->teleportDetour && goal->dk.id == bot->teleportDetour) {
         vec3_t point;
         qboolean jump;
@@ -776,18 +945,22 @@ static void Think(int client, int time) {
         moveScale = Com_Clamp(0, 127, input.speed * 127 / 400);
     }
     VectorCopy(travel, direction);
-    if (enemy) {
-        VectorSubtract(enemy->r.currentOrigin, self->r.currentOrigin, direction);
-        direction[2] += enemy->client->ps.viewheight * 0.7f - self->client->ps.viewheight;
-    }
     vectoangles(direction, angles);
     if (routed && (movement.flags & (MOVERESULT_MOVEMENTVIEW | MOVERESULT_SWIMVIEW | MOVERESULT_MOVEMENTVIEWSET)))
         VectorCopy(movement.ideal_viewangles, angles);
+    if (weapon) command.weapon = weapon;
     if (enemy) {
-        int weapon = Weapon(self, VectorLength(direction));
-        angles[YAW] += sin(time * 0.001f + client) * (5 - bot->skill);
-        if (weapon) { command.weapon = weapon; command.buttons |= BUTTON_ATTACK; }
-    }
+        float distance = Distance(enemy->r.currentOrigin, self->r.currentOrigin);
+        float error = Aim(self, bot, enemy, weapon, time, angles);
+        qboolean ready = weapon && self->client->ps.weapon == weapon &&
+            time - bot->enemyAcquired >= 900 - 150 * bot->skill &&
+            error < (distance < 200 ? 30 : 10) &&
+            (dk_weapons[weapon].speed > 0 || DK_BotWeaponRange(weapon) <= 0 || distance <= DK_BotWeaponRange(weapon) * 1.1f);
+        if (DK_BotWeaponAttack(&self->client->ps, weapon, ready)) command.buttons |= BUTTON_ATTACK;
+        if (trap_Cvar_VariableIntegerValue("bot_report") > 2)
+            G_Printf("dk3 bot %d aim error %.1f distance %.0f range %.0f speed %.0f acquired %d\n", client, error, distance,
+                DK_BotWeaponRange(weapon), dk_weapons[weapon].speed, time - bot->enemyAcquired);
+    } else bot->aimTime = 0;
     {
         vec3_t moveAngles = {0, 0, 0};
         float f, r, u, maximum;
@@ -816,15 +989,15 @@ static void Think(int client, int time) {
         else if (input.actionflags & (ACTION_CROUCH | ACTION_MOVEDOWN)) command.upmove = -127;
         if (input.actionflags & ACTION_WALK) command.buttons |= BUTTON_WALKING;
     }
-    if (goal == enemy) {
-        command.forwardmove = VectorLength(direction) > 300 ? 100 : VectorLength(direction) < 90 ? -90 : 0;
-        command.rightmove = (time / 1200 + client) % 2 ? 72 : -72;
+    if (goal == enemy && !routed) {
+        command.forwardmove = Distance(enemy->r.currentOrigin, self->r.currentOrigin) > 300 ? 100 : 0;
+        command.rightmove = bot->strafeRight ? 72 : -72;
     }
     UseNearby(self, bot, goal, time);
     if (!yielding && goal->client && OnSameTeam(self, goal) && Distance(self->r.currentOrigin, goal->r.currentOrigin) < 128)
         command.forwardmove = command.rightmove = 0;
     for (i = 0; i < 3; ++i) command.angles[i] = ANGLE2SHORT(angles[i]) - self->client->ps.delta_angles[i];
-    if (bot->progressGoal != goal->dk.id || Distance(self->r.currentOrigin, bot->progressOrigin) >= 48 ||
+    if (fighting || bot->progressGoal != goal->dk.id || Distance(self->r.currentOrigin, bot->progressOrigin) >= 48 ||
         Distance(self->r.currentOrigin, destination) < 96 || (movement.flags & MOVERESULT_WAITING)) {
         VectorCopy(self->r.currentOrigin, bot->progressOrigin);
         bot->progressGoal = goal->dk.id; bot->stuckSince = 0;
@@ -866,6 +1039,9 @@ static void Think(int client, int time) {
             bot->stuckSince ? time - bot->stuckSince : 0, !bot->routeFailed, bot->routeArea, movement.failure, movement.traveltype,
             movement.blocked, movement.blockentity);
         bot->nextReport = time + 5000;
+        G_Printf("dk3 bot %d combat enemy %d seen %d weapon %d/%d fighting %d attack %d\n", client,
+            enemy ? enemy->s.number : -1, bot->enemySeen ? time - bot->enemySeen : -1, weapon,
+            self->client->ps.weapon, fighting, (command.buttons & BUTTON_ATTACK) != 0);
         if (trap_Cvar_VariableIntegerValue("bot_report") > 1 && time < bot->yieldUntil)
             G_Printf("dk3 bot yield %d requester %u active %d input %.0f direction %.2f %.2f %.2f ground %d\n",
                 client, bot->yieldFor, yielding, input.speed, input.dir[0], input.dir[1], input.dir[2],

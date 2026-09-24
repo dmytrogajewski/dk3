@@ -477,6 +477,7 @@ static void DrawSkySide( struct image_s *image, const int mins[2], const int max
 		GLSL_SetUniformVec4(sp, UNIFORM_DIFFUSETEXMATRIX7, st[1]);
 
 		GLSL_SetUniformInt(sp, UNIFORM_ALPHATEST, 0);
+		GLSL_SetDk3Fog(sp, glState.glStateBits);
 	}
 
 	R_DrawElements(tess.numIndexes - tess.firstIndex, tess.firstIndex);
@@ -862,6 +863,7 @@ void RB_StageIteratorSky( void ) {
 	// the sky box to see which blocks on each side need
 	// to be drawn
 	RB_ClipSkyPolygons( &tess );
+	backEnd.dk3FogSky = qtrue;
 
 	// r_showsky will let all the sky blocks be drawn in
 	// front of everything to allow developers to see how
@@ -901,6 +903,7 @@ void RB_StageIteratorSky( void ) {
 	R_BuildCloudData( &tess );
 
 	RB_StageIteratorGeneric();
+	backEnd.dk3FogSky = qfalse;
 
 	// draw the inner skybox
 

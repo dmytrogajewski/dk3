@@ -241,12 +241,21 @@ static void CG_General( centity_t *cent ) {
         }
         if (!ent.shaderRGBA[3]) ent.shaderRGBA[0] = ent.shaderRGBA[1] = ent.shaderRGBA[2] = 255;
         ent.shaderRGBA[3] = (byte)(Com_Clamp(0, 1, s1->dk3Alpha) * 255);
+        /* Converted skins carry their translucent render variant in slot 1. */
+        if (s1->dk3Alpha > 0 && s1->dk3Alpha < 0.999f) ent.skinNum = 1;
     }
 #endif
 
+#ifdef DK3_GAME
+    if (s1->dk3RenderFlags & DK3_RF_STONE) {
+        ent.customShader = trap_R_RegisterShader("dk3/fx/stone");
+        ent.shaderRGBA[0] = ent.shaderRGBA[1] = ent.shaderRGBA[2] = 160; ent.shaderRGBA[3] = 178;
+    }
+#endif
 	// add to refresh list
 	trap_R_AddRefEntityToScene (&ent);
 #ifdef DK3_GAME
+    DK_AddStatusEffects(s1, &ent);
     DK_DrawSpotlightSource(cent, &ent);
 #endif
 }

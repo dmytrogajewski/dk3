@@ -20,6 +20,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }) });
     b.installArtifact(guard);
+    b.installFile("src/cgame/dk3-projectile-weather.shader", "share/dk3/scripts/dk3-projectile-weather.shader");
     if (engine.declare(b, target, optimize)) |products| game.declare(b, target, optimize, products);
     qvm.declare(b, optimize);
     const checks = b.step("test", "Run the existing published component checks");

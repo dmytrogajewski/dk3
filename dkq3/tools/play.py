@@ -14,6 +14,7 @@ from assets import digest, write_json
 
 BINARIES = ('dk3', 'dk3ded', 'renderer_opengl1.so', 'renderer_opengl2.so')
 MODULES = ('qagame.so', 'cgame.so', 'ui.so')
+RUNTIME_MEDIA = ('scripts/dk3-projectile-weather.shader',)
 PACKAGES = ('base', 'textures', 'maps', 'shaders', 'models', 'sprites', 'hud', 'sound', 'music', 'voice', 'data', 'navigation')
 REQUIRED_ENTRIES = ('default.cfg', 'fonts/con_font.dkf', 'fonts/con_font.tga', 'maps/e1m1a.bsp',
                     'dk3/navigation/e1m1a.cfg')
@@ -48,6 +49,7 @@ def install(prefix, assets, hd_textures=None):
     manifest = checked_assets(source)
     files = {f'bin/{name}': prefix / 'bin' / name for name in BINARIES}
     files.update({f'share/dk3/{name}': prefix / 'lib' / 'dk3' / name for name in MODULES})
+    files.update({f'share/dk3/{name}': prefix / 'share' / 'dk3' / name for name in RUNTIME_MEDIA})
     for name in PACKAGES:
         filename = f'dk3-{name}.pk3'
         files[f'share/dk3/{filename}'] = source / 'packages' / filename
@@ -103,7 +105,8 @@ def launch(prefix, guard, extra):
     manifest = json.loads((directory / 'installation.json').read_text())
     if manifest.get('format') != 1:
         raise ValueError('unsupported installation manifest')
-    for name in [*[f'bin/{n}' for n in BINARIES], *[f'share/dk3/{n}' for n in MODULES]]:
+    for name in [*[f'bin/{n}' for n in BINARIES], *[f'share/dk3/{n}' for n in MODULES],
+                 *[f'share/dk3/{n}' for n in RUNTIME_MEDIA]]:
         if digest(directory / name) != manifest['files'][name]:
             raise ValueError(f'installed product changed: {name}; rerun play-install')
     print('play: independent dk3 development runtime; campaign implementation and verification incomplete', flush=True)

@@ -779,6 +779,7 @@ void RB_StageIteratorSky( void ) {
 	// the sky box to see which blocks on each side need
 	// to be drawn
 	RB_ClipSkyPolygons( &tess );
+	RB_Dk3FogSky( qtrue );
 
 	// r_showsky will let all the sky blocks be drawn in
 	// front of everything to allow developers to see how
@@ -814,6 +815,7 @@ void RB_StageIteratorSky( void ) {
 
 	// back to normal depth range
 	qglDepthRange( 0.0, 1.0 );
+	RB_Dk3FogSky( qfalse );
 
 	// note that sky was drawn so we will draw a sun later
 	backEnd.skyRenderedThisView = qtrue;

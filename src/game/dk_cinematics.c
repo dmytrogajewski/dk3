@@ -14,7 +14,7 @@ typedef struct {
 } segment_t;
 typedef struct { char name[MAX_QPATH]; int loop, channel, played; float when; } sound_t;
 typedef struct {
-    int type;
+    int type, headFirst, headPoints;
     float when, attribute, duration;
     vec3_t destination, direction;
     char animation[32], use[32], sound[MAX_QPATH], uniqueId[64];
@@ -22,7 +22,8 @@ typedef struct {
 typedef struct {
     char name[MAX_QPATH], uniqueId[64];
     int first, count, cursor;
-    float ready;
+    float ready, headStart;
+    int headTask;
     unsigned int entityId;
 } cast_t;
 typedef struct {
@@ -44,6 +45,7 @@ static cinematicData_t liveData, validationData;
 static cinematicData_t *data = &liveData;
 static char parseError[160];
 static int active, shotIndex, lastTime, introStarted;
+static float entityEndTime;
 static float shotTime, playSpeed, currentFov, currentColor[4];
 static float shotFov, shotColor[4];
 static unsigned int triggerId, activatorId;
@@ -147,7 +149,7 @@ static void ReadShot(char **cursor, shot_t *shot) {
         Text(cursor, actor->name, sizeof(actor->name));
         Text(cursor, actor->uniqueId, sizeof(actor->uniqueId));
         actor->first = data->taskCount; actor->count = Count(cursor, CINE_TASKS - data->taskCount);
-        actor->cursor = 0; actor->ready = 0; actor->entityId = 0;
+        actor->cursor = 0; actor->ready = 0; actor->entityId = 0; actor->headTask = -1;
         for (j = 0; j < actor->count; ++j) {
             task_t *task = &data->tasks[data->taskCount++];
             int axis;
@@ -162,7 +164,15 @@ static void ReadShot(char **cursor, shot_t *shot) {
             Text(cursor, task->use, sizeof(task->use));
             Text(cursor, task->sound, sizeof(task->sound));
             Text(cursor, task->uniqueId, sizeof(task->uniqueId));
-            if (task->type == 14) ParseError("head track operation requires a supported asset profile");
+            if (task->type == 14) {
+                int point;
+                Expect(cursor, "head"); task->headPoints = Count(cursor, CINE_SEGMENTS - data->segmentCount);
+                Vector(cursor, task->direction, 3); task->headFirst = data->segmentCount;
+                for (point = 1; point < task->headPoints; ++point) {
+                    segment_t *segment = &data->segments[data->segmentCount++];
+                    segment->duration = 0.2f; Vector(cursor, segment->angles, 12);
+                }
+            }
         }
     }
 }
@@ -176,6 +186,10 @@ void DK_InitCinematics(void) {
 
 void DK_Worldspawn(void) {
     char *value;
+    char styles[257];
+    memset(styles, '*', 256); styles[256] = 0;
+    trap_SetConfigstring(CS_DK3_LIGHTSTYLES, styles);
+    trap_SetConfigstring(CS_DK3_SKY, "1");
     DK_WorldMusic();
     G_SpawnString("cinematic_intro", "", &value);
     Q_strncpyz(introName, value, sizeof(introName));
@@ -218,7 +232,7 @@ qboolean DK_StartCinematic(const char *name, gentity_t *trigger, gentity_t *acti
     }
     Q_strncpyz(cinematicName, name, sizeof(cinematicName));
     shotIndex = 0;
-    shotTime = 0; playSpeed = 1; currentFov = 90;
+    shotTime = 0; entityEndTime = -1; playSpeed = 1; currentFov = 90;
     memset(currentColor, 0, sizeof(currentColor));
     memset(shotColor, 0, sizeof(shotColor));
     shotFov = 90;
@@ -306,6 +320,10 @@ static void Task(cast_t *actor, task_t *task) {
             VectorCopy(task->direction, entity->s.angles); trap_LinkEntity(entity); break;
         case 11: entity->dk.movingAnimation = "runa"; entity->dk.speedOverride = entity->dk.runSpeed; break;
         case 12: entity->dk.movingAnimation = "walka"; entity->dk.speedOverride = entity->dk.walkSpeed; break;
+        case 14:
+            actor->headTask = (int)(task - data->tasks); actor->headStart = shotTime;
+            actor->ready = shotTime + task->headPoints * 0.2f;
+            break;
         case 15: case 16:
             if (!*task->animation) { DK_ActorHold(entity); break; }
             duration = DK_ActorAnimate(entity, task->animation, 1);
@@ -402,7 +420,7 @@ void DK_StopCinematic(qboolean completed) {
 void DK_RunCinematic(void) {
     shot_t *shot;
     vec3_t position, angles;
-    int i, allDone = 1;
+    int i, allDone = 1, namedDone = 0;
     if (!introStarted && g_entities[0].client && g_entities[0].client->pers.connected == CON_CONNECTED) {
         introStarted = 1;
         if (*introName) DK_StartCinematic(introName, NULL, &g_entities[0]);
@@ -410,6 +428,11 @@ void DK_RunCinematic(void) {
     if (!active) return;
     shotTime += (level.time - lastTime) * Com_Clamp(0.01f, 8, playSpeed) / 1000.0f;
     lastTime = level.time; shot = &data->shots[shotIndex];
+    if (shot->sky >= 1 && shot->sky <= 5) {
+        char sky[8];
+        trap_GetConfigstring(CS_DK3_SKY, sky, sizeof(sky));
+        if (atoi(sky) != shot->sky) trap_SetConfigstring(CS_DK3_SKY, va("%d", shot->sky));
+    }
     for (i = 0; i < shot->sounds; ++i) {
         sound_t *sound = &data->sounds[shot->firstSound + i];
         if (!sound->played && sound->when <= shotTime) {
@@ -434,12 +457,36 @@ void DK_RunCinematic(void) {
     for (i = 0; i < shot->actors; ++i) {
         cast_t *actor = &data->cast[shot->firstActor + i];
         gentity_t *entity = CastEntity(actor);
+        if (entity && actor->headTask >= 0) {
+            task_t *head = &data->tasks[actor->headTask];
+            float elapsed = shotTime - actor->headStart;
+            int part = (int)(elapsed / 0.2f), axis;
+            VectorCopy(head->direction, entity->s.angles);
+            if (head->headPoints > 1) {
+                float t;
+                segment_t *segment;
+                if (part >= head->headPoints - 1) { part = head->headPoints - 2; t = 0.2f; }
+                else t = elapsed - part * 0.2f;
+                segment = &data->segments[head->headFirst + part];
+                for (axis = 0; axis < 3; ++axis) {
+                    float *curve = &segment->angles[axis * 4];
+                    entity->s.angles[axis] = ((curve[0] * t + curve[1]) * t + curve[2]) * t + curve[3];
+                }
+            }
+            VectorCopy(entity->s.angles, entity->r.currentAngles);
+            if (shotTime >= actor->ready) actor->headTask = -1;
+        }
         while (actor->cursor < actor->count && actor->ready <= shotTime && (!entity || (!entity->dk.moveActive && !entity->dk.turnActive))) {
             task_t *task = &data->tasks[actor->first + actor->cursor];
             if (task->when >= 0 && task->when > shotTime) break;
             ++actor->cursor; Task(actor, task); entity = CastEntity(actor);
         }
-        if (actor->cursor != actor->count || actor->ready > shotTime || (entity && (entity->dk.moveActive || entity->dk.turnActive))) allDone = 0;
+        {
+            int done = actor->cursor == actor->count && actor->ready <= shotTime &&
+                (!entity || (!entity->dk.moveActive && !entity->dk.turnActive));
+            if (!done) allDone = 0;
+            if (done && (!Q_stricmp(shot->endName, actor->name) || !Q_stricmp(shot->endName, actor->uniqueId))) namedDone = 1;
+        }
     }
     Camera(shot, position, angles);
     for (i = 0; i < level.maxclients; ++i) if (g_entities[i].inuse && g_entities[i].client) {
@@ -448,10 +495,12 @@ void DK_RunCinematic(void) {
         VectorCopy(position, ps->dk3CameraOrigin); VectorCopy(angles, ps->dk3CameraAngles);
         ps->dk3CameraFov = currentFov; memcpy(ps->dk3CameraBlend, currentColor, sizeof(currentColor));
     }
-    if (shotTime >= shot->pre + shot->duration + shot->post && (!shot->end || allDone)) {
+    if (shot->end && entityEndTime < 0 && (*shot->endName ? namedDone : allDone)) entityEndTime = shotTime;
+    if (shot->end ? (entityEndTime >= 0 && shotTime >= entityEndTime + shot->post) :
+        shotTime >= shot->pre + shot->duration + shot->post) {
         if (++shotIndex == data->shotCount) DK_StopCinematic(qtrue);
         else {
-            shotTime = 0; playSpeed = 1;
+            shotTime = 0; entityEndTime = -1; playSpeed = 1;
             shotFov = currentFov;
             memcpy(shotColor, currentColor, sizeof(shotColor));
         }
@@ -500,13 +549,14 @@ void DK_SkipCinematic(void) {
 typedef struct {
     char *name;
     int active, intro, shot, trigger, activator;
-    float elapsed, speed, fov, color[4], baseFov, baseColor[4];
+    float entityEnd, elapsed, speed, fov, color[4], baseFov, baseColor[4];
     int loops[256];
 } savedCinema_t;
 #define CIN_FIELD(field, type, count) {#field, type, offsetof(savedCinema_t, field), count, qfalse}
 static const dkSaveMember_t cinemaMembers[] = {
     CIN_FIELD(name, DK_SAVE_TEXT, 1), CIN_FIELD(active, DK_SAVE_INT, 1), CIN_FIELD(intro, DK_SAVE_INT, 1),
     CIN_FIELD(shot, DK_SAVE_INT, 1), CIN_FIELD(trigger, DK_SAVE_INT, 1), CIN_FIELD(activator, DK_SAVE_INT, 1),
+    {"entity_end", DK_SAVE_FLOAT, offsetof(savedCinema_t, entityEnd), 1, qfalse},
     CIN_FIELD(elapsed, DK_SAVE_FLOAT, 1), CIN_FIELD(speed, DK_SAVE_FLOAT, 1), CIN_FIELD(fov, DK_SAVE_FLOAT, 1),
     CIN_FIELD(color, DK_SAVE_FLOAT, 4), {"base_fov", DK_SAVE_FLOAT, offsetof(savedCinema_t, baseFov), 1, qfalse}, {"base_color", DK_SAVE_FLOAT, offsetof(savedCinema_t, baseColor), 4, qfalse},
     {"loops_0", DK_SAVE_INT, offsetof(savedCinema_t, loops[0]), 64, qfalse}, {"loops_64", DK_SAVE_INT, offsetof(savedCinema_t, loops[64]), 64, qfalse},
@@ -514,6 +564,8 @@ static const dkSaveMember_t cinemaMembers[] = {
 };
 #undef CIN_FIELD
 static const dkSaveMember_t castMembers[] = {
+    {"head_task", DK_SAVE_INT, offsetof(cast_t, headTask), 1, qfalse},
+    {"head_start", DK_SAVE_FLOAT, offsetof(cast_t, headStart), 1, qfalse},
     {"cursor", DK_SAVE_INT, offsetof(cast_t, cursor), 1, qfalse},
     {"ready", DK_SAVE_FLOAT, offsetof(cast_t, ready), 1, qfalse},
     {"entity", DK_SAVE_INT, offsetof(cast_t, entityId), 1, qfalse}
@@ -526,7 +578,7 @@ qboolean DK_WriteCinematicState(dkSaveWriter_t *writer) {
     saved.name = active ? cinematicName : NULL;
     saved.active = active; saved.intro = introStarted; saved.shot = active ? shotIndex : 0;
     saved.trigger = DK_FindEntity(triggerId) ? triggerId : 0; saved.activator = DK_FindEntity(activatorId) ? activatorId : 0;
-    saved.elapsed = shotTime; saved.speed = playSpeed; saved.fov = currentFov; saved.baseFov = shotFov;
+    saved.entityEnd = entityEndTime; saved.elapsed = shotTime; saved.speed = playSpeed; saved.fov = currentFov; saved.baseFov = shotFov;
     memcpy(saved.color, currentColor, sizeof(saved.color)); memcpy(saved.baseColor, shotColor, sizeof(saved.baseColor));
     for (i = 0; i < 256; ++i) saved.loops[i] = DK_FindEntity(loopSounds[i]) ? loopSounds[i] : 0;
     if (!DK_SaveRecord(writer, "cinema", 0) || !DK_SaveObject(writer, &saved, cinemaMembers, ARRAY_LEN(cinemaMembers))) return qfalse;
@@ -564,7 +616,7 @@ qboolean DK_ReadCinematicState(dkSaveReader_t *reader, const char *kind, unsigne
         if (apply) {
             active = saved.active; introStarted = saved.intro; shotIndex = saved.shot;
             Q_strncpyz(cinematicName, saved.name ? saved.name : "", sizeof(cinematicName));
-            shotTime = saved.elapsed; playSpeed = saved.speed; currentFov = saved.fov; shotFov = saved.baseFov;
+            entityEndTime = saved.entityEnd; shotTime = saved.elapsed; playSpeed = saved.speed; currentFov = saved.fov; shotFov = saved.baseFov;
             memcpy(currentColor, saved.color, sizeof(currentColor)); memcpy(shotColor, saved.baseColor, sizeof(shotColor));
             triggerId = saved.trigger; activatorId = saved.activator;
             memcpy(loopSounds, saved.loops, sizeof(loopSounds)); lastTime = level.time;
@@ -574,11 +626,15 @@ qboolean DK_ReadCinematicState(dkSaveReader_t *reader, const char *kind, unsigne
     if (!strcmp(kind, "cinema_cast")) {
         cinematicData_t *context = apply ? &liveData : &validationData;
         cast_t state;
-        memset(&state, 0, sizeof(state));
+        memset(&state, 0, sizeof(state)); state.headTask = -1;
         if (!id || id > context->castCount || !DK_ReadObject(reader, &state, castMembers, ARRAY_LEN(castMembers), NULL) ||
+            state.headTask < -1 || state.headTask >= context->taskCount ||
+            (state.headTask >= 0 && context->tasks[state.headTask].type != 14) ||
             state.cursor < 0 || state.cursor > context->cast[id - 1].count || state.ready < 0 || state.ready > 86400 ||
             !DK_SaveReferenceExists(state.entityId)) return qfalse;
         if (apply) {
+            context->cast[id - 1].headTask = state.headTask;
+            context->cast[id - 1].headStart = state.headStart;
             context->cast[id - 1].cursor = state.cursor;
             context->cast[id - 1].ready = state.ready;
             context->cast[id - 1].entityId = state.entityId;

@@ -72,13 +72,13 @@ const char *dk_keyLabels[DK_KEY_COUNT] = {
 
 typedef struct { const char *classname, *model; } itemModel_t;
 static const itemModel_t itemModels[] = {
-    {"ammo_ionpack", "e1/a_ion"}, {"ammo_c4", "e1/a_c4"}, {"ammo_shells", "e1/a_shot"},
-    {"ammo_rockets", "e1/a_swindr"}, {"ammo_shocksphere", "e1/a_shokwv"},
-    {"ammo_tritips", "e2/a_tri"}, {"ammo_venomous", "e2/a_venom"}, {"ammo_zeus", "e2/a_zeus"},
-    {"ammo_bolts", "e3/a_bolter"}, {"ammo_ballista", "e3/a_bal"}, {"ammo_stavros", "e3/a_stav"},
-    {"ammo_wisp", "e3/a_wyndrx"}, {"ammo_bullets", "e4/a_glock"}, {"ammo_ripgun", "e4/a_ripgun"},
-    {"ammo_slugger", "e4/a_slug"}, {"ammo_cordite", "e4/a_cslug"}, {"ammo_kineticore", "e4/a_kcore"},
-    {"ammo_novabeam", "e4/a_nova"}, {"ammo_metamaser", "e4/a_mmaser"},
+    {"ammo_ionpack", "e1/wa_ion"}, {"ammo_c4", "e1/wa_c4"}, {"ammo_shells", "e1/wa_shot6"},
+    {"ammo_rockets", "e1/wa_swindr"}, {"ammo_shocksphere", "e1/wa_shokwv"},
+    {"ammo_tritips", "e2/wa_trident"}, {"ammo_venomous", "e2/wa_venom"}, {"ammo_zeus", "e2/wa_zeus"},
+    {"ammo_bolts", "e3/wa_bolt"}, {"ammo_ballista", "e3/wa_bal"}, {"ammo_stavros", "e3/wa_stav"},
+    {"ammo_wisp", "e3/a_wyndrx"}, {"ammo_bullets", "e4/wa_glock"}, {"ammo_ripgun", "e4/wa_slug"},
+    {"ammo_slugger", "e4/wa_rip"}, {"ammo_cordite", "e4/a_cslug"}, {"ammo_kineticore", "e4/wa_kcore"},
+    {"ammo_novabeam", "e4/wa_nova"}, {"ammo_metamaser", "e4/a_mmaser"},
     {"item_chromatic_armor", "e1/a1_ar2"}, {"item_plasteel_armor", "e1/a1_ar1"},
     {"item_silver_armor", "e2/a2_ar1"}, {"item_gold_armor", "e2/a2_ar2"},
     {"item_chainmail_armor", "e3/a3_ar1"}, {"item_black_adamant_armor", "e3/a3_ar2"},

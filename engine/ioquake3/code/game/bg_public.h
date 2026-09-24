@@ -89,6 +89,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define CS_SHADERSTATE			24
 #define CS_DK3_COMPANIONS 26
 #define CS_DK3_LOADSCREEN 28
+#define CS_DK3_LIGHTSTYLES 29
+#define CS_DK3_SKY 30
 #define CS_BOTINFO				25
 
 #define	CS_ITEMS				27		// string of 0's and 1's that tell which items are present
@@ -469,6 +471,10 @@ typedef enum {
 
 /* dk3RenderFlags: reverse the explicit finite model animation range. */
 #define DK3_RF_ANIM_REVERSE 8
+#define DK3_RF_STONE 16
+#define DK3_RF_FROZEN_SHIFT 5
+#define DK3_RF_FROZEN (3 << DK3_RF_FROZEN_SHIFT)
+#define DK3_RF_MELT 128
 
 
 typedef enum {

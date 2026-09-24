@@ -63,3 +63,4 @@ venv/
 /src/ioncommon/
 /build/daikatana*.zig
 /publication/manifest.json
+/specs/

@@ -89,6 +89,8 @@ extern void (APIENTRYP qglUnlockArraysEXT) (void);
 	GLE(void, ColorPointer, GLint size, GLenum type, GLsizei stride, const GLvoid *ptr) \
 	GLE(void, DisableClientState, GLenum cap) \
 	GLE(void, EnableClientState, GLenum cap) \
+	GLE(void, Fogf, GLenum pname, GLfloat param) \
+	GLE(void, Fogfv, GLenum pname, const GLfloat *params) \
 	GLE(void, LoadIdentity, void) \
 	GLE(void, LoadMatrixf, const GLfloat *m) \
 	GLE(void, MatrixMode, GLenum mode) \

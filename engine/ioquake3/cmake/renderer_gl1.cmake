@@ -9,6 +9,7 @@ set(RENDERER_GL1_SOURCES
     ${SOURCE_DIR}/renderergl1/tr_altivec.c
     ${SOURCE_DIR}/renderergl1/tr_animation.c
     ${SOURCE_DIR}/renderergl1/tr_backend.c
+    ${SOURCE_DIR}/renderergl1/tr_bloom.c
     ${SOURCE_DIR}/renderergl1/tr_bsp.c
     ${SOURCE_DIR}/renderergl1/tr_cmds.c
     ${SOURCE_DIR}/renderergl1/tr_curve.c

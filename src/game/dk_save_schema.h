@@ -9,6 +9,8 @@ typedef struct {
     size_t offset;
     int count;
     qboolean time;
+    /* Added after release: older saves omit it and it reads as zero. */
+    qboolean optional;
 } dkSaveMember_t;
 typedef struct { char *bytes; int capacity, used; } dkSaveStrings_t;
 extern const dkSaveMember_t dk_entityMembers[];

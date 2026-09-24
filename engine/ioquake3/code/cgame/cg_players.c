@@ -952,9 +952,16 @@ void CG_NewClientInfo( int clientNum ) {
         static const char *voice[] = {"death1", "death2", "death3", "jump1", "pain1", "pain2",
             "pain3", "pain4", "death4", "exitwater", "waterchoke1", "land1", "pain5"};
         int index;
-        Q_strncpyz(newInfo.modelName, "hiro", sizeof(newInfo.modelName));
+        char choice[MAX_QPATH], *skin;
+        Q_strncpyz(choice, Info_ValueForKey(configstring, "model"), sizeof(choice));
+        skin = strchr(choice, '/');
+        if (skin) *skin++ = 0;
+        if (cgs.gametype == GT_SINGLE_PLAYER || (Q_stricmp(choice, "hiro") && Q_stricmp(choice, "mikiko") && Q_stricmp(choice, "superfly")))
+            Q_strncpyz(choice, "hiro", sizeof(choice));
+        Q_strncpyz(newInfo.modelName, choice, sizeof(newInfo.modelName));
+        Q_strncpyz(newInfo.skinName, skin ? skin : "0", sizeof(newInfo.skinName));
         for (index = 0; index < ARRAY_LEN(voice); ++index)
-            newInfo.sounds[index] = trap_S_RegisterSound(va("sounds/hiro/%s.wav", voice[index]), qfalse);
+            newInfo.sounds[index] = trap_S_RegisterSound(va("sounds/%s/%s.wav", choice, voice[index]), qfalse);
         newInfo.infoValid = qtrue;
         *ci = newInfo;
         return;

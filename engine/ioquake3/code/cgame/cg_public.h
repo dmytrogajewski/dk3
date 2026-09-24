@@ -187,6 +187,7 @@ typedef enum {
 	, CG_DKQ3_UPDATE_SOUND	// dkq3 loading screen (build/ioq3_patches.zig row sound-update-cgame-import-enum): after every stock value (113)
     , CG_DK3_SOUND_PARAMS_V1 = 700
     , CG_DK3_SOUND_ENVIRONMENT_V1 = 701
+    , CG_DK3_R_FOG_V1 = 702
 } cgameImport_t;
 
 

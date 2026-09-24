@@ -51,7 +51,7 @@ def frame_shaders(sprite, index, image, alpha):
     name = f'{sprite}/{index}'
     result = [(name, _text(name, image, BLEND, 'alphaGen vertex', alpha)),
               (name + ALPHACHANNEL_SUFFIX, _text(name + ALPHACHANNEL_SUFFIX, image, ADD, 'alphaGen vertex', alpha))]
-    if sprite in ('models/global/we_dispunch.sp2', 'models/global/we_bhole.sp2', 'models/global/we_scorch.sp2'):
+    if sprite in ('models/global/we_dispunch.sp2', 'models/global/we_bhole.sp2', 'models/global/we_scorch.sp2', 'models/global/we_clwmark2.sp2'):
         mark = name + '@mark'
         result.append((mark, f'{mark}\n{{\n polygonOffset\n cull disable\n'
                        f' {{ clampMap {_token(image)}\n blendFunc blend\n rgbGen vertex\n alphaGen vertex\n }}\n}}\n'))

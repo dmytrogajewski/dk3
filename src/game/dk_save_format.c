@@ -246,7 +246,8 @@ qboolean DK_SaveString(const dkSaveField_t *field, char *out, int capacity) {
 qboolean DK_SaveValidate(const byte *buffer, int length, char *error, int capacity) {
     dkSaveReader_t reader;
     dkSaveField_t field;
-    char kind[DK_SAVE_NAME], names[DK_SAVE_FIELDS][DK_SAVE_NAME];
+    static char names[DK_SAVE_FIELDS][DK_SAVE_NAME];
+    char kind[DK_SAVE_NAME];
     unsigned int id;
     int fields, i;
     if (DK_SaveOpen(&reader, buffer, length)) {

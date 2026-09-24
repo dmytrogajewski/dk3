@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "tr_types.h"
 
-#define	REF_API_VERSION		8
+#define	REF_API_VERSION		10
 
 //
 // these are the functions exported by the refresh module
@@ -99,6 +99,9 @@ typedef struct {
 	qboolean (*inPVS)( const vec3_t p1, const vec3_t p2 );
 
 	void (*TakeVideoFrame)( int h, int w, byte* captureBuffer, byte *encodeBuffer, qboolean motionJpeg );
+
+	// linear distance fog for the next world scene; cleared with the scene
+	void	(*SetDk3Fog)( const vec3_t color, float start, float end, float skyEnd );
 } refexport_t;
 
 //

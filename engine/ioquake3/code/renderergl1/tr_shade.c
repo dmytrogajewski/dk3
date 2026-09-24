@@ -404,6 +404,27 @@ ProjectDlightTexture
 Perform dynamic lighting with another rendering pass
 ===================
 */
+static void ComputeTexCoords( shaderStage_t *pStage );
+
+/* Additive light is reflected by the material, not painted over the framebuffer.
+ * Use the same animated image and tcMods as the opaque surface pass. */
+static textureBundle_t *DlightDiffuseBundle( int *bundleIndex ) {
+	int stage, bundle;
+	for ( stage = 0; stage < tess.numPasses; stage++ ) {
+		shaderStage_t *pStage = tess.xstages[stage];
+		for ( bundle = 0; bundle < NUM_TEXTURE_BUNDLES; bundle++ ) {
+			textureBundle_t *candidate = &pStage->bundle[bundle];
+			if ( candidate->image[0] && !candidate->isLightmap &&
+				candidate->tcGen == TCGEN_TEXTURE ) {
+				ComputeTexCoords( pStage );
+				*bundleIndex = bundle;
+				return candidate;
+			}
+		}
+	}
+	return NULL;
+}
+
 static void ProjectDlightTexture_scalar( void ) {
 	int		i, l;
 	vec3_t	origin;
@@ -418,15 +439,26 @@ static void ProjectDlightTexture_scalar( void ) {
 	float	radius;
 	vec3_t	floatColor;
 	float	modulate = 0.0f;
+	textureBundle_t *diffuse = NULL;
+	int diffuseIndex = 0;
 
 	if ( !backEnd.refdef.num_dlights ) {
 		return;
 	}
 
+	if ( qglActiveTextureARB ) {
+		for ( l = 0; l < backEnd.refdef.num_dlights; l++ ) {
+			if ( ( tess.dlightBits & ( 1U << l ) ) && backEnd.refdef.dlights[l].additive ) {
+				diffuse = DlightDiffuseBundle( &diffuseIndex );
+				break;
+			}
+		}
+	}
+
 	for ( l = 0 ; l < backEnd.refdef.num_dlights ; l++ ) {
 		dlight_t	*dl;
 
-		if ( !( tess.dlightBits & ( 1 << l ) ) ) {
+		if ( !( tess.dlightBits & ( 1U << l ) ) ) {
 			continue;	// this surface definitely doesn't have any of this light
 		}
 		texCoords = texCoordsArray[0];
@@ -544,13 +576,26 @@ static void ProjectDlightTexture_scalar( void ) {
 		GL_Bind( tr.dlightImage );
 		// include GLS_DEPTHFUNC_EQUAL so alpha tested surfaces don't add light
 		// where they aren't rendered
-		if ( dl->additive ) {
+		if ( dl->additive && diffuse ) {
+			GL_SelectTexture( 1 );
+			qglEnable( GL_TEXTURE_2D );
+			qglEnableClientState( GL_TEXTURE_COORD_ARRAY );
+			qglTexCoordPointer( 2, GL_FLOAT, 0, tess.svars.texcoords[diffuseIndex] );
+			GL_TexEnv( GL_MODULATE );
+			R_BindAnimatedImage( diffuse );
+			GL_SelectTexture( 0 );
 			GL_State( GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL );
 		}
 		else {
 			GL_State( GLS_SRCBLEND_DST_COLOR | GLS_DSTBLEND_ONE | GLS_DEPTHFUNC_EQUAL );
 		}
 		R_DrawElements( numIndexes, hitIndexes );
+		if ( dl->additive && diffuse ) {
+			GL_SelectTexture( 1 );
+			qglDisable( GL_TEXTURE_2D );
+			qglDisableClientState( GL_TEXTURE_COORD_ARRAY );
+			GL_SelectTexture( 0 );
+		}
 		backEnd.pc.c_totalIndexes += numIndexes;
 		backEnd.pc.c_dlightIndexes += numIndexes;
 	}

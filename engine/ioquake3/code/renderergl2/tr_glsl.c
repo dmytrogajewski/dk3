@@ -158,7 +158,10 @@ static uniformInfo_t uniformsInfo[] =
 	{ "u_AlphaTest", GLSL_INT },
 
 	{ "u_BoneMatrix", GLSL_MAT16_BONEMATRIX },
-	{ "u_Greyscale", GLSL_FLOAT }
+	{ "u_Greyscale", GLSL_FLOAT },
+
+	{ "u_Dk3FogColor", GLSL_VEC4 },
+	{ "u_Dk3FogRange", GLSL_VEC4 }
 };
 
 typedef enum
@@ -1109,6 +1112,7 @@ void GLSL_InitGPUShaders(void)
 		GLSL_InitUniforms(&tr.dlightShader[i]);
 		
 		GLSL_SetUniformInt(&tr.dlightShader[i], UNIFORM_DIFFUSEMAP, TB_DIFFUSEMAP);
+		GLSL_SetUniformInt(&tr.dlightShader[i], UNIFORM_LIGHTMAP, TB_LIGHTMAP);
 
 		GLSL_FinishGPUShader(&tr.dlightShader[i]);
 

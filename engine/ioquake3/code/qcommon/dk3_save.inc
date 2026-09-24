@@ -25,10 +25,10 @@ static int DK3_SaveDirectory(void) {
 int FS_DK3SaveWrite(int version, const char *slot, const void *data, int length) {
     char current[64], temporary[80], previous[80], backup[96];
     int directory, output = -1, savedError = 0, result = -1, offset = 0;
-    if (version != 1 || !DK3_SaveName(slot) || length < 1 || length > DK3_SAVE_MAX || !data) return -1;
+    if ((version != 1 && version != 2) || !DK3_SaveName(slot) || length < 1 || length > DK3_SAVE_MAX || !data) return -1;
     directory = DK3_SaveDirectory();
     if (directory < 0) return -1;
-    Com_sprintf(current, sizeof(current), "%s.sav", slot);
+    Com_sprintf(current, sizeof(current), "%s.%s", slot, version == 2 ? "info" : "sav");
     Com_sprintf(temporary, sizeof(temporary), "%s.pending", current);
     Com_sprintf(previous, sizeof(previous), "%s.previous", current);
     Com_sprintf(backup, sizeof(backup), "%s.pending", previous);
@@ -68,10 +68,10 @@ int FS_DK3SaveRead(int version, const char *slot, void *data, int capacity, qboo
     char name[80];
     struct stat status;
     int directory, input, offset = 0, result = -1;
-    if (version != 1 || !DK3_SaveName(slot) || capacity < 1 || capacity > DK3_SAVE_MAX || !data) return -1;
+    if ((version != 1 && version != 2) || !DK3_SaveName(slot) || capacity < 1 || capacity > DK3_SAVE_MAX || !data) return -1;
     directory = DK3_SaveDirectory();
     if (directory < 0) return -1;
-    Com_sprintf(name, sizeof(name), "%s.sav%s", slot, previous ? ".previous" : "");
+    Com_sprintf(name, sizeof(name), "%s.%s%s", slot, version == 2 ? "info" : "sav", previous ? ".previous" : "");
     input = openat(directory, name, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
     close(directory);
     if (input < 0) return -1;

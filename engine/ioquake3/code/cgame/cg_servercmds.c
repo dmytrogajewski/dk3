@@ -1009,6 +1009,12 @@ static void CG_ServerCommand( void ) {
 	}
 
 #ifdef DK3_GAME
+    if (!strcmp(cmd, "dk3_savepreview")) {
+        const char *slot = CG_Argv(1), *p;
+        if (!*slot || strlen(slot) > 48) return;
+        for (p = slot; *p; ++p) if (!((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == '_' || *p == '-')) return;
+        trap_SendConsoleCommand(va("screenshotJPEG dk3-save-%s\n", slot)); return;
+    }
     if (!strcmp(cmd, "dk3_end")) { trap_SendConsoleCommand("disconnect\n"); return; }
     if (!strcmp(cmd, "dk3_weapon")) { DK_SelectWeapon(0, atoi(CG_Argv(1))); return; }
     if (!strcmp(cmd, "dk3_restore_ready")) { trap_SendClientCommand("dk3_restore_ready"); return; }

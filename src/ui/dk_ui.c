@@ -7,7 +7,7 @@
 static dkFont_t font, brightFont, buttonFont;
 static glconfig_t display;
 static qhandle_t white;
-static qboolean active;
+static qboolean active, menuMusic;
 static int page, selected, binding = -1, conflict = -1;
 static float cursorX = 320, cursorY = 240, scale, offsetX, offsetY;
 static char feedback[160], address[128] = "localhost";
@@ -199,6 +199,31 @@ static int SettingRow(int row) {
     return row < 0 ? ARRAY_LEN(options) : options[row];
 }
 
+static const char *SelectedSave(void) {
+    if (panelPlate == 3) return selected ? va("save%d", selected) : "quick";
+    if (selected >= 3 && selected - 3 < saveCount) return saveNames[selected - 3];
+    return selected == 1 ? "autosave" : "quick";
+}
+
+static void SaveDetails(void) {
+    char text[1024], *cursor, *token, key[32], line[128], path[MAX_QPATH];
+    fileHandle_t file;
+    int length, y = 175;
+    Com_sprintf(path, sizeof(path), "saves/%s.info%s", SelectedSave(), panelPlate != 3 && selected == 2 ? ".previous" : "");
+    length = trap_FS_FOpenFile(path, &file, FS_READ);
+    if (length <= 0 || length >= sizeof(text)) { if (file) trap_FS_FCloseFile(file); return; }
+    trap_FS_Read(text, length, file); trap_FS_FCloseFile(file); text[length] = 0; cursor = text;
+    if (strcmp(COM_Parse(&cursor), "dk3_save_info") || strcmp(COM_Parse(&cursor), "1")) return;
+    while (*(token = COM_Parse(&cursor)) && y < 310) {
+        Q_strncpyz(key, token, sizeof(key));
+        token = COM_Parse(&cursor);
+        Com_sprintf(line, sizeof(line), "%s: %s", key, token);
+        if (!strcmp(key, "secrets")) { Q_strcat(line, sizeof(line), "/"); Q_strcat(line, sizeof(line), COM_Parse(&cursor)); }
+        if (!strcmp(key, "actors")) { Q_strncpyz(line, "Actors remaining: ", sizeof(line)); Q_strcat(line, sizeof(line), COM_Parse(&cursor)); }
+        Text(103, y, line, qfalse); y += 12;
+    }
+}
+
 static void LoadSaveSlots(void) {
     char files[16384], *name;
     int count = trap_FS_GetFileList("saves", ".sav", files, sizeof(files)), i;
@@ -227,7 +252,7 @@ static int Rows(void) {
     if (page == 1) return ARRAY_LEN(commands) + 1;
     if (page == 2) return SettingRow(-1);
     if (page == 3) return panelPlate == 3 ? 9 : saveCount + 3;
-    if (page == 4) return 5;
+    if (page == 4) return 7;
     if (page == 5) return 8;
     if (page == 6) return 6;
     if (page == 7) { count = trap_LAN_GetServerCount(serverSource); return 2 + (int)Com_Clamp(0, 128, count); }
@@ -251,6 +276,7 @@ static void RefreshServers(void) {
 
 static void Close(void) {
     if (active) trap_S_StartLocalSound(trap_S_RegisterSound("sounds/menus/exit menu_001.wav", qfalse), CHAN_LOCAL_SOUND);
+    if (menuMusic) { trap_S_StopBackgroundTrack(); menuMusic = qfalse; }
     active = qfalse;
     trap_Key_SetCatcher(trap_Key_GetCatcher() & ~KEYCATCH_UI);
     trap_Key_ClearStates();
@@ -405,7 +431,19 @@ static void Activate(void) {
         if (selected == 0) { page = 5; mapChoice = -1; ChooseMap(1); }
         else if (selected == 1) page = 6;
         else if (selected == 2) page = 8;
-        else if (selected == 3) { Close(); trap_Cmd_ExecuteText(EXEC_APPEND, "disconnect\n"); return; }
+        else if (selected == 3 || selected == 4) {
+            char model[MAX_QPATH];
+            static const char *names[] = {"hiro", "mikiko", "superfly"};
+            int character = 0, skin = 0, n;
+            trap_Cvar_VariableStringBuffer("model", model, sizeof(model));
+            for (n = 0; n < 3; ++n) if (!Q_stricmpn(model, names[n], strlen(names[n]))) character = n;
+            if (strchr(model, '/')) skin = atoi(strchr(model, '/') + 1);
+            if (selected == 3) character = (character + 1) % 3;
+            else skin = (skin + 1) % 3;
+            trap_Cvar_Set("model", va("%s/%d", names[character], skin));
+            return;
+        }
+        else if (selected == 5) { Close(); trap_Cmd_ExecuteText(EXEC_APPEND, "disconnect\n"); return; }
         else SelectPlate(0);
         selected = 0;
     } else if (page == 8) {
@@ -617,8 +655,14 @@ static qboolean DrawPanel(void) {
         Text(100, 138, "Select a slot below", qfalse);
         Border(100, 160, 370, 1);
         trap_R_SetColor(NULL);
-        trap_R_DrawStretchPic(offsetX + 335 * scale, offsetY + 170 * scale, 133 * scale, 100 * scale,
-            0, 0, 1, 1, trap_R_RegisterShaderNoMip("pics/noscreen_avail.tga"));
+        {
+            char path[MAX_QPATH]; fileHandle_t file; qhandle_t preview;
+            Com_sprintf(path, sizeof(path), "screenshots/dk3-save-%s.jpg", SelectedSave());
+            if ((panelPlate == 3 || selected != 2) && trap_FS_FOpenFile(path, &file, FS_READ) >= 0) { trap_FS_FCloseFile(file); preview = trap_R_RegisterShaderNoMip(path); }
+            else preview = trap_R_RegisterShaderNoMip("pics/noscreen_avail.tga");
+            trap_R_DrawStretchPic(offsetX + 335 * scale, offsetY + 170 * scale, 133 * scale, 100 * scale, 0, 0, 1, 1, preview);
+            SaveDetails();
+        }
         Border(334, 168, 135, 103);
         Button(363, 295, writing ? "Save Game" : "Load Game", selected);
         Border(100, 320, 370, 73);
@@ -717,7 +761,11 @@ static void Draw(qboolean connecting) {
             else Q_strncpyz(line, i == 0 ? "Quick load" : i == 1 ? "Load entry autosave" : "Recover previous quick save", sizeof(line));
             label = line;
         } else if (page == 4) {
-            const char *multi[] = {"Host a game", "Join a game", "Choose team", "Disconnect", "Back"}; label = multi[i];
+            const char *multi[] = {"Host a game", "Join a game", "Choose team", "Character", "Skin", "Disconnect", "Back"}; label = multi[i];
+            if (i == 3 || i == 4) {
+                char model[MAX_QPATH]; trap_Cvar_VariableStringBuffer("model", model, sizeof(model));
+                Com_sprintf(line, sizeof(line), "%s: %s", multi[i], model); label = line;
+            }
         } else if (page == 8) {
             const char *teams[] = {"Join balanced team", "Join red", "Join blue", "Spectate", "Back"}; label = teams[i];
         } else if (page == 5) {
@@ -808,7 +856,21 @@ Q_EXPORT intptr_t vmMain(int command, int arg0, int arg1, int arg2, int arg3, in
             if (draggingWidget >= 0 && draggingWidget < widgetCount) MoveSlider(&widgets[draggingWidget]);
             UpdateHover();
             return 0;
-        case UI_REFRESH: uiTime = arg0; if (active) Draw(qfalse); return 0;
+        case UI_REFRESH:
+            uiTime = arg0;
+            if (active) {
+                uiClientState_t state;
+                trap_GetClientState(&state);
+                if (!menuMusic && state.connState == CA_DISCONNECTED) {
+                    trap_S_StartBackgroundTrack("music/menu_01.mp3.ogg", "music/menu_02.mp3.ogg");
+                    menuMusic = qtrue;
+                } else if (menuMusic && state.connState != CA_DISCONNECTED) {
+                    if (state.connState < CA_ACTIVE) trap_S_StopBackgroundTrack();
+                    menuMusic = qfalse;
+                }
+                Draw(qfalse);
+            }
+            return 0;
         case UI_DRAW_CONNECT_SCREEN: Draw(qtrue); return 0;
         case UI_CONSOLE_COMMAND: return qfalse;
         case UI_HASUNIQUECDKEY: return qfalse;

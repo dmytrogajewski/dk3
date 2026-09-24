@@ -258,7 +258,11 @@ static qboolean Execute(job_t *job, instruction_t *instruction) {
         if (index < 0 || job->depth == DK_SCRIPT_STACK) { Diagnostic(job, op, "unknown script or call stack exhausted"); return qfalse; }
         frame = &job->frames[job->depth++];
         frame->program = index; frame->position = 0; frame->repeats = programs[index].repeats;
-    } else if (!Q_stricmp(op, "use")) DK_FireNamed(args[0], owner, activator);
+    } else if (!Q_stricmp(op, "use")) {
+        target = DK_FindNamed(args[0]);
+        if (!target || !target->use) { Diagnostic(job, op, va("recipient %s unavailable", args[0])); return qfalse; }
+        target->use(target, owner, activator);
+    }
     else if (!Q_stricmp(op, "remove")) {
         target = DK_FindNamed(args[0]);
         if (target) G_FreeEntity(target);
@@ -281,14 +285,19 @@ static qboolean Execute(job_t *job, instruction_t *instruction) {
         owner->dk.movingAnimation = args[0];
     } else if (!Q_stricmp(op, "face_angle")) {
         if (!owner) { Diagnostic(job, op, "actor missing"); return qfalse; }
-        for (i = 0; i < 3; ++i) owner->s.angles[i] = Number(job, instruction, i);
-        VectorCopy(owner->s.angles, owner->r.currentAngles);
+        for (i = 0; i < 3; ++i) owner->dk.turnGoal[i] = Number(job, instruction, i);
+        owner->dk.turnActive = 1;
+        if (owner->dk.yawSpeed <= 0) owner->dk.yawSpeed = 90;
     } else if (!Q_stricmp(op, "wait")) job->due = level.time + (int)(Number(job, instruction, 0) * 1000);
     else if (!Q_stricmp(op, "sound") || !Q_stricmp(op, "stream_sound")) {
         int sound = DK_SoundIndex(args[0]);
-        if (owner) G_Sound(owner, CHAN_VOICE, sound);
-        else G_AddEvent(G_TempEntity(vec3_origin, EV_GLOBAL_SOUND), EV_GLOBAL_SOUND, sound);
-        if (instruction->argc > 1) job->due = level.time + (int)(Number(job, instruction, 1) * 1000);
+        target = instruction->argc > 1 ? DK_FindNamed(args[1]) : owner;
+        if (instruction->argc > 1 && !target) { Diagnostic(job, op, va("sound actor %s missing", args[1])); return qfalse; }
+        if (!Q_stricmp(op, "stream_sound") || !target) {
+            gentity_t *event = G_TempEntity(target ? target->r.currentOrigin : vec3_origin, EV_GLOBAL_SOUND);
+            event->s.eventParm = sound;
+            event->r.svFlags |= SVF_BROADCAST;
+        } else G_Sound(target, CHAN_VOICE, sound);
     } else if (!Q_stricmp(op, "move_to")) {
         vec3_t goal;
         if (!owner || !owner->dk.actorKind) { Diagnostic(job, op, "actor missing"); return qfalse; }
@@ -321,7 +330,7 @@ void DK_RunScripts(void) {
             for (j = 0; j < DK_SCRIPT_JOBS; ++j)
                 if (jobs[j].serial && jobs[j].serial < job->serial && jobs[j].owner == job->owner) break;
             if (j < DK_SCRIPT_JOBS) continue;
-            if (DK_FindEntity(job->owner) && DK_FindEntity(job->owner)->dk.moveActive) continue;
+            if (DK_FindEntity(job->owner) && (DK_FindEntity(job->owner)->dk.moveActive || DK_FindEntity(job->owner)->dk.turnActive)) continue;
             if (!DK_FindEntity(job->owner)) { Diagnostic(job, "resume", "owner removed"); job->serial = 0; continue; }
         }
         while (job->serial && job->depth && job->due <= level.time && budget-- > 0) {
@@ -333,6 +342,10 @@ void DK_RunScripts(void) {
                 continue;
             }
             if (!Execute(job, &instructions[program->first + frame->position++])) job->serial = 0;
+            if (job->owner) {
+                gentity_t *actor = DK_FindEntity(job->owner);
+                if (actor && (actor->dk.moveActive || actor->dk.turnActive)) break;
+            }
         }
     }
 }

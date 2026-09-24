@@ -1612,3 +1612,157 @@
   copying any assets or private reference files. The preceding make lint evidence
   remains valid for the unchanged implementation. Publication is a development
   snapshot; it does not close campaign, multiplayer or release acceptance.
+
+- [seq:193] Compared the reported marsh/combat/DM failures with private reference
+  behavior and supplied data, then repaired the shared runtime paths. Weapon/ammo
+  bindings are corrected across episodes; pickups settle using mesh collision bounds;
+  monster XP uses episode-scaled tenth-health awards and reference cumulative thresholds.
+  Native level1/displayed level0 is preserved. The live weapon/death test awards3 XP
+  for the frog and promotes497→500 exactly once. Frog spit is a green particle-only
+  effect; robotic fragments are scaled through tumbling; Ion illumination is additive.
+  Menu intro/loop decodes to nonzero mixer samples. Contentless trigger brushes now use
+  authored volume overlap: e1m1b's red barrier deals5000 damage and restores the death
+  checkpoint. Thunderskeet attack/retreat and cambot separation replace generic pursuit;
+  live failures led to perception traces ignoring actors, the boss's late shot pair,
+  pain admission and existing air-navigation recovery. Both projectiles and small
+  mosquito fragments were inspected in rendered diagnostic scenarios. e1ctf1 supports
+  the player plus seven FFA bots without the missing-spawn error, with combat/scoring.
+  Final integrated ReleaseSafe build and make lint pass (41 Python checks plus Zig);
+  pinned engine development hashes match. Installed runtime
+  bf531d9072faa4834a500668795a44c16cd028e420550acad38f785747ea2dce is selected by
+  the existing dk3 launcher; assets, HD override and save schema remain compatible.
+  Evidence and rejected intermediate probes are private in combat-reference-04.
+  See docs/runtime-gap-audit.md for scenario limits; this is not full campaign parity.
+
+- [seq:194] Reproduced the reported Ion neon stripe at the e1m1a waterfall using
+  audit-lighting and a stationary diagnostic Ion entity at
+  (1752.193604,-2220.040039,523.508545). The prior additive projected-light pass
+  added untextured RGB over the world; private reference inspection confirmed
+  material-modulated illumination. Both renderer projection paths now sample the
+  animated diffuse material with its tcMods, using the existing ioquake3 rendering
+  infrastructure. No reference implementation was imported. Matched OpenGL1/2
+  captures retain the rock detail; Ion radius300 and colour(0,.8,0) remain unchanged.
+  OpenGL2 forward mode renders but retains its existing brighter attenuation.
+  Actual attack input in OpenGL1 consumed40→39 ammunition and rendered the ball
+  in flight and after a bounce. ReleaseSafe build and final make lint pass (41
+  Python checks plus Zig). Engine development hashes match. Installed runtime
+  148c876b28f0054a55061c96e67ee33a4731344385bd3296bd44620f635b155f matches the
+  verified binaries and preserves the HD asset override. The owner's existing
+  running game was left untouched; restarting dk3 selects the repair.
+  Evidence: zig-out/reports/ion-material-light-05. This fixes the material wash-out;
+  no exact original-renderer attenuation or full campaign parity is claimed.
+
+- [seq:195] Implemented source-backed Ion composite flight, textured beam-spark trail,
+  contact mesh/sparks and terminal sparkles; atlas rain drops, source speed/wind,
+  area-based emission and collision splashes. Compared preserved-original rainfall
+  capture and supplied Ion screenshots with the private source contracts. Actual
+  native wall contact at1684,-2272,511 dispatched the new effect. Inspected OpenGL1
+  and OpenGL2 frames. Corrected an intermediate shader-name collision and excluded
+  failed reference-weapon/debugger probes from acceptance. ReleaseSafe build and
+  make lint pass (42 Python tests plus Zig). Runtime shader installation has a
+  synthetic identity/corruption regression; installed modules/shader and engine
+  development hashes match. Gameplay assets/HD override and saves are unchanged.
+  Installed 5aec4a76e3d4d6f0ac98029f162a94c83114336221bdc3621e38047b737cabb0.
+  Evidence: ion-rain-reference-06. Exact beam tessellation, liquid rings and full
+  effects parity remain unverified; see runtime-gap-audit.md for precise limits.
+
+- [seq:196] Repaired the reported missing rain splashes on water. Private source shows
+  floor-plane splashes; e1m1a floors lie on the water surfaces. Live client reads found
+  solid-only drop traces, 2-unit padded weather bounds, and PVS-culled sky-level volumes
+  (12/45 sent at the waterfall). Rain now stops at liquids and splashes at the floor,
+  bounds are authored, weather links over its fall volume, emission scales to the view
+  window and no longer recycles unlanded drops; SPLASH1/SPLASH3 sizing/alpha follow the
+  source. Diagnostic noclip views over the pool in OpenGL1/2 render water splashes that
+  the prior installed build lacks; 45/45 volumes sent, 671 water-surface splash records,
+  0 of 300 sampled splashes under solid cover. Pre-existing OpenGL2 yellow saturation
+  near the pool reproduced with the prior build and remains open. make lint pass (42
+  Python tests plus Zig). Installed
+  9d4f558c736cb039dc4a691aeb5edb3d4bdaf74fffbb9ae9b98bff2bfa4e56ff; assets/HD override
+  unchanged. Evidence: rain-water-07.
+
+- [seq:197] Repaired Gold weapon presentation from the private shotcycler, hammer and
+  slugger source contracts. Shotcycler now fires at the six authored shoot frames
+  (2, 8, 14, 20, 26, 32 at about 45 ms/frame), plays its 77-frame sequence once
+  per burst, uses its `ambc` idle, ejects a supplied shell at a camera-safe position,
+  and plays the six shell cues plus the terminal cycle cue. Hammer lift follows its
+  charge through frame 18, then the strike advances at 25 ms/frame; its lift, drop
+  and impact sounds use the supplied Gold bindings. Slugger and Cordite select the
+  Gold `shootb` pose and their corresponding ripgun fire sounds. These are
+  implemented; their full V5/V8/V9/V10 acceptance remains open.
+
+  Scenario matrix: **Passed** — the shared timing regression demonstrated six
+  shotcycler rounds and its recovery, plus hammer charge/release; an isolated
+  e1m1a client under dkguard/OpenGL1 software rendering selected both weapons,
+  fired them, rendered distinct hammer charge/strike frames, and completed with
+  exit 0. A second live replay consumed all six shotcycler rounds (999 to 993)
+  and the inspected shell capture shows the ejected model beside the gun at a
+  plausible size. **Unrun** — audible mix and remote-player sound/visual parity,
+  Slugger/Cordite live presentation, hammer target damage and other campaign
+  weapon scenarios. Headless audio was dummy, so source bindings alone do not
+  verify sound playback. ReleaseSafe build and one `make lint` pass (43 Python
+  checks plus Zig). Evidence: `zig-out/reports/weapon-gold-08`.
+
+- [seq:198] The live shotcycler flash capture exposed an opaque six-sided orange
+  plate. Gold's `FLASH_SHOTCYCLER` uses `models/global/genflash.dkm` at scale 3,
+  alpha 0.6 and an additive alpha-channel blend; the generic native flash had
+  the Glock mesh and the first replacement drew the correct mesh without its
+  alpha material. Added the reviewed `dk3/fx/shotcycler-flash` material and
+  bound it only to the shotcycler. **Passed** — a fresh isolated e1m1a client
+  fired the weapon and exited 0; inspected first-shot before/after frames show
+  the solid polygon replaced by the transparent flame. ReleaseSafe build and
+  refreshed `make lint` pass (43 Python checks plus Zig). Installed runtime
+  `eae74b887e35ffc89bb121f6d3d46b5da9e6877b238f5ab4c5a21c372c9ab16b`.
+  Evidence: `zig-out/reports/weapon-gold-08/shotcycler-flash-before.jpg`,
+  `shotcycler-flash-after.jpg` and `flash-replay.log`. Audible and remote-player
+  flash parity remain unrun.
+
+## weapons-zig — sequence 199
+
+Owner-authorized complete native Zig weapon rewrite, including adjacent modules
+required for ownership. Coding pass: all 28 concrete types, shared prediction,
+server combat/controllers, client presentation/effects, inventory and bot hooks.
+Removed the C combat translation unit, C weapon table and movement include; weapon
+presentation was removed from the C HUD file. Existing engine ABI, snapshot IDs
+and save fields remain integration boundaries. No Gold implementation was copied.
+
+Status: **complete native implementation; focused acceptance passed**. Architecture:
+`docs/weapons-zig.md`. The broader campaign and exhaustive Gold visual/audio parity
+remain separate, open acceptance requirements.
+
+| Scenario | State and evidence |
+|---|---|
+| Integrated native build and source-path audit | Passed — ReleaseSafe qagame/cgame build; all 28 registered Zig types; removed dk3 C combat/table/movement files absent; no C source under `src/weapons`; bundled engine development hashes match. |
+| Shared prediction, interruption and inventory contracts | Passed — every weapon fires, dead players cannot attack, deterministic replay of a mid-burst snapshot, six-round Shotcycler recovery, Hammer charge/release, Glock clip/reload/switch, Kineticore burst, Venom contact/water/ammo fallback, Flashlight edge triggering, sword levels, episode inventory transfer and invalid-charge validation. |
+| All 28 selection/firing paths | Passed — local rendered groups plus `network2-server.log` assert authoritative fires for IDs 1–28; no panic or native module error. This is firing/presentation coverage, not exhaustive interaction coverage for every weapon. |
+| Shotcycler/Hammer presentation | Passed — inspected additive Shotcycler flash/shell capture; charge/release captures at 30/60/144 fps and a 10 fps Shotcycler replay; half-charge release continues from the charged pose. Hammer strike is delayed to its damage frame. |
+| Captured Shotcycler audio | Passed — demo replay produced 376 video frames and 201 audio blocks; PCM correlation identifies six fire samples at 2.183/2.403/2.717/2.953/3.253/3.503 seconds. Physical speaker playback and every weapon's final mix remain unverified. |
+| Saved weapon state | Passed — saved Hammer charge 798 ms with attack held; Metamaser controller restored and continued damage; corrected C4 scenario asserts an attached charge in the save, restores it and reports `Detonating 1 C4 charge(s).` |
+| Liquid and companion integration | Passed — e1m1a Ion discharge, Venom underwater melee without ammo consumption, Trident and Zeus firing; Zeus damage 300 to target 232; companion Ion damage after local firing stopped. Companion routing itself is outside this weapon acceptance. |
+| Multiplayer and bot integration | Passed — independent dedicated server/client with 60 ms delay each way, all 28 authoritative fires, bot C4 fire, suicide and rendered respawn; shared replay regression checks deterministic prediction. Remote sound mix and all mode-specific weapon interactions remain unverified. |
+| Applicable broad suite | Passed — one `make lint` (`zig build test`), 43 Python tests plus Zig checks. |
+| Exhaustive Gold parity and authored campaign transitions | Unrun for this rewrite — do not infer full V5/V8/V9/V10 completion from these focused scenarios. Episode transfer rules have contract coverage; no new full campaign playthrough is claimed. |
+
+Repairs made during verification: corrected ABI boundaries and native build inputs;
+removed obsolete C policy APIs; made Hammer damage and release animation follow
+its charged frame; restored Gas Hands lifetime when using the all-weapons grant;
+moved remaining named impact/trail recipes into their weapon owners; removed a
+render-timestamp event filter that could discard distinct shots in one frame.
+The engine's existing event-sequence handling supplies replay suppression.
+
+Rejected probes remain visible in the evidence: the first grouped client batch was
+interrupted by its X display harness after weapon 26; subsequent isolated runs cover
+27/28. Initial fixed-wait save captures raced loading. The first network driver's
+setup commands hit flood protection; the corrected driver disables it and asserts
+all 28 server fire IDs. The original C4 save contained no projectile, and the first
+correction attempted firing in noclip; only the attached-charge assertion and
+successful restored detonation count as acceptance. One startup empty-sound warning
+appeared in local clients before firing; it was not reproduced in the dedicated
+client, and these runs do not establish its origin.
+
+Final installed runtime:
+`c103168872563be1eca0a51093406e4586fdcc47fc413f7bafa7988aaf68ceb3`.
+Existing asset/HD packages and save schema remain compatible. Private Gold source
+was read for behavior and supplied asset bindings; no implementation was imported.
+All runtime scenarios used dkguard, isolated homes/saves and software rendering.
+Evidence, reproducible input drivers, inspected frames, demo/AVI, audio analysis,
+logs and final check output: `zig-out/reports/weapons-zig-199`.

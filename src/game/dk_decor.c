@@ -2,6 +2,7 @@
 /* Supplied decoration tables describe models, bounds, animation and physical rules. */
 #include "g_local.h"
 #include "dk_tables.h"
+#include "dk_effects.h"
 
 #define DK_DECOR_LIMIT 768
 typedef struct {
@@ -85,7 +86,7 @@ qboolean DK_ValidateDecorState(gentity_t *entity) {
         return (!strcmp(entity->classname, "misc_hosportal") || !strcmp(entity->classname, "misc_fountain") ||
                 !strcmp(entity->classname, "misc_healthtree") || !strcmp(entity->classname, "misc_drugbox")) &&
             entity->dk.supply >= 0 && entity->dk.supply <= entity->dk.supplyMaximum &&
-            entity->dk.supplyMaximum > 0 && entity->dk.supplyMaximum <= 100000 && entity->dk.recharge > 0;
+            entity->dk.supplyMaximum > 0 && entity->dk.supplyMaximum <= 100000 && entity->dk.recharge >= 0;
     if (entity->dk.decorKind < 1 || entity->dk.decorKind > definitionCount ||
         entity->dk.action < 0 || entity->dk.action >= 5 || entity->dk.objectMove < 0 || entity->dk.objectMove > 3) return qfalse;
     info = &definitions[entity->dk.decorKind - 1];
@@ -177,28 +178,97 @@ static void Think(gentity_t *entity) {
     entity->nextthink = level.time + 100;
 }
 
+static int HealingMaximum(gentity_t *user) {
+    return !user || user->health <= 0 ? 0 : user->client ? user->client->ps.stats[STAT_MAX_HEALTH] :
+        DK_IsCompanion(user) ? user->dk.maxHealth : 0;
+}
+
+static void GrantHealth(gentity_t *user, int amount) {
+    user->health += amount;
+    if (user->health > HealingMaximum(user)) user->health = HealingMaximum(user);
+    if (user->client) user->client->ps.stats[STAT_HEALTH] = user->health;
+}
+
+static void HealingStop(gentity_t *entity) {
+    entity->dk.healingUser = 0; entity->s.loopSound = 0; entity->s.dk3Effect = 0;
+    entity->dk.rechargeTime = level.time + entity->dk.recharge;
+    G_Sound(entity, CHAN_AUTO, DK_SoundIndex("global/h_use_done.wav"));
+}
+
 static void Recharge(gentity_t *entity) {
-    if (entity->dk.supply < entity->dk.supplyMaximum && entity->dk.rechargeTime <= level.time) {
-        ++entity->dk.supply; entity->dk.rechargeTime = level.time + entity->dk.recharge;
+    qboolean tree = strstr(entity->classname, "healthtree") != NULL;
+    qboolean box = strstr(entity->classname, "drugbox") != NULL;
+    gentity_t *user = DK_FindEntity(entity->dk.healingUser);
+    entity->nextthink = level.time + 100;
+    if (box) {
+        if (entity->dk.action == 1) entity->s.frame = (int)Com_Clamp(1, 29, (level.time - entity->dk.animationTime) / 50);
+        if (entity->dk.supply <= 0) {
+            entity->s.dk3Alpha = Com_Clamp(0, 1, (entity->dk.expires - level.time) / 2000.0f);
+            if (level.time >= entity->dk.expires) G_FreeEntity(entity);
+        }
+        return;
     }
-    entity->nextthink = level.time + 250;
+    if (entity->dk.healingUser) {
+        vec3_t forward, toward;
+        qboolean facing = qtrue;
+        if (user && user->client) {
+            AngleVectors(user->client->ps.viewangles, forward, NULL, NULL);
+            VectorSubtract(entity->r.currentOrigin, user->r.currentOrigin, toward); VectorNormalize(toward);
+            facing = DotProduct(forward, toward) > 0.3f;
+        }
+        if (!user || user->health >= HealingMaximum(user) || Distance(user->r.currentOrigin, entity->r.currentOrigin) > 64 ||
+            !facing || entity->dk.supply <= 0) HealingStop(entity);
+        else if (level.time >= entity->dk.nextUse) {
+            GrantHealth(user, 1); --entity->dk.supply; entity->dk.nextUse = level.time + 200;
+            entity->s.frame = entity->dk.supply > 0;
+        }
+        return;
+    }
+    if (entity->dk.recharge > 0 && entity->dk.supply < entity->dk.supplyMaximum && entity->dk.rechargeTime <= level.time) {
+        ++entity->dk.supply; entity->dk.rechargeTime = level.time + entity->dk.recharge;
+        entity->s.frame = tree ? entity->dk.supplyMaximum - entity->dk.supply : entity->dk.supply == entity->dk.supplyMaximum;
+        if (tree || entity->dk.supply == entity->dk.supplyMaximum)
+            G_Sound(entity, CHAN_AUTO, DK_SoundIndex(tree ? "e1/t_regen.wav" : "global/h_recharged.wav"));
+    }
 }
 
 static void Heal(gentity_t *entity, gentity_t *other, gentity_t *activator) {
-    int maximum, amount;
+    qboolean tree = strstr(entity->classname, "healthtree") != NULL;
+    qboolean box = strstr(entity->classname, "drugbox") != NULL;
     (void)other;
-    if (!activator || activator->health <= 0 || level.time < entity->dk.nextUse || entity->dk.supply <= 0) return;
-    maximum = activator->client ? activator->client->ps.stats[STAT_MAX_HEALTH] : DK_IsCompanion(activator) ? activator->dk.maxHealth : 0;
-    amount = strstr(entity->classname, "healthtree") ? 25 : strstr(entity->classname, "drugbox") ? 10 : 5;
-    if (maximum <= activator->health) return;
-    if (amount > maximum - activator->health) amount = maximum - activator->health;
-    if (!strstr(entity->classname, "healthtree") && amount > entity->dk.supply) amount = entity->dk.supply;
-    activator->health += amount;
-    if (activator->client) activator->client->ps.stats[STAT_HEALTH] = activator->health;
-    entity->dk.supply -= strstr(entity->classname, "healthtree") ? 1 : amount;
-    entity->dk.nextUse = level.time + (strstr(entity->classname, "healthtree") ? 1000 : 250);
-    if (entity->noise_index) G_AddEvent(entity, EV_GENERAL_SOUND, entity->noise_index);
-    G_UseTargets(entity, activator);
+    if (!activator || !HealingMaximum(activator) || level.time < entity->dk.nextUse || entity->dk.supply <= 0) return;
+    if (box && !entity->dk.action) {
+        entity->dk.action = 1; entity->dk.animationTime = level.time; entity->dk.nextUse = level.time + 1500;
+        G_Sound(entity, CHAN_AUTO, DK_SoundIndex("global/e_doorsqk.wav")); return;
+    }
+    if (activator->health >= HealingMaximum(activator)) return;
+    if (tree || box) {
+        GrantHealth(activator, 10); --entity->dk.supply;
+        if (tree) {
+            entity->s.frame = entity->dk.supplyMaximum - entity->dk.supply;
+            entity->dk.nextUse = level.time + 1000;
+            G_Sound(entity, CHAN_AUTO, DK_SoundIndex((entity->dk.supply & 1) ? "e1/t_use1.wav" : "e1/t_use2.wav"));
+        } else {
+            static const char *sounds[] = {"e1/m_dspheresteama.wav", "artifacts/antidoteuse.wav", "e1/we_dgloveamba.wav"};
+            static const int delays[] = {1250, 2250, 1750};
+            int stage = (int)Com_Clamp(0, 2, 2 - entity->dk.supply);
+            entity->dk.action = 2; entity->s.frame = 30 + stage;
+            entity->dk.nextUse = level.time + delays[stage];
+            G_Sound(entity, CHAN_AUTO, DK_SoundIndex(sounds[stage]));
+            if (!entity->dk.supply) entity->dk.expires = level.time + 2000;
+        }
+        G_UseTargets(entity, activator);
+    } else if (!entity->dk.healingUser) {
+        entity->dk.healingUser = activator->dk.id;
+        entity->dk.nextUse = level.time + 200;
+        entity->s.loopSound = DK_SoundIndex("global/h_hfx.wav");
+        entity->s.dk3Effect = DK_FX_PARTICLES; entity->s.dk3EffectFlags = DK_FX_ENABLED;
+        entity->s.dk3EffectRate = 20; entity->s.dk3EffectSpeed = 24; entity->s.dk3EffectRadius = 1;
+        VectorSet(entity->s.dk3EffectColor, 0.2f, 0.7f, 1); VectorSet(entity->s.dk3EffectGravity, 0, 0, -60);
+        if (!strcmp(entity->classname, "misc_fountain")) entity->s.loopSound = DK_SoundIndex("global/e_pondwaterb.wav");
+        G_Sound(entity, CHAN_AUTO, DK_SoundIndex("global/h_use.wav"));
+        G_UseTargets(entity, activator);
+    }
 }
 
 static void HealTouch(gentity_t *entity, gentity_t *other, trace_t *trace) { (void)trace; Heal(entity, other, other); }
@@ -255,10 +325,14 @@ qboolean DK_SpawnDecor(gentity_t *entity) {
             !strcmp(entity->classname, "misc_fountain") ? "models/e2/a2_hlthfnt.dkm" :
             !strcmp(entity->classname, "misc_healthtree") ? "models/e1/healthtree.dkm" : "models/e4/a4_dbox.dkm";
         entity->dk.decorKind = -1; entity->model = G_NewString(model);
-        G_SpawnInt("max_fruit", strstr(entity->classname, "healthtree") ? "5" : "100", &entity->dk.supplyMaximum);
+        G_SpawnInt("max_fruit", strstr(entity->classname, "healthtree") ? "5" : strstr(entity->classname, "drugbox") ? "3" : "100", &entity->dk.supplyMaximum);
         G_SpawnInt("max_juice", va("%d", entity->dk.supplyMaximum), &entity->dk.supplyMaximum);
         entity->dk.supply = entity->dk.supplyMaximum;
-        G_SpawnFloat("recharge_rate", "15", &recharge); entity->dk.recharge = Com_Clamp(1, 3600, recharge) * 1000;
+        G_SpawnFloat("recharge_rate", strstr(entity->classname, "drugbox") ? "0" : strstr(entity->classname, "healthtree") ?
+            (g_gametype.integer == GT_SINGLE_PLAYER ? "0" : "30") : "0.1", &recharge);
+        entity->dk.recharge = Com_Clamp(0, 3600, recharge) * 1000;
+        entity->s.dk3Alpha = 1;
+        entity->s.frame = !strcmp(entity->classname, "misc_hosportal") || !strcmp(entity->classname, "misc_fountain");
         entity->dk.rechargeTime = level.time + entity->dk.recharge;
         VectorSet(entity->r.mins, -16, -16, -24); VectorSet(entity->r.maxs, 16, 16, 32); entity->r.contents = CONTENTS_SOLID;
     } else return qfalse;
