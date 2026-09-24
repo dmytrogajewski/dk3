@@ -29,10 +29,17 @@ pub const spec: profiles.Spec = .{
         .fire = "e1/we_dgloveshoota.wav",
         .ready = "e1/we_dgloveready.wav",
         .away = "e1/we_dgloveaway.wav",
+        .idle = .{ "e1/we_dgloveamba.wav", "e1/we_dgloveambb.wav", null },
     },
 };
+/// Gold picks shoota (12 frames) or shootb (10 frames) at random; the next
+/// punch waits for the animation plus 0.1 s.
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    var result = shot_rules.standard(controller);
+    const seed: u32 = @bitCast(controller.move.cmd.serverTime);
+    result.sequence = @intCast(((seed *% 1103515245 +% 12345) >> 16) & 1);
+    result.duration_ms = controller.scaled(if (result.sequence == 0) 600 else 500) + 100;
+    return result;
 }
 pub fn update(controller: anytype) void {
     controller.automatic(@This());
@@ -47,19 +54,48 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     cue.mark = "models/global/we_dispunch.sp2/0@mark";
     cue.radius = 8;
     cue.sound = if (context.kind == 1) "e1/we_dglovehita.wav" else "e1/we_dglovehitc.wav";
+    if (context.frame == 1) {
+        cue.sparks = 5;
+        cue.spark_color = .{ 0.5, 0.5, 1 };
+        cue.light_radius = 350;
+        cue.light_color = .{ 0, 0, 1 };
+        cue.light_ms = 150;
+    }
     return cue;
 }
-pub fn viewCue(_: c_int, _: c_int) d.ViewCue {
-    return basicView(spec);
+var marker: c_int = 0;
+pub fn impactMaterial(event: *server.Entity, _: *const c.trace_t, _: bool) void {
+    event.s.frame = marker;
+}
+pub fn viewCue(sequence: c_int, _: c_int) d.ViewCue {
+    var cue = basicView(spec);
+    if (sequence == 1) cue.pose = "shootb";
+    return cue;
 }
 pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_disruptor", .label = "Disruptor", .episode = 1, .interval = 600 };
+pub const identity = .{ .classname = "weapon_disruptor", .label = "Disruptor", .episode = 1, .interval = 650 };
 
 pub fn fire(shot: server.Fire) void {
-    server.traceShot(@This(), shot, server.info(@This()).damage, server.info(@This()).range);
+    const owner = shot.owner;
+    var start = shot.start;
+    if (owner.client != null) {
+        start = owner.client[0].ps.origin;
+        start[2] += if ((owner.client[0].ps.pm_flags & c.PMF_DUCKED) != 0) -4 else 21;
+    }
+    const hit = server.trace(start, v.madd(start, server.info(@This()).range, shot.forward), owner.s.number, c.MASK_SHOT);
+    if (hit.fraction == 1) return;
+    const victim = &c.g_entities[@intCast(hit.entityNum)];
+    const damaged = hit.entityNum < c.ENTITYNUM_WORLD and victim.takedamage != 0;
+    marker = @intFromBool(damaged or v.distance(hit.endpos, owner.r.currentOrigin) < 40);
+    _ = server.impact(@This(), &hit, damaged);
+    marker = 0;
+    if (!damaged) return;
+    var amount = server.info(@This()).damage;
+    if (c.g_gametype.integer == c.GT_SINGLE_PLAYER) amount *= 0.5;
+    server.damage(@This(), .{ .victim = victim, .inflictor = owner, .owner = owner, .direction = shot.forward, .point = hit.endpos, .amount = amount, .inertial = true });
 }
 
 const render = @import("../client/render.zig");

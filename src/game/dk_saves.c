@@ -135,6 +135,7 @@ static qboolean WriteSnapshot(gentity_t *player) {
             if (!DK_FindEntity(saved.dk.monitorId)) saved.dk.monitorId = 0;
             if (!DK_FindEntity(saved.dk.healingUser)) saved.dk.healingUser = 0;
             if (!DK_FindEntity(saved.dk.parentId)) saved.dk.parentId = 0;
+            if (!DK_FindEntity(saved.dk.weaponParentId)) saved.dk.weaponParentId = 0;
             if (!DK_FindEntity(saved.dk.pickupId)) saved.dk.pickupId = 0;
             if (!DK_SaveRecord(&writer, "entity", ent->dk.id) ||
                 !DK_SaveObject(&writer, &saved, dk_entityMembers, dk_entityMemberCount)) return Reject(writer.error);
@@ -348,6 +349,7 @@ static qboolean ValidateWorld(int length, qboolean allowVisited) {
             parent = staged[identities[index].slot].dk.parentId;
         }
         if (ent->dk.eventFirst > eventRecords - ent->dk.eventCount || !identities[i].references || !DK_SaveReferenceExists(ent->dk.ownerId) ||
+            !DK_SaveReferenceExists(ent->dk.weaponParentId) ||
             !DK_SaveReferenceExists(ent->dk.destinationId) || !DK_SaveReferenceExists(ent->dk.statusOwnerId) || !DK_SaveReferenceExists(ent->dk.pickupId) || !DK_SaveReferenceExists(ent->dk.parentId) || !DK_SaveReferenceExists(ent->dk.monitorId) || !DK_SaveReferenceExists(ent->dk.healingUser)) return Reject("dangling gameplay reference");
         if ((!ent->r.bmodel && ent->s.modelindex && !resources[CS_MODELS + ent->s.modelindex]) ||
             (ent->s.modelindex2 && !resources[CS_MODELS + ent->s.modelindex2]) ||

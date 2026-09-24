@@ -28,7 +28,7 @@ pub fn View(comptime W: type) type {
             self.start = start;
             self.rate = rate;
             self.end = start + duration;
-            self.idle_at = self.end + 5000;
+            self.idle_at = self.end + 2000 + @mod(start *% 7919, 6001);
         }
         pub fn isIdle(self: *Self) bool {
             const pose = self.pose orelse return false;
@@ -53,7 +53,9 @@ pub fn View(comptime W: type) type {
                 if (ps.weaponstate == c.WEAPON_FIRING and (self.state != c.WEAPON_FIRING or self.shot != shot)) {
                     if (@hasDecl(W, "startShotPose")) W.startShotPose(self, ps, shot, reset) else {
                         const cue = W.viewCue(ps.dk3WeaponSequence, ps.dk3SwordExperience);
-                        if (cue.pose != null) self.play(std.mem.span(cue.pose), r.now() + cue.poseStartOffsetMs, if (cue.rate > 0) cue.rate else 20);
+                        const rate = if (cue.rate > 0) cue.rate else 20;
+                        const factor = @import("../rules.zig").attackFactor(c.DK_Attribute(ps, 1, r.now()));
+                        if (cue.pose != null) self.play(std.mem.span(cue.pose), r.now() + cue.poseStartOffsetMs, v.i(v.f(rate) * factor));
                     }
                 } else if ((reset or ps.weaponstate != self.state) and ps.weaponstate == c.WEAPON_RAISING) {
                     self.play(W.spec.animation.ready, r.now(), 20);
@@ -66,8 +68,13 @@ pub fn View(comptime W: type) type {
                 } else if (ps.weaponstate == c.WEAPON_READY and r.now() >= self.end and !self.isIdle()) {
                     if (W.spec.animation.idle[0]) |idle| self.play(idle, r.now(), 20);
                 } else if (ps.weaponstate == c.WEAPON_READY and r.now() >= self.idle_at) {
-                    self.idle_variant = (self.idle_variant + 1) % 3;
-                    if (W.spec.animation.idle[self.idle_variant] orelse W.spec.animation.idle[0]) |idle| self.play(idle, r.now(), 20);
+                    var count: usize = 0;
+                    for (W.spec.animation.idle) |idle| count += @intFromBool(idle != null);
+                    self.idle_variant = if (count > 0) @as(usize, @intCast(@mod(r.now() *% 104729, 997))) % count else 0;
+                    if (W.spec.animation.idle[self.idle_variant] orelse W.spec.animation.idle[0]) |idle| {
+                        self.play(idle, r.now(), 20);
+                        if (W.spec.audio.idle[self.idle_variant]) |name| r.localSound(name);
+                    }
                 }
             }
             if (@hasDecl(W, "viewFrame")) W.viewFrame(self, ps, entity) else if (self.pose) |pose| c.DK_ModelAnimationRate(W.spec.animation.view_model, pose, self.start, @intFromBool(self.isIdle()), self.rate, entity);
@@ -100,6 +107,7 @@ pub fn draw(comptime W: type, ps: *c.playerState_t) void {
     if (@hasDecl(W, "heldEffect")) W.heldEffect(&entity, ps.clientNum);
 }
 pub fn world(comptime W: type, parent: *c.refEntity_t, cent: *c.centity_t) void {
+    if (W.spec.audio.hum) |hum| c.trap_S_AddLoopingSound(cent.currentState.number, &cent.lerpOrigin, &v.zero, r.sound(hum));
     const path = W.spec.world_model orelse return;
     if (path.len == 0) return;
     var entity = std.mem.zeroes(c.refEntity_t);

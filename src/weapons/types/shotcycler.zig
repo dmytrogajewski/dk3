@@ -14,6 +14,7 @@ const server = @import("../server/combat.zig");
 pub const id = c.DK_W_SHOTCYCLER;
 pub const spec: profiles.Spec = .{
     .ammo_class = "ammo_shells", // shotcycler
+    .ammo_pack = 24,
     .world_model = "models/e1/a_shot.dkm",
     .animation = .{
         .view_model = "models/e1/w_shotcycler.dkm",
@@ -30,6 +31,7 @@ pub const spec: profiles.Spec = .{
         .ready = "e1/we_shotcyclerready.wav",
         .away = "e1/we_shotcycleraway.wav",
         .finish = "e1/we_shotcyclershootb.wav",
+        .idle = .{ "e1/we_shotcycleramba.wav", null, null },
     },
     .burst_shots = 6,
     .burst_recovery_ms = 1800,
@@ -57,13 +59,40 @@ pub fn audioCue(context: AudioContext) d.AudioCue {
     return .{ .fire = pointer(spec.audio.fire), .extra = pointer(shells[@intCast(@mod(@divTrunc(context.fired, 270), 6))]) };
 }
 pub fn impactCue(context: impact.Context) impact.Cue {
-    return impact.bullet(context);
+    var cue = impact.none(context);
+    cue.mark = "dk3/fx/shotcycler-mark";
+    cue.radius = 8;
+    return cue;
 }
 
 pub const identity = .{ .classname = "weapon_shotcycler", .label = "Shotcycler-6", .episode = 1, .interval = 270 };
 
 pub fn fire(shot: server.Fire) void {
-    server.pellets(@This(), shot, 10, 0.09, if (c.g_gametype.integer == c.GT_SINGLE_PLAYER) 0.75 else 1);
+    // Gold pellets reach the crosshair point plus 64 units, not the table range.
+    var reach = server.info(@This()).range;
+    var aimed = shot;
+    if (shot.owner.client != null) {
+        const ps = &shot.owner.client[0].ps;
+        var eye = ps.origin;
+        eye[2] += v.f(ps.viewheight);
+        var forward: v.Vec = undefined;
+        c.AngleVectors(&ps.viewangles, &forward, null, null);
+        const aim = server.trace(eye, v.madd(eye, 4000, forward), shot.owner.s.number, c.MASK_SHOT);
+        reach = v.distance(shot.start, aim.endpos) + 64;
+        const delta = v.sub(aim.endpos, shot.start);
+        if (v.dot(delta, forward) > 1) aimed.forward = v.normal(delta);
+        // Gold weapon_kick, twice per shot.
+        ps.velocity = v.madd(ps.velocity, -140, forward);
+    }
+    server.pelletBlast(@This(), aimed, .{
+        .count = 10,
+        .spread = 0.09,
+        .scale = if (c.g_gametype.integer == c.GT_SINGLE_PLAYER) 0.75 else 1,
+        .range = reach,
+        .max_victims = 2,
+        .last_impact_only = true,
+        .inertial = true,
+    });
 }
 
 const render = @import("../client/render.zig");

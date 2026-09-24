@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+const std = @import("std");
 const c = @import("../abi.zig").c;
 const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
@@ -16,7 +17,8 @@ pub const spec: profiles.Spec = .{
     .splash_hazard = true,
     .ammo_class = "ammo_c4", // c4
     .projectile = .{ .gravity = true, .splash_scale = 1, .splash_radius = 300 },
-    .visual = .{ .projectile_model = "models/e1/we_c4prj.dkm" },
+    .visual = .{ .projectile_model = "models/e1/we_c4prj.dkm", .blast_sound = "global/e_explode1.wav", .color = .{ 1, 0.5, 0 }, .glow = false },
+    .companion_pickup = false,
     .world_model = "models/e1/a_c4.dkm",
     .animation = .{
         .view_model = "models/e1/w_c4.dkm",
@@ -31,6 +33,7 @@ pub const spec: profiles.Spec = .{
         .fire = "e1/we_c4shoota.wav",
         .ready = "e1/we_c4ready.wav",
         .away = "e1/we_c4away.wav",
+        .idle = .{ null, "e1/we_c4ambb.wav", null },
     },
     .projectile_muzzle = true,
 };
@@ -55,7 +58,13 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_c4", .label = "C4 Vizatergo", .episode = 1, .interval = 600 };
+pub const identity = .{ .classname = "weapon_c4", .label = "C4 Vizatergo", .episode = 1, .interval = 1350 };
+
+const chain_range = 200;
+const blast_range = 300;
+const trigger_range = 150;
+const sense_range = 300;
+const max_deployed = 4;
 
 pub fn fire(shot: server.Fire) void {
     _ = server.spawn(@This(), shot);
@@ -64,14 +73,21 @@ const ChargeState = enum(c_int) { flying, attached, detonating };
 fn phase(ent: *server.Entity) ChargeState {
     return @enumFromInt(ent.dk.action);
 }
-fn arm(ent: *server.Entity) void {
-    if (phase(ent) == .detonating) return;
+/// Gold sets think = c4Explode at a delay; the earliest schedule wins.
+fn schedule(ent: *server.Entity, delay: c_int) void {
+    const at = server.now() + delay;
+    if (phase(ent) == .detonating and ent.dk.combatNext <= at) return;
     ent.dk.action = @intFromEnum(ChargeState.detonating);
-    ent.dk.expires = server.now() + 100;
+    ent.dk.combatNext = at;
     ent.takedamage = c.qfalse;
 }
-pub fn die(ent: [*c]server.Entity, _: [*c]server.Entity, _: [*c]server.Entity, _: c_int, _: c_int) callconv(.c) void {
-    arm(@ptrCast(ent));
+fn charge(ent: *const server.Entity) bool {
+    return ent.inuse != 0 and ent.dk.projectile != 0 and ent.s.weapon == id and ent.s.eType == c.ET_DK3_MISSILE;
+}
+pub fn die(raw: [*c]server.Entity, inflictor: [*c]server.Entity, _: [*c]server.Entity, _: c_int, _: c_int) callconv(.c) void {
+    // Another charge's blast is handled by the chain reaction.
+    if (inflictor != null and charge(@ptrCast(inflictor))) return;
+    schedule(@ptrCast(raw), 0);
 }
 pub fn initializeProjectile(ent: *server.Entity) void {
     ent.health = 5;
@@ -80,52 +96,105 @@ pub fn initializeProjectile(ent: *server.Entity) void {
     ent.r.contents = c.CONTENTS_CORPSE;
     ent.r.mins = @splat(-8);
     ent.r.maxs = @splat(8);
+    ent.dk.actionTime = server.now() + 50;
+    ent.dk.nextUse = server.now();
 }
 pub fn restore(ent: *server.Entity) void {
     ent.die = die;
     if (ent.s.pos.trType == c.TR_STATIONARY) ent.r.ownerNum = c.ENTITYNUM_NONE;
 }
-pub fn detonate(owner: *server.Entity) c_int {
+fn deployed(owner_id: c_uint) c_int {
+    var count: c_int = 0;
+    for (server.entities()) |*ent| count += @intFromBool(charge(ent) and ent.dk.ownerId == owner_id);
+    return count;
+}
+fn detonateAll(owner_id: c_uint, staggered: bool) c_int {
     var count: c_int = 0;
     for (server.entities()) |*ent| {
-        if (ent.inuse == 0 or ent.dk.projectile == 0 or ent.s.weapon != id or ent.dk.ownerId != owner.dk.id or phase(ent) == .detonating) continue;
-        arm(ent);
+        if (!charge(ent) or ent.dk.ownerId != owner_id) continue;
         count += 1;
+        schedule(ent, if (staggered) 200 * count else 0);
     }
     return count;
 }
-pub fn contact(hit: server.Contact) void {
-    const point = v.madd(hit.hit.endpos, 1, hit.hit.plane.normal);
-    hit.ent.r.currentOrigin = point;
-    if (hit.victim().takedamage != 0) {
-        server.explode(@This(), hit.ent);
-        return;
+pub fn detonate(owner: *server.Entity) c_int {
+    return detonateAll(owner.dk.id, false);
+}
+/// Gold c4Explode: every charge within 200 goes off 0.1 s apart and each
+/// adds 10% to this blast; a stuck charge has no owner to spare.
+fn blow(ent: *server.Entity) void {
+    var count: c_int = 1;
+    for (server.entities()) |*other| {
+        if (other == ent or !charge(other) or v.distance(other.r.currentOrigin, ent.r.currentOrigin) > chain_range) continue;
+        schedule(other, 100 * count);
+        count += 1;
     }
-    server.stop(hit.ent, point);
-    if (phase(hit.ent) != .detonating) hit.ent.dk.action = @intFromEnum(ChargeState.attached);
-    hit.ent.dk.actionTime = server.now() + 1000;
-    hit.ent.r.ownerNum = c.ENTITYNUM_NONE;
-    if (hit.victim().s.eType == c.ET_MOVER) hit.ent.dk.parentId = hit.victim().dk.id;
-    c.G_AddEvent(hit.ent, c.EV_GENERAL_SOUND, c.DK_SoundIndex("e1/we_c4cona.wav"));
-    server.link(hit.ent);
+    const owner = server.find(ent.dk.ownerId);
+    const amount = v.f(ent.damage) * (1 + 0.1 * v.f(count));
+    ent.takedamage = c.qfalse;
+    c.trap_UnlinkEntity(ent);
+    server.blast(ent.r.currentOrigin, id);
+    _ = server.splash(@This(), .{ .point = ent.r.currentOrigin, .inflictor = ent, .attacker = owner, .halved = if (phase(ent) == .flying) owner else null, .amount = amount, .range = blast_range, .ignore = ent });
+    server.free(ent);
+}
+pub fn contact(hit: server.Contact) void {
+    const ent = hit.ent;
+    const victim = hit.victim();
+    ent.r.currentOrigin = v.madd(hit.hit.endpos, 1, hit.hit.plane.normal);
+    if (victim.takedamage != 0 or victim.client != null or victim.dk.actorKind != 0) return blow(ent);
+    const surface = hit.hit.surfaceFlags;
+    const sound = if ((surface & c.SURF_METALSTEPS) != 0) "e1/we_c4metala.wav" else if ((surface & c.SURF_DK_WOOD) != 0) "e1/we_c4wooda.wav" else "e1/we_c4cona.wav";
+    var angles: v.Vec = undefined;
+    c.vectoangles(&ent.s.pos.trDelta, &angles);
+    angles[2] = @mod(v.f(server.now() - ent.s.time) * 1.44, 360);
+    ent.s.angles = angles;
+    server.stop(ent, ent.r.currentOrigin);
+    if (phase(ent) != .detonating) ent.dk.action = @intFromEnum(ChargeState.attached);
+    ent.dk.actionTime = server.now() + 1000;
+    ent.r.ownerNum = c.ENTITYNUM_NONE;
+    if (victim.s.eType == c.ET_MOVER) ent.dk.parentId = victim.dk.id;
+    c.G_AddEvent(ent, c.EV_GENERAL_SOUND, c.DK_SoundIndex(sound));
+    server.link(ent);
+}
+fn beep(ent: *server.Entity) void {
+    c.G_AddEvent(ent, c.EV_GENERAL_SOUND, c.DK_SoundIndex("e1/we_c4beepa.wav"));
 }
 pub fn projectileTick(ent: *server.Entity) void {
-    if (server.expired(@This(), ent)) return;
-    if (phase(ent) != .attached or server.now() < ent.dk.actionTime) return;
-    var nearest: f32 = 300;
+    const now = server.now();
+    if (phase(ent) == .detonating) {
+        if (now >= ent.dk.combatNext) blow(ent);
+        return;
+    }
+    if (now < ent.dk.actionTime) return;
+    ent.dk.actionTime = now + 100;
+    if (phase(ent) == .flying) {
+        var velocity = server.velocity(ent);
+        velocity[0] += (server.random(ent) - 0.5) * 80;
+        velocity[1] += (server.random(ent) - 0.5) * 80;
+        velocity[2] += (server.random(ent) - 0.5) * 20;
+        server.steer(ent, velocity);
+    }
+    if (now > ent.dk.expires or deployed(ent.dk.ownerId) > max_deployed) {
+        if (now > ent.dk.expires or server.random(ent) <= 0.05) {
+            _ = detonateAll(ent.dk.ownerId, true);
+            return;
+        }
+        beep(ent);
+    }
+    if (phase(ent) != .attached) return;
+    var nearest: f32 = 4096;
     for (server.entities()) |*target| {
         if (target.inuse == 0 or target.health <= 0 or (target.client == null and target.dk.actorKind == 0) or (target.client != null and target.client[0].sess.sessionTeam == c.TEAM_SPECTATOR)) continue;
         const distance = v.distance(ent.r.currentOrigin, target.r.currentOrigin);
-        if (distance >= nearest or c.CanDamage(target, &ent.r.currentOrigin) == 0) continue;
-        if (distance < 150) {
-            server.explode(@This(), ent);
-            return;
-        }
+        if (distance > sense_range or distance >= nearest or c.CanDamage(target, &ent.r.currentOrigin) == 0) continue;
         nearest = distance;
     }
-    if (server.now() >= ent.dk.nextUse) {
-        c.G_AddEvent(ent, c.EV_GENERAL_SOUND, c.DK_SoundIndex("e1/we_c4beepa.wav"));
-        ent.dk.nextUse = server.now() + @as(c_int, if (nearest < 300) 350 else 1500);
+    if (nearest < trigger_range) return blow(ent);
+    if (nearest >= sense_range) return;
+    if (ent.dk.nextUse + v.i(nearest * 2) < now) {
+        beep(ent);
+        ent.s.time2 = now;
+        ent.dk.nextUse = now;
     }
 }
 
@@ -147,7 +216,38 @@ pub fn drawImpact(cent: *c.centity_t) void {
     render.impact(@This(), cent);
 }
 pub fn drawProjectile(cent: *c.centity_t) void {
-    render.model(@This(), cent);
+    const state = &cent.currentState;
+    var entity = std.mem.zeroes(c.refEntity_t);
+    entity.reType = c.RT_MODEL;
+    entity.hModel = c.DK_RegisterModel(spec.visual.projectile_model);
+    entity.origin = cent.lerpOrigin;
+    var angles = state.angles;
+    if (state.pos.trType != c.TR_STATIONARY) {
+        c.vectoangles(&state.pos.trDelta, &angles);
+        angles[2] = @mod(v.f(render.now() - state.time) * 1.44, 360);
+    }
+    c.AnglesToAxis(&angles, &entity.axis);
+    entity.shaderRGBA = @splat(255);
+    c.trap_R_AddRefEntityToScene(&entity);
+    // Gold EF2_C4_BEEP: a red blink toward the viewer on each beep.
+    if (state.time2 > 0 and render.now() >= state.time2 and render.now() - state.time2 < 100) {
+        const toward = v.normal(v.sub(c.cg.refdef.vieworg, cent.lerpOrigin));
+        const point = v.madd(cent.lerpOrigin, 6, toward);
+        render.light(point, 100, .{ 1, 0, 0 });
+        _ = render.sprite("models/global/e_sflred.sp2", 0, point, v.zero, 0.8, 0.9, render.white, c.DK_SPRITE_ADDITIVE);
+    }
+}
+/// Gold c4Select: choosing the C4 while holding it presses the detonator.
+pub var button_at: c_int = 0;
+pub fn reselect() void {
+    c.trap_SendClientCommand("detonate");
+    button_at = render.now();
+}
+pub fn viewAction(view: anytype, _: *c.playerState_t, _: c_int, _: bool) bool {
+    if (button_at == 0) return false;
+    button_at = 0;
+    view.play("btnpsh", render.now(), 20);
+    return true;
 }
 pub fn validProjectile(ent: *const server.Entity) bool {
     return ent.dk.action >= 0 and ent.dk.action <= 2;

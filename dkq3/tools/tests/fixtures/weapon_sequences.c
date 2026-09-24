@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
+#undef NDEBUG /* Zig cc optimization must not remove the contract assertions. */
 #include "g_local.h"
 #include "bg_local.h"
 #include "dk_weapons.h"
@@ -23,7 +24,10 @@ static void Begin(int weapon, int ammo) {
     movement.ps = &state; movement.trace = Trace; movement.cmd.weapon = weapon; pm = &movement;
     state.pm_type = PM_NORMAL; state.stats[STAT_HEALTH] = 100;
     state.weapon = weapon; state.dk3Inventory = 1u << weapon; state.ammo[weapon] = ammo;
-    dk_weapons[weapon].loaded = qtrue; dk_weapons[weapon].ammoCost = 1;
+    dk_weapons[weapon].loaded = qtrue;
+    dk_weapons[weapon].ammoCost = (weapon == DK_W_DISRUPTOR || weapon == DK_W_GASHANDS ||
+        weapon == DK_W_HAMMER || weapon == DK_W_SWORD || weapon == DK_W_FLASHLIGHT) ? 0 :
+        (weapon == DK_W_NOVABEAM ? 2 : 1);
     pml.msec = 10;
 }
 static void Run(int milliseconds, qboolean attack) {
@@ -67,15 +71,46 @@ int main(void) {
     Begin(DK_W_KINETICORE, 20);
     Run(10, qtrue); Run(500, qfalse);
     assert(shots == 5 && state.ammo[DK_W_KINETICORE] == 15);
-    Run(600, qtrue); assert(shots == 5);
-    Run(400, qtrue); assert(shots > 5);
+    Run(1290, qtrue); assert(shots == 5);
+    Run(10, qtrue); assert(shots == 6);
 
     Begin(DK_W_GLOCK, 25); state.dk3GlockClip = 10;
-    Run(2310, qtrue); assert(shots == 10 && state.dk3GlockClip == 0 && state.weaponstate == WEAPON_DROPPING);
+    Run(4510, qtrue); assert(shots == 10 && state.dk3GlockClip == 0 && state.weaponstate == WEAPON_DROPPING);
     assert(state.dk3WeaponSequence == DK_GLOCK_RELOAD_SEQUENCE);
-    Run(800, qtrue); assert(shots == 10);
-    Run(400, qtrue); assert(shots == 11 && state.ammo[DK_W_GLOCK] == 14);
+    Run(1640, qfalse); assert(shots == 10);
+    Run(10, qtrue); assert(shots == 11 && state.ammo[DK_W_GLOCK] == 14);
     assert(state.dk3WeaponSequence != DK_GLOCK_RELOAD_SEQUENCE);
+
+    /* A Sidewinder volley spends one round per rocket, even with one left. */
+    Begin(DK_W_SIDEWINDER, 3);
+    Run(10, qtrue); assert(shots == 1 && state.ammo[DK_W_SIDEWINDER] == 2);
+    Run(90, qfalse); assert(shots == 1);
+    Run(10, qfalse); assert(shots == 2 && state.ammo[DK_W_SIDEWINDER] == 1);
+    Begin(DK_W_SIDEWINDER, 1);
+    Run(10, qtrue); Run(200, qfalse);
+    assert(shots == 1 && state.ammo[DK_W_SIDEWINDER] == 0);
+
+    for (weapon = 1; weapon <= 3; ++weapon) {
+        Begin(DK_W_TRIDENT, weapon); Run(10, qtrue);
+        assert(shots == 1 && state.ammo[DK_W_TRIDENT] == 0 && state.dk3WeaponSequence == weapon);
+    }
+    /* Gold scales animation frames, preserving the fixed refire tail. */
+    Begin(DK_W_TRIDENT, 30); state.dk3Attributes[1] = 1;
+    Run(10, qtrue); assert(shots == 1 && state.weaponTime == 620);
+    Run(610, qtrue); assert(shots == 1);
+    Run(10, qtrue); assert(shots == 2);
+    Begin(DK_W_TRIDENT, 30); state.dk3Attributes[1] = 5;
+    Run(10, qtrue); assert(shots == 1 && state.weaponTime == 316);
+    Begin(DK_W_BOLTER, 2);
+    Run(10, qtrue); assert(shots == 1 && state.ammo[DK_W_BOLTER] == 2);
+    Run(600, qtrue); assert(shots == 2 && state.ammo[DK_W_BOLTER] == 1);
+    Begin(DK_W_BOLTER, 0); Run(10, qtrue); assert(shots == 0);
+
+    Begin(DK_W_RIPGUN, 20);
+    Run(340, qtrue); assert(shots == 0);
+    Run(10, qtrue); assert(shots == 1);
+    Run(290, qfalse); assert(shots == 3);
+    Run(1000, qfalse); assert(shots == 3);
 
     Begin(DK_W_GLOCK, 25); state.dk3GlockClip = 0;
     state.dk3Inventory |= 1u << DK_W_RIPGUN; movement.cmd.weapon = DK_W_RIPGUN;

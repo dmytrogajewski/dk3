@@ -126,6 +126,8 @@ typedef struct {
     int combatCount;
     int combatNext;
     int combatEnd;
+    int weaponHoldUntil;
+    unsigned int weaponParentId; /* Controller ownership, separate from mover attachments. */
     int poisonEnd;
     int poisonNext;
     int poisonInterval;

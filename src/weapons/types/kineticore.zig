@@ -31,7 +31,7 @@ pub const spec: profiles.Spec = .{
         .away = "e4/we_kcoreaway.wav",
     },
     .burst_shots = 5,
-    .burst_recovery_ms = 1000,
+    .burst_recovery_ms = 1300,
     .projectile_muzzle = true,
 };
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
@@ -46,7 +46,9 @@ pub fn blastSound(_: c_int) [*c]const u8 {
 }
 
 pub fn impactCue(context: impact.Context) impact.Cue {
-    return impact.none(context);
+    var cue = impact.none(context);
+    cue.sound = "e4/we_kcorehita.wav";
+    return cue;
 }
 pub fn viewCue(_: c_int, _: c_int) d.ViewCue {
     return basicView(spec);
@@ -58,7 +60,12 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
 pub const identity = .{ .classname = "weapon_kineticore", .label = "Kineticore", .episode = 4, .interval = 100 };
 
 pub fn fire(shot: server.Fire) void {
-    _ = server.spawn(@This(), shot);
+    const ent = server.spawn(@This(), shot);
+    ent.s.pos.trDelta = v.scale(ent.s.pos.trDelta, 0.25);
+    ent.dk.combatNext = server.now() + 100;
+    const sounds = [_][:0]const u8{ "e4/we_kcoreflybya.wav", "e4/we_kcoreflybyb.wav", "e4/we_kcoreflybyc.wav" };
+    ent.s.loopSound = c.DK_SoundIndex(sounds[@min(2, @as(usize, @intFromFloat(server.random(ent) * 3)))]);
+    if (shot.owner.client != null) shot.owner.client[0].ps.velocity = v.madd(shot.owner.client[0].ps.velocity, -90, shot.forward);
 }
 
 pub fn afterHit(hit: *server.Hit) void {
@@ -66,13 +73,19 @@ pub fn afterHit(hit: *server.Hit) void {
     hit.victim.dk.status |= 4;
 }
 pub fn projectileTick(ent: *server.Entity) void {
-    _ = server.expired(@This(), ent);
+    if (server.expired(@This(), ent)) return;
+    if (server.now() >= ent.dk.combatNext and v.length(ent.s.pos.trDelta) < server.info(@This()).speed) {
+        server.steer(ent, v.scale(v.normal(ent.s.pos.trDelta), @min(server.info(@This()).speed, v.length(ent.s.pos.trDelta) * 2)));
+        ent.dk.combatNext = server.now() + 100;
+    }
 }
 pub fn contact(hit: server.Contact) void {
     hit.effect(@This());
     if (hit.victim().takedamage != 0) {
         const remaining = @max(0, @min(1, v.f(hit.ent.dk.expires - server.now()) / v.f(@max(1, hit.ent.dk.expires - hit.ent.s.time))));
-        hit.apply(@This(), 2 + v.f(hit.ent.damage) * remaining);
+        var amount = 2 + v.f(hit.ent.damage) * remaining;
+        if (hit.victim() == hit.owner()) amount *= 0.5;
+        hit.apply(@This(), @max(5, amount));
         hit.detonate(@This());
     } else server.reflect(hit.ent, hit.hit, 1);
 }

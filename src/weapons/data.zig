@@ -50,6 +50,7 @@ fn read(row: [*c]const c.dkRecord_t) callconv(.c) void {
     var model: [*c]const u8 = "";
     inline for (registry.weapons) |W| if (id == W.id) {
         model = W.spec.animation.view_model.ptr;
+        if (@hasDecl(W, "readData")) W.readData(row, weapon);
     };
     c.Q_strncpyz(&weapon.model, if (model != null) model else "", weapon.model.len);
     weapon.loaded = c.qtrue;
@@ -71,6 +72,10 @@ export fn DK_AddAmmunition(ammo: [*c]c_int, weapon: c_int, rounds: c_int) callco
     const index: usize = @intCast(weapon);
     const data = dk_weapons[index];
     if (ammo[index] >= data.ammoMax) return c.qfalse;
-    ammo[index] = @min(data.ammoMax, ammo[index] + @max(0, if (rounds > 0) rounds else data.initialAmmo));
+    var pack = data.initialAmmo;
+    inline for (registry.weapons) |W| if (W.id == weapon and W.spec.ammo_pack > 0) {
+        pack = W.spec.ammo_pack;
+    };
+    ammo[index] = @min(data.ammoMax, ammo[index] + @max(0, if (rounds > 0) rounds else pack));
     return c.qtrue;
 }

@@ -27,7 +27,7 @@ pub const spec: profiles.Spec = .{
         .drop_ms = 250,
     },
     .audio = .{
-        .fire = "e4/we_glockshoota2.wav",
+        .fire = "e4/we_glockshootb.wav",
         .ready = "e4/we_glockready.wav",
         .away = "e4/we_glockaway.wav",
         .reload = "e4/we_glockreload.wav",
@@ -55,11 +55,16 @@ pub fn update(controller: anytype) void {
     const next = predictionShot(controller);
     if (ps.dk3GlockClip <= 0 and (next.cost == 0 or ps.ammo[id] >= next.cost)) {
         ps.weaponstate = c.WEAPON_DROPPING;
-        ps.weaponTime = 1000;
+        ps.weaponTime = 1650;
         ps.dk3WeaponSequence = c.DK_GLOCK_RELOAD_SEQUENCE;
         return;
     }
     controller.fire(@This(), next);
+    if (ps.dk3GlockClip == 0 and ps.ammo[id] > 0) {
+        ps.weaponstate = c.WEAPON_DROPPING;
+        ps.weaponTime = 1650;
+        ps.dk3WeaponSequence = c.DK_GLOCK_RELOAD_SEQUENCE;
+    }
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -76,7 +81,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return impact.bullet(context);
 }
 
-pub const identity = .{ .classname = "weapon_glock", .label = "Glock", .episode = 4, .interval = 230 };
+pub const identity = .{ .classname = "weapon_glock", .label = "Glock", .episode = 4, .interval = 500 };
 
 pub fn fire(shot: server.Fire) void {
     server.traceShot(@This(), shot, server.info(@This()).damage, server.info(@This()).range);

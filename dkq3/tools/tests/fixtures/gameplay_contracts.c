@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
+#undef NDEBUG /* Zig cc optimization must not remove the contract assertions. */
 #include "g_local.h"
 #include "dk_weapons.h"
 #include "dk_inventory.h"

@@ -26,8 +26,8 @@ pub const spec: profiles.Spec = .{
     },
     .audio = .{
         .fire = "e4/we_ripgunshootc.wav",
-        .ready = "e4/we_sluggerready.wav",
-        .away = "e4/we_sluggeraway.wav",
+        .ready = "e4/we_ripgunready.wav",
+        .away = "e4/we_ripgunaway.wav",
     },
     .projectile_muzzle = true,
 };
@@ -52,10 +52,10 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_slugger", .label = "Slugger", .episode = 4, .interval = 700 };
+pub const identity = .{ .classname = "weapon_slugger", .label = "Slugger", .episode = 4, .interval = 1250 };
 
 pub fn fire(shot: server.Fire) void {
-    server.pellets(@This(), shot, 12, 0.07, 1);
+    server.pelletBlast(@This(), shot, .{ .count = 12, .spread = 0.07, .range = 4000, .last_impact_only = true });
 }
 
 const render = @import("../client/render.zig");

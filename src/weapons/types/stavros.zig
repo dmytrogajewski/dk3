@@ -14,8 +14,8 @@ const server = @import("../server/combat.zig");
 pub const id = c.DK_W_STAVROS;
 pub const spec: profiles.Spec = .{
     .ammo_class = "ammo_stavros", // stavros
-    .projectile = .{ .splash_scale = 1 },
-    .visual = .{ .projectile_model = "models/e3/we_fball.dkm" },
+    .projectile = .{ .direct_scale = 0, .splash_scale = 1, .splash_radius = 200, .lifetime_ms = 12000, .loop_sound = "global/e_torchd.wav" },
+    .visual = .{ .projectile_model = "models/e3/we_fball.dkm", .blast_sound = "global/e_explode1.wav" },
     .world_model = "models/e3/a_stav.dkm",
     .animation = .{
         .view_model = "models/e3/w_stavros.dkm",
@@ -54,39 +54,58 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_stavros", .label = "Stavros staff", .episode = 3, .interval = 850 };
+pub const identity = .{ .classname = "weapon_stavros", .label = "Stavros staff", .episode = 3, .interval = 900 };
 
 pub fn fire(shot: server.Fire) void {
-    _ = server.spawn(@This(), shot);
+    const ent = server.spawn(@This(), shot);
+    ent.s.pos.trDelta = v.scale(ent.s.pos.trDelta, 0.05);
+    ent.s.dk3Scale = 0.1;
+    ent.dk.combatNext = server.now() + 100;
 }
 
 pub fn contact(hit: server.Contact) void {
-    if (server.named(hit.ent, "dk3_meteor_fragment") and hit.victim().takedamage == 0) {
+    if (server.named(hit.ent, "dk3_meteor_fragment")) {
         hit.ent.dk.uses += 1;
-        if (hit.ent.dk.uses < 3) {
-            server.reflect(hit.ent, hit.hit, 0.55);
+        if (hit.ent.dk.uses < 2) {
+            server.reflect(hit.ent, hit.hit, 1);
             return;
         }
     }
-    server.ballisticContact(@This(), hit);
+    hit.ent.s.origin2 = hit.hit.plane.normal;
+    hit.effect(@This());
+    hit.detonate(@This());
 }
 pub fn projectileTick(ent: *server.Entity) void {
-    _ = server.expired(@This(), ent);
+    if (server.now() >= ent.dk.expires or server.find(ent.dk.ownerId) == null) {
+        server.free(ent);
+        return;
+    }
+    if (server.named(ent, "dk3_meteor_fragment") or server.now() < ent.dk.combatNext) return;
+    ent.dk.combatNext = server.now() + 100;
+    if (ent.s.dk3Scale < 1) {
+        ent.s.dk3Scale = @min(1, ent.s.dk3Scale + 0.1);
+        const speed = v.length(ent.s.pos.trDelta);
+        if (speed < server.info(@This()).speed) server.steer(ent, v.scale(ent.s.pos.trDelta, if (speed < server.info(@This()).speed * 0.2) @as(f32, 1.75) else 2.5));
+    }
 }
 pub fn afterExplosion(ent: *server.Entity) void {
     if (c.g_gametype.integer != c.GT_SINGLE_PLAYER or server.named(ent, "dk3_meteor_fragment")) return;
     const owner = server.find(ent.dk.ownerId) orelse return;
-    for (0..5) |index| {
-        const angle = v.f(index) * 2 * 3.14159265 / 5;
-        const direction = v.normal(.{ @cos(angle), @sin(angle), 0.6 });
+    const count: usize = @as(usize, 4) + @min(2, @as(usize, @intFromFloat(server.random(ent) * 3)));
+    for (0..count) |_| {
+        var angles: v.Vec = undefined;
+        c.vectoangles(&ent.s.origin2, &angles);
+        angles[0] += (server.random(ent) - 0.5) * 90;
+        angles[1] += (server.random(ent) - 0.5) * 90;
+        const direction = server.basis(angles).forward;
         const fragment = server.spawn(@This(), .{ .owner = owner, .start = ent.r.currentOrigin, .forward = direction });
         fragment.classname = @constCast("dk3_meteor_fragment");
-        fragment.damage = @divTrunc(ent.damage, 3);
-        fragment.splashDamage = fragment.damage;
-        fragment.splashRadius = 80;
+        fragment.damage = 0;
+        fragment.splashDamage = v.i(server.info(@This()).damage * 0.5);
+        fragment.splashRadius = v.i(server.info(@This()).range * 0.5);
         fragment.s.pos.trType = c.TR_GRAVITY;
-        fragment.s.pos.trDelta = v.scale(direction, 240);
-        fragment.dk.expires = server.now() + 2500;
+        fragment.s.pos.trDelta = v.scale(direction, server.info(@This()).speed * 0.75);
+        fragment.dk.expires = server.now() + 6000;
         fragment.s.dk3Scale = 0.35;
     }
 }
@@ -106,4 +125,8 @@ pub fn drawImpact(cent: *c.centity_t) void {
 }
 pub fn drawProjectile(cent: *c.centity_t) void {
     render.model(@This(), cent);
+}
+
+pub fn modifyHit(hit: *server.Hit) void {
+    if (hit.victim == hit.owner) hit.amount = 0;
 }

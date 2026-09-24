@@ -14,6 +14,7 @@ pub fn standard(controller: anytype) Shot {
     return .{
         .cost = c.dk_weapons[weapon].ammoCost,
         .sequence = @mod(controller.ps.dk3WeaponSequence + 1, 3),
-        .duration_ms = controller.scaled(c.dk_weapons[weapon].interval),
+        // winfoAnimate scales frame time, then adds its fixed 100 ms tail.
+        .duration_ms = controller.scaled(@max(0, c.dk_weapons[weapon].interval - 100)) + 100,
     };
 }

@@ -22,4 +22,15 @@ pub fn scorch(context: Context) Cue {
     return cue;
 }
 
-pub const Cue = struct { mark: [*c]const u8, sound: [*c]const u8, radius: f32, orientation: f32 };
+pub const Cue = struct {
+    mark: [*c]const u8,
+    sound: [*c]const u8,
+    radius: f32,
+    orientation: f32,
+    /// Gold clientSparks: count doubles as the launch strength.
+    sparks: u8 = 0,
+    spark_color: [3]f32 = .{ 1, 1, 1 },
+    light_radius: f32 = 0,
+    light_color: [3]f32 = .{ 1, 1, 1 },
+    light_ms: c_int = 0,
+};

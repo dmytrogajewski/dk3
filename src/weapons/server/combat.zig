@@ -56,6 +56,12 @@ pub fn hostile(owner: ?*Entity, target: *Entity) bool {
     if (who.dk.actorKind != 0 and !companion) return target.client != null or c.DK_IsCompanion(target) != 0;
     return true;
 }
+/// Gold's creature-only targeting used by Wyndrax and Nightmare.
+pub fn creatureTarget(owner: ?*Entity, target: *Entity) bool {
+    if (!hostile(owner, target) or c.DK_IsCompanion(target) != 0) return false;
+    if (target.client != null) return c.g_gametype.integer != c.GT_SINGLE_PLAYER;
+    return target.dk.actorKind != 0;
+}
 pub fn visited(ent: *const Entity, target: *const Entity) bool {
     const count: usize = @intCast(std.math.clamp(ent.dk.combatCount, 0, ent.dk.combatTargets.len));
     for (ent.dk.combatTargets[0..count]) |id| if (@as(c_uint, @bitCast(id)) == target.dk.id) return true;
@@ -124,26 +130,88 @@ pub const Hit = struct {
     direction: v.Vec,
     point: v.Vec,
     amount: f32,
+    /// DAMAGE_NO_KNOCKBACK / DAMAGE_NO_ARMOR for gold's non-default damage types.
+    flags: c_int = 0,
+    /// Gold DAMAGE_INERTIAL: a small shove instead of q3 knockback.
+    inertial: bool = false,
 };
+/// Gold DAMAGE_INERTIAL, scaled by the authored actor mass.
+fn shove(victim: *Entity, direction: v.Vec, amount: f32) void {
+    if ((victim.client == null and victim.dk.actorKind == 0) or victim.health <= 0 or victim.dk.cinematicOwned != 0) return;
+    var kick = v.scale(v.normal(direction), amount * 1.75);
+    kick[2] += amount * 2;
+    const mass = c.DK_ActorMass(victim);
+    kick = v.scale(kick, if (mass > 100) 100 / mass else 1);
+    if (victim.client != null) {
+        const ps = &victim.client[0].ps;
+        ps.velocity = v.add(ps.velocity, kick);
+        ps.groundEntityNum = c.ENTITYNUM_NONE;
+    } else {
+        victim.dk.actorVelocity = v.add(victim.dk.actorVelocity, kick);
+        victim.s.groundEntityNum = c.ENTITYNUM_NONE;
+    }
+}
 pub fn damage(comptime W: type, hit_value: Hit) void {
     var hit = hit_value;
     if (hit.victim.takedamage == 0) return;
-    if (hit.owner) |owner| {
-        if (owner.client != null) hit.amount *= 1 + 0.1 * v.f(c.DK_Attribute(&owner.client[0].ps, 0, now())) else if (c.DK_IsCompanion(owner) != 0) hit.amount *= 1 + 0.1 * v.f(owner.dk.attributes[0]);
-    }
     if (@hasDecl(W, "modifyHit")) W.modifyHit(&hit);
+    if (hit.owner) |owner| {
+        if (owner != hit.victim) {
+            if (owner.client != null) hit.amount *= 1 + 0.3 * v.f(c.DK_Attribute(&owner.client[0].ps, 0, now())) else if (c.DK_IsCompanion(owner) != 0) hit.amount *= 1 + 0.3 * v.f(owner.dk.attributes[0]);
+        }
+    }
     if (hit.amount <= 0) return;
     if (c.trap_Cvar_VariableIntegerValue("dk3_weaponTrace") != 0) c.G_Printf("dk3 weapon: damage %d target %d amount %.3f time %d\n", @as(c_int, W.id), hit.victim.s.number, @as(f64, hit.amount), now());
     const before = hit.victim.health;
-    c.G_Damage(hit.victim, hit.inflictor, hit.owner, &hit.direction, &hit.point, v.i(@ceil(hit.amount)), 0, c.DK_WEAPON_MOD(W.id));
+    c.G_Damage(hit.victim, hit.inflictor, hit.owner, &hit.direction, &hit.point, v.i(@ceil(hit.amount)), hit.flags | c.DAMAGE_DK_SELF_SCALED | (if (hit.inertial) @as(c_int, c.DAMAGE_NO_KNOCKBACK) else 0), c.DK_WEAPON_MOD(W.id));
+    if (hit.inertial and hit.victim.inuse != 0) shove(hit.victim, hit.direction, hit.amount);
     if (hit.victim.inuse != 0 and hit.victim.health > 0 and hit.victim.health < before) {
         if (@hasDecl(W, "afterHit")) W.afterHit(&hit);
         hit.victim.dk.statusOwnerId = if (hit.owner) |owner| owner.dk.id else 0;
         if (hit.victim.client != null) hit.victim.client[0].ps.dk3Status = (hit.victim.client[0].ps.dk3Status & ~@as(c_int, 7)) | hit.victim.dk.status;
     }
 }
+pub const Splash = struct {
+    point: v.Vec,
+    inflictor: ?*Entity,
+    attacker: ?*Entity,
+    /// Takes half damage: gold halves the inflictor's current owner.
+    halved: ?*Entity,
+    amount: f32,
+    range: f32,
+    ignore: ?*Entity = null,
+    flags: c_int = 0,
+    occlusion: bool = true,
+};
+/// Gold com_RadiusDamage: quadratic falloff to the target origin (brush
+/// models use their centre); only the world, or an entity of another class,
+/// blocks the solid line of sight.
+pub fn splash(comptime W: type, blast_value: Splash) c_int {
+    const s = blast_value;
+    if (s.range <= 0 or s.amount <= 0) return 0;
+    const skip = if (s.ignore) |ent| ent.s.number else c.ENTITYNUM_NONE;
+    var hits: c_int = 0;
+    for (entities()) |*target| {
+        if (target.inuse == 0 or target.takedamage == 0 or target == s.ignore) continue;
+        const center = if (target.r.bmodel != 0) v.scale(v.add(target.r.absmin, target.r.absmax), 0.5) else target.r.currentOrigin;
+        const distance = v.distance(center, s.point);
+        if (distance > s.range) continue;
+        const sight = trace(s.point, center, skip, c.MASK_SOLID);
+        if (s.occlusion and sight.fraction < 1 and sight.entityNum != target.s.number) {
+            if (sight.entityNum >= c.ENTITYNUM_WORLD) continue;
+            const blocker = &c.g_entities[@intCast(sight.entityNum)];
+            if (blocker.classname == null or target.classname == null or c.Q_stricmp(blocker.classname, target.classname) != 0) continue;
+        }
+        var amount = s.amount * (1 - distance * distance / (s.range * s.range));
+        if (target == s.halved) amount *= 0.5;
+        if (amount <= 0) continue;
+        hits += 1;
+        damage(W, .{ .victim = target, .inflictor = s.inflictor, .owner = s.attacker, .direction = v.normal(v.sub(center, s.point)), .point = center, .amount = amount, .flags = s.flags | c.DAMAGE_RADIUS });
+    }
+    return hits;
+}
 pub fn radius(comptime W: type, point: v.Vec, owner: ?*Entity, amount: f32, range: f32, ignore: ?*Entity) void {
-    _ = c.G_RadiusDamage(@constCast(&point), owner, amount, range, ignore, c.DK_WEAPON_MOD(W.id));
+    _ = splash(W, .{ .point = point, .inflictor = ignore orelse owner, .attacker = owner, .halved = owner, .amount = amount, .range = range, .ignore = ignore });
 }
 pub const Fire = struct {
     owner: *Entity,
@@ -157,6 +225,46 @@ pub const Fire = struct {
         return if (self.owner.client != null) c.DK_Attribute(&self.owner.client[0].ps, 1, now()) else 0;
     }
 };
+pub fn playerShot(comptime W: type, owner: *Entity) Fire {
+    const ps = &owner.client[0].ps;
+    const data = info(W);
+    const axes = basis(ps.viewangles);
+    var eye = ps.origin;
+    eye[2] += v.f(ps.viewheight);
+    var start = eye;
+    if (W.spec.projectile_muzzle) {
+        start = v.madd(v.madd(eye, data.muzzle[1], axes.forward), data.muzzle[0], axes.right);
+        start[2] += data.muzzle[2] - c.DEFAULT_VIEWHEIGHT;
+    }
+    start = trace(eye, start, owner.s.number, c.MASK_SHOT).endpos;
+    const aim = trace(eye, v.madd(eye, 2000, axes.forward), owner.s.number, c.MASK_SHOT).endpos;
+    const delta = v.sub(aim, start);
+    return .{ .owner = owner, .start = start, .forward = if (v.dot(delta, axes.forward) > 1) v.normal(delta) else axes.forward, .charge_ms = ps.dk3Charge };
+}
+
+/// Frame-delayed launches remain ordinary persisted weapon controllers.
+pub fn schedule(comptime W: type, shot: Fire, delay: c_int) void {
+    const pending = controller(W, shot.owner, shot.start, .arming, delay + 1000);
+    pending.classname = @constCast("dk3_weapon_delay");
+    pending.dk.actionTime = now() + v.i(v.f(delay) / @import("../rules.zig").attackFactor(shot.boost()));
+    pending.s.origin2 = shot.forward;
+}
+pub fn scheduled(comptime W: type, ent: *Entity) bool {
+    if (!named(ent, "dk3_weapon_delay")) return false;
+    const owner = find(ent.dk.ownerId) orelse {
+        free(ent);
+        return true;
+    };
+    if (owner.health <= 0) {
+        free(ent);
+        return true;
+    }
+    if (now() < ent.dk.actionTime) return true;
+    const shot: Fire = if (owner.client != null) playerShot(W, owner) else .{ .owner = owner, .start = ent.r.currentOrigin, .forward = ent.s.origin2 };
+    W.launch(shot);
+    free(ent);
+    return true;
+}
 pub fn traceShot(comptime W: type, shot: Fire, amount: f32, range: f32) void {
     const hit = trace(shot.start, v.madd(shot.start, range, shot.forward), shot.owner.s.number, c.MASK_SHOT);
     const victim = &c.g_entities[@intCast(hit.entityNum)];
@@ -164,29 +272,45 @@ pub fn traceShot(comptime W: type, shot: Fire, amount: f32, range: f32) void {
     if (hit.entityNum < c.ENTITYNUM_WORLD) damage(W, .{ .victim = victim, .inflictor = shot.owner, .owner = shot.owner, .direction = shot.forward, .point = hit.endpos, .amount = amount });
     if (range > 150) beam(shot.start, hit.endpos, W.id);
 }
-pub fn pellets(comptime W: type, shot: Fire, count: usize, spread: f32, scale: f32) void {
+pub const PelletRules = struct {
+    count: usize,
+    spread: f32,
+    scale: f32 = 1,
+    range: ?f32 = null,
+    /// Gold CDamagedUnitInfo keeps only this many victims per blast.
+    max_victims: usize = 12,
+    /// One impact effect per blast, from the last pellet.
+    last_impact_only: bool = false,
+    inertial: bool = false,
+};
+pub fn pelletBlast(comptime W: type, shot: Fire, rules: PelletRules) void {
     const axes = directionBasis(shot.forward);
     var targets: [12]c_int = undefined;
     var hits: [12]usize = @splat(0);
     var points: [12]v.Vec = undefined;
     var used: usize = 0;
-    for (0..count) |_| {
-        const x = (random(shot.owner) * 2 - 1) * spread;
-        const y = (random(shot.owner) * 2 - 1) * spread;
+    const range = rules.range orelse info(W).range;
+    for (0..rules.count) |pellet| {
+        const x = (random(shot.owner) * 2 - 1) * rules.spread;
+        const y = (random(shot.owner) * 2 - 1) * rules.spread;
         const direction = v.normal(v.madd(v.madd(shot.forward, x, axes.right), y, axes.up));
-        const hit = trace(shot.start, v.madd(shot.start, info(W).range, direction), shot.owner.s.number, c.MASK_SHOT);
-        _ = impact(W, &hit, hit.entityNum < c.ENTITYNUM_WORLD and c.g_entities[@intCast(hit.entityNum)].takedamage != 0);
-        if (hit.entityNum >= c.ENTITYNUM_WORLD) continue;
+        const hit = trace(shot.start, v.madd(shot.start, range, direction), shot.owner.s.number, c.MASK_SHOT);
+        if (!rules.last_impact_only or pellet + 1 == rules.count) _ = impact(W, &hit, hit.entityNum < c.ENTITYNUM_WORLD and c.g_entities[@intCast(hit.entityNum)].takedamage != 0);
+        if (hit.entityNum >= c.ENTITYNUM_WORLD or c.g_entities[@intCast(hit.entityNum)].takedamage == 0) continue;
         var index: usize = 0;
         while (index < used and targets[index] != hit.entityNum) : (index += 1) {}
         if (index == used) {
+            if (used >= @min(rules.max_victims, targets.len)) continue;
             targets[index] = hit.entityNum;
             points[index] = hit.endpos;
             used += 1;
         }
         hits[index] += 1;
     }
-    for (0..used) |index| damage(W, .{ .victim = &c.g_entities[@intCast(targets[index])], .inflictor = shot.owner, .owner = shot.owner, .direction = shot.forward, .point = points[index], .amount = info(W).damage * scale * v.f(hits[index]) / v.f(count) });
+    for (0..used) |index| damage(W, .{ .victim = &c.g_entities[@intCast(targets[index])], .inflictor = shot.owner, .owner = shot.owner, .direction = shot.forward, .point = points[index], .amount = info(W).damage * rules.scale * v.f(hits[index]) / v.f(rules.count), .inertial = rules.inertial });
+}
+pub fn pellets(comptime W: type, shot: Fire, count: usize, spread: f32, scale: f32) void {
+    pelletBlast(W, shot, .{ .count = count, .spread = spread, .scale = scale });
 }
 pub fn controller(comptime W: type, owner: ?*Entity, point: v.Vec, phase: State, lifetime: c_int) *Entity {
     const ent: *Entity = c.G_Spawn();
@@ -226,6 +350,7 @@ pub fn spawn(comptime W: type, shot: Fire) *Entity {
     ent.s.pos.trDelta = v.scale(shot.forward, if (data.speed > 0) data.speed else 400);
     if (rules.action_delay_ms > 0) ent.dk.actionTime = now() + @as(c_int, @intCast(rules.action_delay_ms));
     if (@hasDecl(W, "initializeProjectile")) W.initializeProjectile(ent);
+    ent.s.pos.trDelta = v.scale(ent.s.pos.trDelta, 1 + 0.3 * v.f(shot.boost()));
     link(ent);
     return ent;
 }
@@ -233,7 +358,7 @@ pub fn explode(comptime W: type, ent: *Entity) void {
     ent.takedamage = c.qfalse;
     c.trap_UnlinkEntity(ent);
     blast(ent.r.currentOrigin, W.id);
-    if (ent.splashDamage > 0) radius(W, ent.r.currentOrigin, find(ent.dk.ownerId), v.f(ent.splashDamage), v.f(ent.splashRadius), ent);
+    if (ent.splashDamage > 0) _ = splash(W, .{ .point = ent.r.currentOrigin, .inflictor = ent, .attacker = find(ent.dk.ownerId), .halved = find(ent.dk.ownerId), .amount = v.f(ent.splashDamage), .range = v.f(ent.splashRadius), .ignore = ent, .occlusion = if (@hasDecl(W, "splash_occlusion")) W.splash_occlusion else true });
     if (@hasDecl(W, "afterExplosion")) W.afterExplosion(ent);
     free(ent);
 }
@@ -309,7 +434,7 @@ pub fn ring(comptime W: type, source: *Entity, lifetime: c_int, range: f32) *Ent
     ent.s.dk3Effect = c.DK_FX_WEAPON_RING;
     ent.s.dk3EffectRadius = range;
     ent.s.dk3EffectDuration = lifetime;
-    ent.dk.parentId = source.dk.id;
+    ent.dk.weaponParentId = source.dk.id;
     link(ent);
     return ent;
 }

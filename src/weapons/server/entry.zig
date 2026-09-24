@@ -64,21 +64,8 @@ export fn DK_FireWeapon(raw: [*c]s.Entity) callconv(.c) void {
     if (owner.client == null) return;
     const ps = &owner.client[0].ps;
     inline for (registry.weapons) |W| if (ps.weapon == W.id) {
-        const data = s.info(W);
-        const axes = s.basis(ps.viewangles);
-        var eye = ps.origin;
-        eye[2] += v.f(ps.viewheight);
-        var start = eye;
-        if (W.spec.projectile_muzzle) {
-            start = v.madd(v.madd(eye, data.muzzle[1], axes.forward), data.muzzle[0], axes.right);
-            start[2] += data.muzzle[2] - c.DEFAULT_VIEWHEIGHT;
-        }
-        start = s.trace(eye, start, owner.s.number, c.MASK_SHOT).endpos;
-        const aim = s.trace(eye, v.madd(eye, 2000, axes.forward), owner.s.number, c.MASK_SHOT).endpos;
-        const delta = v.sub(aim, start);
-        const direction = if (v.dot(delta, axes.forward) > 1 and v.length(delta) > 0) v.normal(delta) else axes.forward;
         if (c.trap_Cvar_VariableIntegerValue("dk3_weaponTrace") != 0) c.G_Printf("dk3 weapon: fire %d owner %d sequence %d time %d\n", @as(c_int, W.id), owner.s.number, ps.dk3WeaponSequence, s.now());
-        W.fire(.{ .owner = owner, .start = start, .forward = direction, .charge_ms = ps.dk3Charge });
+        W.fire(s.playerShot(W, owner));
         return;
     };
 }

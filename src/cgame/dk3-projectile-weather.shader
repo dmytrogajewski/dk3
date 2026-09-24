@@ -1,4 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+dk3/fx/shotcycler-mark
+{
+ polygonOffset
+ cull disable
+ { clampMap skins/we_bhole2.png
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+ }
+}
+
 dk3/fx/shotcycler-flash
 {
  cull disable

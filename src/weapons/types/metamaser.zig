@@ -10,11 +10,35 @@ const basicView = d.basicView;
 const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
+const std = @import("std");
+var supplied_charges: c_int = 120;
+var supplied_health: c_int = 1000;
+var supplied_lifetime: c_int = 60000;
+
+/// Gold overloads the second offset triple with cube capacity, health and life.
+pub fn readData(row: [*c]const c.dkRecord_t, data: *c.dkWeaponInfo_t) void {
+    inline for (.{ "x", "y", "z" }, 0..) |axis, index| {
+        const coordinate = c.DK_Number(row, "projectile_" ++ axis ++ "1", .{ 6, 18, 19 }[index]);
+        if (!std.math.isFinite(coordinate)) invalidData();
+        data.muzzle[index] = coordinate;
+    }
+    const charges = c.DK_Number(row, "projectile_x2", 120);
+    const health = c.DK_Number(row, "projectile_y2", 1000);
+    const lifetime = c.DK_Number(row, "projectile_z2", 60);
+    if (!std.math.isFinite(charges) or charges < 1 or charges > 120 or !std.math.isFinite(health) or health < 1 or health > 32767 or !std.math.isFinite(lifetime) or lifetime <= 0 or lifetime > 3600) invalidData();
+    supplied_charges = v.i(charges);
+    supplied_health = v.i(health);
+    supplied_lifetime = v.i(lifetime * 1000);
+}
+fn invalidData() noreturn {
+    if (@import("../abi.zig").side == .client) c.CG_Error("dk3: invalid metamaser capacity, health, lifetime or muzzle") else c.G_Error("dk3: invalid metamaser capacity, health, lifetime or muzzle");
+    unreachable;
+}
 
 pub const id = c.DK_W_METAMASER;
 pub const spec: profiles.Spec = .{
     .ammo_class = "ammo_metamaser", // metamaser
-    .projectile = .{ .gravity = true, .action_delay_ms = 300, .lifetime_ms = 60000 },
+    .projectile = .{ .gravity = true, .action_delay_ms = 300, .lifetime_ms = 19000 },
     .visual = .{ .projectile_model = "models/e4/we_mmprj.dkm", .impact_sprite = "models/e4/we_mmaserexp.sp2", .color = .{ 0.9, 0.2, 1 } },
     .world_model = "models/e4/a_mmaser.dkm",
     .animation = .{
@@ -27,7 +51,7 @@ pub const spec: profiles.Spec = .{
         .drop_ms = 250,
     },
     .audio = .{
-        .fire = "e4/we_metamaszapa.wav",
+        .fire = "e2/we_sflareshoota.wav",
         .ready = "e4/we_metaready.wav",
         .away = "e4/we_metaaway.wav",
     },
@@ -54,13 +78,25 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_metamaser", .label = "Metamaser", .episode = 4, .interval = 1300 };
+pub const identity = .{ .classname = "weapon_metamaser", .label = "Metamaser", .episode = 4, .interval = 1000 };
 
 pub fn fire(shot: server.Fire) void {
+    server.schedule(@This(), shot, 300);
+}
+pub fn launch(shot: server.Fire) void {
     _ = server.spawn(@This(), shot);
 }
 // Cube state is decoded at the persistence boundary; behavior uses named fields.
 const Lock = struct { target: c_uint = 0, until: c_int = 0, next_damage: c_int = 0, next_sound: c_int = 0 };
+// The generic target slots are raw integers in saves. Anchor packed deadlines
+// to s.time, whose save member is already rebased to the restored simulation.
+fn unpackDeadline(value: c_int, ent: *server.Entity) c_int {
+    if (ent.dk.combatTargets[31] == 0) return value;
+    return if (value == std.math.minInt(c_int)) 0 else value +| ent.s.time;
+}
+fn packDeadline(value: c_int, ent: *server.Entity) c_int {
+    return if (value == 0) std.math.minInt(c_int) else value -| ent.s.time;
+}
 const Cube = struct {
     locks: [4]Lock = @splat(.{}),
     pause_until: c_int = 0,
@@ -72,33 +108,34 @@ const Cube = struct {
     fn read(ent: *server.Entity) Cube {
         var value: Cube = .{};
         const slots = ent.dk.combatTargets;
-        for (&value.locks, 0..) |*lock, index| lock.* = .{ .target = @bitCast(slots[index]), .until = slots[4 + index], .next_damage = slots[8 + index], .next_sound = slots[12 + index] };
-        value.pause_until = slots[16];
+        for (&value.locks, 0..) |*lock, index| lock.* = .{ .target = @bitCast(slots[index]), .until = unpackDeadline(slots[4 + index], ent), .next_damage = unpackDeadline(slots[8 + index], ent), .next_sound = unpackDeadline(slots[12 + index], ent) };
+        value.pause_until = unpackDeadline(slots[16], ent);
         value.pain_threshold = slots[17];
-        value.next_beep = slots[18];
+        value.next_beep = unpackDeadline(slots[18], ent);
         for (&value.lasers, 0..) |*laser_id, index| laser_id.* = @bitCast(slots[20 + index]);
         value.pending_lasers = slots[24];
-        value.next_laser = slots[25];
+        value.next_laser = unpackDeadline(slots[25], ent);
         return value;
     }
     fn write(value: Cube, ent: *server.Entity) void {
         const slots = &ent.dk.combatTargets;
         for (value.locks, 0..) |lock, index| {
             slots[index] = @bitCast(lock.target);
-            slots[4 + index] = lock.until;
-            slots[8 + index] = lock.next_damage;
-            slots[12 + index] = lock.next_sound;
+            slots[4 + index] = packDeadline(lock.until, ent);
+            slots[8 + index] = packDeadline(lock.next_damage, ent);
+            slots[12 + index] = packDeadline(lock.next_sound, ent);
         }
-        slots[16] = value.pause_until;
+        slots[16] = packDeadline(value.pause_until, ent);
         slots[17] = value.pain_threshold;
-        slots[18] = value.next_beep;
+        slots[18] = packDeadline(value.next_beep, ent);
         for (value.lasers, 0..) |laser_id, index| slots[20 + index] = @bitCast(laser_id);
         slots[24] = value.pending_lasers;
-        slots[25] = value.next_laser;
+        slots[25] = packDeadline(value.next_laser, ent);
+        slots[31] = 1;
     }
 };
 fn isCube(ent: *server.Entity) bool {
-    return ent.inuse != 0 and ent.dk.projectile != 0 and ent.s.weapon == id and !server.named(ent, "dk3_weapon_controller");
+    return ent.inuse != 0 and ent.dk.projectile != 0 and ent.s.weapon == id and server.named(ent, identity.classname);
 }
 fn targetable(ent: *server.Entity, target: *server.Entity) bool {
     return target.inuse != 0 and target != ent and target.takedamage != 0 and target.health > 0 and (target.client != null or target.dk.actorKind != 0) and target.dk.cinematicOwned == 0;
@@ -130,18 +167,32 @@ pub fn pain(raw: [*c]server.Entity, _: [*c]server.Entity, _: c_int) callconv(.c)
     cube.write(ent);
 }
 pub fn initializeProjectile(ent: *server.Entity) void {
-    ent.health = 1000;
+    ent.health = supplied_health;
+    ent.dk.expires = server.now() + supplied_lifetime;
+    ent.s.pos.trDelta = v.scale(v.normal(ent.s.pos.trDelta), 800);
     ent.takedamage = c.qtrue;
     ent.die = die;
     ent.pain = pain;
     ent.s.pos.trType = c.TR_GRAVITY;
+    ent.s.dk3Scale = 8;
+    ent.clipmask = c.MASK_SOLID;
     ent.r.contents = c.CONTENTS_CORPSE;
-    ent.r.mins = @splat(-8);
-    ent.r.maxs = @splat(8);
+    ent.r.mins = .{ -6, -6, 0 };
+    ent.r.maxs = .{ 6, 6, 12 };
 }
 pub fn restore(ent: *server.Entity) void {
     ent.die = die;
     ent.pain = pain;
+    if (isCube(ent) and server.state(ent) != .flight and ent.dk.combatTargets[31] == 0) {
+        // Legacy saves stored absolute deadlines without their clock origin.
+        // Keep health/charges/phase and re-acquire locks on the restored clock.
+        var cube = Cube.read(ent);
+        cube.locks = @splat(.{});
+        cube.pause_until = 0;
+        cube.next_beep = server.now();
+        cube.next_laser = server.now();
+        cube.write(ent);
+    }
 }
 fn settle(ent: *server.Entity) void {
     ent.dk.combatTargets = @splat(0);
@@ -149,7 +200,7 @@ fn settle(ent: *server.Entity) void {
     server.setState(ent, .arming);
     ent.dk.combatNext = server.now() + 3000;
     var cube: Cube = .{};
-    cube.pain_threshold = ent.health - 300;
+    cube.pain_threshold = 700;
     cube.write(ent);
 }
 pub fn contact(hit: server.Contact) void {
@@ -203,7 +254,7 @@ fn laser(ent: *server.Entity, cube: *Cube, index: usize) void {
 }
 fn ringTick(ent: *server.Entity) void {
     const outer = v.f(ent.splashRadius) * @max(0, @min(1, v.f(server.now() - ent.s.time) / v.f(@max(1, ent.dk.expires - ent.s.time))));
-    const source = server.find(ent.dk.parentId);
+    const source = server.find(ent.dk.weaponParentId);
     const owner = server.find(ent.dk.ownerId);
     for (server.entities()) |*target| {
         if (target.inuse == 0 or target.takedamage == 0 or target == source or @abs(target.r.currentOrigin[2] - ent.r.currentOrigin[2]) >= 64) continue;
@@ -220,6 +271,7 @@ fn ringTick(ent: *server.Entity) void {
     if (server.now() >= ent.dk.expires) server.free(ent);
 }
 pub fn projectileTick(ent: *server.Entity) void {
+    if (server.scheduled(@This(), ent)) return;
     const phase = server.state(ent);
     if (phase == .ring) {
         ringTick(ent);
@@ -271,7 +323,7 @@ pub fn projectileTick(ent: *server.Entity) void {
         }
         if (server.now() >= ent.dk.combatNext) {
             server.setState(ent, .active);
-            ent.dk.combatCount = 120;
+            ent.dk.combatCount = supplied_charges;
         }
         cube.write(ent);
         return;
@@ -320,7 +372,7 @@ pub fn projectileTick(ent: *server.Entity) void {
         ent.dk.combatCount -= 1;
         server.damage(@This(), .{ .victim = target, .inflictor = ent, .owner = owner, .direction = v.zero, .point = target.r.currentOrigin, .amount = v.f(ent.damage) });
         if (target.health <= 0) server.damage(@This(), .{ .victim = target, .inflictor = ent, .owner = owner, .direction = v.zero, .point = target.r.currentOrigin, .amount = 1000 });
-        lock.next_damage = server.now() + 250 + v.i(250 * server.random(ent));
+        lock.next_damage = lock.until + 1;
         if (ent.dk.combatCount < 0) {
             cube.write(ent);
             beginDeath(ent);
@@ -358,5 +410,5 @@ pub fn drawProjectile(cent: *c.centity_t) void {
 }
 pub const controller_limit = 120;
 pub fn validProjectile(ent: *const server.Entity) bool {
-    return ent.dk.combatTargets[24] >= 0 and ent.dk.combatTargets[24] <= 4;
+    return ent.dk.combatTargets[24] >= 0 and ent.dk.combatTargets[24] <= 4 and ent.dk.combatTargets[31] >= 0 and ent.dk.combatTargets[31] <= 1;
 }

@@ -246,6 +246,8 @@ const dkSaveMember_t dk_entityMembers[] = {
     {"dk_combatcount", DK_SAVE_INT, offsetof(gentity_t, dk.combatCount), 1, qfalse},
     {"dk_combatnext", DK_SAVE_INT, offsetof(gentity_t, dk.combatNext), 1, qtrue},
     {"dk_combatend", DK_SAVE_INT, offsetof(gentity_t, dk.combatEnd), 1, qtrue},
+    {"dk_weaponholduntil", DK_SAVE_INT, offsetof(gentity_t, dk.weaponHoldUntil), 1, qtrue, qtrue},
+    {"dk_weaponparentid", DK_SAVE_INT, offsetof(gentity_t, dk.weaponParentId), 1, qfalse, qtrue},
     {"dk_poisonend", DK_SAVE_INT, offsetof(gentity_t, dk.poisonEnd), 1, qtrue},
     {"dk_poisonnext", DK_SAVE_INT, offsetof(gentity_t, dk.poisonNext), 1, qtrue},
     {"dk_poisoninterval", DK_SAVE_INT, offsetof(gentity_t, dk.poisonInterval), 1, qfalse},

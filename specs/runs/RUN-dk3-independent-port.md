@@ -1766,3 +1766,118 @@ was read for behavior and supplied asset bindings; no implementation was importe
 All runtime scenarios used dkguard, isolated homes/saves and software rendering.
 Evidence, reproducible input drivers, inspected frames, demo/AVI, audio analysis,
 logs and final check output: `zig-out/reports/weapons-zig-199`.
+
+
+## weapons-gold-review — sequence 200
+
+Resumed Cursor CLI session `f51a92b5-42a5-4f2d-9985-92fa7d8b09ca` from
+its local transcript. Its latest owner request was a careful, individual comparison
+of all 28 native Zig weapons with private Gold behavior. Earlier session work on
+renderer/parity, saves and bots is retained. No Git operations or reference runtime
+imports were performed.
+
+Status: **weapon correction pass implemented; focused acceptance passed**. Recovered comparison reports
+are private under `/tmp/dk3-resume-audits`; they are leads, not acceptance evidence.
+New local evidence is under `zig-out/reports/weapons-gold-200`.
+
+The resumed batch corrects Shotcycler victim accounting and aim; Sidewinder volleys;
+Shockwave direct/splash/ring damage and flight; Gas Hands timer and attacks; Venomous
+bite/poison/puddle behavior; Hammer quake damage; Trident ammunition, convergence and
+supercharge; Zeus targeting and timed chains; Silverclaw timing; Bolter ammo/contact;
+Stavros flight/fragments; Ballista pinning; Wyndrax acquisition; Nightmare reap timing
+and holds; sword trace geometry/experience; Glock reload; Ripgun spin-up; Slugger
+reach; Cordite fuse/contact; Kineticore acceleration; Novabeam budget; and Metamaser
+supplied parameters. Shared self-damage is no longer halved a second time by the
+engine, and power scales non-self damage after weapon-specific adjustments.
+
+Nightmare holds use an optional relative-time entity save field, defaulting to zero
+when absent. Controller references use a separate optional stable-ID field; mover
+attachments retain their original contract. A fixture omitting both new fields
+restores successfully. This demonstrates the missing-field path, not an exhaustive
+replay of archived old saves.
+Flashlight remains a documented dk3 convenience addition: the Gold implementation
+was not part of its shipped weapon list. No change to its toggle contract is intended.
+
+| Scenario | State and evidence |
+|---|---|
+| Integrated native build | Passed — final ReleaseSafe native build, formatting check and all engine provenance hashes match. |
+| Prediction and inventory regressions | Passed with C assertions enabled. Existing optimized C fixtures had silently disabled assertions. Enabling them exposed and repaired first-shot cooldown and Hammer ready-state faults, and exposed the fixture's incorrect ammo requirement for free weapons. |
+| All 28 local firing/presentation paths | Passed — authoritative IDs 1–28 across `selection-1-final.log`, IDs 15–21 in `selection-2-replay.log`, and repaired IDs 22–28 in `selection-2-final.log`. The latter replays resolve the Shotcycler shader warning and Ripgun missing pose. Inspected Shotcycler impacts/shells and Ripgun firing frames. This is selection/firing coverage, not exhaustive Gold presentation acceptance. |
+| Damage, targeting, liquid and controller scenarios | Passed for the focused matrix — Venom bite reports 39 damage and health falls 50→8 including poison; Zeus chains to three actors; Nightmare reaps after its hold; Metamaser has 300 health/30 initial charges and damages after restore. `water.py` asserts saved water level 3 for Ion, Venom, Trident and Zeus, including no ammo cost for Venom. |
+| Multiplayer integration | Passed — dedicated server/client with 60 ms delay each way; six Shotcycler shots, two Sidewinders, a Trident volley, Ripgun spin-up and five Kineticore shots. Bot and respawn frames recorded in `network-frames`. |
+| Mid-action saves, optional-field compatibility and restores | Passed — attached C4 restores and detonates; Hammer restores an 801 ms charge; Nightmare restores a 4100 ms remaining hold, reaps and releases; Metamaser restores both a pending launch and an active cube, with post-load damage at simulation times 1700/2500/3500/4500. Both optional fields can be omitted in a compatibility fixture. |
+| Supplied bindings | Model/sprite and sound names checked against the local packages. Gold's `shared/bloop4.wav` is absent; Bolter water sound remains unavailable unless supplied. |
+| Exhaustive per-weapon audiovisual parity | Open; the recovered reports include additional detailed effects, view-kick, frame timing, target and sound branches. Selection/firing smoke checks do not close these. |
+| Broad checks | Passed — one `make lint` (`zig build test`): 43 Python tests plus Zig checks; `lint.log`. |
+
+Individual comparison coverage (behavior repairs; exhaustive Gold presentation is
+not implied by this table):
+
+| Weapon | Reviewed/corrected behavior |
+|---|---|
+| Disruptor | Retained Cursor's authored swings and impact marks; corrected boosted frame timing and shared inertial damage. |
+| Ion blaster | Retained Cursor's collision, water-discharge and effect repairs; shared projectile boost and self-damage scaling apply. |
+| C4 | Retained Cursor's attachment/detonation repairs; mover attachment IDs stay separate from weapon-controller links. |
+| Shotcycler | Crosshair reach, two damageable victim slots, six shots, recoil and supplied bullet-hole material. |
+| Sidewinder | Two individually charged rockets, partial-ammo volley, converged muzzle offsets, splash-only hits and recovery. |
+| Shockwave | Delayed launch, direct/bounce/ring damage, six bounces, water behavior, one quake controller and silent flight-ring effects. |
+| Gas Hands | Held-only timer, delayed contact attack, inertial hit, gas smoke and equipped sound. |
+| Daikatana | Five-step swept contact geometry, kill experience, ready/away sounds and power applied after weapon damage adjustments. |
+| Discus | Retained Cursor's Gold reflection, targeting and return corrections. |
+| Sunflare | Retained Cursor's timed burn, bounce and liquid corrections. |
+| Venomous | Free close/water bite, 39 base bite damage, poison cadence, ballistic spit and settled puddle. |
+| Hammer | Release through cooldown, damage frame, charged self-hit, quake duration and grounded toss; restored ready state. |
+| Trident | One/two/three-ammo volleys, three muzzle offsets, convergence, supercharge and liquid radius. |
+| Zeus | Delayed target selection, branching timed bolts, per-zap damage bands, miss rules and tracked beam presentation. |
+| Silverclaw | Per-swing frame durations and one delayed swing sound. |
+| Bolter | Alternating ammo transaction, flesh removal, water speed; absent Gold water sound explicitly unresolved. |
+| Stavros | Acceleration/growth, splash-only blast, bounded bouncing fragments and silent expiry. |
+| Ballista | Authored launch frame, midsection test, authored mass hold, wall-angle pinning, secondary-hit explosion and unobstructed radius damage. |
+| Wyndrax | Authored launch frame, creature-only four-target zaps, hover/back-off, blue model and damaging fade. |
+| Nightmare | Entity-order marking, timed reaper, persisted holds, separate controller references and release after reap. |
+| Glock | 500 ms cadence and automatic ten-round clip reload. |
+| Ripgun | 350 ms spin-up through `shoota`, 100 ms shots, run-on, looping fire animation and authored `spdn`. |
+| Slugger | 4000-unit pellet reach, cadence and final-pellet impact. |
+| Kineticore | Five-shot burst, recovery, accelerating projectile, recoil and owner-hit adjustment. |
+| Novabeam | Supplied lifetime, per-tick ammo, decaying damage budget and shutdown. |
+| Metamaser | Authored launch frame, first-triple muzzle, second-triple capacity/health/life, cube size, target locks and persisted controller ownership. |
+| Cordite | Three-second fuse, delayed gravity, actor contact versus world bounce and supplied sounds. |
+| Flashlight | Preserved intentional dk3 toggle extension; not a shipped Gold weapon. |
+
+Verification also found two false assurances in prior evidence: optimized C fixtures
+had `NDEBUG` enabled, and a literal sprite file existing did not prove that its
+`@mark` shader existed. Assertions are now explicitly enabled, and Shotcycler's
+mark has a source-owned material. Rejected logs are preserved beside the replays.
+
+Final verification repairs:
+
+- Shotcycler now binds a material actually packaged by the native runtime; the
+  initial `NULL poly shader` failure is preserved in `selection-1.log`.
+- Ripgun uses Gold's looping `shoota` spin-up and authored `spdn`; no `spup` exists
+  in the supplied model. The rejected group log retains that crash.
+- Nightmare, Zeus and weapon rings no longer misuse mover `parentId`. Weapon links
+  use optional `weaponParentId`, so mid-action saves satisfy attachment validation.
+- Metamaser's first offset triple is the muzzle; the second contains 30 charges,
+  300 health and 19 seconds in this profile. Packed lock deadlines are now relative
+  to the saved projectile birth time. Older packed absolute-time cubes keep their
+  health/charges/phase and re-acquire locks on the restored clock.
+- The old liquid-test coordinate was beneath the water brush. The corrected runner
+  uses BSP-confirmed deep water and asserts server water level in every snapshot.
+  `rejected-water-position.log` is not liquid acceptance evidence.
+
+The historical sequence-199 broad suite result remains historical; its C assertions
+were disabled at that time. Its liquid screenshots also did not establish an actual
+submerged player. The assertion-enabled tests and saved water-level checks in this
+sequence supersede those particular assurances.
+
+Installed independent runtime:
+`6a4d5a4263029b67c6f5618cd107e7cfef5923d89d35daf21ab845a6e3cb36b4`.
+The live `zig-out/play/current` points to this generation. All engine scenarios used
+dkguard, isolated homes/saves, native modules and software rendering. No Git operation
+or original game/save write occurred. Evidence and reproducible drivers:
+`zig-out/reports/weapons-gold-200`.
+
+Remaining acceptance limits: exhaustive frame-by-frame Gold animation, sound mix,
+view kick, trails/fragments and every targeting/campaign branch remain open. The
+Bolter water sound is absent from the supplied assets. The run does not close the
+whole rewrite roadmap or claim full audiovisual equivalence.

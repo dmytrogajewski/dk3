@@ -1,5 +1,15 @@
 # Complete dk3: implementation, then gameplay verification
 
+## Current completion state
+
+As of **sequence 200 (2026-09-25)**, this is a playable native development build;
+the full game is incomplete. All 28 weapons are implemented in Zig, the Gold
+correction pass has focused acceptance, and the latest build and broad suite pass.
+Recorded authored campaign traversal reaches partway into e1m2b; no complete
+episode has passed. V1–V12 below remain open as complete acceptance groups.
+See [current status](status.md) for the subsystem matrix, known defects and evidence
+limits. Historical scenario results below are not a fresh replay of the latest build.
+
 ## Outcome and decisions
 
 Deliver the complete Daikatana campaign and multiplayer on a bundled modified ioquake3
@@ -54,9 +64,9 @@ remain valid until relevant inputs change. Broad checks run once at the end; ded
 | 2 | Complete independent asset pipeline and installation | Implementing; profiles, converters and installation graph written; 1.3 corpus packages installed; difficulty/mode navigation generates 97 AAS variants for 84 maps | First private conversion/install passed; retail and independence checks unrun |
 | 3 | Native ioquake3 runtime, shared movement, dk3 state/protocol | Implementing; native modules and world lifecycle compile; protocol, entity capacity and audio interfaces extended | 84 server map starts exercised; three large client maps rendered; full runtime scenarios open |
 | 4 | Opening sequence through the e1m1b bridge encounter | Implementing; triggers, exits, teleports, breakables and bridge earthquake/debris handlers written | Opening cinematic, ion combat and authored e1m1a exit into the corrected e1m1b entrance exercised; river combat, health-tree use, ammo pickup, level gain and attribute allocation exercised; bridge destruction, timed ten-mosquito formation, aggressive thunderskeet and boss defeat observed; authored exit into e1m1c exercised; fresh full replay open |
-| 5 | Complete weapons, inventory, damage, and progression | Implementing; weapon families, inventory/attribute controls, table balance, authored death drops, supplied weapon effects, quest gates and validated travel records written | Ion/rockgat combat, ammunition, pickups, level gain and attribute allocation exercised; C4 contact, arming, remote detonation, shot-triggered chains, proximity and saved charges exercised; Gas Hands pickup, countdown, expiry, restore, melee and same-episode travel exercised; remaining weapon/progression scenarios open |
+| 5 | Complete weapons, inventory, damage, and progression | All 28 selectable weapons implemented in native Zig; Gold correction pass implemented; inventory, attributes, drops, quest and travel systems written | Sequence 200: all 28 firing paths, representative damage/liquid/network scenarios, prediction contracts and C4/Hammer/Nightmare/Metamaser restores passed. Full per-weapon interactions, audiovisual parity and campaign progression acceptance remain open |
 | 6 | Navigation, actors, companions, and bot foundations | Implementing; frame-driven actor combat, gravity, roaming, leaps and several special abilities, companion state/commands, authored graph/rail routing, difficulty/mode navigation selection and bundled BSPC integration written | e1m1c difficulty-specific navigation selection exercised; complete variant conversion passed; partial bot movement/teleports; actors and companions remain open |
-| 7 | Scripts, cinematics, saves, UI, and presentation | Implementing; action/cinematic interpreters, staged saves, autosaves, scenery, world effects, music and subtitles written; presentation and persistence review continuing | Intro and e1m2 entry playback/handoff, mid-cinematic restore, mid-lift restore, corruption, previous-save and interrupted-write recovery exercised; other scenarios open |
+| 7 | Scripts, cinematics, saves, UI, and presentation | Implementing; interpreters, staged saves, autosaves, scenery, effects, music and subtitles written; weapon holds/controller links and packed deadline persistence corrected | Earlier cinematic/lift/corruption/recovery scenarios exercised; sequence 200 verifies mid-action weapon restores and omitted-optional-field compatibility. Complete script, UI, audiovisual and cross-episode persistence acceptance remains open |
 | 8 | Episodes 1–4 and complete multiplayer modes | Implementing; DM bots, native CTF/deathtag objectives, team spawns, host/join menus, carrier attachments and physical switch-seeking bots written | DM combat, team admission, CTF pickups/returns, uncontested captures and a five-capture contested bot replay exercised; two captures each on blue/red deathtag courses, including submerged routes; contested captures exercised; real network join/respawn/reconnect, visible protocol errors and host/join menus exercised; authored e1m1c and e1m2a progression reaches e1m2b; e1m2a lifts, remote doors, pump/cart route, collapse, rubble bridge, flooded passage and staggered ladder exercised; phantom AAS floors and cancelled bot jumps repaired, with both teams capturing in the affected four-bot deathtag replay; all 97 regenerated navigation variants load in the server, including the narrow-portal endpoint refresh; teammate yielding, broader network cases and remaining campaign traversal remain open |
 | 9 | Release/install path and publication preparation | Implementing; bundled-source setup, private installation and CI/build documentation written | Isolated native build/start passed; source/publication review and complete play path open |
 
@@ -131,7 +141,10 @@ interface checks and shared components. Prediction, combat/controllers, view/wor
 presentation, weapon sounds/effects, inventory exceptions, and restoration dispatch
 through those owners. The removed C implementations are not linked. This explicit
 owner-authorized exception supersedes the earlier C-only subsystem guidance. See
-[architecture](weapons-zig.md) and sequence 199 in the run log for verification evidence.
+[architecture](weapons-zig.md) and sequences 199–200 in the run log. Sequence 200
+adds assertion-enabled prediction coverage, confirmed submerged-player checks and
+Gold behavior/save repairs; it supersedes the corresponding weaker assurances in
+sequence 199. Full combat/progression acceptance remains open.
 
 Implement all campaign weapons and attack families using ioquake3 foundations: ammo,
 switching, melee, ricochets, return paths, splash, status effects, armor, artifacts, keys,

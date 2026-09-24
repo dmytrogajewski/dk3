@@ -1,5 +1,10 @@
 # Runtime gap audit
 
+Current completion summary: [game status through sequence 200](status.md).
+The entries below are historical findings and repair evidence; an initial gap is
+not necessarily still present after a later batch. Full campaign and audiovisual
+acceptance remain open. The latest weapon state is summarized at the end of this audit.
+
 The owner requests discovery by subsystem before grouped repairs. This audit compares
 native code, supplied data and optional private 1.3 source observations. Reference code
 is never an input to public builds or checks. Findings below supersede earlier isolated
@@ -269,3 +274,24 @@ yellow saturation near that pool also occurs with the prior installed build; it 
 separate, unresolved renderer defect. No ripples exist in the original rain path.
 Exact original population, random phase and frame-dependent splash density are not
 claimed. Private evidence: `zig-out/reports/rain-water-07/`.
+
+## Native weapon review, sequences 199–200
+
+All 28 weapon types now execute in native Zig. The Gold correction pass repairs
+ammunition/cadence, damage and projectile behavior, supplied presentation bindings
+and weapon-controller persistence. All 28 authoritative fire paths, representative
+combat/liquid/network scenarios and C4/Hammer/Nightmare/Metamaser restores pass.
+ReleaseSafe and one broad suite pass (43 Python tests plus Zig checks).
+
+The initial C fixtures had assertions disabled by optimization; they now enable
+them explicitly. The earlier liquid probe's position was outside the water volume;
+the replacement asserts saved water level 3. Those historical checks must not be
+used as evidence of contracts they did not actually test. Metamaser now reads its
+supplied capacity/health/lifetime correctly and rebases packed lock deadlines;
+Nightmare/controller links no longer masquerade as mover attachments.
+
+See the [per-weapon matrix and evidence](../specs/runs/RUN-dk3-independent-port.md#weapons-gold-review--sequence-200).
+Exhaustive target/material interactions, animation/audio/effect parity and all
+campaign branches remain open. Bolter's water sound is absent from the supplied
+profile. These repairs do not close the actor/companion, script, renderer or campaign
+findings elsewhere in this audit.

@@ -36,6 +36,7 @@ pub const spec: profiles.Spec = .{
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
     var result = shot_rules.standard(controller);
     result.duration_ms = c.DK_NovaLifetime(controller.boost()) + 200;
+    if (controller.ps.ammo[id] >= c.dk_weapons[id].ammoCost) result.cost = 0;
     return result;
 }
 pub fn update(controller: anytype) void {
@@ -79,8 +80,10 @@ pub fn projectileTick(ent: *server.Entity) void {
     if (server.now() < ent.dk.combatNext) return;
     const ps = &owner.client[0].ps;
     ent.dk.combatNext = server.now() + 100;
+    ps.ammo[id] = @max(0, ps.ammo[id] - server.info(@This()).ammoCost);
     if (ent.dk.action != 0) {
         ps.dk3WeaponSequence = c.DK_NOVA_RETRACT;
+        server.sound(owner, spec.audio.finish.?);
         server.free(ent);
         return;
     }
@@ -94,7 +97,6 @@ pub fn projectileTick(ent: *server.Entity) void {
         server.link(ent);
         return;
     }
-    ps.ammo[id] -= 1;
     const axes = server.basis(ps.viewangles);
     var eye = owner.r.currentOrigin;
     eye[2] += v.f(ps.viewheight);
@@ -129,7 +131,6 @@ pub fn drawImpact(cent: *c.centity_t) void {
 pub fn viewAction(view: anytype, ps: *c.playerState_t, _: c_int, _: bool) bool {
     if (ps.dk3WeaponSequence != c.DK_NOVA_RETRACT or view.sequence == c.DK_NOVA_RETRACT) return false;
     view.play(spec.animation.alternate.?, render.now(), 20);
-    render.localSound(pointer(spec.audio.finish));
     return true;
 }
 pub fn drawProjectile(cent: *c.centity_t) void {
@@ -141,6 +142,7 @@ pub fn validPlayer(ps: *const c.playerState_t, _: c_int) bool {
 }
 
 pub export fn DK_NovaLifetime(boost: c_int) callconv(.c) c_int {
-    if (boost <= 0) return 3000;
-    return @intFromFloat(3000.0 / (@as(f32, @floatFromInt(boost + 1)) * 0.5));
+    const lifetime = if (c.dk_weapons[id].lifetime > 0) c.dk_weapons[id].lifetime * 1000 else 2000;
+    if (boost <= 0) return v.i(lifetime);
+    return @intFromFloat(lifetime / (@as(f32, @floatFromInt(boost + 1)) * 0.5));
 }

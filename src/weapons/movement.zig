@@ -21,7 +21,7 @@ pub const Controller = struct {
     }
 
     pub fn scaled(self: *const Controller, duration: c_int) c_int {
-        const factor: f32 = 1 + 0.1 * @as(f32, @floatFromInt(self.boost()));
+        const factor = @import("rules.zig").attackFactor(self.boost());
         return @intFromFloat(@as(f32, @floatFromInt(duration)) / factor);
     }
 
@@ -45,7 +45,7 @@ pub const Controller = struct {
         const weapon: usize = @intCast(self.ps.weapon);
         if (shot.cost != 0 and self.ps.ammo[weapon] < shot.cost) {
             self.event(c.EV_NOAMMO);
-            self.ps.weaponTime = 300;
+            self.ps.weaponTime = @max(300, if (self.ps.dk3Burst != 0) Weapon.spec.burst_recovery_ms else 0);
             self.ps.dk3Burst = 0;
             return;
         }
@@ -53,6 +53,7 @@ pub const Controller = struct {
         self.ps.ammo[weapon] -= shot.cost;
         if (shot.consume_clip) self.ps.dk3GlockClip -= 1;
         self.ps.dk3WeaponSequence = shot.sequence;
+        if (self.ps.weaponstate != c.WEAPON_FIRING) self.ps.weaponTime = @max(0, self.ps.weaponTime);
         self.ps.weaponstate = c.WEAPON_FIRING;
         self.fireEvent();
         self.ps.weaponTime += shot.duration_ms;

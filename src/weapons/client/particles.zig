@@ -36,6 +36,23 @@ pub const Random = struct {
 pub fn seed(entity: c_int, time: c_int) Random {
     return .{ .state = @as(u32, @bitCast(entity)) *% 2654435761 +% @as(u32, @bitCast(time)) };
 }
+/// Gold CL_ParticleEffectSparks: a random burst whose count and speed grow
+/// with the strength value, fading over about a second.
+pub fn sparks(origin: v.Vec, direction: v.Vec, color: v.Vec, strength: u8, random: *Random) void {
+    const power: f32 = v.f(strength & 31);
+    const count: usize = @intCast((@as(u32, @intFromFloat(random.next() * 31)) * (1 + @as(u32, strength & 31))) & 63);
+    const along = v.scale(v.normal(direction), power * power);
+    for (0..count) |_| {
+        const d: f32 = @floor(random.next() * 8);
+        const velocity: v.Vec = .{
+            along[0] + (random.next() * 2 - 1) * 100,
+            along[1] + (random.next() * 2 - 1) * 100,
+            along[2] + (random.next() * 2 - 1) * 100,
+        };
+        const life: c_int = @intFromFloat(1000 / (0.5 + 0.1 * d));
+        add(.{ .start = r.now(), .end = r.now() + life, .origin = origin, .velocity = velocity, .gravity = .{ 0, 0, -400 }, .radius = @max(0.02, d * power * 0.005), .color = color, .alpha = 1, .streak = true, .shader = c.trap_R_RegisterShader("dk3/fx/ion-spark") });
+    }
+}
 pub fn draw() void {
     for (&particles) |*particle| {
         if (particle.end <= r.now() or particle.start > r.now()) continue;

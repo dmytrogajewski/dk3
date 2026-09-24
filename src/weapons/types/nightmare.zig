@@ -52,10 +52,10 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_nightmare", .label = "Nharre's Nightmare", .episode = 3, .interval = 2000 };
+pub const identity = .{ .classname = "weapon_nightmare", .label = "Nharre's Nightmare", .episode = 3, .interval = 60000 };
 const Incantation = enum(c_int) { start, marking, reaping };
 pub fn fire(shot: server.Fire) void {
-    _ = server.controller(@This(), shot.owner, shot.start, .nightmare, 16000);
+    _ = server.controller(@This(), shot.owner, shot.start, .nightmare, 60000);
 }
 fn mark(ent: *server.Entity, target: *server.Entity, model: [:0]const u8, lifetime: c_int) *server.Entity {
     const effect = server.controller(@This(), server.find(ent.dk.ownerId), target.r.currentOrigin, .stuck, lifetime);
@@ -77,7 +77,7 @@ pub fn projectileTick(ent: *server.Entity) void {
         return;
     };
     if (owner.health <= 0 or server.now() >= ent.dk.expires) {
-        server.free(ent);
+        finish(ent, owner);
         return;
     }
     const pentagram = "models/e3/we_nnpent.dkm";
@@ -88,7 +88,7 @@ pub fn projectileTick(ent: *server.Entity) void {
             const boost = c.DK_Attribute(&owner.client[0].ps, 1, server.now());
             const pent = mark(ent, owner, pentagram, 10000);
             pent.s.dk3AnimationRate = if (boost != 0) v.i(10 * (v.f(boost) + (if (boost == 1) @as(f32, 1.5) else 1))) else 20;
-            ent.dk.parentId = pent.dk.id;
+            ent.dk.weaponParentId = pent.dk.id;
         }
         ent.dk.combatNext = server.now() + 3100;
         return;
@@ -97,33 +97,77 @@ pub fn projectileTick(ent: *server.Entity) void {
         if (server.now() < ent.dk.combatNext) return;
         ent.dk.action = @intFromEnum(Incantation.reaping);
         var found = false;
-        while (ent.dk.combatCount < 16) {
-            const target = server.nearest(owner, ent.r.currentOrigin, server.info(@This()).range, ent) orelse break;
-            server.remember(ent, target);
+        for (server.entities()) |*target| {
+            if (!server.creatureTarget(owner, target) or v.distance(target.r.currentOrigin, ent.r.currentOrigin) > server.info(@This()).range or c.CanDamage(target, &owner.r.currentOrigin) == 0) continue;
             found = true;
-            if (target.client != null) mark(ent, target, pentagram, 5000).s.dk3AnimationRate = 66;
+            if (server.named(target, "monster_garroth") or ent.dk.combatCount >= 10) continue;
+            server.remember(ent, target);
+            if (target.client != null) mark(ent, target, pentagram, 11500).s.dk3AnimationRate = 66;
         }
         if (!found) server.remember(ent, owner);
-        if (server.find(ent.dk.parentId)) |pent| {
+        if (server.find(ent.dk.weaponParentId)) |pent| {
             pent.s.generic1 = if (found) 1 else 2;
             pent.dk.expires = server.now() + @as(c_int, if (found) 2000 else 4000);
         }
-        ent.dk.combatNext = server.now() + 500;
+        ent.dk.combatNext = server.now() + (if (c.g_gametype.integer == c.GT_SINGLE_PLAYER) @as(c_int, 500) else 1500);
     }
     if (server.now() < ent.dk.combatNext) return;
     if (ent.dk.uses >= ent.dk.combatCount) {
-        server.free(ent);
+        finish(ent, owner);
         return;
     }
     const target = server.find(ent.dk.combatTargets[@intCast(ent.dk.uses)]);
-    ent.dk.uses += 1;
-    if (target) |victim| {
-        if (victim.takedamage != 0 and victim.health > 0 and !server.named(victim, "monster_garroth")) {
-            _ = mark(ent, victim, "models/e3/we_nnreaper.dkm", 800);
-            server.damage(@This(), .{ .victim = victim, .inflictor = ent, .owner = owner, .direction = v.zero, .point = victim.r.currentOrigin, .amount = v.f(ent.damage) });
-        }
+    if (target == null or target.?.health <= 0 or target.?.takedamage == 0 or server.named(target.?, "monster_garroth")) {
+        ent.dk.uses += 1;
+        ent.dk.abilityState = 0;
+        return;
     }
-    ent.dk.combatNext = server.now() + 800;
+    const victim = target.?;
+    if (ent.dk.abilityState == 0) {
+        ent.dk.abilityState = 1;
+        var point = victim.r.currentOrigin;
+        for (0..8) |step| {
+            const angle = v.f(step) * 3.14159265 / 4;
+            const goal = v.add(victim.r.currentOrigin, .{ @cos(angle) * 100, @sin(angle) * 100, 0 });
+            const sight = server.trace(victim.r.currentOrigin, goal, victim.s.number, c.MASK_SOLID);
+            if (sight.fraction == 1) {
+                point = goal;
+                break;
+            }
+        }
+        const reaper = mark(ent, victim, "models/e3/we_nnreaper.dkm", 5000);
+        reaper.dk.destinationId = 0;
+        server.origin(reaper, point);
+        reaper.s.time = server.now() + 500;
+        const facing = v.sub(victim.r.currentOrigin, point);
+        c.vectoangles(&facing, &reaper.s.angles);
+        server.link(reaper);
+        ent.dk.destinationId = @bitCast(reaper.dk.id);
+        victim.dk.weaponHoldUntil = server.now() + 4750;
+        server.sound(reaper, "e3/we_reaperappear2.wav");
+        server.sound(reaper, "e3/we_nharrewind.wav");
+        ent.dk.combatNext = server.now() + 4750;
+        return;
+    }
+    victim.dk.weaponHoldUntil = 0;
+    const reaper = server.find(ent.dk.destinationId);
+    const point = if (reaper) |actor| actor.r.currentOrigin else ent.r.currentOrigin;
+    var origin = point;
+    origin[2] -= 24;
+    const direction = v.normal(v.sub(victim.r.currentOrigin, origin));
+    if (victim.client != null) victim.client[0].ps.velocity = v.scale(direction, 1500);
+    server.sound(if (reaper) |actor| actor else ent, "e3/we_reaperattack2.wav");
+    server.damage(@This(), .{ .victim = victim, .inflictor = ent, .owner = owner, .direction = direction, .point = victim.r.currentOrigin, .amount = v.f(ent.damage), .inertial = true });
+    ent.dk.uses += 1;
+    ent.dk.abilityState = 0;
+    ent.dk.combatNext = server.now() + 250;
+}
+fn finish(ent: *server.Entity, owner: *server.Entity) void {
+    for (ent.dk.combatTargets[0..@intCast(@max(0, @min(ent.dk.combatCount, 10)))]) |target_id| {
+        if (server.find(target_id)) |target| target.dk.weaponHoldUntil = 0;
+    }
+    if (owner.client != null and owner.client[0].ps.weapon == id) owner.client[0].ps.weaponTime = 100;
+    server.free(ent);
 }
 
 const render = @import("../client/render.zig");
@@ -154,6 +198,7 @@ pub fn projectileAnimation(cent: *c.centity_t, path: [*c]const u8, entity: *c.re
     if (cent.currentState.modelindex != 0) c.DK_ModelAnimation(path, if (c.strstr(path, "pent") != null) "pent" else "ataka", cent.currentState.time, c.qfalse, entity);
 }
 pub fn drawProjectile(cent: *c.centity_t) void {
+    if (render.now() < cent.currentState.time) return;
     const path = if (cent.currentState.modelindex != 0) c.CG_ConfigString(c.CS_MODELS + cent.currentState.modelindex) else spec.visual.projectile_model.ptr;
     if (c.strstr(path, "we_nnpent") == null or c.cg.renderingThirdPerson != 0 or c.cg.snap == null or cent.currentState.otherEntityNum != c.cg.snap[0].ps.clientNum) {
         render.model(@This(), cent);

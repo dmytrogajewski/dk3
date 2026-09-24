@@ -325,6 +325,7 @@ void DK_LoadActors(void) {
 }
 
 static dkActorInfo_t *Info(gentity_t *ent) { return &definitions[ent->dk.actorKind - 1]; }
+float DK_ActorMass(gentity_t *actor) { return actor->dk.actorKind > 0 ? Info(actor)->mass : 300; }
 
 static unsigned int ActorRandom(gentity_t *actor) {
     actor->dk.actorRandom = actor->dk.actorRandom * 1664525u + 1013904223u;
@@ -2308,6 +2309,11 @@ static void Cower(gentity_t *actor) {
 static void ActorThink(gentity_t *actor) {
     dkActorInfo_t *info = Info(actor);
     unsigned int id = actor->dk.id;
+    if (actor->health > 0 && actor->dk.weaponHoldUntil > level.time) {
+        VectorClear(actor->dk.actorVelocity);
+        actor->nextthink = level.time + DK_ACTOR_TICK;
+        return;
+    }
     if (fabs(actor->r.currentOrigin[0]) > MAX_WORLD_COORD ||
         fabs(actor->r.currentOrigin[1]) > MAX_WORLD_COORD || fabs(actor->r.currentOrigin[2]) > MAX_WORLD_COORD) {
         G_Printf("dk3: actor %u (%s) left world bounds at %.0f %.0f %.0f\n", actor->dk.id, actor->classname,

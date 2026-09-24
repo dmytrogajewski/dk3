@@ -509,6 +509,7 @@ void TossClientCubes( gentity_t *self );
 #define DAMAGE_RADIUS				0x00000001	// damage was indirect
 #define DAMAGE_NO_ARMOR				0x00000002	// armour does not protect from this damage
 #define DAMAGE_NO_KNOCKBACK			0x00000004	// do not affect velocity, just view angles
+#define DAMAGE_DK_SELF_SCALED        0x00000020  // dk3 weapon already applied its self-damage rule
 #define DAMAGE_NO_PROTECTION		0x00000008  // armor, shields, invulnerability, and godmode have no effect
 #ifdef MISSIONPACK
 #define DAMAGE_NO_TEAM_PROTECTION	0x00000010  // armor, shields, invulnerability, and godmode have no effect

@@ -855,6 +855,7 @@ void ClientThink_real( gentity_t *ent ) {
 
 #ifdef DK3_GAME
     if (client->ps.dk3CameraActive) client->ps.pm_type = PM_FREEZE;
+    if (ent->health > 0 && ent->dk.weaponHoldUntil > level.time) client->ps.pm_type = PM_FREEZE;
 #endif
 	client->ps.gravity = g_gravity.value;
 

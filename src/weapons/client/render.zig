@@ -22,6 +22,17 @@ pub fn worldSound(name: [*c]const u8, point: v.Vec) void {
 pub fn light(point: v.Vec, radius: f32, color: v.Vec) void {
     c.trap_R_AddLightToScene(&point, radius, color[0], color[1], color[2]);
 }
+const TimedLight = struct { start: c_int = 0, end: c_int = 0, point: v.Vec = .{ 0, 0, 0 }, radius: f32 = 0, color: v.Vec = .{ 0, 0, 0 } };
+var timed_lights: [16]TimedLight = @splat(.{});
+var timed_next: usize = 0;
+/// Gold TE_LIGHT: a constant light held for a fixed time.
+pub fn flashLight(point: v.Vec, radius: f32, color: v.Vec, ms: c_int) void {
+    timed_lights[timed_next] = .{ .start = now(), .end = now() + ms, .point = point, .radius = radius, .color = color };
+    timed_next = (timed_next + 1) % timed_lights.len;
+}
+pub fn drawLights() void {
+    for (timed_lights) |entry| if (now() >= entry.start and now() < entry.end) light(entry.point, entry.radius, entry.color);
+}
 pub fn sprite(path: [*c]const u8, frame: c_int, point: v.Vec, angles: v.Vec, scale: f32, alpha: f32, color: v.Vec, flags: c_int) bool {
     return c.DK_DrawSpriteAt(path, frame, &point, &angles, scale, alpha, &color, flags) != 0;
 }
@@ -135,12 +146,17 @@ pub fn model(comptime W: type, cent: *c.centity_t) void {
         light(cent.lerpOrigin, 150, .{ 0.8, 0.7, 0.2 });
         return;
     }
-    light(cent.lerpOrigin, 70, color);
+    if (W.spec.visual.glow) light(cent.lerpOrigin, 70, color);
 }
 pub fn impact(comptime W: type, cent: *c.centity_t) void {
     const kind = cent.currentState.eventParm;
     const cue = W.impactCue(.{ .kind = kind, .entity = cent.currentState.number, .frame = cent.currentState.frame });
     worldSound(cue.sound, cent.lerpOrigin);
+    if (cue.light_radius > 0) flashLight(cent.lerpOrigin, cue.light_radius, cue.light_color, cue.light_ms);
+    if (cue.sparks > 0) {
+        var random = @import("particles.zig").seed(cent.currentState.number, now());
+        @import("particles.zig").sparks(cent.lerpOrigin, cent.currentState.origin2, cue.spark_color, cue.sparks, &random);
+    }
     if (kind != 1 and kind != 2 and cue.mark != null) c.CG_ImpactMark(c.trap_R_RegisterShader(cue.mark), &cent.lerpOrigin, &cent.currentState.origin2, cue.orientation, 1, 1, 1, 1, c.qtrue, cue.radius, c.qfalse);
 }
 pub fn fired(comptime W: type, cent: *c.centity_t) void {

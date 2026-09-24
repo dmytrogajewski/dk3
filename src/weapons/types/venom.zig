@@ -21,7 +21,7 @@ pub const spec: profiles.Spec = .{
         .view_model = "models/e2/w_venomous.dkm",
         .ready = "ready",
         .away = "away",
-        .fire = "shoot",
+        .fire = "shoota",
         .idle = .{ "amba", null, null },
         .alternate = "melee",
         .raise_ms = 500,
@@ -41,6 +41,7 @@ pub fn predictionShot(controller: anytype) shot_rules.Shot {
         result.cost = 0;
         result.sequence = 128;
     }
+    result.duration_ms = controller.scaled(if (result.sequence == 128) 400 else 350) + 100;
     return result;
 }
 pub fn update(controller: anytype) void {
@@ -66,29 +67,83 @@ pub fn audioCue(context: AudioContext) d.AudioCue {
     return cue;
 }
 pub fn impactCue(context: impact.Context) impact.Cue {
-    return impact.none(context);
+    var cue = impact.none(context);
+    cue.sound = if (context.kind == 1) "global/m_knifehitb.wav" else "e2/we_venomhit.wav";
+    return cue;
 }
 
-pub const identity = .{ .classname = "weapon_venomous", .label = "Venomous", .episode = 2, .interval = 330 };
+pub const identity = .{ .classname = "weapon_venomous", .label = "Venomous", .episode = 2, .interval = 450 };
 
 pub fn fire(shot: server.Fire) void {
-    if (shot.sequence() == 128) server.traceShot(@This(), shot, server.info(@This()).damage, 64) else _ = server.spawn(@This(), shot);
+    if (shot.sequence() == 128) {
+        var start = shot.owner.r.currentOrigin;
+        start[2] += 4;
+        const end = v.madd(start, 150, shot.forward);
+        var hit: c.trace_t = undefined;
+        c.trap_Trace(&hit, &start, &shot.owner.r.mins, &shot.owner.r.maxs, &end, shot.owner.s.number, c.MASK_SHOT);
+        if (hit.entityNum >= c.ENTITYNUM_WORLD) return;
+        const target = &c.g_entities[@intCast(hit.entityNum)];
+        _ = server.impact(@This(), &hit, target.takedamage != 0);
+        server.damage(@This(), .{ .victim = target, .inflictor = shot.owner, .owner = shot.owner, .direction = shot.forward, .point = hit.endpos, .amount = server.info(@This()).damage * 1.3, .inertial = true });
+    } else {
+        var launch = shot;
+        var angles: v.Vec = undefined;
+        c.vectoangles(&shot.forward, &angles);
+        angles[0] -= 5;
+        launch.forward = server.basis(angles).forward;
+        const ent = server.spawn(@This(), launch);
+        ent.r.mins = .{ -8, -8, -2 };
+        ent.r.maxs = .{ 8, 8, 14 };
+        ent.dk.expires = server.now() + 10000;
+        server.link(ent);
+    }
 }
 pub fn afterHit(hit: *server.Hit) void {
-    const bite = hit.owner != null and hit.inflictor == hit.owner;
     const target = hit.victim;
-    target.dk.poisonDamage = if (bite) 1 else if (hit.inflictor != null and hit.inflictor.?.dk.projectile != 0) hit.amount * 0.1 else 1;
-    target.dk.poisonInterval = if (bite) 3000 else 1000;
-    target.dk.poisonEnd = server.now() + (if (bite) @as(c_int, 15000) else v.i(server.info(@This()).lifetime * 1000));
-    if (target.dk.poisonEnd <= server.now()) target.dk.poisonEnd = server.now() + 5000;
-    target.dk.poisonNext = server.now() + target.dk.poisonInterval;
+    if (target.dk.poisonEnd > server.now()) return;
+    target.dk.poisonDamage = server.info(@This()).damage * 0.1;
+    target.dk.poisonInterval = 1000;
+    target.dk.poisonEnd = server.now() + 5000;
+    target.dk.poisonNext = server.now() + 1000;
     target.dk.status |= 1;
 }
 pub fn contact(hit: server.Contact) void {
-    server.ballisticContact(@This(), hit);
+    if (hit.victim().takedamage != 0) {
+        server.damage(@This(), .{ .victim = hit.victim(), .inflictor = hit.ent, .owner = hit.owner(), .direction = v.zero, .point = hit.hit.endpos, .amount = server.info(@This()).damage, .inertial = true });
+        server.free(hit.ent);
+        return;
+    }
+    hit.effect(@This());
+    server.reflect(hit.ent, hit.hit, 0.6);
+    if (hit.hit.plane.normal[2] > 0.7 and v.length(hit.ent.s.pos.trDelta) < 60) {
+        server.stop(hit.ent, v.madd(hit.hit.endpos, 1, hit.hit.plane.normal));
+        server.setState(hit.ent, .stuck);
+        hit.ent.dk.expires = server.now() + 5000;
+        hit.ent.r.ownerNum = c.ENTITYNUM_NONE;
+    }
 }
 pub fn projectileTick(ent: *server.Entity) void {
-    _ = server.expired(@This(), ent);
+    if (server.now() >= ent.dk.expires or server.liquid(ent)) {
+        server.free(ent);
+        return;
+    }
+    if (server.state(ent) != .stuck) {
+        var speed = server.velocity(ent);
+        speed[2] -= 800 * 0.2 * v.f(server.tick_ms) / 1000;
+        server.steer(ent, speed);
+        return;
+    }
+    for (server.entities()) |*target| {
+        if (target == ent or target.inuse == 0 or target.takedamage == 0) continue;
+        var overlaps = true;
+        for (0..3) |axis| if (target.r.absmin[axis] > ent.r.currentOrigin[axis] + ent.r.maxs[axis] or target.r.absmax[axis] < ent.r.currentOrigin[axis] + ent.r.mins[axis]) {
+            overlaps = false;
+        };
+        if (!overlaps) continue;
+        server.damage(@This(), .{ .victim = target, .inflictor = ent, .owner = server.find(ent.dk.ownerId), .direction = v.zero, .point = target.r.currentOrigin, .amount = server.info(@This()).damage, .inertial = true });
+        server.free(ent);
+        return;
+    }
 }
 
 const render = @import("../client/render.zig");
@@ -112,11 +167,11 @@ pub fn drawProjectile(cent: *c.centity_t) void {
 fn biteContact(self: anytype) bool {
     if (self.move.waterlevel > 1 or self.ps.ammo[c.DK_W_VENOM] < c.dk_weapons[c.DK_W_VENOM].ammoCost) return true;
     var eye = self.ps.origin;
-    eye[2] += v.f(self.ps.viewheight);
+    eye[2] += 4;
     var forward: v.Vec = undefined;
     c.AngleVectors(&self.ps.viewangles, &forward, null, null);
-    const end = v.madd(eye, 64, forward);
+    const end = v.madd(eye, 150, forward);
     var hit: c.trace_t = undefined;
-    self.move.trace.?(&hit, &eye, null, null, &end, self.ps.clientNum, c.MASK_SHOT);
-    return hit.fraction < 1;
+    self.move.trace.?(&hit, &eye, &self.move.mins, &self.move.maxs, &end, self.ps.clientNum, c.MASK_SHOT);
+    return hit.fraction < 1 and hit.entityNum < c.ENTITYNUM_WORLD;
 }

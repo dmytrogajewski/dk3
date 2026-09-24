@@ -4,7 +4,7 @@ const c = r.c;
 const v = r.v;
 pub fn Effects(comptime W: type) type {
     return struct {
-        const Blast = struct { start: c_int = 0, end: c_int = 0, scale: f32 = 1, alpha: f32 = 1, origin: v.Vec = v.zero };
+        const Blast = struct { start: c_int = 0, end: c_int = 0, scale: f32 = 1, alpha: f32 = 1, origin: v.Vec = v.zero, fade: bool = true, light: bool = true };
         var blasts: [64]Blast = @splat(.{});
         var next: usize = 0;
         pub fn reset() void {
@@ -38,10 +38,10 @@ pub fn Effects(comptime W: type) type {
         pub fn frame() void {
             for (blasts) |effect| {
                 if (r.now() < effect.start or r.now() >= effect.end) continue;
-                const alpha = v.f(effect.end - r.now()) / v.f(@max(1, effect.end - effect.start));
+                const alpha = if (effect.fade) v.f(effect.end - r.now()) / v.f(@max(1, effect.end - effect.start)) else 1;
                 const period = if (@hasDecl(W, "blast_frame_ms")) W.blast_frame_ms else 70;
                 _ = r.sprite(W.spec.visual.impact_sprite, @divTrunc(r.now() - effect.start, period), effect.origin, v.zero, effect.scale, alpha * effect.alpha, W.spec.visual.color, c.DK_SPRITE_ADDITIVE | c.DK_SPRITE_CLAMP);
-                r.light(effect.origin, 180 * alpha, W.spec.visual.color);
+                if (effect.light) r.light(effect.origin, 180 * alpha, W.spec.visual.color);
             }
         }
     };

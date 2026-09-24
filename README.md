@@ -2,15 +2,18 @@
 
 An open-source project to bring **Daikatana to the ioquake3 engine**, built with Zig.
 
-**The game rewrite is incomplete.** The development checkout now includes the bundled
-ioq3 engine, both renderers, native upstream module foundations, optional QVM tooling,
-independent native game/client/UI modules, and the asset conversion/install graph.
-The default native build passes with the reference workspace and existing caches unavailable.
-The private 1.3 asset profile converts all 84 maps and their navigation. Running scenarios
-have exercised the opening cinematic, combat, bridge encounter and authored exits into
-e1m1c, plus multiplayer joins, respawns and objectives. Full campaign and multiplayer
-acceptance remain incomplete; see the [roadmap and evidence](docs/rewrite-roadmap.md).
-The preserved local game remains separate.
+**Playable development build; the game rewrite is incomplete.** The checkout includes
+the bundled ioquake3 engine, both renderers, independent native game/client/UI modules,
+all 28 selectable weapons implemented in Zig, and asset conversion/install tooling.
+The private 1.3 profile converts all 84 maps and 97 navigation variants. Recorded
+campaign traversal reaches partway into e1m2b; no complete episode is verified.
+
+The latest weapon correction pass verifies all 28 firing paths, representative combat,
+underwater attacks, multiplayer volleys and mid-action saves. The ReleaseSafe build
+and broad suite pass. Full campaign progression, companion behavior, multiplayer
+acceptance and Gold visual/audio parity remain open. See the
+[current completion state](docs/status.md) for what is implemented, verified and
+still missing, and the [roadmap](docs/rewrite-roadmap.md) for the full accepted scope.
 
 ## Build the engine and tools
 
@@ -68,6 +71,7 @@ src/game/         Independent authoritative game and campaign systems
 src/cgame/        Client presentation and shared prediction integration
 src/ui/           Native menus and input configuration
 src/shared/       Shared state, weapons, movement contracts and text layout
+src/weapons/      Native Zig weapon types, prediction, combat and presentation
 src/dkguard/       Process runner and its existing checks
 dkq3/tools/        Asset conversion, archive tools and installation
 build/            Engine, modules, navigation, assets and launcher build graph

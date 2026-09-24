@@ -63,6 +63,7 @@ export fn DK_AddCombatEffects() callconv(.c) void {
         if (@hasDecl(W, "clientFrame")) W.clientFrame();
         effects.Effects(W).frame();
     }
+    r.drawLights();
     @import("particles.zig").draw();
 }
 export fn DK_WeaponOverlay() callconv(.c) void {
@@ -71,7 +72,12 @@ export fn DK_WeaponOverlay() callconv(.c) void {
 export fn DK_SelectWeapon(direction: c_int, requested: c_int) callconv(.c) void {
     if (c.cg.snap == null or (c.cg.snap[0].ps.pm_flags & c.PMF_FOLLOW) != 0) return;
     if (direction == 0) {
-        if (c.DK_HasWeapon(&c.cg.snap[0].ps, requested) != 0) c.cg.weaponSelect = requested;
+        if (requested == c.cg.weaponSelect and requested == c.cg.snap[0].ps.weapon) inline for (registry.weapons) |W| if (W.id == requested) {
+            if (@hasDecl(W, "reselect")) W.reselect();
+        };
+        var weapon = requested;
+        if (weapon == c.DK_W_DISRUPTOR and c.cg.weaponSelect != c.DK_W_GASHANDS and c.DK_HasWeapon(&c.cg.snap[0].ps, c.DK_W_GASHANDS) != 0) weapon = c.DK_W_GASHANDS;
+        if (c.DK_HasWeapon(&c.cg.snap[0].ps, weapon) != 0) c.cg.weaponSelect = weapon;
     } else {
         var weapon = c.cg.weaponSelect;
         for (0..c.DK_WEAPON_COUNT) |_| {

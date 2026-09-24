@@ -34,7 +34,10 @@ pub const spec: profiles.Spec = .{
     .projectile_muzzle = true,
 };
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    var result = shot_rules.standard(controller);
+    result.sequence = (controller.ps.dk3WeaponSequence ^ 1) & 1;
+    result.cost = if (result.sequence == 1 and controller.ps.ammo[id] > 0) 0 else 1;
+    return result;
 }
 pub fn update(controller: anytype) void {
     controller.automatic(@This());
@@ -47,10 +50,10 @@ pub fn blastSound(_: c_int) [*c]const u8 {
 pub fn impactCue(context: impact.Context) impact.Cue {
     var cue = impact.none(context);
     cue.sound = switch (context.kind) {
-        1 => "e3/we_bolterhit.wav",
+        1 => null,
         3 => "e3/we_bolterhitmetal.wav",
         4 => "e3/we_bolterhitwood.wav",
-        else => "e3/we_bolterhitstone.wav",
+        else => "e3/we_bolterhit.wav",
     };
     return cue;
 }
@@ -61,7 +64,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_bolter", .label = "Bolter", .episode = 3, .interval = 250 };
+pub const identity = .{ .classname = "weapon_bolter", .label = "Bolter", .episode = 3, .interval = 600 };
 
 pub fn fire(shot: server.Fire) void {
     _ = server.spawn(@This(), shot);
@@ -75,11 +78,24 @@ pub fn contact(hit: server.Contact) void {
     if (hit.victim().takedamage != 0 and !server.visited(hit.ent, hit.victim())) {
         server.remember(hit.ent, hit.victim());
         hit.apply(@This(), v.f(hit.ent.damage));
+        server.free(hit.ent);
+        return;
     }
     @import("../server/bolt.zig").stick(@This(), hit);
 }
 pub fn projectileTick(ent: *server.Entity) void {
-    if (!server.stuck(ent)) _ = server.expired(@This(), ent);
+    if (server.stuck(ent) or server.expired(@This(), ent)) return;
+    const wet = server.liquid(ent);
+    if (ent.waterlevel != @intFromBool(wet)) {
+        var speed = server.velocity(ent);
+        if (wet) speed = v.scale(speed, 0.5) else if (v.length(speed) > 1000) {
+            speed = v.scale(v.normal(speed), 1000);
+        }
+        server.steer(ent, speed);
+        // The reference names a Q2 sound absent from the supplied DK corpus.
+        if (c.trap_FS_FOpenFile("sounds/shared/bloop4.wav", null, c.FS_READ) > 0) server.sound(ent, "shared/bloop4.wav");
+        ent.waterlevel = @intFromBool(wet);
+    }
 }
 
 const render = @import("../client/render.zig");

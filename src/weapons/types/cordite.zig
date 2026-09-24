@@ -15,8 +15,8 @@ pub const id = c.DK_W_CORDITE;
 pub const spec: profiles.Spec = .{
     .splash_hazard = true,
     .ammo_class = "ammo_cordite", // cordite
-    .projectile = .{ .gravity = true, .splash_scale = 1 },
-    .visual = .{ .projectile_model = "models/e4/we_ripgren.dkm" },
+    .projectile = .{ .direct_scale = 0, .splash_scale = 1, .splash_radius = 150, .lifetime_ms = 3000 },
+    .visual = .{ .projectile_model = "models/e4/we_ripgren.dkm", .blast_sound = "global/e_explode1.wav" },
     .world_model = "models/e4/a_cslug.dkm",
     .animation = .{
         .view_model = "models/e4/w_slugger.dkm",
@@ -28,7 +28,7 @@ pub const spec: profiles.Spec = .{
         .drop_ms = 250,
     },
     .audio = .{
-        .fire = "e4/we_ripgunshootc.wav",
+        .fire = "e4/we_ripgunshootb.wav",
         .ready = "e4/we_ripgunready.wav",
         .away = "e4/we_ripgunaway.wav",
     },
@@ -55,21 +55,35 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_cordite", .label = "Cordite", .episode = 4, .interval = 850 };
+pub const identity = .{ .classname = "weapon_cordite", .label = "Cordite", .episode = 4, .interval = 2000 };
 
 pub fn fire(shot: server.Fire) void {
-    _ = server.spawn(@This(), shot);
+    var launch = shot;
+    var angles: v.Vec = undefined;
+    c.vectoangles(&shot.forward, &angles);
+    angles[0] -= 5;
+    launch.forward = server.basis(angles).forward;
+    _ = server.spawn(@This(), launch);
 }
 
 pub fn contact(hit: server.Contact) void {
     hit.effect(@This());
-    if (hit.victim().takedamage != 0) {
-        hit.apply(@This(), v.f(hit.ent.damage));
+    if (hit.victim().client != null or hit.victim().dk.actorKind != 0) {
         hit.detonate(@This());
-    } else server.reflect(hit.ent, hit.hit, 0.6);
+    } else {
+        const owner_num = hit.ent.r.ownerNum;
+        server.reflect(hit.ent, hit.hit, 0.6);
+        hit.ent.r.ownerNum = owner_num;
+        const sounds = [_][:0]const u8{ "e4/we_ripgunhita.wav", "e4/we_ripgunhitb.wav", "e4/we_ripgunhitc.wav", "e4/we_ripgunhitd.wav", "e4/we_ripgunhite.wav", "e4/we_ripgunhitf.wav" };
+        server.sound(hit.ent, sounds[@min(5, @as(usize, @intFromFloat(server.random(hit.ent) * 6)))]);
+    }
 }
 pub fn projectileTick(ent: *server.Entity) void {
     if (server.expired(@This(), ent)) return;
+    if (ent.s.pos.trType == c.TR_LINEAR and server.now() - ent.s.time >= 380) {
+        server.steer(ent, server.velocity(ent));
+        ent.s.pos.trType = c.TR_GRAVITY;
+    }
     const wet = server.liquid(ent);
     ent.waterlevel = @intFromBool(wet);
     ent.s.dk3EffectFlags = if (wet) c.DK_FX_BUBBLE else 0;

@@ -1,9 +1,10 @@
 # Native save records
 
-Persistence integration is in progress. Running-client evidence covers cinematic and mover
-restoration, corruption diagnostics, previous-save recovery and interrupted writes. Complete
-campaign, companion and mid-script persistence acceptance remains open.
-Legacy saves remain with the preserved installation and are not migrated.
+Persistence integration is in progress. Running-client evidence covers cinematic/mover
+restoration, corruption diagnostics, previous-save recovery, interrupted writes and
+representative weapon controllers. Complete campaign, companion and mid-script
+persistence acceptance remains open; see [current completion state](status.md).
+Original Daikatana saves remain with the preserved installation and are not migrated.
 
 The menu exposes quick save, quick load, the previous quick-save copy and the map-entry
 autosave. `dk3_autosave 1` enables entry saves. `dk3_unlimitedSaves 1` is the default;
@@ -21,8 +22,9 @@ addresses, padding, callback names or function pointers are written.
 
 The reader rejects truncated data, trailing bytes, incompatible versions, mismatched
 checksums, invalid names/types/counts, duplicate fields, embedded text NULs and non-finite
-floats. Gameplay schemas additionally require every expected field and reject unknown
-fields. Validation works against separate storage before any live object is updated.
+floats. Gameplay schemas require every mandatory field and reject unknown fields.
+Explicitly optional fields have documented defaults when absent. Validation works
+against separate storage before any live object is updated.
 Simulation timestamps are encoded relative to the save point; an explicit sentinel means
 an inactive timer. Rebased timestamps must fit the simulation's integer range.
 
@@ -98,3 +100,23 @@ checkpoint keeps the player dead and gives a load/new-game diagnostic; it never 
 respawns into the altered world. Multiplayer continues to respawn within the match.
 Schema revision 5 includes each turret’s lift range and toggle state. Earlier development
 saves remain with their previous installation; the new schema requires a new campaign.
+
+## Weapon controller extensions, sequence 200
+
+The weapon review retains the codec and gameplay schema revision. It adds optional
+entity fields `dk_weaponholduntil` (relative simulation deadline) and
+`dk_weaponparentid` (stable controller ID), both defaulting to zero. Controller links
+are validated independently of `dk_parentid`, whose targets must remain movers.
+A fixture omitting both optional fields restores successfully; this does not imply
+compatibility with all earlier gameplay schema revisions.
+
+Ballista, Wyndrax and Metamaser launch delays are saved entities. Metamaser packs
+lock deadlines relative to its saved birth timestamp; slot 31 identifies this
+representation. Legacy absolute-time cubes retain their phase, health and charges
+and re-acquire target locks on the restored clock.
+
+Focused running scenarios verify attached C4 detonation, Hammer charge, Nightmare
+hold/reap/release and both pending and active Metamaser restoration. The active cube
+must damage after loading, not merely have a damage record before saving. Full
+weapon/controller phase and cross-episode coverage remains open. See
+[sequence 200](../specs/runs/RUN-dk3-independent-port.md#weapons-gold-review--sequence-200).

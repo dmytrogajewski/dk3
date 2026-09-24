@@ -23,7 +23,7 @@ pub const spec: profiles.Spec = .{
         .ready = "ready",
         .away = "away",
         .fire = "shoota",
-        .idle = .{ "amba", null, null },
+        .idle = .{ null, null, null },
         .raise_ms = 300,
         .drop_ms = 300,
     },
@@ -44,9 +44,14 @@ pub fn update(controller: anytype) void {
         ps.dk3AttackHeld = 1;
         return;
     }
-    if (ps.dk3AttackHeld == 0) return;
-    ps.dk3AttackHeld = 0;
-    if (ps.weaponTime <= 0) controller.fire(@This(), predictionShot(controller));
+    if (ps.dk3AttackHeld == 0) {
+        controller.release();
+        return;
+    }
+    if (ps.weaponTime <= 0) {
+        ps.dk3AttackHeld = 0;
+        controller.fire(@This(), predictionShot(controller));
+    }
 }
 
 pub fn blastSound(entity: c_int) [*c]const u8 {
@@ -69,27 +74,31 @@ fn strike(shot: server.Fire) void {
     const data = server.info(@This());
     const charge = @max(0.15, @min(1, v.f(shot.charge_ms) / 1800));
     const range = if (data.range > 0) data.range else 128;
-    server.traceShot(@This(), shot, data.damage * charge, 64);
+    var melee = shot;
+    melee.start = shot.owner.r.currentOrigin;
+    melee.start[2] += 4;
+    server.traceShot(@This(), melee, data.damage * charge, 50);
     if (charge >= 1 and shot.owner.s.groundEntityNum != c.ENTITYNUM_NONE) {
-        c.G_Damage(shot.owner, shot.owner, shot.owner, null, null, 20, c.DAMAGE_NO_ARMOR, c.DK_WEAPON_MOD(id));
+        c.G_Damage(shot.owner, shot.owner, shot.owner, null, null, 20, c.DAMAGE_NO_KNOCKBACK | c.DAMAGE_DK_SELF_SCALED, c.DK_WEAPON_MOD(id));
         for (server.entities()) |*target| {
             if (target.inuse == 0 or target.takedamage == 0 or target == shot.owner) continue;
-            const center = v.scale(v.add(target.r.absmin, target.r.absmax), 0.5);
+            const center = if (target.r.bmodel != 0) v.scale(v.add(target.r.absmin, target.r.absmax), 0.5) else target.r.currentOrigin;
             const delta = v.sub(center, shot.owner.r.currentOrigin);
             if (v.length(delta) > range) continue;
             const sight = server.trace(shot.start, center, shot.owner.s.number, c.MASK_SOLID);
             if (sight.fraction < 1 and sight.entityNum != target.s.number) continue;
-            server.damage(@This(), .{ .victim = target, .inflictor = shot.owner, .owner = shot.owner, .direction = delta, .point = center, .amount = data.damage });
+            server.damage(@This(), .{ .victim = target, .inflictor = shot.owner, .owner = shot.owner, .direction = v.zero, .point = center, .amount = data.damage, .flags = c.DAMAGE_NO_KNOCKBACK });
         }
         if (shot.owner.client != null) shot.owner.client[0].ps.velocity[2] += 450;
-        _ = server.controller(@This(), shot.owner, shot.owner.r.currentOrigin, .quake, 3000);
-    } else server.radius(@This(), shot.owner.r.currentOrigin, shot.owner, data.damage * charge, range, shot.owner);
+        _ = server.controller(@This(), shot.owner, shot.owner.r.currentOrigin, .quake, 6000);
+        server.tremor(shot.owner.r.currentOrigin, 643, 450, 6000);
+    } else _ = server.splash(@This(), .{ .point = shot.owner.r.currentOrigin, .inflictor = shot.owner, .attacker = shot.owner, .halved = null, .amount = data.damage * charge, .range = range, .ignore = shot.owner, .occlusion = false });
     server.blast(shot.start, id);
 }
 pub fn fire(shot: server.Fire) void {
     const action = server.controller(@This(), shot.owner, shot.start, .melee, 500);
     action.dk.action = shot.charge_ms;
-    action.dk.combatNext = server.now() + v.i((24 - chargeFrame(shot.charge_ms)) * 25);
+    action.dk.combatNext = server.now() + v.i((23 - chargeFrame(shot.charge_ms)) * 25);
 }
 pub fn projectileTick(ent: *server.Entity) void {
     if (server.state(ent) == .melee) {
@@ -110,7 +119,7 @@ pub fn projectileTick(ent: *server.Entity) void {
         return;
     }
     if (server.state(ent) == .ring) {
-        server.ringTick(@This(), ent, false);
+        if (server.now() >= ent.dk.expires) server.free(ent);
         return;
     }
     if (server.now() >= ent.dk.expires) {
@@ -118,10 +127,23 @@ pub fn projectileTick(ent: *server.Entity) void {
         return;
     }
     if (server.now() >= ent.dk.combatNext) {
-        const owner = server.find(ent.dk.ownerId);
-        server.radius(@This(), ent.r.currentOrigin, owner, v.f(ent.damage) * 0.25, 512, owner);
-        _ = server.ring(@This(), ent, 700, 512);
-        ent.dk.combatNext = server.now() + 500;
+        for (server.entities()) |*target| {
+            if (target.inuse == 0 or target.health <= 0 or target.dk.cinematicOwned != 0 or (target.client == null and target.dk.actorKind == 0)) continue;
+            const grounded = if (target.client != null) target.client[0].ps.groundEntityNum != c.ENTITYNUM_NONE else target.s.groundEntityNum != c.ENTITYNUM_NONE;
+            const distance = v.distance(target.r.currentOrigin, ent.r.currentOrigin) * 0.7;
+            if (!grounded or distance > 450) continue;
+            const strength = (450 - distance) * 0.25 * (0.25 + v.f(ent.dk.expires - server.now()) / 6000) * (server.info(@This()).damage * 0.01) * (if (target.client == null) @as(f32, 4) else 1);
+            var speed = if (target.client != null) target.client[0].ps.velocity else target.dk.actorVelocity;
+            for (&speed) |*axis| axis.* += (server.random(ent) - 0.5) * strength * 1.25;
+            if (target.client != null) {
+                target.client[0].ps.velocity = speed;
+                target.client[0].ps.groundEntityNum = c.ENTITYNUM_NONE;
+            } else {
+                target.dk.actorVelocity = speed;
+                target.s.groundEntityNum = c.ENTITYNUM_NONE;
+            }
+        }
+        ent.dk.combatNext = server.now() + 100;
     }
 }
 
@@ -151,9 +173,10 @@ pub fn viewAction(view: anytype, ps: *c.playerState_t, _: c_int, _: bool) bool {
     if (ps.dk3AttackHeld == 0 or ps.dk3Charge <= 0) return false;
     view.pose = spec.animation.fire;
     view.idle_at = render.now() + 5000;
-    if (render.now() >= next_charge_sound) {
+    if (ps.dk3Charge < 500) next_charge_sound = 500;
+    if (next_charge_sound >= 500 and next_charge_sound <= 1500 and ps.dk3Charge >= next_charge_sound) {
         render.localSound("e2/we_hammerr.wav");
-        next_charge_sound = render.now() + 500;
+        next_charge_sound += 500;
     }
     return true;
 }

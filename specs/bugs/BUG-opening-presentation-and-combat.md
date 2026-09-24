@@ -1,5 +1,11 @@
 # Opening presentation and combat repair
 
+These are historical reports and the evidence available in each repair batch.
+Later renderer, actor and weapon repairs supersede individual implementation notes
+below, including the thunderskeet cloud and earlier Ion presentation. Consult the
+[current game status](../../docs/status.md), [runtime audit](../../docs/runtime-gap-audit.md)
+and run log for the latest state. The complete opening comparison remains open.
+
 The owner reported twelve visible failures during play. This repair batch takes
 priority over further campaign route verification. Earlier progression results
 remain evidence of those inputs only; they do not establish presentation parity.

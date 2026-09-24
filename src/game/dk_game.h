@@ -22,6 +22,7 @@ qboolean DK_ConnectBot(int client);
 void DK_DisconnectBot(int client);
 void DK_AddBotCommand(void);
 void DK_LoadActors(void);
+float DK_ActorMass(gentity_t *actor);
 void DK_LoadDecor(void);
 qboolean DK_SpawnWorldEffect(gentity_t *entity);
 void DK_RestoreWorldEffect(gentity_t *entity);

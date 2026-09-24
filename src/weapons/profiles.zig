@@ -21,6 +21,10 @@ pub const Audio = struct {
     away: ?[:0]const u8 = null,
     reload: ?[:0]const u8 = null,
     finish: ?[:0]const u8 = null,
+    /// Gold SND_WEAPON_STD: looped on the holder while selected.
+    hum: ?[:0]const u8 = null,
+    /// Gold SND_AMBIENT_STD..: played with the matching idle animation.
+    idle: [3]?[:0]const u8 = .{ null, null, null },
 };
 
 pub const Visual = struct {
@@ -29,6 +33,8 @@ pub const Visual = struct {
     blast_sound: ?[:0]const u8 = null,
     color: [3]f32 = .{ 1, 0.45, 0.12 },
     spin: bool = false,
+    /// Constant light around the projectile model.
+    glow: bool = true,
 };
 
 pub const ProjectileSpawn = struct {
@@ -44,6 +50,8 @@ pub const ProjectileSpawn = struct {
 
 pub const Spec = struct {
     ammo_class: ?[:0]const u8 = null,
+    /// Rounds in one gold ammo pack; 0 falls back to the initial ammunition.
+    ammo_pack: c_int = 0,
     auto_select: bool = true,
     droppable: bool = true,
     companion_pickup: bool = true,

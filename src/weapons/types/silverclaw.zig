@@ -34,6 +34,7 @@ pub const spec: profiles.Spec = .{
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
     var result = shot_rules.standard(controller);
     result.sequence = @mod(@divTrunc(controller.move.cmd.serverTime, 7), 3);
+    result.duration_ms = controller.scaled(([_]c_int{ 850, 600, 1000 })[@intCast(result.sequence)]) + 100;
     return result;
 }
 pub fn update(controller: anytype) void {
@@ -50,10 +51,8 @@ pub fn viewCue(sequence: c_int, _: c_int) d.ViewCue {
     cue.pose = pointer(poses[@intCast(@mod(sequence, 3))]);
     return cue;
 }
-pub fn audioCue(context: AudioContext) d.AudioCue {
-    const interval = @max(c.dk_weapons[id].interval, 1);
-    const variant = if (context.entity == context.local_entity) context.sequence else @divTrunc(context.fired, interval) + context.entity;
-    return .{ .fire = pointer(spec.audio.variants[@intCast(@mod(variant, 3))]), .extra = null };
+pub fn audioCue(_: AudioContext) d.AudioCue {
+    return .{ .fire = null, .extra = null };
 }
 pub fn impactCue(context: impact.Context) impact.Cue {
     var cue = impact.none(context);
@@ -65,7 +64,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return cue;
 }
 
-pub const identity = .{ .classname = "weapon_silverclaw", .label = "Silverclaw", .episode = 3, .interval = 420 };
+pub const identity = .{ .classname = "weapon_silverclaw", .label = "Silverclaw", .episode = 3, .interval = 950 };
 pub fn fire(shot: server.Fire) void {
     const ent = server.controller(@This(), shot.owner, shot.start, .melee, 400);
     ent.dk.action = @mod(shot.sequence(), 3);

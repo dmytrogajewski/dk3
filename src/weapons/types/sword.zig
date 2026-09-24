@@ -15,6 +15,7 @@ pub const id = c.DK_W_SWORD;
 pub const spec: profiles.Spec = .{
     .companion_pickup = false, // sword
     .world_model = "models/global/a_daikatana.dkm",
+    .audio = .{ .ready = "global/we_swordwhoosha.wav", .away = "global/we_swordwhooshc.wav" },
     .animation = .{
         .view_model = "models/global/w_daikatana.dkm",
         .ready = "ready",
@@ -60,7 +61,7 @@ fn fireSwing(controller: anytype) void {
     ps.weaponstate = c.WEAPON_FIRING;
     controller.fireEvent();
     const duration = c.dk_swordSwings[@intCast(selected)].followThrough * c.DK_SwordFrameTime(ps.dk3SwordExperience);
-    ps.weaponTime += controller.scaled(duration);
+    ps.weaponTime += duration;
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -120,23 +121,25 @@ pub fn modifyHit(hit: *server.Hit) void {
     }
 }
 fn swipe(owner: *server.Entity, from: v.Vec, to: v.Vec, amount: f32) void {
-    var eye = owner.r.currentOrigin;
-    eye[2] += if (owner.client != null) v.f(owner.client[0].ps.viewheight) else 24;
+    const eye = owner.r.currentOrigin;
     const axes = server.basis(if (owner.client != null) owner.client[0].ps.viewangles else owner.s.angles);
     const range = server.info(@This()).range;
     if (v.length(from) < 0.01) {
         server.traceShot(@This(), .{ .owner = owner, .start = eye, .forward = axes.forward }, amount, range);
         return;
     }
-    for (0..10) |step| {
-        const distance = (0.01 + v.f(step) * 0.1) * range;
+    for (0..5) |step| {
+        const distance = (0.01 + v.f(step) * 0.2) * range;
         const a = v.scale(v.normal(from), distance);
         const b = v.scale(v.normal(to), distance);
         const mid = v.scale(v.normal(v.add(a, b)), distance);
         var points: [3]v.Vec = undefined;
         for ([_]v.Vec{ a, mid, b }, 0..) |offset, index| points[index] = v.madd(v.madd(v.madd(eye, offset[0], axes.forward), offset[1], axes.right), offset[2], axes.up);
         for (0..2) |index| {
-            const hit = server.trace(points[index], points[index + 1], owner.s.number, c.MASK_SHOT);
+            const mins: v.Vec = @splat(-16);
+            const maxs: v.Vec = @splat(16);
+            var hit: c.trace_t = undefined;
+            c.trap_Trace(&hit, &points[0], &mins, &maxs, &points[index + 1], owner.s.number, c.MASK_SHOT);
             if (hit.fraction >= 1) continue;
             _ = server.impact(@This(), &hit, hit.entityNum < c.ENTITYNUM_WORLD and c.g_entities[@intCast(hit.entityNum)].takedamage != 0);
             if (hit.entityNum < c.ENTITYNUM_WORLD) server.damage(@This(), .{ .victim = &c.g_entities[@intCast(hit.entityNum)], .inflictor = owner, .owner = owner, .direction = v.normal(v.sub(hit.endpos, eye)), .point = hit.endpos, .amount = amount });
@@ -246,7 +249,11 @@ pub fn clientFrame() void {
 }
 
 pub fn killed(victim: *server.Entity, attacker: ?*server.Entity) void {
-    if (attacker) |owner| if (owner != victim and owner.client != null and victim.client != null) c.DK_AwardExperience(owner, 0, 50 * (victim.client[0].ps.dk3Level + 1));
+    if (attacker) |owner| if (owner != victim and owner.client != null and victim.client != null) {
+        var attributes: c_int = 1;
+        for (victim.client[0].ps.dk3Attributes) |value| attributes += value;
+        c.DK_AwardExperience(owner, 0, 50 * attributes);
+    };
 }
 
 comptime {

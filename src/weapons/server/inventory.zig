@@ -37,6 +37,7 @@ export fn DK_PlayerWeaponLoop(raw: [*c]s.Entity) callconv(.c) c_int {
     if (player.client == null) return 0;
     inline for (registry.weapons) |W| if (player.client[0].ps.weapon == W.id) {
         if (@hasDecl(W, "loopSound")) return W.loopSound(player);
+        if (W.spec.audio.hum) |sound| return if (player.health > 0 and player.client[0].ps.pm_type == c.PM_NORMAL) c.DK_SoundIndex(sound) else 0;
         return 0;
     };
     return 0;

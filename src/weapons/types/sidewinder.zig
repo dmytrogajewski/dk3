@@ -15,8 +15,11 @@ pub const id = c.DK_W_SIDEWINDER;
 pub const spec: profiles.Spec = .{
     .splash_hazard = true,
     .ammo_class = "ammo_rockets", // sidewinder
-    .projectile = .{ .splash_scale = 1 },
-    .visual = .{ .projectile_model = "models/e1/we_swrocket.dkm" },
+    .ammo_pack = 18,
+    .burst_shots = 2,
+    .burst_recovery_ms = 1150,
+    .projectile = .{ .direct_scale = 0, .splash_scale = 1 },
+    .visual = .{ .projectile_model = "models/e1/we_swrocket.dkm", .blast_sound = "e1/we_sidewinderexp.wav", .color = .{ 0.8, 0.4, 0.2 }, .glow = false },
     .world_model = "models/e1/a_swindr.dkm",
     .animation = .{
         .view_model = "models/e1/w_sidewinder.dkm",
@@ -28,14 +31,18 @@ pub const spec: profiles.Spec = .{
         .drop_ms = 350,
     },
     .audio = .{
-        .fire = "e1/we_sidewindershoot.wav",
+        .fire = "e1/we_sidewindershoota.wav",
         .ready = "e1/we_sidewinderready.wav",
         .away = "e1/we_sidewinderaway.wav",
+        .idle = .{ "e1/we_sidewinderamba.wav", "e1/we_sidewinderamba.wav", null },
     },
     .projectile_muzzle = true,
 };
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    var shot = shot_rules.standard(controller);
+    shot.duration_ms = controller.scaled(100);
+    shot.sequence = if (controller.ps.dk3Burst == 0) 0 else 1;
+    return shot;
 }
 pub fn update(controller: anytype) void {
     controller.automatic(@This());
@@ -55,20 +62,39 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_sidewinder", .label = "Sidewinder", .episode = 1, .interval = 850 };
+pub const identity = .{ .classname = "weapon_sidewinder", .label = "Sidewinder", .episode = 1, .interval = 1350 };
 
 pub fn fire(shot: server.Fire) void {
-    const axes = server.directionBasis(shot.forward);
-    for (0..2) |index| {
-        const side = v.f(index) - 0.5;
-        const ent = server.spawn(@This(), .{ .owner = shot.owner, .start = v.madd(shot.start, side * 12, axes.right), .forward = v.normal(v.madd(shot.forward, side * 0.06, axes.right)) });
-        if (server.liquid(ent)) {
-            ent.s.pos.trDelta = v.scale(ent.s.pos.trDelta, 1.0 / 3.0);
-            ent.dk.abilityState = 1;
-            ent.waterlevel = 1;
-            ent.s.dk3EffectFlags = c.DK_FX_BUBBLE;
-        }
+    var launch = shot;
+    if (shot.owner.client != null) {
+        const ps = &shot.owner.client[0].ps;
+        const axes = server.basis(ps.viewangles);
+        var eye = ps.origin;
+        eye[2] += v.f(ps.viewheight);
+        const offset: v.Vec = if (shot.sequence() == 0) .{ 10, 10, 9 } else .{ 10, 8, 11 };
+        launch.start = v.madd(v.madd(eye, offset[0], axes.right), offset[1], axes.forward);
+        launch.start[2] += offset[2] - c.DEFAULT_VIEWHEIGHT;
+        launch.start = server.trace(eye, launch.start, shot.owner.s.number, c.MASK_SHOT).endpos;
+        const aim = server.trace(eye, v.madd(eye, 4000, axes.forward), shot.owner.s.number, c.MASK_SHOT).endpos;
+        const delta = v.sub(aim, launch.start);
+        launch.forward = if (v.dot(delta, axes.forward) > 1) v.normal(delta) else axes.forward;
+        ps.velocity = v.madd(ps.velocity, -90, axes.forward);
     }
+    const ent = server.spawn(@This(), launch);
+    ent.r.mins = @splat(-2);
+    ent.r.maxs = @splat(2);
+    ent.s.dk3Scale = 1.5;
+    ent.s.angles[2] = if (shot.sequence() == 0) 90 else 0;
+    if (server.liquid(ent)) {
+        ent.s.pos.trDelta = v.scale(ent.s.pos.trDelta, 1.0 / 3.0);
+        ent.dk.abilityState = 1;
+        ent.waterlevel = 1;
+        ent.s.dk3EffectFlags = c.DK_FX_BUBBLE;
+    }
+    server.link(ent);
+}
+pub fn modifyHit(hit: *server.Hit) void {
+    if (hit.victim == hit.owner and (hit.flags & c.DAMAGE_RADIUS) != 0) hit.amount *= 0.8;
 }
 pub fn contact(hit: server.Contact) void {
     server.ballisticContact(@This(), hit);
@@ -103,4 +129,8 @@ pub fn drawImpact(cent: *c.centity_t) void {
 }
 pub fn drawProjectile(cent: *c.centity_t) void {
     render.model(@This(), cent);
+    render.light(cent.lerpOrigin, 200, spec.visual.color);
+}
+pub fn startShotPose(view: anytype, ps: *c.playerState_t, fired: c_int, reset: bool) void {
+    if (ps.dk3WeaponSequence == 0 and (reset or view.shot != fired)) view.play(spec.animation.fire, render.now(), spec.animation.rate);
 }
