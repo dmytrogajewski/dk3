@@ -1,0 +1,126 @@
+# Native Zig replacement runtime
+
+Accepted 2026-09-26; implementation starts at **runtime-zig-217**. This decision
+supersedes the general C/QVM requirement for dk3 gameplay, client and UI modules.
+The current native runtime remains the default until replacement acceptance passes.
+Implemented code and verified acceptance are tracked separately in the run log.
+
+## Scope and boundaries
+
+Replace all game-owned behavior, including Quake III game-module foundations under
+engine/ioquake3. Retain engine rendering, audio, collision/BSP, platform, filesystem,
+module-loading and other engine infrastructure. Retain existing Zig networking,
+online services and guard; Python asset/development tooling stays supported.
+Use Gold as private behavioral reference plus accepted fixes, never as imported
+implementation. Preserve licenses and original installations/assets/saves.
+
+Three native module entrypoints (server game, client game and UI) depend on explicit
+engine adapters, shared domain rules and ECS infrastructure. Domain code cannot
+import g_local.h, cg_local.h or engine globals. Engine-facing structs are transport
+projections; authoritative state belongs to the server ECS. Client ECS owns replicated,
+predicted and presentation state. Menu navigation uses ordinary typed state.
+Existing Zig weapon/multiplayer rules must acquire backend adapters, not duplicate
+implementations for legacy and replacement runtimes.
+
+## ECS and scheduling
+
+Use a project-owned archetype ECS with typed component registration, aligned chunks,
+generational handles, independent persistent IDs and engine slots. No component
+addresses or row indices cross structural barriers. Deferred create/destroy/add/remove
+commands commit in deterministic system/job/entity order. Chunk storage and scratch
+lifetimes are explicit and bounded. Authoritative capacity exhaustion is an error;
+only documented cosmetic effects may be dropped.
+
+Parallel systems declare component/resource reads, writes, dependencies and engine
+thread affinity. Disjoint chunks may run concurrently; conflicts establish ordering.
+All ioquake3 calls remain on the owning thread. Workers produce typed requests and
+commands, engine queries resolve at barriers, and dependent work resumes in the same
+step. Transactional pushing and order-sensitive gameplay commits stay serial.
+Worker completion order cannot choose entity IDs, event order or RNG draws. Preserve
+simulation time and input timing. dk3_jobs=0 runs inline; positive values select workers,
+default CPUs minus one capped at eight. Join jobs before save capture, teardown/unload.
+
+## SOLID / DRY / KISS
+
+Each state and transition has one owner. Separate simulation, persistence and
+presentation. Concrete actor/weapon policies satisfy checked contracts; shared
+mechanisms do not become a universal behavior interpreter. Engine/test services obey
+the same contracts. Separate collision/storage/audio/rendering interfaces; avoid a
+service locator. Prefer compile-time composition and use runtime interfaces only at
+real substitution boundaries. Share prediction/server rules and schemas. Keep the
+ECS tailored to the game; no plugin or dependency-injection framework. Explicit state
+unions, allocators and recoverable errors replace implicit flags/global mutation.
+
+## Build and compatibility
+
+-Dgame-runtime=legacy|zig defaults to legacy. Replacement installations require their
+own prefix and isolated profile. One process loads one runtime, with no fallback into
+legacy gameplay. ABI bridges remain mechanical and layout checked. Keep native module
+exports and engine-facing layouts where practical; never expose Zig-native layouts.
+
+Current schema-5 saves and optional fields, persistent IDs, relative deadlines and
+visited worlds require explicit record mappings. Validate staged state before publish;
+never serialize pointers, chunk memory or jobs. Retain protocol layouts where practical,
+but require matching verified runtime builds; mixed-runtime play is not required.
+
+## Connected implementation stages
+
+1. Boundary, alternative build/module entrypoints and baseline replay harness.
+2. ECS, parallel scheduler, identity/time/RNG, movement/inventory and weapon adapters.
+3. World spawning, movers, interactions, combat, actors/navigation, companions/bots.
+4. Scripts, cinematics, progression, travel and persistence.
+5. Prediction, model/animation/effects/audio/HUD and complete UI/multiplayer flows.
+6. Acceptance, default cutover and removal of legacy gameplay from the active product.
+
+Implement connected code before systematic scenarios. Required acceptance includes
+ECS relocation/stale handles/capacity, scheduler conflicts and worker-count equivalence,
+all 28 weapons, implemented campaign systems, saves/recovery/visited worlds, recorded
+regressions (including lifts, crouching, menu loads, Superfly and lasers), both renderers,
+input/audio/UI, matching-build dedicated/Internet rooms, bots/reconnect/rotation,
+compatibility rejection, and repeated performance/memory/query measurements. Audit
+replacement builds for legacy C behavior and domain imports. Run the applicable broad
+suite after integrated repairs, not per-item duplicate gates. Engine runs use dkguard.
+Full four-episode completion is separate from implemented-scope cutover. Keep the old
+installation for rollback and preserve user profiles throughout.
+
+## Implementation checkpoint: runtime-zig-217
+
+**The replacement is not playable and cutover has not occurred.** The ordinary
+`dk3` installation continues to use the legacy runtime. Server, client and UI
+entrypoints reject unqualified gameplay explicitly; they do not delegate back to
+legacy game code. `play` and `play-install` reject the replacement selection.
+
+Implemented foundation:
+
+- Native module build, public-header ABI boundary and layout checks.
+- Archetype chunks, explicit component IDs, generational handles, persistent IDs,
+  deferred structural commands and independent engine-slot allocation.
+- Bounded persistent worker pool, access/dependency scheduler, frozen schedule
+  contracts and owning-thread engine collision barriers.
+- Ballistic probe through that scheduler, exact engine-frame clock and relative
+  deadline helpers. These are not replacements for player movement or actor physics.
+- Map metadata ingestion retaining all authored properties; entity behaviors remain
+  to be implemented.
+- Portable existing save-record codec and read-only exact-roundtrip inspector.
+  Gameplay schema validation, staged ECS reconstruction and save/load remain open.
+- One shared inventory acquisition transition used by the existing weapon backend
+  and the replacement Inventory component. Weapon controllers, policies and
+  presentation still require backend extraction.
+
+Stages 1–2 are partially implemented. Stages 3–6, player movement, playable
+client/UI, full weapon adapters, persistence restoration and cutover acceptance
+remain open. Codec validation and bootstrap probes are not campaign acceptance.
+
+Build and exercise the isolated foundation with local converted assets:
+
+```sh
+zig build game runtime-audit --prefix zig-out/replacement -Dgame-runtime=zig
+zig build test-runtime
+python3 dkq3/tools/runtime_probe.py --engine zig-out/play/current --prefix zig-out/replacement
+zig-out/replacement/bin/dk3-runtime-audit /path/to/existing.sav
+```
+
+The probe uses a temporary home, copies only the replacement server module, invokes
+`dkguard`, and records logs/inputs in `zig-out/reports/runtime-zig-217`. It compares
+0/1/4 workers and map restarts. The audit command only reads its input. Neither
+command installs a replacement into the normal launcher or writes existing saves.

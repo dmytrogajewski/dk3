@@ -15,7 +15,8 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{ .default_target = .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .gnu } });
     const optimize = b.option(std.builtin.OptimizeMode, "optimize", "Optimization mode") orelse .ReleaseSafe;
     @import("build/online.zig").declare(b, target, optimize);
-    @import("build/compatibility.zig").declare(b);
+    const runtime = b.option(game.Runtime, "game-runtime", "Select legacy or isolated native Zig replacement") orelse .legacy;
+    @import("build/compatibility.zig").declare(b, runtime == .zig);
     const guard = b.addExecutable(.{ .name = "dkguard", .root_module = b.createModule(.{
         .root_source_file = b.path("src/dkguard/main.zig"),
         .target = target,
@@ -23,9 +24,10 @@ pub fn build(b: *std.Build) void {
     }) });
     b.installArtifact(guard);
     b.installFile("src/cgame/dk3-projectile-weather.shader", "share/dk3/scripts/dk3-projectile-weather.shader");
-    if (engine.declare(b, target, optimize)) |products| game.declare(b, target, optimize, products);
+    if (engine.declare(b, target, optimize)) |products| game.declare(b, target, optimize, products, runtime);
     qvm.declare(b, optimize);
     const checks = b.step("test", "Run the existing published component checks");
+    checks.dependOn(@import("build/replacement.zig").declareTests(b, optimize));
     checks.dependOn(&b.top_level_steps.get("test-online").?.step);
     checks.dependOn(&b.top_level_steps.get("test-codec").?.step);
     checks.dependOn(&b.addFmt(.{ .paths = &.{ "build.zig", "build.zig.zon", "build", "src" }, .check = true }).step);
@@ -59,7 +61,7 @@ pub fn build(b: *std.Build) void {
     const python = b.option([]const u8, "python", "Python 3.10+ interpreter") orelse "python3";
     const navigation = bspc.declare(b, optimize);
     const packages = assets.declare(b, host_guard, python, navigation);
-    play.declare(b, packages, host_guard);
+    play.declare(b, packages, host_guard, runtime == .zig);
     const bootstrap =
         \\import os, sys, unittest
         \\os.environ['DKGUARD'] = os.path.abspath(sys.argv.pop(1))

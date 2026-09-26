@@ -5,12 +5,11 @@ const registry = @import("../registry.zig");
 export fn DK_AddWeapon(inventory: [*c]c_int, ammo: [*c]c_int, selected: [*c]c_int, weapon: c_int, rounds: c_int) callconv(.c) c.qboolean {
     inline for (registry.weapons) |W| if (weapon == W.id) {
         const data = s.info(W);
-        const mask = @as(c_int, 1) << W.id;
-        const owned = (inventory[0] & mask) != 0;
-        if (owned and (data.ammoMax == 0 or ammo[W.id] >= data.ammoMax)) return c.qfalse;
-        inventory[0] |= mask;
-        ammo[W.id] = @min(data.ammoMax, ammo[W.id] + @max(0, rounds));
-        if (!owned and W.spec.auto_select) selected[0] = W.id;
+        var selection: i32 = selected[0];
+        var owned: u32 = @bitCast(inventory[0]);
+        if (!@import("../inventory_rules.zig").acquire(&owned, ammo[0..c.DK_WEAPON_COUNT], &selection, W.id, rounds, .{ .maximum = data.ammoMax, .auto_select = W.spec.auto_select })) return c.qfalse;
+        inventory[0] = @bitCast(owned);
+        selected[0] = selection;
         if (@hasDecl(W, "acquired")) W.acquired(inventory, ammo);
         return c.qtrue;
     };

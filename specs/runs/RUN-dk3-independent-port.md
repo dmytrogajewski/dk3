@@ -2529,3 +2529,44 @@ behind the Mishima logo upstairs.
 The first beam-height probe read a save before writing completed; the corrected
 runner waits for the save and both directions pass. No code change or repeat
 broad suite was needed after the scenario correction.
+
+## Runtime Zig foundation — sequence 217
+
+Accepted architecture: [native Zig replacement](../../docs/runtime-zig.md). Full
+replacement remains open. This checkpoint implements parts of stages 1–2, not a
+playable game or acceptance cutover. Legacy remains the ordinary launcher runtime.
+
+Implemented: isolated native server/client/UI build and public ABI adapters;
+archetype ECS with aligned chunks, explicit component IDs, generational handles,
+persistent IDs, deferred commands and independent engine slots; bounded workers,
+access/dependency scheduling and owner-thread collision; exact frame clock and
+relative deadline helpers; map metadata retaining authored fields; portable save
+record codec and read-only audit tool. A shared inventory acquisition transition
+now serves legacy weapon code and the replacement Inventory component. Client/UI
+entrypoints explicitly reject use; gameplay, player movement, weapon backends,
+world behaviors, staged save reconstruction and cutover are not implemented.
+
+The worker scenario exposed a queue-handoff race: after clearing the job slice,
+`next` retained the completed batch's index and an idle worker indexed an empty
+queue (`index 8, len 0`). Resetting the cursor under the same mutex and checking
+exhaustion with `>=` repaired it. A 1,024-batch changing-queue regression passes.
+The legacy build caught an allowzero C-pointer adaptation error; the adapter now
+copies selection into a typed local and writes the result back before weapon
+acquisition hooks.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Native replacement builds and ABI | Passed | Three modules compile without legacy C gameplay sources; public entity projection layout checked. |
+| ECS, workers, scheduling and codec contracts | Passed | 15 replacement tests, including stale handles, structural barriers, ordered commands, frozen access declarations, batch handoff, owner affinity and 0/1/4-worker equivalence. |
+| Real engine bootstrap/collision/restart | Passed | `runtime_probe.py`, `e1m3b`, 456 authored objects, 128 probe entities × 20 steps; identical hash `d3bcc3f6a1f26070` with 0/1/4 workers before and after restart. Temporary home, dedicated engine under dkguard. No campaign behavior demonstrated. |
+| Existing save record compatibility | Passed | 22 local saves parsed and reproduced byte-for-byte, including latest 20,638,706-byte quicksave; before/after source hashes unchanged. Gameplay restoration is not qualified. |
+| Shared inventory in legacy game | Passed | Isolated headless legacy build under dkguard, `devmap e1m3b`, `give weapons`, save inspection: all 28 ownership bits, initial selection preserved, paired Cordite ammunition 2. Harness initially used the wrong save-field name; corrected inspection of the recorded save passed. |
+| Premature installation guards | Passed | Replacement rejects default prefix and `play-install`; normal launcher installation unchanged. |
+| Broad checks | Passed | `zig build test --summary all`: 153 Zig tests, 49 Python tests; legacy native game build passes after C-pointer repair. No duplicate broad suite. |
+| Replacement gameplay/client/UI/save restoration | Unrun | Required implementations remain open; bootstrap and codec results do not establish this acceptance. |
+
+Reproducible commands are in `docs/runtime-zig.md`. Local inputs/logs/results are
+under `zig-out/reports/runtime-zig-217`; assets and saves remain private. No normal
+installation was updated. Continue stages 1–2 with actual player movement, shared
+weapon backend extraction and ECS persistence mappings before world/client/UI
+migration and implemented-scope acceptance.

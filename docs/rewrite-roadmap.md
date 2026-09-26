@@ -2,6 +2,11 @@
 
 ## Current completion state
 
+Sequence 217 begins the accepted [native Zig replacement runtime](runtime-zig.md):
+archetype ECS, parallel systems, separate native modules and an isolated installation.
+The existing runtime stays default until implemented-scope acceptance passes.
+This supersedes the historical C/QVM game-module guidance below.
+
 Sequence 209 adds [configurable permanent rooms](online-operations.md#permanent-rooms)
 entirely on the server, retaining compatibility with the already distributed RPM.
 Focused acceptance verifies 16-slot bot filling, human replacement/refill, local

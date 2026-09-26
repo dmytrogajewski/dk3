@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Conservative source-level rules identity, independent of optimization and ELF layout.
 const std = @import("std");
-pub fn declare(b: *std.Build) void {
+pub fn declare(b: *std.Build, replacement: bool) void {
     var paths: std.ArrayList([]const u8) = .empty;
-    for ([_][]const u8{ "src/weapons", "src/multiplayer", "src/game", "src/shared", "engine/ioquake3/code/game" }) |root| {
+    for ([_][]const u8{ "src/replacement", "src/weapons", "src/multiplayer", "src/game", "src/shared", "engine/ioquake3/code/game" }) |root| {
+        if (!replacement and std.mem.eql(u8, root, "src/replacement")) continue;
         var directory = std.Io.Dir.cwd().openDir(b.graph.io, b.pathFromRoot(root), .{ .iterate = true }) catch @panic("missing gameplay source");
         defer directory.close(b.graph.io);
         var walker = directory.walk(b.allocator) catch @panic("OOM");
@@ -20,6 +21,7 @@ pub fn declare(b: *std.Build) void {
         }
     }.less);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
+    if (replacement) hash.update("runtime=zig\x00");
     for (paths.items) |path| {
         const bytes = std.Io.Dir.cwd().readFileAlloc(b.graph.io, b.pathFromRoot(path), b.allocator, .limited(16 << 20)) catch @panic("cannot hash gameplay source");
         hash.update(path);

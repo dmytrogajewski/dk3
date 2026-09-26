@@ -46,7 +46,13 @@ are removed. The owner’s existing quicksave, crossings from both ends at beam
 height, fresh weapon-driven shutdown and save/reload pass. Normal `dk3` is updated
 and existing saves/settings are preserved.
 
-Updated 2026-09-26, through **laser-shutdown, sequence 216**.
+Sequence 217 begins the [native Zig replacement](runtime-zig.md): isolated native
+entrypoints, ECS/job/scheduler infrastructure, map metadata, collision probes,
+shared inventory rules and a save-record codec. **The replacement is not playable;
+full migration and cutover remain open.** See the run log for foundation checks.
+The normal launcher and owner saves remain on the existing runtime.
+
+Updated 2026-09-26, through **runtime-zig, sequence 217**.
 
 **dk3 is a playable development build, not a completed Daikatana port.** Independent
 native systems exist across the game, but implementation and successful focused

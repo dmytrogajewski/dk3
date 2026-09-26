@@ -2,8 +2,14 @@
 const std = @import("std");
 const assets = @import("assets.zig");
 
-pub fn declare(b: *std.Build, packages: assets.Assets, guard: *std.Build.Step.Compile) void {
+pub fn declare(b: *std.Build, packages: assets.Assets, guard: *std.Build.Step.Compile, replacement: bool) void {
     const install = b.step("play-install", "Prepare and verify an independent dk3 development installation");
+    if (replacement) {
+        const failure = &b.addFail("Zig replacement gameplay is not qualified; use the isolated runtime_probe.py harness").step;
+        install.dependOn(failure);
+        b.step("play", "Launch the independent dk3 development game with supplied assets").dependOn(failure);
+        return;
+    }
     const prepare = b.addSystemCommand(&.{ packages.python, "-B" });
     prepare.addFileArg(b.path("dkq3/tools/play.py"));
     prepare.addArgs(&.{ "install", "--prefix", b.install_path, "--assets", packages.directory });
