@@ -16,6 +16,7 @@ pub const Blast = struct {
     self_scale: f32 = 0.5,
     diminishing: bool = true,
     occlusion: bool = true,
+    inertial: bool = false,
 };
 pub fn center(world: *data.World, target: ecs.Entity) !v.Vec3 {
     if ((world.get(target, data.Actor) catch null) != null or (world.get(target, data.Player) catch null) != null) return (try world.get(target, data.Transform)).position;
@@ -38,6 +39,6 @@ pub fn apply(world: *data.World, slots: *const Slots, blast: Blast, now: i64) !v
         const owner = try world.persistentId(target) == blast.owner;
         const amount = (if (blast.diminishing) @import("../domain/combat.zig").radiusDamage(blast.damage, distance, blast.radius, false, false) else blast.damage) * (if (owner) blast.self_scale else 1);
         if (amount <= 0 or (blast.occlusion and !try visible(blast.origin, point, blast.skip_slot, @intCast(slot)))) continue;
-        _ = try @import("weapon_damage.zig").hurt(world, target, blast.owner, blast.weapon, amount, now, false);
+        if (try @import("weapon_damage.zig").hurt(world, target, blast.owner, blast.weapon, amount, now, false)) if (blast.inertial) try @import("weapon_damage.zig").shove(world, target, blast.owner, v.subtract(point, blast.origin), amount, now);
     }
 }

@@ -8,6 +8,15 @@ pub const affliction = @import("affliction.zig");
 pub const c4 = @import("descriptions/c4.zig");
 pub const hammer = @import("descriptions/hammer.zig");
 pub const shockwave = @import("descriptions/shockwave.zig");
+pub const trident = @import("descriptions/trident.zig");
+pub const ballista = @import("descriptions/ballista.zig");
+pub fn flightScale(id: u5, flags: i32) f32 {
+    inline for (weapons) |W| if (id == W.id) {
+        if (@hasDecl(W, "flightScale")) return W.flightScale(flags);
+        return W.spec.visual.projectile_scale;
+    };
+    return 1;
+}
 pub fn combatFor(id: u5, sequence: i32) @import("profiles.zig").Combat {
     inline for (weapons) |W| if (id == W.id) {
         if (@hasDecl(W, "combatFor")) return W.combatFor(sequence);

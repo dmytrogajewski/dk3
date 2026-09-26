@@ -545,3 +545,22 @@ saved ricochet flight. Inspected captures show the blue rings without opaque spr
 backgrounds. Full water, muzzle timing, quake motion, effect/audio parity and campaign
 acceptance remain open. The development orb has a bounded 60-second cleanup; this
 is not a claim that Gold uses that flight deadline. Evidence belongs to the run log.
+
+## runtime-zig-238 — linked Trident tips and Ballista transport
+
+Implemented; integrated verification continues. Trident consumes up to three rounds,
+uses all three supplied muzzle offsets, steers surviving outer tips and combines the
+group after its expansion. Water and charged contact damage remain class-owned.
+Ballista releases after its animation delay, halves underwater launch velocity,
+strikes and transports actors, pins suitable wall contacts, and releases on timeout,
+death, expiry, travel or disconnect. A body motion owner prevents actor steering from
+overwriting transport; actual movement still resolves collision. Native snapshots
+validate group and victim references and preserve relative controller clocks.
+
+Nineteen combat policies are connected in code. Focused live evidence demonstrates
+Trident's close-range three-tip kill and Ballista's saved pending shot, saved victim,
+wall pin, repeated pin damage and release. The Trident merge scenario remains open:
+the first lane intersects outer tips before merging. Complete trail/impact/audio,
+water, actor motion regressions and multiplayer qualification also remain open.
+The Shockwave trail binding now uses the supplied e1 asset path; open-flight rendered
+verification is pending. This checkpoint is not a gate on dependent implementation.

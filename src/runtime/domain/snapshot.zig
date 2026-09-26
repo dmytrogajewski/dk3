@@ -238,6 +238,11 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Body) catch null) |body| {
             if (body.mass <= 0 or body.mass > 100000) return error.InvalidSavedMass;
             for (body.mins, body.maxs) |low, high| if (low > high or @abs(low) > 8192 or @abs(high) > 8192) return error.InvalidSavedBounds;
+            if (body.motion_owner) |owner_id| {
+                const owner = world.find(owner_id) orelse return error.InvalidSavedMotionOwner;
+                const projectile = world.get(owner, data.Projectile) catch return error.InvalidSavedMotionOwner;
+                if (projectile.flight != .ballista or projectile.flight.ballista.victim != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
+            }
         }
         if ((world.get(entity, data.Exit) catch null) != null) {
             try require(world, entity, .{ data.MapObject, data.Binding, data.Body });
@@ -268,6 +273,26 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Binding, data.Velocity });
             if (flight != .ion) try require(world, entity, .{data.Lifetime});
             if (projectile.flight == .shockwave and (projectile.flight.shockwave.rings > 6 or projectile.flight.shockwave.next_ms < 0)) return error.InvalidSavedProjectile;
+            if (projectile.flight == .trident) {
+                const tip = projectile.flight.trident;
+                if (tip.next_ms < 0 or tip.steering_speed < 0 or tip.steering_speed > 100000) return error.InvalidSavedProjectile;
+                for ([_]u32{ tip.leader, tip.left, tip.right }) |id| if (id != 0) {
+                    if (id == try world.persistentId(entity)) return error.InvalidSavedProjectile;
+                    if (world.find(id)) |related| {
+                        const peer = world.get(related, data.Projectile) catch return error.InvalidSavedProjectile;
+                        if (peer.flight != .trident or peer.owner != projectile.owner) return error.InvalidSavedProjectile;
+                    }
+                };
+            }
+            if (projectile.flight == .ballista) {
+                const bolt = projectile.flight.ballista;
+                if (bolt.next_ms < 0 or bolt.release_ms < 0 or bolt.release_ms > 3602000) return error.InvalidSavedProjectile;
+                if (bolt.victim) |id| {
+                    const victim = world.find(id) orelse return error.InvalidSavedProjectile;
+                    try require(world, victim, .{ data.Body, data.Velocity, data.Health });
+                    if ((try world.get(victim, data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedProjectile;
+                }
+            }
         }
         if (world.get(entity, data.Melee) catch null) |melee| {
             const plan = melee.plan() catch return error.InvalidSavedMelee;
@@ -279,7 +304,7 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.WeaponLaunch) catch null) |launch| {
             const class = @import("weapon_catalog").find(launch.weapon) orelse return error.InvalidSavedLaunch;
             const policy = @import("weapon_catalog").combatFor(launch.weapon, launch.sequence);
-            if ((policy != .projectile and policy != .shockwave) or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
+            if ((policy != .projectile and policy != .shockwave and policy != .ballista) or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
             const owner = world.find(launch.owner) orelse return error.InvalidSavedLaunch;
             try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
         }
@@ -360,7 +385,7 @@ test "campaign saves own flat archives and validate nested worlds before admissi
 
 test "portable native snapshots own strings and preserve IDs before rebasing" {
     const allocator = std.testing.allocator;
-    var world = data.World.init(allocator, 16);
+    var world = data.World.init(allocator, 32);
     defer world.deinit();
     const player = try world.create(7, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{}, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{ .boost_until = .{ 0, 1300, 0, 0, 0 } }, data.Ailments{}, data.Keys{} });
     var random: data.Random = .{ .state = 92817 };
@@ -380,6 +405,10 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = try world.create(50, .{ data.Transform{}, data.Binding{ .slot = 68 }, wave, data.Random{ .state = 80 } });
     _ = try world.create(51, .{ data.Transform{}, data.WeaponLaunch{ .owner = 7, .weapon = 6, .sequence = 0, .charge = 0, .execute_ms = 1600 } });
     _ = try world.create(52, .{ data.Transform{}, data.Binding{ .slot = 69 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 6, .damage = 150, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .shockwave = .{ .next_ms = 200, .last_ring = .{ 100, 200, 300 }, .rings = 1, .touched_water = true } } }, data.Lifetime{ .expires_ms = 5000 } });
+    _ = try world.create(53, .{ data.Transform{}, data.Binding{ .slot = 70 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 13, .damage = 30, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .trident = .{ .left = 54, .next_ms = 200 } } }, data.Lifetime{ .expires_ms = 5000 } });
+    _ = try world.create(54, .{ data.Transform{}, data.Binding{ .slot = 71 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 13, .damage = 30, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .trident = .{ .kind = .left, .leader = 53, .reversed = true } } }, data.Lifetime{ .expires_ms = 5000 } });
+    _ = try world.create(55, .{ data.Transform{}, data.Binding{ .slot = 72 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 18, .damage = 80, .born_ms = 900, .stepped_ms = 1000, .stuck = true, .flight = .{ .ballista = .{ .victim = 7, .last_victim = 7, .release_ms = 2100 } } }, data.Lifetime{ .expires_ms = 3000 } });
+    (try world.get(player, data.Body)).motion_owner = 55;
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -408,6 +437,10 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expectEqual(wave.rings[0].inner, saved_wave.rings[0].inner);
     try std.testing.expectEqual(@as(i64, 9600), (try loaded.world.get(loaded.world.find(51).?, data.WeaponLaunch)).execute_ms);
     try std.testing.expectEqual(@as(i64, 200), (try loaded.world.get(loaded.world.find(52).?, data.Projectile)).flight.shockwave.next_ms);
+    try std.testing.expectEqual(@as(u32, 54), (try loaded.world.get(loaded.world.find(53).?, data.Projectile)).flight.trident.left);
+    try std.testing.expect((try loaded.world.get(loaded.world.find(54).?, data.Projectile)).flight.trident.reversed);
+    try std.testing.expectEqual(@as(i64, 2100), (try loaded.world.get(loaded.world.find(55).?, data.Projectile)).flight.ballista.release_ms);
+    try std.testing.expectEqual(@as(?u32, 55), (try loaded.world.get(loaded.world.find(7).?, data.Body)).motion_owner);
     const melee = (try loaded.world.get(loaded.world.find(45).?, data.Melee)).*;
     try std.testing.expectEqual(@as(?i64, 8700), (try loaded.world.get(loaded.world.find(7).?, data.Weapons)).last_fire_ms);
     const poison = (try loaded.world.get(loaded.world.find(7).?, data.Ailments)).poison.?;

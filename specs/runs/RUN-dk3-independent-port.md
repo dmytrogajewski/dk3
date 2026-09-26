@@ -2995,3 +2995,19 @@ elasticity, wave damage and sprite behavior were reviewed privately.
 | First connected run | Passed, limited | `runtime-zig-237/shockwave-first/`: normal fire after diagnostic equipment/placement, saved delayed shot kills authored worker 383; band identity/radii survive save/load, six rings expand and expire. A second saved orb ricochets six times before exploding. |
 | Second renderer | Passed, limited | `shockwave-opengl2/`: repeats all combat/save assertions, including an observed in-flight orb save. Both renderer captures inspected; translucent blue rings are visible without opaque backgrounds. Full trails, muzzle timing, liquid interaction, quake motion and audio parity remain unverified. |
 | Applicable broad checks | Passed | `/tmp/dk3-runtime-237-suite.log`: 213 Zig + 44 Python checks pass. Seventeen combat policies are connected. The bounded 60-second orb cleanup is an independent runtime limit, not verified Gold flight behavior. Eleven combat policies and the broader accepted roadmap remain open. |
+
+## runtime-zig — sequence 238 (linked tips and actor transport)
+
+Implemented; verification continues alongside the remaining weapon controllers.
+Trident group links and Ballista victim references use persistent IDs, with native
+save validation and relative clocks. Weapon classes own spread/reversal, water and
+charge scaling, torso/plane tests and mass-dependent hold time. Shared mechanisms
+own engine slots, collision and area impulses. Gold was consulted privately.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated build/contracts | Passed after repair | `/tmp/dk3-runtime-238-connected-build.log` and `integrated-build.log` exposed an unused local, a shadowed helper and signed collision slot inference. `/tmp/dk3-runtime-238-save-build.log`: all three modules and 77 focused tests pass. Class tests and native round trips cover group links, victim ownership and relative deadlines. |
+| Close Trident impacts | Passed, limited | `runtime-zig-238/linked-first/`, `linked-flat/`, `linked-torso/` and `linked-lanes/`: ordinary attacks spend three rounds and kill worker 383 with separate 30-base-damage tips. Diagnostic equipment/placement. |
+| Ballista saved victim | Passed after fixture repair | First shot from an elevated south position reaches geometry immediately after restore. Flat eastern aim hits outside the torso. `linked-torso/` uses a normal torso aim from the east: saved delayed launch, active victim bytes in the native save, restored reference, wall pinning, 1-point ticks and final release/explosion. Worker 384 has diagnostic health 500 to survive the observed action. Capture inspected. |
+| Trident saved merge | Failed fixture; open | Oversized diagnostic clearance bounds begin in scenery (`linked-torso/`). After switching to a centerline measurement, `linked-lanes/` finds 935 units, but outer tips hit nearby walls before merging. The saved three-tip group restores; a suitable authored merge lane still needs verification. |
+| Media and broader verification | Unrun | Shockwave's trail binding was corrected from Gold's global path to the supplied e1 path. Trident merge/water/partial ammo, Ballista water/oblique walls, complete art/audio, second renderer, actor-motion regression and refreshed aggregate suite remain open. No still-valid broad suite was duplicated as a per-item gate. |

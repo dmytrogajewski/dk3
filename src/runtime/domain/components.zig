@@ -12,7 +12,7 @@ pub const Player = @import("player_move.zig").Player;
 pub const Vec3 = [3]f32;
 pub const Transform = @import("poses.zig").Pose;
 pub const Velocity = struct { linear: Vec3 = @splat(0) };
-pub const Body = struct { mins: Vec3 = .{ -16, -16, -24 }, maxs: Vec3 = .{ 16, 16, 32 }, contents: u32 = 0, collision_mask: u32 = 0, grounded: bool = false, mass: f32 = 100 };
+pub const Body = struct { mins: Vec3 = .{ -16, -16, -24 }, maxs: Vec3 = .{ 16, 16, 32 }, contents: u32 = 0, collision_mask: u32 = 0, grounded: bool = false, mass: f32 = 100, motion_owner: ?u32 = null };
 pub const Health = @import("items.zig").Health;
 pub const Actor = @import("actors.zig").State;
 pub const Hurt = @import("damage.zig").Receipt;

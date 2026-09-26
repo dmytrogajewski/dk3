@@ -69,6 +69,8 @@ pub const State = struct {
         try @import("c4.zig").step(world, slots, projections, now);
         try @import("hammer.zig").step(world, slots, projections, now);
         try @import("shockwave.zig").step(world, slots, projections, now);
+        try @import("trident.zig").step(world, slots, projections, now);
+        try @import("ballista.zig").step(world, slots, projections, now);
         try @import("weapon_launches.zig").step(world, slots, projections, table, now);
         try @import("melee.zig").step(world, slots, projections, table, now);
         try @import("ailments.zig").step(world, now);

@@ -48,7 +48,8 @@ fn escape(service: nav.Service, position: v.Vec3, threat: v.Vec3, body: data.Bod
     return best;
 }
 pub fn step(actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocity: *data.Velocity, service: nav.Service, threat: v.Vec3, speed: f32, slot: u16, now: i64, elapsed: u32) !void {
-    const moving = actor.mode == .flee or actor.mode == .chase;
+    const driven = body.motion_owner != null;
+    const moving = !driven and (actor.mode == .flee or actor.mode == .chase);
     if (moving and actor.mode == .flee) {
         if (!actor.route.fleeing or now >= actor.escape_until or actor.route.blocked or nav.horizontalDistance(pose.position, actor.route.destination) < 24) {
             const destination = try escape(service, pose.position, threat, body.*, slot);
@@ -73,7 +74,7 @@ pub fn step(actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocit
         var grounded = motion.velocity[2] <= 0 and !ground.start_solid and ground.fraction < 1 and ground.normal[2] >= 0.7;
         actor.ground_entity = if (grounded) ground.entity else c.ENTITYNUM_NONE;
         body.grounded = grounded;
-        if (grounded) {
+        if (grounded and !driven) {
             motion.velocity[0] = 0;
             motion.velocity[1] = 0;
             if (motion.velocity[2] < 0) motion.velocity[2] = 0;

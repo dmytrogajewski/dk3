@@ -55,16 +55,44 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
             const position = (try world.get(entity, data.Transform)).position;
             var output: [300]u8 = undefined;
             engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig projectile state: id={d} weapon={d} stuck={d} resting={d} age={d} remaining={d} velocity={d:.2},{d:.2},{d:.2} position={d:.2},{d:.2},{d:.2}\n", .{ try world.persistentId(entity), projectile.weapon, @intFromBool(projectile.stuck), @intFromBool(projectile.resting), now - projectile.born_ms, if (lifetime) |value| value.expires_ms - now else 0, velocity[0], velocity[1], velocity[2], position[0], position[1], position[2] }));
+            if (projectile.flight == .trident) {
+                const tip = projectile.flight.trident;
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig trident state: id={d} kind={s} leader={d} left={d} right={d} charged={d} next={d}\n", .{ try world.persistentId(entity), @tagName(tip.kind), tip.leader, tip.left, tip.right, @intFromBool(tip.charged), tip.next_ms }));
+            }
+            if (projectile.flight == .ballista) {
+                const bolt = projectile.flight.ballista;
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig ballista state: id={d} victim={d} releases={d} release={d} next={d}\n", .{ try world.persistentId(entity), bolt.victim orelse 0, bolt.releases, bolt.release_ms - (now - projectile.born_ms), bolt.next_ms }));
+            }
         }
         engine.print("dk3 zig projectile states complete\n");
         return true;
     }
     if (std.mem.eql(u8, name, "dk3_runtime_probe_health")) {
-        const owner = player orelse return error.MissingPlayer;
+        var target_argument: [24]u8 = undefined;
+        const target_text = engine.argv(2, &target_argument);
+        const owner = if (target_text.len == 0) player orelse return error.MissingPlayer else world.find(try std.fmt.parseInt(u32, target_text, 10)) orelse return error.MissingTarget;
         var argument: [16]u8 = undefined;
         const value = try std.fmt.parseInt(i32, engine.argv(1, &argument), 10);
         if (value < 1 or value > 10000) return error.InvalidProbeHealth;
         (try world.get(owner, data.Health)).current = value;
+        return true;
+    }
+    if (std.mem.eql(u8, name, "dk3_runtime_shot_lanes")) {
+        const owner = player orelse return error.MissingPlayer;
+        const slot = (try world.get(owner, data.Binding)).slot;
+        const eye = v.add((try world.get(owner, data.Transform)).position, .{ 0, 0, 22 });
+        var best: f32 = 0;
+        var angles: v.Vec3 = @splat(0);
+        for ([_]f32{ 0, -15, -30 }) |pitch| for (0..24) |index| {
+            const candidate: v.Vec3 = .{ pitch, @as(f32, @floatFromInt(index)) * 15, 0 };
+            const hit = try engine.collisionService().trace(.{ .start = eye, .end = v.add(eye, v.scale(v.basis(candidate).forward, 2048)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+            if (!hit.start_solid and hit.fraction * 2048 > best) {
+                best = hit.fraction * 2048;
+                angles = candidate;
+            }
+        };
+        var output: [120]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig shot lane: yaw={d:.1} pitch={d:.1} clearance={d:.1}\n", .{ angles[1], angles[0], best }));
         return true;
     }
     if (std.mem.eql(u8, name, "dk3_runtime_face_target")) {

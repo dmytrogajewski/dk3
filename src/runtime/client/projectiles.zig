@@ -25,11 +25,12 @@ pub fn decorate(rendered: *c.refEntity_t, entity: c.entityState_t, now: i64) !vo
         const handle = try engine.registerSound(name);
         if (handle != 0) _ = engine.gateway.call(c.CG_S_ADDLOOPINGSOUND, .{ @as(isize, entity.number), &rendered.origin, &entity.pos.trDelta, @as(isize, handle) });
     };
-    if (spec.visual.projectile_scale != 1) {
-        for (&rendered.axis) |*axis| axis.* = v.scale(axis.*, spec.visual.projectile_scale);
+    const scale = catalog.flightScale(@intCast(entity.weapon), entity.generic1);
+    if (scale != 1) {
+        for (&rendered.axis) |*axis| axis.* = v.scale(axis.*, scale);
         rendered.nonNormalizedAxes = c.qtrue;
     }
-    if (entity.generic1 & 1 != 0 and entity.time2 > now) rendered.shaderRGBA[3] = @intCast(@min(255, @divTrunc((entity.time2 - now) * 255, 1000)));
+    if (spec.visual.fade_stuck and entity.generic1 & 1 != 0 and entity.time2 > now) rendered.shaderRGBA[3] = @intCast(@min(255, @divTrunc((entity.time2 - now) * 255, 1000)));
     if (spec.visual.glow and entity.generic1 == 0) {
         const color = spec.visual.color;
         _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &rendered.origin, engine.floatArg(120), engine.floatArg(color[0]), engine.floatArg(color[1]), engine.floatArg(color[2]) });

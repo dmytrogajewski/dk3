@@ -51,6 +51,7 @@ pub const Clients = struct {
     pub fn arrive(self: *Clients, world: *data.World, projections: []abi.EntityProjection, states: []c.playerState_t, arrival: @import("campaign.zig").Arrival, now: i64) !void {
         const entity = self.entities[0] orelse return error.MissingTraveler;
         const pose = try arrivalPose(world, arrival.journey, 0);
+        try @import("ballista.zig").detach(world, entity);
         try arrival.traveler.apply(world, entity);
         (try world.get(entity, data.Transform)).* = pose;
         (try world.get(entity, data.Velocity)).* = .{};
@@ -71,6 +72,7 @@ pub const Clients = struct {
     pub fn disconnect(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, index: usize) !void {
         if (index >= self.entities.len) return error.InvalidClient;
         if (self.entities[index]) |entity| {
+            try @import("ballista.zig").detach(world, entity);
             engine.unlink(&projections[index]);
             try slots.release(@intCast(index), entity);
             try world.destroy(entity);

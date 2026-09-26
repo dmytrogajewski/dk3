@@ -631,6 +631,100 @@ def status_weapons_scenario(issue, capture, log, process):
     return {"scope": "Gas Hands kill, Venomous bite/poison death, saved delayed launch and restored pool contact, Kineticore freeze/save and flight; ordinary attack input with diagnostic equipment/placement, complete water/trail/reference acceptance open"}
 
 
+def linked_projectiles_scenario(issue, capture, log, process, home):
+    def diagnostic(command, marker):
+        cursor = len(log.read_text(errors="replace"))
+        issue(command, 0.03)
+        wait(process, log, lambda text: marker in text[cursor:], 3)
+        return log.read_text(errors="replace")[cursor:]
+
+    def face(identity, radius=128):
+        placement = diagnostic(f"dk3_runtime_face_target {identity} {radius}", f"target={identity}")
+        player = list(map(float, re.findall(r"fixture player=([\d.,-]+)", placement)[-1].split(',')))
+        actors = diagnostic("dk3_runtime_actors", f"zig actor: id={identity}")
+        target = list(map(float, re.findall(rf"zig actor: id={identity} .*pos=([\d.,-]+)", actors)[-1].split(',')))
+        dx, dy, dz = target[0] - player[0], target[1] - player[1], target[2] + 8 - player[2] - 22
+        issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}", 0.03)
+        return player
+
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 10000")
+    issue("dk3_runtime_equip 13", 0.8)
+    issue("weapon 13", 0.8)
+    face(383)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.4)
+    hits = log.read_text(errors="replace")[cursor:]
+    if not re.search(r"target=383 .*killed=1", hits):
+        raise RuntimeError("Trident's three close tips did not kill worker 383")
+    capture("trident-close-impact")
+
+    issue("dk3_runtime_equip 18", 0.8)
+    issue("weapon 18", 0.8)
+    face(384, 64)
+    issue("dk3_runtime_probe_health 500 384")  # Keep a supplied actor alive to observe transport/pinning.
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.03)
+    issue("save ballista_release", 0.03)
+    issue("load ballista_release", 0.03)
+    wait(process, log, lambda text: re.search(r"ballista: bolt=\d+ victim=384", text[cursor:]), 4)
+    issue("save ballista_victim", 0.03)
+    saved = home / "state/dk3/saves/ballista_victim.sav"
+    wait(process, log, lambda _: saved.exists(), 3)
+    if b'"victim":384' not in saved.read_bytes():
+        raise RuntimeError("Ballista fixture did not capture an active carried actor")
+    restored_at = len(log.read_text(errors="replace"))
+    issue("load ballista_victim", 0.03)
+    state = diagnostic("dk3_runtime_projectiles", "projectile states complete")
+    restored = log.read_text(errors="replace")[restored_at:]
+    if not re.search(r"ballista state: .*victim=384", state) and not re.search(r"ballista: removed=\d+ explode=1 releases=1", restored):
+        raise RuntimeError("Ballista lost its carried actor across save/load")
+    capture("ballista-victim-restored")
+    issue("-attack", 2.5)
+    state = diagnostic("dk3_runtime_projectiles", "projectile states complete")
+    if re.search(r"ballista state: .*victim=384", state):
+        raise RuntimeError("Ballista failed to release its actor")
+
+    issue("dk3_runtime_equip 13", 0.8)
+    issue("weapon 13", 0.8)
+    best = None
+    for identity in (166, 383, 384):
+        placement = diagnostic(f"dk3_runtime_face_target {identity} 256", f"target={identity}")
+        point = re.findall(r"fixture player=([\d.,-]+)", placement)[-1]
+        lane = diagnostic("dk3_runtime_shot_lanes", "shot lane:")
+        yaw, pitch, clearance = map(float, re.findall(r"shot lane: yaw=([\d.-]+) pitch=([\d.-]+) clearance=([\d.-]+)", lane)[-1])
+        if best is None or clearance > best[0]:
+            best = (clearance, point, yaw, pitch)
+    if best[0] < 800:
+        raise RuntimeError(f"linked-projectile fixture has no clear merge lane: {best}")
+    issue("dk3_runtime_place " + best[1].replace(',', ' '), 0.03)
+    issue(f"dk3_look {best[2]} {best[3]}", 0.03)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.03)
+    issue("save trident_linked", 0.03)
+    issue("load trident_linked", 0.03)
+    wait(process, log, lambda text: "merged age=" in text[cursor:], 4)
+    capture("trident-merged")
+    issue("-attack", 0.5)
+    if not re.search(r"trident: impact=\d+ charged=1", log.read_text(errors="replace")[cursor:]):
+        raise RuntimeError("restored linked tips did not produce a charged impact")
+    # Reuse the measured unobstructed lane to exercise Shockwave's trail media.
+    issue("dk3_runtime_equip 6", 0.8)
+    issue("weapon 6", 0.8)
+    issue("dk3_runtime_place " + best[1].replace(',', ' '), 0.03)
+    issue(f"dk3_look {best[2]} {best[3]}", 0.03)
+    issue("+attack", 0.03)
+    issue("-attack", 1.95)
+    capture("shockwave-open-trail")
+    text = log.read_text(errors="replace")
+    if "missing weapon animation" in text or "could not find sounds/" in text.lower():
+        raise RuntimeError("missing linked-projectile media")
+    return {"scope": "Trident close kill, saved group merge/charged impact, saved Ballista release and carried actor/release, Shockwave trail; diagnostic equipment/placement and 500-health worker", "lane": best}
+
+
 def shockwave_scenario(issue, capture, log, process):
     def diagnostic(command, marker):
         cursor = len(log.read_text(errors="replace"))
@@ -1239,6 +1333,8 @@ def run(args):
                     result = melee_scenario(issue, capture, log, process)
                 elif args.scenario == "shockwave":
                     result = shockwave_scenario(issue, capture, log, process)
+                elif args.scenario == "linked-projectiles":
+                    result = linked_projectiles_scenario(issue, capture, log, process, home)
                 elif args.scenario == "attached-charge":
                     result = attached_charge_scenario(issue, capture, log, process)
                 elif args.scenario == "area-weapons":
@@ -1274,7 +1370,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -1296,6 +1392,7 @@ def main():
         "area-weapons": ("e1m3b", "runtime-zig-236/area-weapons"),
         "attached-charge": ("e1m3a", "runtime-zig-236/attached-charge"),
         "shockwave": ("e1m3b", "runtime-zig-237/shockwave"),
+        "linked-projectiles": ("e1m3b", "runtime-zig-238/linked-projectiles"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

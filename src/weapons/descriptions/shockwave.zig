@@ -92,7 +92,7 @@ pub fn pushDirection(delta: v.Vec) v.Vec {
 }
 pub const ring_visual = .{ .sprite = "models/e1/we_shockring.sp2", .duration_ms = 3000, .start_scale = 1.0, .end_scale = 14.0, .alpha = 51 };
 pub fn impact(context: @import("../impact.zig").Context) @import("../impact.zig").Cue {
-    if (context.trail) return .{ .sprite = "models/global/we_shotring.sp2", .sprite_scale = 0.5, .sprite_rate = 20, .oriented = true, .additive = false, .alpha = 245, .fade = true, .color = .{ 0.25, 0.25, 1 }, .light_radius = 200, .light_ms = 500 };
+    if (context.trail) return .{ .sprite = "models/e1/we_shotring.sp2", .sprite_scale = 0.5, .sprite_rate = 20, .oriented = true, .additive = false, .alpha = 245, .fade = true, .color = .{ 0.25, 0.25, 1 }, .light_radius = 200, .light_ms = 500 };
     if (context.detonation) return .{ .sprite = spec.visual.impact_sprite, .sprite_scale = 1.5, .sound = if (context.sequence == 0) spec.visual.blast_sound else null };
     return .{ .sprite = "models/e1/we_shockwall.sp2", .sprite_scale = 2, .oriented = true, .additive = false };
 }

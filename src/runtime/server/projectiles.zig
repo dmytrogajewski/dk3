@@ -30,6 +30,10 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.time = @intCast(projectile.born_ms);
     projection.state.generic1 = @intFromBool(projectile.stuck);
     projection.state.generic1 |= @as(i32, @intFromBool(projectile.resting)) << 1;
+    if (projectile.flight == .trident) {
+        projection.state.generic1 |= @as(i32, @intFromBool(projectile.flight.trident.charged)) << 3;
+        projection.state.generic1 |= @as(i32, @intFromBool(projectile.wet)) << 4;
+    }
     projection.state.time2 = if (world.get(entity, data.Lifetime) catch null) |lifetime| @intCast(lifetime.expires_ms) else 0;
     projection.state.modelindex = binding.model;
     projection.state.pos = @import("../engine/trajectory.zig").linear(transform.position, velocity, now);
@@ -123,6 +127,9 @@ fn stepIon(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
 }
 
 pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, shot: weapons.Fired, table: *const weapons.Table, now: i64) !void {
+    _ = try spawn(world, slots, projections, owner, shot, table, now);
+}
+pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, shot: weapons.Fired, table: *const weapons.Table, now: i64) !ecs.Entity {
     const spec = catalog.find(shot.weapon).?.spec;
     const tuning = table.entries[shot.weapon];
     const owner_id = try world.persistentId(owner);
@@ -146,6 +153,10 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     const initial = try catalog.flightMotion(shot.weapon, &projectile.flight, .{ .age_ms = 0, .delta_ms = 0, .distance = 0, .wet = projectile.wet, .was_wet = false, .velocity = v.scale(rules.aim(start, target, forward), speed), .speed = speed });
     const lifetime: i64 = if (spec.projectile.lifetime_ms != 0) spec.projectile.lifetime_ms else @intFromFloat(std.math.clamp((if (tuning.lifetime > 0) tuning.lifetime * 1000 else 5000) * spec.projectile.lifetime_scale, 1, 3600000));
     projectile.lifetime_ms = lifetime;
+    if (projectile.flight == .ballista) {
+        projectile.flight.ballista.velocity = initial.velocity;
+        projectile.flight.ballista.previous_position = start;
+    }
     const model = try @import("resources.zig").model(spec.visual.projectile_model);
     angles[2] = launch_pose.roll;
     const entity = try world.create(null, .{ data.Transform{ .position = start, .angles = angles }, data.Velocity{ .linear = initial.velocity }, projectile, data.Lifetime{ .expires_ms = now + lifetime } });
@@ -155,6 +166,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try world.put(entity, data.Binding{ .slot = slot, .model = model });
     projections[slot] = std.mem.zeroes(abi.EntityProjection);
     try publish(world, entity, projections, now);
+    return entity;
 }
 
 fn explode(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, projectile: data.Projectile, hit: @import("../domain/collision.zig").Trace, now: i64) !void {

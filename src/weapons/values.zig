@@ -11,6 +11,7 @@ pub const Values = struct {
     lifetime: f32 = 0,
     muzzle: [3]f32 = .{ 8, 12, 0 },
     alternate_muzzle: [3]f32 = .{ 8, 12, 0 },
+    third_muzzle: [3]f32 = .{ 8, 12, 0 },
     cube_charges: i32 = 120,
     cube_health: i32 = 1000,
     cube_lifetime_ms: i32 = 60000,
@@ -32,8 +33,10 @@ pub fn parse(id: u5, row: anytype) !Values {
         const fallback: f32 = if (id == 26) ([_]f32{ 6, 18, 19 })[i] else try row.number("projectile_" ++ axis, ([_]f32{ 8, 12, 0 })[i]);
         result.muzzle[i] = try row.number("projectile_" ++ axis ++ "1", fallback);
         result.alternate_muzzle[i] = try row.number("projectile_" ++ axis ++ "2", result.muzzle[i]);
+        result.third_muzzle[i] = try row.number("projectile_" ++ axis ++ "3", result.muzzle[i]);
         if (!std.math.isFinite(result.muzzle[i])) return error.InvalidWeaponMuzzle;
         if (!std.math.isFinite(result.alternate_muzzle[i])) return error.InvalidWeaponMuzzle;
+        if (!std.math.isFinite(result.third_muzzle[i])) return error.InvalidWeaponMuzzle;
     }
     if (id == 26) {
         const charges = try row.number("projectile_x2", 120);
