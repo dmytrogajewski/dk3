@@ -1,10 +1,13 @@
 # Game completion state
 
-Native rewrite sequence 221 adds key/weapon/ammunition/health/armor pickups,
-model rendering and authored spawn filtering. Focused key-lock and mover probes
-pass; the replacement remains incomplete and the existing runtime remains the
-normal launcher default. See [native runtime progress](runtime-zig.md#active-implementation-runtime-zig-221).
+Sequence 223 removes the legacy game/client/UI and their C-dependent Zig adapters.
+Only the native Zig runtime is built. Its 41 focused tests and module builds pass;
+full gameplay remains incomplete. Sequence 222 connects character/status pickups,
+damage accounting and snapshot sound events. Weapon pickup audio belongs to weapon
+metadata. See [native runtime progress](runtime-zig.md#active-decision-runtime-zig-223).
 
+The preserved installed game and saves are untouched. The results below describe
+historical runtime versions and do not establish acceptance of the new runtime.
 
 Sequence 203 is implementing the accepted [Zig multiplayer/Internet-room scope](multiplayer-zig.md).
 The one-host IP deployment passes explicit-CA HTTPS verification and focused real

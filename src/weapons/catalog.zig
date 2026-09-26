@@ -33,3 +33,5 @@ pub const Shot = @import("shot.zig").Shot;
 pub const values = @import("values.zig");
 
 pub const gas = @import("gas_rules.zig");
+
+pub const character = @import("character_rules.zig");

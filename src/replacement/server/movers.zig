@@ -151,9 +151,7 @@ pub fn step(world: *data.World, slots: *const Slots, projections: []abi.EntityPr
             count += 1;
         }
         if (try pusher.push(world, slots, projections, moves[0..count], now, elapsed)) |blocker| {
-            if (world.get(blocker, data.Health)) |health| {
-                if (master.damage > 0) health.current = @max(0, health.current - master.damage);
-            } else |_| {}
+            _ = try @import("damage.zig").apply(world, blocker, master.damage, now, .{});
             if (!master.force and master.moving()) try start(world, slots, projections, master.group, master.state == .closing, now, false);
         }
     }

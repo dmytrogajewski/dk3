@@ -18,6 +18,7 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     try @import("attachments.zig").spawn(world);
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, targets: *Router, now: i64, elapsed: u32, table: *const @import("../domain/weapons.zig").Table) !void {
+    try @import("events.zig").expire(world, slots, projections, now);
     try @import("interactions.zig").touch(world, slots, projections, targets, now);
     try binary.prepare(world, slots, projections, now);
     try trains.prepare(world, slots, projections, now);

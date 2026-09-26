@@ -73,3 +73,44 @@ pub fn writeWeapons(ps: *c.playerState_t, state: data.Weapons) void {
     ps.powerups[c.PW_DK3_GASHANDS] = @intCast(state.gas_until_ms);
     ps.eventSequence = @bitCast(state.event_sequence);
 }
+
+pub fn characterParameters(slot: u16, character: data.Character, ailments: data.Ailments, now: i64) move.Parameters {
+    var result = parameters(slot);
+    result.speed = @floatFromInt(@as(i32, @intFromFloat(result.speed * @import("weapon_catalog").character.movementFactor(character.attribute(.speed, now)))));
+    result.jump_speed *= @import("weapon_catalog").character.movementFactor(character.attribute(.acro, now));
+    if (ailments.mask & 4 != 0) result.speed = @floatFromInt(@as(i32, @intFromFloat(result.speed * (1 - 0.8 * ailments.freeze_level))));
+    if (ailments.mask & 128 != 0) result.speed = 0;
+    return result;
+}
+pub fn readCharacter(ps: *const c.playerState_t) data.Character {
+    var result: data.Character = .{ .attributes = ps.dk3Attributes, .invincible_until = ps.dk3InvincibleUntil, .invisible_until = ps.powerups[c.PW_INVIS], .environment_until = ps.dk3EnvUntil, .rings = @as(u32, @bitCast(ps.dk3Status)) & (16 | 32 | 64), .save_gems = ps.dk3SaveGems, .level = ps.dk3Level, .experience = ps.dk3Experience, .points = ps.dk3AttributePoints };
+    for (&result.boost_until, ps.dk3BoostUntil) |*deadline, value| deadline.* = value;
+    return result;
+}
+pub fn writeCharacter(ps: *c.playerState_t, character: data.Character, ailments: data.Ailments) void {
+    ps.dk3Attributes = character.attributes;
+    for (&ps.dk3BoostUntil, character.boost_until) |*deadline, value| deadline.* = @intCast(value);
+    ps.dk3InvincibleUntil = @intCast(character.invincible_until);
+    ps.powerups[c.PW_INVIS] = @intCast(character.invisible_until);
+    ps.dk3EnvUntil = @intCast(character.environment_until);
+    ps.dk3Status = @bitCast(character.rings | ailments.mask);
+    ps.dk3FreezeLevel = ailments.freeze_level;
+    ps.dk3SaveGems = character.save_gems;
+    ps.dk3Level = character.level;
+    ps.dk3Experience = character.experience;
+    ps.dk3AttributePoints = character.points;
+}
+
+test "character projections round-trip and use integer speed with float jump scaling" {
+    const std = @import("std");
+    var character: data.Character = .{ .attributes = .{ 1, 2, 0, 0, 3 }, .boost_until = .{ 0, 0, 1000, 1000, 0 }, .rings = 16, .save_gems = 2 };
+    var ps = std.mem.zeroes(c.playerState_t);
+    writeCharacter(&ps, character, .{});
+    try std.testing.expectEqualDeep(character, readCharacter(&ps));
+    const boosted = characterParameters(0, character, .{}, 999);
+    try std.testing.expectEqual(@as(f32, 345), boosted.speed);
+    try std.testing.expectApproxEqAbs(@as(f32, 291.6), boosted.jump_speed, 0.001);
+    try std.testing.expectEqual(@as(f32, 320), characterParameters(0, character, .{}, 1000).speed);
+    character.attributes[2] = 5;
+    try std.testing.expectEqual(@as(f32, 448), characterParameters(0, character, .{}, 1000).speed);
+}

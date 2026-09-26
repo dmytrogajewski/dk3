@@ -4,23 +4,35 @@ const std = @import("std");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
 const c = abi.c;
-var models: [c.MAX_MODELS][c.MAX_QPATH]u8 = undefined;
-var count: usize = 1;
+fn Registry(comptime limit: usize, comptime base: i32) type {
+    return struct {
+        names: [limit][c.MAX_QPATH]u8 = @splat(@splat(0)),
+        count: usize = 1,
+        fn add(self: *@This(), path: []const u8) !u16 {
+            if (path.len == 0) return 0;
+            if (path.len >= c.MAX_QPATH or std.mem.indexOfScalar(u8, path, 0) != null) return error.InvalidResourcePath;
+            for (1..self.count) |index| if (std.mem.eql(u8, std.mem.sliceTo(&self.names[index], 0), path)) return @intCast(index);
+            if (self.count == limit) return error.ResourceCapacity;
+            const index = self.count;
+            self.count += 1;
+            @memcpy(self.names[index][0..path.len], path);
+            self.names[index][path.len] = 0;
+            engine.config(base + @as(i32, @intCast(index)), self.names[index][0..path.len :0]);
+            return @intCast(index);
+        }
+    };
+}
+var models: Registry(c.MAX_MODELS, c.CS_MODELS) = .{};
+var sounds: Registry(c.MAX_SOUNDS, c.CS_SOUNDS) = .{};
 pub fn reset() void {
-    @memset(std.mem.asBytes(&models), 0);
-    count = 1;
+    models = .{};
+    sounds = .{};
 }
 pub fn model(path: []const u8) !u16 {
-    if (path.len == 0) return 0;
-    if (path.len >= c.MAX_QPATH or std.mem.indexOfScalar(u8, path, 0) != null) return error.InvalidModelPath;
-    for (1..count) |index| if (std.mem.eql(u8, std.mem.sliceTo(&models[index], 0), path)) return @intCast(index);
-    if (count == models.len) return error.ModelCapacity;
-    const index = count;
-    count += 1;
-    @memcpy(models[index][0..path.len], path);
-    models[index][path.len] = 0;
-    engine.config(@as(i32, c.CS_MODELS) + @as(i32, @intCast(index)), models[index][0..path.len :0]);
-    return @intCast(index);
+    return models.add(path);
+}
+pub fn sound(path: []const u8) !u16 {
+    return sounds.add(path);
 }
 pub fn floorBounds(path: []const u8) !?@import("../domain/md3.zig").Bounds {
     if (!std.mem.endsWith(u8, path, ".dkm")) return null;

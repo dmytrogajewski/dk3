@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! ECS-owned loadout and controller state. Concrete policies are shared with legacy.
+//! ECS-owned loadout and controller state. Concrete weapon definitions own shared input policies.
 const std = @import("std");
 const catalog = @import("weapon_catalog");
 const rules = catalog.transitions;

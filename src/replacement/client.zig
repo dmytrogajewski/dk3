@@ -34,6 +34,7 @@ fn shutdown() void {
 fn init(server_message: i32, sequence: i32, client: i32) !void {
     shutdown();
     @import("client/models.zig").reset();
+    @import("client/events.zig").reset();
     selected_weapon = 0;
     inventory_mask = 0;
     if (engine.integer("dk3_runtime_probe") != 2) return error.ReplacementGameplayNotQualified;
@@ -59,14 +60,14 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     defer std.heap.c_allocator.free(table_bytes);
     weapon_table = try weapons.Table.parse(table_bytes);
     world = data.World.init(std.heap.c_allocator, 128);
-    predicted = try world.?.create(null, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Health{}, data.Weapons{} });
+    predicted = try world.?.create(null, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Health{}, data.Weapons{}, data.Character{}, data.Ailments{} });
     have_snapshot = false;
     client_number = client;
     command_sequence = sequence;
     snapshot_number = server_message - 1;
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "viewpos")});
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "use")});
-    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
+    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev", "attribute" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
     engine.print("dk3 zig: shared movement prediction initialized\n");
 }
 fn draw(now: i32) !void {
@@ -89,6 +90,7 @@ fn draw(now: i32) !void {
     if (!have_snapshot or snapshot_number < 0 or snapshot.ps.clientNum != client_number) return;
     if (snapshot.numEntities < 0 or snapshot.numEntities > snapshot.entities.len) return error.InvalidSnapshot;
     engine.setSnapshot(snapshot.entities[0..@intCast(snapshot.numEntities)], now);
+    try @import("client/events.zig").consume(&game, snapshot.entities[0..@intCast(snapshot.numEntities)]);
     if (selected_weapon == 0 or snapshot.ps.dk3Inventory != inventory_mask) {
         selected_weapon = snapshot.ps.weapon;
         inventory_mask = snapshot.ps.dk3Inventory;
@@ -103,6 +105,10 @@ fn draw(now: i32) !void {
     player.* = bridge.read(&snapshot.ps);
     const loadout = try w.get(player_entity, data.Weapons);
     loadout.* = bridge.readWeapons(&snapshot.ps);
+    const character = try w.get(player_entity, data.Character);
+    const ailments = try w.get(player_entity, data.Ailments);
+    character.* = bridge.readCharacter(&snapshot.ps);
+    ailments.* = .{ .mask = @as(u32, @bitCast(snapshot.ps.dk3Status)) & (7 | 128), .freeze_level = snapshot.ps.dk3FreezeLevel };
     const current: i32 = @intCast(engine.gateway.call(c.CG_GETCURRENTCMDNUMBER, .{}));
     var number = @max(0, current - c.CMD_BACKUP + 1);
     while (number <= current) : (number += 1) {
@@ -110,9 +116,10 @@ fn draw(now: i32) !void {
         if (engine.gateway.call(c.CG_GETUSERCMD, .{ @as(isize, number), &input }) == 0 or input.serverTime <= player.command_ms or input.serverTime > now) continue;
         const command = bridge.command(input, &player.delta_angles);
         var motion: @import("domain/slide.zig").State = .{ .position = transform.position, .velocity = velocity.linear };
+        if (ailments.mask & 128 != 0) motion.velocity = @splat(0);
         var events: weapons.Events = .{};
-        var weapon_context: weapons.Context = .{ .ps = loadout, .healthy = snapshot.ps.stats[c.STAT_HEALTH] > 0, .single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER, .table = &weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(client_number), .shot_mask = c.MASK_SHOT };
-        _ = try move.runWithHook(player, &motion, command, bridge.parameters(@intCast(client_number)), engine.collisionService(), weapon_context.hook());
+        var weapon_context: weapons.Context = .{ .ps = loadout, .healthy = snapshot.ps.stats[c.STAT_HEALTH] > 0, .single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER, .table = &weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(client_number), .shot_mask = c.MASK_SHOT, .attack_boost = character.attribute(.attack, command.time_ms) };
+        _ = try move.runWithHook(player, &motion, command, bridge.characterParameters(@intCast(client_number), character.*, ailments.*, command.time_ms), engine.collisionService(), weapon_context.hook());
         transform.position = motion.position;
         transform.angles = command.angles;
         velocity.linear = motion.velocity;

@@ -18,6 +18,7 @@ pub const spec: profiles.Spec = .{
         .drop_ms = 350,
     },
     .audio = .{
+        .ammo_pickup = "global/i_swaveammo.wav",
         .fire = "e1/we_shockwaveshoota.wav",
         .ready = "e1/we_shockwaveready.wav",
         .away = "e1/we_shockwaveaway.wav",

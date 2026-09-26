@@ -121,6 +121,23 @@ fn consoleCommand() isize {
         }
         return 1;
     }
+    if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_damage")) {
+        const entity = clients.entities[0] orelse return 1;
+        var argument: [64]u8 = undefined;
+        const amount = std.fmt.parseInt(i32, engine.argv(1, &argument), 10) catch return 1;
+        if (amount <= 0 or amount > 10000) return 1;
+        const result = @import("server/damage.zig").apply(&world.?, entity, amount, clock.now_ms, .{}) catch |err| runtimeFailure(err);
+        var message: [128]u8 = undefined;
+        engine.print(std.fmt.bufPrintZ(&message, "zig damage blood={d} armor={d} killed={d}\n", .{ result.blood, result.armor, @intFromBool(result.killed) }) catch unreachable);
+        return 1;
+    }
+    if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_character")) {
+        const entity = clients.entities[0] orelse return 1;
+        const state = (world.?.get(entity, component.Character) catch unreachable).*;
+        var message: [256]u8 = undefined;
+        engine.print(std.fmt.bufPrintZ(&message, "zig character time={d} speed={d} boost_until={d} invincible={d} environment={d} gems={d} level={d} points={d}\n", .{ clock.now_ms, state.attribute(.speed, clock.now_ms), state.boost_until[2], state.invincible_until, state.environment_until, state.save_gems, state.level, state.points }) catch unreachable);
+        return 1;
+    }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_inventory")) {
         const entity = clients.entities[0] orelse return 1;
         const loadout = (world.?.get(entity, component.Weapons) catch unreachable).*;
@@ -218,7 +235,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
     switch (command) {
         c.GAME_INIT => init(arg0) catch |err| {
             var buffer: [256]u8 = undefined;
-            engine.fatal(std.fmt.bufPrintZ(&buffer, "Zig replacement: {s}. Use the legacy runtime for gameplay; explicit isolated bootstrap uses dk3_runtime_probe=1.", .{@errorName(err)}) catch unreachable);
+            engine.fatal(std.fmt.bufPrintZ(&buffer, "Native Zig runtime: {s}. Isolated development uses dk3_runtime_probe=2; bootstrap diagnostics use 1.", .{@errorName(err)}) catch unreachable);
         },
         c.GAME_SHUTDOWN => shutdown(),
         c.GAME_CLIENT_CONNECT => {
@@ -249,7 +266,14 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             if (arg0 < 0 or arg0 >= c.MAX_CLIENTS) return 0;
             var command_buffer: [64]u8 = undefined;
             const client_command = engine.argv(0, &command_buffer);
-            if (std.mem.eql(u8, client_command, "use")) {
+            if (std.mem.eql(u8, client_command, "attribute")) {
+                var argument: [64]u8 = undefined;
+                const attribute = @import("domain/character.zig").attributeNamed(engine.argv(1, &argument)) orelse return 0;
+                if (clients.entities[@intCast(arg0)]) |entity| {
+                    const state = world.?.get(entity, component.Character) catch return 0;
+                    _ = state.spend(attribute);
+                }
+            } else if (std.mem.eql(u8, client_command, "use")) {
                 if (clients.entities[@intCast(arg0)]) |entity| @import("server/interactions.zig").use(&world.?, &slots, &projection, &targets, entity, clock.now_ms) catch |err| runtimeFailure(err);
             }
         },

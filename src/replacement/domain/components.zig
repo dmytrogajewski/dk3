@@ -14,6 +14,9 @@ pub const Transform = @import("poses.zig").Pose;
 pub const Velocity = struct { linear: Vec3 = @splat(0) };
 pub const Body = struct { mins: Vec3 = .{ -16, -16, -24 }, maxs: Vec3 = .{ 16, 16, 32 }, contents: u32 = 0, collision_mask: u32 = 0, grounded: bool = false };
 pub const Health = @import("items.zig").Health;
+pub const SoundEvent = struct { sound: u16, subject: u16, channel: u8 };
+pub const Character = @import("character.zig").State;
+pub const Ailments = @import("character.zig").Ailments;
 pub const Keys = @import("items.zig").Keys;
 pub const Pickup = @import("items.zig").Pickup;
 pub const ItemMotion = @import("item_motion.zig").State;
@@ -31,7 +34,7 @@ pub const Gravity = struct { acceleration: f32 = 800 };
 pub const Motion = struct { destination: Vec3 = @splat(0), velocity: Vec3 = @splat(0) };
 pub const Lifetime = struct { expires_ms: i64 };
 pub const Attachment = struct { parent_id: u32, offset: Vec3 };
-pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21 };
+pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21, character = 22, ailments = 23, sound_event = 24 };
 pub const Component = union(ComponentId) {
     transform: Transform,
     velocity: Velocity,
@@ -55,6 +58,9 @@ pub const Component = union(ComponentId) {
     keys: Keys,
     pickup: Pickup,
     item_motion: ItemMotion,
+    character: Character,
+    ailments: Ailments,
+    sound_event: SoundEvent,
 };
 pub const types = blk: {
     const fields = std.meta.fields(Component);

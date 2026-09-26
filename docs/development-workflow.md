@@ -4,6 +4,10 @@ Development uses two passes. First implement the authorized scope across related
 systems. Then build the integrated game and test real scenarios, fixing failures
 and rerunning affected cases until the required behavior works.
 
+Only the native Zig runtime is an active development target. Do not maintain legacy
+backend parity or run retired-runtime suites. Retain native regression scenarios and
+record missing implementations explicitly; deletion of an old test is not acceptance.
+
 ## Write the implementation
 
 Use the accepted plan and relevant source/docs. Reuse existing code and runners.

@@ -15,7 +15,7 @@ fn model(object: data.MapObject, kind: rules.Kind, episode: u8, buffer: []u8) ![
     if (std.mem.eql(u8, object.classname, "item_health_25") or std.mem.eql(u8, object.classname, "item_health_50")) {
         return std.fmt.bufPrint(buffer, "models/e{d}/a{d}_hlth{s}.dkm", .{ episode, episode, if (episode != 2 and kind.health == 50) @as([]const u8, "2") else "" });
     }
-    const path = @import("item_catalog").model(object.classname) orelse return "";
+    const path = @import("item_catalog").model(rules.canonicalName(object.classname)) orelse return "";
     return std.fmt.bufPrint(buffer, "models/{s}.dkm", .{path});
 }
 pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8) !void {
@@ -112,7 +112,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             if ((try world.get(player, data.Player)).mode != .normal) continue;
             const player_slot = (try world.get(player, data.Binding)).slot;
             if (!@import("interactions.zig").overlap(&projections[slot], &projections[player_slot], 0)) continue;
-            if (!rules.give(pickup.*, try world.get(player, data.Keys), try world.get(player, data.Health), try world.get(player, data.Weapons), table, now, engine.integer("g_gametype") == c.GT_SINGLE_PLAYER)) continue;
+            if (!rules.give(pickup.*, .{ .keys = try world.get(player, data.Keys), .health = try world.get(player, data.Health), .loadout = try world.get(player, data.Weapons), .character = try world.get(player, data.Character), .ailments = try world.get(player, data.Ailments) }, table, now, engine.integer("g_gametype") == c.GT_SINGLE_PLAYER)) continue;
             pickup.visible = false;
             if (pickup.kind == .weapon) {
                 var command: [48]u8 = undefined;
@@ -122,6 +122,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             const object = (try world.get(entity, data.MapObject)).*;
             if (rules.respawnDelay(object.classname, engine.integer("g_gametype") == c.GT_SINGLE_PLAYER)) |delay| pickup.respawn_ms = now + delay;
             try publish(world, entity, projections);
+            const sound = rules.pickupSound(pickup.kind, object.classname);
+            const collector = (try world.get(player, data.Transform)).position;
+            // Events add components/entities; no borrowed component pointers survive this barrier.
+            try @import("events.zig").sound(world, slots, projections, sound, collector, player_slot, c.CHAN_ITEM, now);
             try router.fire(world, slots, projections, entity, try world.persistentId(player), now);
             break; // Targets may destroy this item or other queried entities.
         }

@@ -2671,3 +2671,43 @@ Tagged components no longer require meaningless zero initialization during reloc
 
 All probes use dkguard and temporary profiles. Private assets, saves and captures
 remain local. This is continuing implementation, not full rewrite completion.
+
+
+## runtime-zig — sequence 222 (character state and sound events)
+
+Implemented native character attributes/boost deadlines, protection/status pickups,
+ring damage reduction, armor/protection accounting, and snapshot sound events.
+Player snapshots project character state; domain movement parameters use attributes.
+Weapon and ammunition pickup sounds now come from weapon audio definitions: reviewed
+Gold defaults plus Ion/Shotcycler/Sidewinder/Shockwave ammunition overrides. Item
+systems do not switch on weapon IDs for audio. No private code/assets were imported.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| e4m4b speed and invincibility pickups | Passed | `runtime-zig-222/effects/result.json`: boost active then expired, protection blocks diagnostic damage then permits it after expiry; two snapshot sound dispatches. Diagnostic positioning/damage; physical audio and actual combat unqualified. |
+| Native policies and projections | Passed | 41 native tests include character snapshot roundtrip, protection accounting and pickup class audio resolution. |
+| Full weapon combat, actor reactions, HUD/status presentation | Unrun | These paths remain implementation work. |
+
+## runtime-zig — sequence 223 (single runtime)
+
+Owner explicitly requested removal of the old runtime. Removed C game/client/UI,
+legacy module entrypoints, C-dependent weapon/multiplayer adapters and seven old
+implementation fixtures. Pure weapon classes/policies, appearance metadata, online
+services and networking remain. The engine builds client/server/renderers only;
+legacy native/QVM module build paths are gone. Engine save-envelope validation moved
+into engine infrastructure. Bundled movement is retained solely as a test reference.
+Only Zig gameplay modules are built; legacy selection is rejected. Development play
+uses a separate prefix/profile, explicit map and native development mode. The
+preserved installed game, private reference, assets and saves were not modified.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Engine build after removal | Passed | `/tmp/dk3-native-only-engine.log`, client/server/both renderers, 14 build steps. |
+| Integrated native modules and surviving suite | Passed | `/tmp/dk3-native-only-suite.log`, 179 Zig tests (including 41 runtime tests), 42 Python tests; all three native modules built. |
+| Native client on rebuilt engine | Passed | `runtime-zig-223/client`: connect, movement/crouch/jump diagnostics and repeated delayed-door activation. New engine plus native modules, only asset packages reused, temporary profile; full campaign unqualified. |
+| Retired fixture scenarios | Unrun for native acceptance | Actor witnesses, scripts, laser shutdown and full weapon firing remain open; deleting old fixtures is not a passing result. |
+| Asset install/interactive play flow | Unrun | Build graph admits an isolated native prefix; full menu and campaign acceptance remain open. |
+
+Architecture priority: connect native weapon events to hit/projectile simulation,
+damage/death and actor reactions; then scripts/progression, restoration/travel and UI.
+No legacy backend parity work remains in the development cadence.

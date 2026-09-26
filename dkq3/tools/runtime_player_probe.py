@@ -165,6 +165,57 @@ def inventory_scenario(issue, capture, log):
             "scope": "e1m6a key floor settlement, touch pickup and locked button target; diagnostic positioning, full authored progression unqualified"}
 
 
+def effects_scenario(issue, capture, log):
+    issue("set developer 1")
+
+    def collect(identity, classname):
+        issue("dk3_runtime_items")
+        values = re.findall(rf"zig item id={identity} class={classname} visible=(\d) ground=(\w+) pos=([^\n]+)", log.read_text(errors="replace"))
+        if not values or values[-1][0] != "1" or values[-1][1] == "null":
+            raise RuntimeError(f"pickup {identity} missing or not settled")
+        x, y, z = map(float, values[-1][2].split(","))
+        issue(f"dk3_runtime_place {x} {y} {z + 24}", 0.5)
+        issue("dk3_runtime_items")
+        if not re.search(rf"zig item id={identity} class={classname} visible=0", log.read_text(errors="replace")):
+            raise RuntimeError(f"pickup {identity} not collected")
+
+    def character():
+        issue("dk3_runtime_character")
+        lines = re.findall(r"zig character ([^\n]+)", log.read_text(errors="replace"))
+        return {key: int(value) for key, value in re.findall(r"(\w+)=(\d+)", lines[-1])}
+
+    collect(320, "item_speed_boost")
+    boosted = character()
+    if boosted["speed"] != 1 or not 28000 <= boosted["boost_until"] - boosted["time"] <= 30000:
+        raise RuntimeError("speed boost did not apply for thirty seconds")
+    collect(14, "item_invincibility")
+    protected = character()
+    issue("dk3_runtime_damage 40")
+    if not re.search(r"zig damage blood=0 armor=0 killed=0", log.read_text(errors="replace")):
+        raise RuntimeError("invincibility failed to protect the player")
+    deadline = time.monotonic() + 40
+    samples = []
+    while time.monotonic() < deadline:
+        current = character()
+        samples.append(current)
+        if current["time"] >= max(protected["invincible"], boosted["boost_until"]):
+            break
+        issue("dk3_runtime_status", 1)
+    if samples[-1]["speed"] != 0 or samples[-1]["time"] < protected["invincible"]:
+        raise RuntimeError("timed pickups failed to expire")
+    issue("dk3_runtime_damage 40")
+    damage = re.findall(r"zig damage blood=(\d+) armor=(\d+)", log.read_text(errors="replace"))
+    if not damage or int(damage[-1][0]) <= 0:
+        raise RuntimeError("expired protection still blocked damage")
+    text = log.read_text(errors="replace")
+    sounds = text.count("dk3 zig: snapshot sound dispatched")
+    if sounds < 2 or "could not find sounds/" in text.lower():
+        raise RuntimeError("pickup sound assets/dispatch missing")
+    capture("effects-expired")
+    return {"boosted": boosted, "protected": protected, "expired": samples[-1], "sound_events": sounds,
+            "scope": "e4m4b pickup timers, protection and snapshot audio dispatch; diagnostic positioning/damage, physical audio and combat parity unqualified"}
+
+
 def run(args):
     args.report.mkdir(parents=True, exist_ok=True)
     log = args.report / "client.log"
@@ -206,9 +257,11 @@ def run(args):
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
                 if args.scenario == "lift":
                     result = lift_scenario(issue, capture, log)
+                elif args.scenario == "effects":
+                    result = effects_scenario(issue, capture, log)
                 elif args.scenario == "inventory":
                     result = inventory_scenario(issue, capture, log)
-                elif args.scenario in ("secret", "rotation", "inventory"):
+                elif args.scenario in ("secret", "rotation"):
                     result = special_scenario(args, issue, capture, log)
                 else:
                     result = movement_scenario(args, issue, capture, log)
@@ -231,23 +284,26 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
     args = parser.parse_args()
+    defaults = {
+        "movement": ("e1m3b", "runtime-zig-218/client"),
+        "lift": ("e1m3a", "runtime-zig-219/lift"),
+        "secret": ("e3dm1", "runtime-zig-220/secret"),
+        "rotation": ("e1m3b", "runtime-zig-220/rotation"),
+        "inventory": ("e1m6a", "runtime-zig-221/inventory"),
+        "effects": ("e4m4b", "runtime-zig-222/effects"),
+    }
+    expected_map, report_name = defaults[args.scenario]
     if args.map is None:
-        args.map = {"lift": "e1m3a", "secret": "e3dm1", "inventory": "e1m6a"}.get(args.scenario, "e1m3b")
+        args.map = expected_map
     if args.report is None:
-        args.report = Path("zig-out/reports/runtime-zig-219/lift" if args.scenario == "lift" else "zig-out/reports/runtime-zig-218/client")
-    if args.scenario in ("secret", "rotation", "inventory"):
-        expected_map = {"secret": "e3dm1", "inventory": "e1m6a"}.get(args.scenario, "e1m3b")
-        if args.map != expected_map or args.mover is not None:
-            parser.error(f"{args.scenario} scenario uses {expected_map}; omit --mover")
-        if args.report == Path("zig-out/reports/runtime-zig-218/client"):
-            args.report = Path(f"zig-out/reports/runtime-zig-{221 if args.scenario == 'inventory' else 220}/{args.scenario}")
-    if args.scenario == "lift" and (args.map != "e1m3a" or args.mover is not None):
-        parser.error("lift scenario uses e1m3a's bigplat; omit --mover")
+        args.report = Path("zig-out/reports") / report_name
+    if args.scenario != "movement" and (args.map != expected_map or args.mover is not None):
+        parser.error(f"{args.scenario} scenario uses {expected_map}; omit --mover")
     if not re.fullmatch(r"[a-zA-Z0-9_]+", args.map):
         parser.error("map must be a simple map name")
     for name in ("engine", "prefix", "guard", "report"):

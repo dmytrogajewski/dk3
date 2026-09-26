@@ -6,15 +6,9 @@ const stringify_shader = @import("stringify_shader.zig");
 
 /// The upstream source tree is part of this repository, never a sibling checkout.
 pub const source_root = "engine/ioquake3";
-/// Products made available to later game and installation build modules.
-pub const Engine = struct {
-    artifacts: std.enums.EnumArray(config.Product, *std.Build.Step.Compile),
-    settings: config.Config,
-};
-
 /// Declare engine products without introducing game-data or reference dependencies.
-pub fn declare(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) ?Engine {
-    const all = b.step("engine", "Build the bundled client, server, renderers and upstream native module foundations");
+pub fn declare(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) bool {
+    const all = b.step("engine", "Build the bundled client, server, renderers (gameplay modules are built by the Zig runtime)");
     const server_step = b.step("engine-server", "Build the bundled dedicated server");
     b.getInstallStep().dependOn(all);
     const settings = options(b);
@@ -22,16 +16,14 @@ pub fn declare(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
         const failure = &b.addFail("dk3 supports x86_64-linux-gnu; select -Dtarget=x86_64-linux-gnu").step;
         all.dependOn(failure);
         server_step.dependOn(failure);
-        return null;
+        return false;
     }
     const conflicts = config.optionConflicts(b.allocator, settings) catch @panic("OOM");
     if (conflicts.len != 0) {
         all.dependOn(&b.addFail(std.mem.join(b.allocator, "\n", conflicts) catch @panic("OOM")).step);
     }
-    var engine: Engine = .{ .artifacts = .initUndefined(), .settings = settings };
-    for (std.enums.values(config.Product)) |product| {
-        const artifact = addProduct(b, target, optimize, settings, product, false);
-        engine.artifacts.set(product, artifact);
+    for ([_]config.Product{ .client, .server, .renderer_opengl1, .renderer_opengl2 }) |product| {
+        const artifact = addProduct(b, target, optimize, settings, product);
         const installed = switch (product) {
             .client, .server => &b.addInstallArtifact(artifact, .{}).step,
             else => &b.addInstallFileWithDir(artifact.getEmittedBin(), .bin, installPath(product)).step,
@@ -39,7 +31,7 @@ pub fn declare(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
         all.dependOn(installed);
         if (product == .server) server_step.dependOn(installed);
     }
-    return engine;
+    return true;
 }
 
 fn options(b: *std.Build) config.Config {
@@ -77,20 +69,13 @@ fn installPath(product: config.Product) []const u8 {
     };
 }
 
-pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, settings: config.Config, product: config.Product, dk3: bool) *std.Build.Step.Compile {
-    const native_runtime = dk3 and (product == .qagame or product == .cgame or product == .ui);
+pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, settings: config.Config, product: config.Product) *std.Build.Step.Compile {
     const module = b.createModule(.{
-        .root_source_file = if (native_runtime) b.path(switch (product) {
-            .qagame => "src/runtime_game.zig",
-            .cgame => "src/runtime_client.zig",
-            .ui => "src/runtime_ui.zig",
-            else => unreachable,
-        }) else null,
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
-    @import("header_inputs.zig").track(b, module, if (dk3) &.{ source_root, "src" } else &.{source_root});
+    @import("header_inputs.zig").track(b, module, &.{source_root});
     const generated = b.addWriteFiles();
     var seen: std.StringHashMapUnmanaged(void) = .empty;
     const root = b.build_root.join(b.allocator, &.{source_root}) catch @panic("OOM");
@@ -98,10 +83,6 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         // Protocol messages are owned by the Zig network module. Keep the
         // licensed upstream C codec as a differential test reference only.
         if ((product == .client or product == .server) and std.mem.eql(u8, path, "code/qcommon/msg.c")) continue;
-        if (dk3 and product == .ui and
-            !std.mem.eql(u8, path, "code/ui/ui_syscalls.c") and
-            !std.mem.eql(u8, path, "code/qcommon/q_shared.c") and
-            !std.mem.eql(u8, path, "code/qcommon/q_math.c")) continue;
         if ((seen.getOrPut(b.allocator, path) catch @panic("OOM")).found_existing) {
             module.addCSourceFile(.{ .file = failSource(b, b.fmt("duplicate {t} source: {s}", .{ product, path })), .flags = &.{} });
             continue;
@@ -122,24 +103,8 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         module.addCSourceFile(.{ .file = file, .flags = config.sourceFlags(product, path) });
     }
     if (product == .client) {
-        module.addIncludePath(b.path("src/game"));
-        module.addCSourceFile(.{ .file = b.path("src/game/dk_save_format.c"), .flags = config.sourceFlags(product, "src/game/dk_save_format.c") });
-    }
-    if (dk3) {
-        module.addCMacro("DK3_GAME", "1");
         module.addIncludePath(b.path("engine/ioquake3/code/qcommon"));
-        module.addIncludePath(b.path("src/game"));
-        module.addIncludePath(b.path("src/shared"));
-        module.addIncludePath(b.path("engine/ioquake3/code/game"));
-        module.addIncludePath(b.path("engine/ioquake3/code/cgame"));
-        module.addIncludePath(b.path("engine/ioquake3/code/ui"));
-        const sources: []const []const u8 = switch (product) {
-            .qagame => &.{ "src/game/dk_world.c", "src/game/dk_movers.c", "src/game/dk_attachments.c", "src/game/dk_actors.c", "src/game/dk_navigation.c", "src/game/dk_companions.c", "src/game/dk_bots.c", "src/game/dk_scripts.c", "src/game/dk_cinematics.c", "src/game/dk_items.c", "src/game/dk_resources.c", "src/game/dk_decor.c", "src/game/dk_media.c", "src/game/dk_interactions.c", "src/game/dk_effects.c", "src/game/dk_travel.c", "src/game/dk_saves.c", "src/game/dk_save_format.c", "src/game/dk_save_schema.c", "src/game/dk_tables.c", "src/shared/dk_inventory.c" },
-            .ui => &.{"src/ui/dk_ui.c"},
-            .cgame => &.{ "src/cgame/dk_presentation.c", "src/cgame/dk_effects.c", "src/cgame/dk_subtitles.c", "src/cgame/dk_inventory.c", "src/cgame/dk_models.c", "src/cgame/dk_sprites.c", "src/game/dk_tables.c", "src/shared/dk_inventory.c" },
-            else => unreachable,
-        };
-        for (sources) |path| module.addCSourceFile(.{ .file = b.path(path), .flags = config.sourceFlags(product, path) });
+        module.addCSourceFile(.{ .file = b.path("engine/ioquake3/code/qcommon/dk_save_format.c"), .flags = config.sourceFlags(product, "engine/ioquake3/code/qcommon/dk_save_format.c") });
     }
     for (config.productIncludeDirs(b.allocator, product, settings) catch @panic("OOM")) |directory|
         module.addIncludePath(b.path(b.pathJoin(&.{ source_root, directory })));

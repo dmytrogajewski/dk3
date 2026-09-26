@@ -33,7 +33,7 @@ pub const Clients = struct {
         }
         var transform = spawn orelse return error.MissingPlayerSpawn;
         transform.position[2] += 9;
-        const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Keys{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
+        const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Keys{}, data.Character{}, data.Ailments{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
         errdefer world.destroy(entity) catch unreachable;
         _ = try slots.acquire(entity, @intCast(index));
         self.entities[index] = entity;
@@ -68,14 +68,18 @@ pub const Clients = struct {
         input.serverTime = @intCast(std.math.clamp(@as(i64, input.serverTime), now - 1000, now + 200));
         const player = try world.get(entity, data.Player);
         const command = bridge.command(input, &player.delta_angles);
+        const character = (try world.get(entity, data.Character)).*;
+        const ailments = (try world.get(entity, data.Ailments)).*;
+        (try world.get(entity, data.Health)).maximum = 100 + 20 * character.attribute(.vita, now);
         if ((try world.get(entity, data.Health)).current <= 0) player.mode = .dead;
         if (command.time_ms <= player.command_ms) return;
         const transform = try world.get(entity, data.Transform);
         const velocity = try world.get(entity, data.Velocity);
         var motion: @import("../domain/slide.zig").State = .{ .position = transform.position, .velocity = velocity.linear };
+        if (ailments.mask & 128 != 0) motion.velocity = @splat(0);
         var events: weapons.Events = .{};
-        var weapon_context: weapons.Context = .{ .ps = try world.get(entity, data.Weapons), .healthy = (try world.get(entity, data.Health)).current > 0, .single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER, .table = &self.weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(index), .shot_mask = c.MASK_SHOT };
-        const result = try @import("../domain/player_move.zig").runWithHook(player, &motion, command, bridge.parameters(@intCast(index)), engine.collisionService(), weapon_context.hook());
+        var weapon_context: weapons.Context = .{ .ps = try world.get(entity, data.Weapons), .healthy = (try world.get(entity, data.Health)).current > 0, .single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER, .table = &self.weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(index), .shot_mask = c.MASK_SHOT, .attack_boost = character.attribute(.attack, command.time_ms) };
+        const result = try @import("../domain/player_move.zig").runWithHook(player, &motion, command, bridge.characterParameters(@intCast(index), character, ailments, command.time_ms), engine.collisionService(), weapon_context.hook());
         for (events.values[0..events.count], 0..) |event, i| {
             const sequence = weapon_context.ps.event_sequence -% @as(u32, @intCast(events.count - i));
             states[index].events[sequence & (c.MAX_PS_EVENTS - 1)] = switch (event) {
@@ -109,6 +113,11 @@ pub const Clients = struct {
         const keys = (try world.get(entity, data.Keys)).*;
         ps.dk3Keys = @bitCast(keys.mask);
         ps.dk3Quest = @bitCast(keys.quest);
+        const character = (try world.get(entity, data.Character)).*;
+        const ailments = (try world.get(entity, data.Ailments)).*;
+        bridge.writeCharacter(ps, character, ailments);
+        ps.speed = @intFromFloat(bridge.characterParameters(@intCast(index), character, ailments, ps.commandTime).speed);
+        ps.dk3Episode = self.episode;
         bridge.writeWeapons(ps, inventory);
         const projection = &projections[index];
         projection.state.number = @intCast(index);

@@ -4,7 +4,6 @@ const std = @import("std");
 const toolchain = @import("build/toolchain.zig");
 const manifest = @import("build.zig.zon");
 const engine = @import("build/ioq3.zig");
-const qvm = @import("build/qvm.zig");
 const assets = @import("build/assets.zig");
 const game = @import("build/game.zig");
 const play = @import("build/play.zig");
@@ -15,17 +14,16 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{ .default_target = .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .gnu } });
     const optimize = b.option(std.builtin.OptimizeMode, "optimize", "Optimization mode") orelse .ReleaseSafe;
     @import("build/online.zig").declare(b, target, optimize);
-    const runtime = b.option(game.Runtime, "game-runtime", "Select legacy or isolated native Zig replacement") orelse .legacy;
-    const rules_identity = @import("build/compatibility.zig").declare(b, runtime == .zig);
+    _ = b.option(enum { zig }, "game-runtime", "Native Zig runtime (the only supported runtime)");
+    const rules_identity = @import("build/compatibility.zig").declare(b);
     const guard = b.addExecutable(.{ .name = "dkguard", .root_module = b.createModule(.{
         .root_source_file = b.path("src/dkguard/main.zig"),
         .target = target,
         .optimize = optimize,
     }) });
     b.installArtifact(guard);
-    b.installFile("src/cgame/dk3-projectile-weather.shader", "share/dk3/scripts/dk3-projectile-weather.shader");
-    if (engine.declare(b, target, optimize)) |products| game.declare(b, target, optimize, products, runtime, rules_identity);
-    qvm.declare(b, optimize);
+    b.installFile("src/replacement/client/dk3-projectile-weather.shader", "share/dk3/scripts/dk3-projectile-weather.shader");
+    if (engine.declare(b, target, optimize)) game.declare(b, target, optimize, rules_identity);
     const checks = b.step("test", "Run the existing published component checks");
     checks.dependOn(@import("build/replacement.zig").declareTests(b, optimize));
     checks.dependOn(&b.top_level_steps.get("test-online").?.step);
@@ -61,7 +59,7 @@ pub fn build(b: *std.Build) void {
     const python = b.option([]const u8, "python", "Python 3.10+ interpreter") orelse "python3";
     const navigation = bspc.declare(b, optimize);
     const packages = assets.declare(b, host_guard, python, navigation);
-    play.declare(b, packages, host_guard, runtime == .zig);
+    play.declare(b, packages, host_guard);
     const bootstrap =
         \\import os, sys, unittest
         \\os.environ['DKGUARD'] = os.path.abspath(sys.argv.pop(1))

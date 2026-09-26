@@ -8,7 +8,7 @@ pub fn declareTests(b: *std.Build, optimize: std.builtin.OptimizeMode) *std.Buil
     root.addImport("weapon_catalog", catalog(b, b.graph.host, optimize));
     root.addImport("item_catalog", itemCatalog(b, b.graph.host, optimize));
     root.addCMacro("DK3_GAME", "1");
-    for ([_][]const u8{ "engine/ioquake3/code/qcommon", "engine/ioquake3/code/game", "engine/ioquake3/code/cgame", "engine/ioquake3/code/ui", "engine/ioquake3/code/renderercommon", "src/shared", "src/game", "src/replacement/tests" }) |directory| root.addIncludePath(b.path(directory));
+    for ([_][]const u8{ "engine/ioquake3/code/qcommon", "engine/ioquake3/code/game", "engine/ioquake3/code/cgame", "engine/ioquake3/code/ui", "engine/ioquake3/code/renderercommon", "src/replacement/tests/reference", "src/replacement/tests" }) |directory| root.addIncludePath(b.path(directory));
     for ([_][]const u8{ "engine/ioquake3/code/game/bg_pmove.c", "engine/ioquake3/code/game/bg_slidemove.c", "engine/ioquake3/code/qcommon/q_math.c", "src/replacement/tests/movement_reference.c" }) |source| root.addCSourceFile(.{ .file = b.path(source), .flags = &.{ "-std=gnu99", "-ffp-contract=off" } });
     root.linkSystemLibrary("m", .{});
     step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = root })).step);

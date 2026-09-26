@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Conservative source-level rules identity, independent of optimization and ELF layout.
 const std = @import("std");
-pub fn declare(b: *std.Build, replacement: bool) []const u8 {
+pub fn declare(b: *std.Build) []const u8 {
     var paths: std.ArrayList([]const u8) = .empty;
-    for ([_][]const u8{ "src/replacement", "src/weapons", "src/items", "src/multiplayer", "src/game", "src/shared", "engine/ioquake3/code/game" }) |root| {
-        if (!replacement and std.mem.eql(u8, root, "src/replacement")) continue;
+    for ([_][]const u8{ "src/replacement", "src/weapons", "src/items", "src/multiplayer", "engine/ioquake3/code/game" }) |root| {
         var directory = std.Io.Dir.cwd().openDir(b.graph.io, b.pathFromRoot(root), .{ .iterate = true }) catch @panic("missing gameplay source");
         defer directory.close(b.graph.io);
         var walker = directory.walk(b.allocator) catch @panic("OOM");
@@ -21,7 +20,7 @@ pub fn declare(b: *std.Build, replacement: bool) []const u8 {
         }
     }.less);
     var hash = std.crypto.hash.sha2.Sha256.init(.{});
-    if (replacement) hash.update("runtime=zig\x00");
+    hash.update("runtime=zig\x00");
     for (paths.items) |path| {
         const bytes = std.Io.Dir.cwd().readFileAlloc(b.graph.io, b.pathFromRoot(path), b.allocator, .limited(16 << 20)) catch @panic("cannot hash gameplay source");
         hash.update(path);

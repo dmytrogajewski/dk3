@@ -7,7 +7,8 @@ archetype ECS, parallel systems, separate native modules and an isolated install
 Sequences 218–221 connect native movement, shared weapon controllers, binary movers,
 train paths, attachment assemblies, secret doors, continuous rotation and core
 pickups/key locks with authored spawn filtering. The replacement remains incomplete.
-The existing runtime stays default until implemented-scope acceptance passes.
+Sequence 223 removes the old runtime at the owner’s request. Only native Zig
+game/client/UI development continues; removal is not gameplay acceptance.
 This supersedes the historical C/QVM game-module guidance below.
 
 Sequence 209 adds [configurable permanent rooms](online-operations.md#permanent-rooms)

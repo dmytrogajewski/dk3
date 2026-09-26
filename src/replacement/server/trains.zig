@@ -168,9 +168,7 @@ pub fn step(world: *data.World, slots: *const Slots, projections: []abi.EntityPr
         const destination = if (train.phase == .moving) data.Transform{ .position = train.position.sample(now), .angles = train.angles.sample(now) } else (try world.get(entity, data.Transform)).*;
         const move: @import("pusher.zig").Move = .{ .entity = entity, .destination = destination };
         if (try @import("pusher.zig").push(world, slots, projections, &.{move}, now, elapsed)) |blocker| {
-            if (world.get(blocker, data.Health)) |health| {
-                if (train.damage > 0) health.current = @max(0, health.current - train.damage);
-            } else |_| {}
+            _ = try @import("damage.zig").apply(world, blocker, train.damage, now, .{});
         }
     }
 }

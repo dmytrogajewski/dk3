@@ -2,7 +2,8 @@
 
 Accepted 2026-09-26; implementation starts at **runtime-zig-217**. This decision
 supersedes the general C/QVM requirement for dk3 gameplay, client and UI modules.
-The current native runtime remains the default until replacement acceptance passes.
+The Zig runtime is now the only source/build runtime; the old runtime is removed.
+This is a development decision, not a claim of gameplay acceptance.
 Implemented code and verified acceptance are tracked separately in the run log.
 
 ## Scope and boundaries
@@ -19,8 +20,8 @@ engine adapters, shared domain rules and ECS infrastructure. Domain code cannot
 import g_local.h, cg_local.h or engine globals. Engine-facing structs are transport
 projections; authoritative state belongs to the server ECS. Client ECS owns replicated,
 predicted and presentation state. Menu navigation uses ordinary typed state.
-Existing Zig weapon/multiplayer rules must acquire backend adapters, not duplicate
-implementations for legacy and replacement runtimes.
+Pure weapon definitions and rules have one owner. Native ECS systems consume them
+through engine adapters; do not maintain a second gameplay backend.
 
 ## ECS and scheduling
 
@@ -53,9 +54,9 @@ unions, allocators and recoverable errors replace implicit flags/global mutation
 
 ## Build and compatibility
 
--Dgame-runtime=legacy|zig defaults to legacy. Replacement installations require their
-own prefix and isolated profile. One process loads one runtime, with no fallback into
-legacy gameplay. ABI bridges remain mechanical and layout checked. Keep native module
+Only the Zig runtime is built. The optional -Dgame-runtime=zig spelling remains
+accepted for existing commands; legacy is rejected. Development installations require
+their own prefix and isolated profile. There is no legacy gameplay fallback. ABI bridges remain mechanical and layout checked. Keep native module
 exports and engine-facing layouts where practical; never expose Zig-native layouts.
 
 Current schema-5 saves and optional fields, persistent IDs, relative deadlines and
@@ -70,7 +71,7 @@ but require matching verified runtime builds; mixed-runtime play is not required
 3. World spawning, movers, interactions, combat, actors/navigation, companions/bots.
 4. Scripts, cinematics, progression, travel and persistence.
 5. Prediction, model/animation/effects/audio/HUD and complete UI/multiplayer flows.
-6. Acceptance, default cutover and removal of legacy gameplay from the active product.
+6. Complete gameplay acceptance and qualify installation/release flows.
 
 Implement connected code before systematic scenarios. Required acceptance includes
 ECS relocation/stale handles/capacity, scheduler conflicts and worker-count equivalence,
@@ -80,8 +81,30 @@ input/audio/UI, matching-build dedicated/Internet rooms, bots/reconnect/rotation
 compatibility rejection, and repeated performance/memory/query measurements. Audit
 replacement builds for legacy C behavior and domain imports. Run the applicable broad
 suite after integrated repairs, not per-item duplicate gates. Engine runs use dkguard.
-Full four-episode completion is separate from implemented-scope cutover. Keep the old
+Full four-episode completion is separate from implemented-scope acceptance. Keep the old
 installation for rollback and preserve user profiles throughout.
+
+## Active decision: runtime-zig-223
+
+The owner requested removal of the old runtime, not parallel maintenance. Remove its
+C gameplay/client/UI, C-dependent Zig adapters and old-runtime tests from the active
+checkout. Keep bundled ioquake3 infrastructure, native domain policies, networking,
+online services and asset tools. Upstream movement remains a test-only differential
+reference. Engine save-envelope validation stays engine infrastructure; native save
+restoration remains open. Git history preserves retired independent implementations.
+
+Development uses `zig build game test-runtime --prefix zig-out/replacement`, followed
+by affected isolated native scenarios. Broad checks cover surviving components once
+per integrated batch. Do not add legacy parity adapters or require old-runtime builds.
+Keep original installations and saves untouched. Removing old tests does not certify
+their scenarios: actor witnesses, laser shutdown, scripts, full weapon effects and
+campaign progression still need native implementation and acceptance.
+
+Next connected work: weapon events → hit/projectile simulation → damage/death → actor
+reactions, with simulation rules owned by domain code and collision/audio/rendering
+resolved by explicit adapters. Then progression/scripts, persistence/travel, and UI.
+The following checkpoints are historical and their old-default statements no longer
+apply to the source/build policy.
 
 ## Foundation checkpoint: runtime-zig-217 (historical)
 

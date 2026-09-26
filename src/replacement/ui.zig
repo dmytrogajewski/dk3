@@ -16,7 +16,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             _ = gateway.call(c.UI_CVAR_SET, .{ @as([*:0]const u8, "dk3_runtime_build"), @as([*:0]const u8, @import("engine/player_state.zig").version) });
             var value: [16]u8 = @splat(0);
             _ = gateway.call(c.UI_CVAR_VARIABLESTRINGBUFFER, .{ @as([*:0]const u8, "dk3_runtime_probe"), &value, @as(isize, value.len) });
-            if (!std.mem.eql(u8, std.mem.sliceTo(&value, 0), "2")) _ = gateway.call(c.UI_ERROR, .{@as([*:0]const u8, "Zig replacement UI is not yet qualified; use the legacy runtime.")});
+            if (!std.mem.eql(u8, std.mem.sliceTo(&value, 0), "2")) _ = gateway.call(c.UI_ERROR, .{@as([*:0]const u8, "Native UI is incomplete; isolated development requires dk3_runtime_probe=2.")});
         },
         c.UI_SHUTDOWN => {},
         else => return 0,
