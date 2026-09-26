@@ -66,7 +66,9 @@ pub const State = struct {
             }
         }
         try @import("projectiles.zig").step(world, slots, projections, now);
+        try @import("weapon_launches.zig").step(world, slots, projections, table, now);
         try @import("melee.zig").step(world, slots, projections, table, now);
+        try @import("ailments.zig").step(world, now);
         try self.navigation.frame(now);
         self.navigation.sync(projections);
         try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);

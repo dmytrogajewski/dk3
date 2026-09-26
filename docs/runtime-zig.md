@@ -486,3 +486,21 @@ animation position. Both repaired renderer replays pass; the aggregate suite pas
 208 Zig and 44 Python checks. Eleven combat policies are connected; remaining combat,
 complete defense/arc/audio parity, multiplayer rewards and campaign acceptance stay
 open. Scenario details and final verification belong to the run log.
+
+## runtime-zig-235 — poison, freezing and timed releases
+
+Implemented with focused status, save and rendered evidence. Gas Hands uses a timed strike;
+Venomous chooses a close bite or delayed projectile release, alternating supplied
+muzzle offsets. Poison projectiles bounce, settle into contact hazards and dissolve
+in water. Kineticore ricochets, ages its damage, recovers lost velocity and applies
+freezing. Each concrete class owns its combat, flight, damage and effect requests.
+
+Persistent ailments own poison deadlines and time-based freeze decay. Actor/player
+systems consume the same effects, including armor/protection, death, source credit,
+cures and travel reset. Delayed projectile releases have persistent owner IDs and
+rebased deadlines. Sprite projectiles and poison pools use converted sprite metadata;
+frost and player status overlays remain client presentation. Fourteen combat policies
+are connected in code. Authored kills, poison ticks, freezing, saved delayed launch
+and restored pool contact pass on both renderers. The prior projectile regression
+also passes. Full rendered/audio, water behavior and campaign acceptance remain
+open; the pool capture is occluded and does not verify its complete appearance.

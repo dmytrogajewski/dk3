@@ -37,6 +37,7 @@ pub const Traveler = struct {
         self.at_ms = now;
         self.ailments.mask &= 120;
         self.ailments.freeze_level = 0;
+        self.ailments.cure();
         if (episode != self.episode) {
             self.keys = .{};
             const sword_xp = self.weapons.dk3SwordExperience;

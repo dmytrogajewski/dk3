@@ -47,6 +47,15 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.stepped_ms, delta);
         },
         .melee => try shift(&value.started_ms, delta),
+        .weapon_launch => try shift(&value.execute_ms, delta),
+        .ailments => {
+            if (value.poison) |*poison| {
+                try shift(&poison.until_ms, delta);
+                try shift(&poison.next_ms, delta);
+            }
+            try deadline(&value.freeze_at_ms, delta);
+            try deadline(&value.freeze_next_ms, delta);
+        },
         .actor => {
             try shift(&value.changed_ms, delta);
             try active(&value.panic_until, delta);
@@ -68,7 +77,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.started_ms, delta);
             try active(&value.ready_ms, delta);
         },
-        .transform, .velocity, .body, .health, .random, .binding, .map_object, .attachment, .gravity, .motion, .inventory, .keys, .ailments, .sound_event, .impact_event, .destructible, .wall => {},
+        .transform, .velocity, .body, .health, .random, .binding, .map_object, .attachment, .gravity, .motion, .inventory, .keys, .sound_event, .impact_event, .destructible, .wall => {},
     }
 }
 test "save time rebasing preserves deadlines, inactive sentinels and durations" {

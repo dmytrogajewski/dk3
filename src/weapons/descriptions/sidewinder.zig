@@ -36,7 +36,7 @@ const ballistic = @import("../ballistics.zig");
 const vector = @import("../vector.zig");
 pub const flight_tag = "sidewinder";
 pub const BallisticState = struct { accelerated: bool = false };
-pub fn flightLaunch(sequence: i32, _: u8) ballistic.Launch {
+pub fn flightLaunch(_: @import("../values.zig").Values, sequence: i32, _: u8) ballistic.Launch {
     return .{ .muzzle = if (sequence == 0) .{ 10, 10, 9 } else .{ 10, 8, 11 }, .roll = if (sequence == 0) 90 else 0 };
 }
 pub fn flightMotion(state_value: *BallisticState, frame: ballistic.Frame) ballistic.Motion {

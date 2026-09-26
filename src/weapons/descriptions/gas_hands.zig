@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 7;
 pub const spec: profiles.Spec = .{
+    .combat = .melee,
     .equipped = false,
     .companion_pickup = false, // gashands
     .droppable = false,
@@ -11,6 +12,7 @@ pub const spec: profiles.Spec = .{
         .ready = "ready",
         .away = "away",
         .fire = "shootb",
+        .fire_variants = .{ "shootb", "shootc", null, null },
         .idle = .{ "amba", null, null },
         .alternate = "shootc",
         .raise_ms = 1550,
@@ -23,6 +25,13 @@ pub const spec: profiles.Spec = .{
     },
 };
 pub const identity = .{ .classname = "weapon_gashands", .label = "Gas hands", .episode = 1, .interval = 900 };
+
+pub fn meleePlan(_: i32, _: i32) !@import("../melee.zig").Plan {
+    return .{ .delays_ms = .{ 400, 0 }, .height = 16, .crouching_height = -9, .require_selected = false, .inertial = true, .scale_timing = true };
+}
+pub fn impact(_: @import("../impact.zig").Context) @import("../impact.zig").Cue {
+    return .{ .sound = "e1/we_gasclangc.wav", .particles = 5, .color = .{ 0.7, 0.7, 1 }, .light_radius = 350 };
+}
 
 const shot_rules = @import("../shot.zig");
 const state = @import("../weapon_state.zig");

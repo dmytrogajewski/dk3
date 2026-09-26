@@ -8,12 +8,13 @@ pub const State = struct {
     damage: f32,
     started_ms: i64,
     next_hit: u8 = 0,
+    timing_factor: f32 = 1,
     pub fn plan(self: State) !catalog.melee.Plan {
         return catalog.meleePlan(self.weapon, self.sequence, self.experience);
     }
     pub fn due(self: State, now: i64) !bool {
         const attack = try self.plan();
-        return self.next_hit < attack.hits and now >= self.started_ms + attack.delays_ms[self.next_hit];
+        return self.next_hit < attack.hits and now >= self.started_ms + @as(i64, @intFromFloat(@as(f32, @floatFromInt(attack.delays_ms[self.next_hit])) / (if (attack.scale_timing) self.timing_factor else 1)));
     }
 };
 test "saved melee cursors retain the second strike without replaying the first" {

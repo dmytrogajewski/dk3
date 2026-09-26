@@ -9,6 +9,17 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_ailments")) {
+        for (slots.occupants) |occupant| {
+            const target = occupant orelse continue;
+            const status = world.get(target, data.Ailments) catch continue;
+            if (status.mask & 7 == 0) continue;
+            var output: [240]u8 = undefined;
+            engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig ailment state: id={d} mask={d} freeze={d:.3} poison_remaining={d} poison_next={d}\n", .{ try world.persistentId(target), status.mask, status.freeze_level, if (status.poison) |value| value.until_ms - now else 0, if (status.poison) |value| value.next_ms - now else 0 }));
+        }
+        engine.print("dk3 zig ailment states complete\n");
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_progression")) {
         const owner = player orelse return error.MissingPlayer;
         const state = (try world.get(owner, data.Character)).*;
@@ -23,8 +34,9 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
             const projectile = world.get(entity, data.Projectile) catch continue;
             const lifetime = world.get(entity, data.Lifetime) catch null;
             const velocity = (try world.get(entity, data.Velocity)).linear;
-            var output: [240]u8 = undefined;
-            engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig projectile state: id={d} weapon={d} stuck={d} resting={d} age={d} remaining={d} velocity={d:.2},{d:.2},{d:.2}\n", .{ try world.persistentId(entity), projectile.weapon, @intFromBool(projectile.stuck), @intFromBool(projectile.resting), now - projectile.born_ms, if (lifetime) |value| value.expires_ms - now else 0, velocity[0], velocity[1], velocity[2] }));
+            const position = (try world.get(entity, data.Transform)).position;
+            var output: [300]u8 = undefined;
+            engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig projectile state: id={d} weapon={d} stuck={d} resting={d} age={d} remaining={d} velocity={d:.2},{d:.2},{d:.2} position={d:.2},{d:.2},{d:.2}\n", .{ try world.persistentId(entity), projectile.weapon, @intFromBool(projectile.stuck), @intFromBool(projectile.resting), now - projectile.born_ms, if (lifetime) |value| value.expires_ms - now else 0, velocity[0], velocity[1], velocity[2], position[0], position[1], position[2] }));
         }
         engine.print("dk3 zig projectile states complete\n");
         return true;
@@ -88,6 +100,7 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
         loadout.weaponTime = 0;
         loadout.weaponstate = 0;
         loadout.dk3GlockClip = 10;
+        if (id == 7) loadout.gas_until_ms = (try @import("weapon_catalog").gas.extend(loadout.gas_until_ms, now, table.entries[id].lifetime)) orelse loadout.gas_until_ms;
         return true;
     }
     if (std.mem.eql(u8, name, "dk3_runtime_target")) {

@@ -25,7 +25,8 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     const slot = (try world.get(owner, data.Binding)).slot;
     const eye = rules.eye(shot.position, shot.view_height);
     const forward = v.basis(shot.angles).forward;
-    switch (entry.spec.combat) {
+    const combat_policy = catalog.combatFor(shot.weapon, shot.sequence);
+    switch (combat_policy) {
         .pending => {
             engine.print("dk3 zig: weapon combat policy pending\n");
             return;
@@ -73,7 +74,14 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             }
         },
         .melee => try @import("melee.zig").launch(world, owner, shot, table, now),
-        .projectile => try @import("projectiles.zig").launch(world, slots, projections, owner, shot, table, now),
+        .projectile => {
+            if (entry.spec.projectile.action_delay_ms > 0) {
+                const factor = catalog.transitions.attackFactor((try world.get(owner, data.Character)).attribute(.attack, now));
+                try @import("weapon_launches.zig").queue(world, owner, shot, now, @intFromFloat(@as(f32, @floatFromInt(entry.spec.projectile.action_delay_ms)) / factor));
+                return;
+            }
+            try @import("projectiles.zig").launch(world, slots, projections, owner, shot, table, now);
+        },
         .ion => |policy| {
             const start = (try trace(eye, rules.muzzle(eye, shot.angles, tuning.muzzle), slot, policy.radius, c.MASK_SHOT)).end;
             const aimed = (try trace(eye, v.add(eye, v.scale(forward, 2000)), slot, 0, c.MASK_SHOT)).end;
@@ -88,6 +96,6 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try @import("projectiles.zig").publish(world, bolt, projections, now);
         },
     }
-    if (entry.spec.combat == .melee and (try catalog.meleePlan(shot.weapon, shot.sequence, (try world.get(owner, data.Weapons)).dk3SwordExperience)).sound_on_strike) return;
+    if (combat_policy == .melee and (try catalog.meleePlan(shot.weapon, shot.sequence, (try world.get(owner, data.Weapons)).dk3SwordExperience)).sound_on_strike) return;
     if (catalog.fireSound(shot.weapon, shot.sequence, @truncate(@as(u64, @bitCast(shot.command_ms))))) |sound| try @import("events.zig").sound(world, slots, projections, sound, eye, slot, c.CHAN_WEAPON, now);
 }

@@ -41,6 +41,9 @@ pub const Audio = struct {
 
 pub const Visual = struct {
     projectile_scale: f32 = 1,
+    projectile_sprite: ?[:0]const u8 = null,
+    resting_sprite: ?[:0]const u8 = null,
+    sprite_additive: bool = true,
     projectile_model: [:0]const u8 = "",
     impact_sprite: [:0]const u8 = "models/global/we_expl.sp2",
     blast_sound: ?[:0]const u8 = null,
@@ -65,6 +68,11 @@ pub const ProjectileSpawn = struct {
     splash_radius: f32 = 128,
     action_delay_ms: u32 = 0,
     lifetime_ms: u32 = 0,
+    lifetime_scale: f32 = 1,
+    collide_owner_after_bounce: bool = false,
+    contact_when_resting: bool = false,
+    remove_when_resting: bool = false,
+    resting_lifetime_scale: f32 = 0,
 };
 pub const Muzzle = struct {
     model: [:0]const u8,

@@ -262,6 +262,7 @@ pub fn validate(snapshot: *Loaded) !void {
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
         }
         if (world.get(entity, data.Projectile) catch null) |projectile| {
+            if (projectile.lifetime_ms < 0 or projectile.lifetime_ms > 3600000 or projectile.speed < 0 or projectile.speed > 100000) return error.InvalidSavedProjectile;
             const flight = @import("weapon_catalog").flightState(projectile.weapon) catch return error.InvalidSavedProjectile;
             if (std.meta.activeTag(projectile.flight) != std.meta.activeTag(flight) or projectile.damage < 0 or projectile.damage > 1000000) return error.InvalidSavedProjectile;
             try require(world, entity, .{ data.Binding, data.Velocity });
@@ -269,10 +270,16 @@ pub fn validate(snapshot: *Loaded) !void {
         }
         if (world.get(entity, data.Melee) catch null) |melee| {
             const plan = melee.plan() catch return error.InvalidSavedMelee;
-            if (melee.next_hit >= plan.hits or melee.damage < 0 or melee.damage > 1000000 or melee.experience < 0) return error.InvalidSavedMelee;
+            if (melee.next_hit >= plan.hits or melee.damage < 0 or melee.damage > 1000000 or melee.experience < 0 or melee.timing_factor < 1 or melee.timing_factor > 3) return error.InvalidSavedMelee;
             const owner = world.find(melee.owner) orelse return error.InvalidSavedMeleeOwner;
             try require(world, owner, .{ data.Player, data.Weapons, data.Binding, data.Health });
             if ((world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedMelee;
+        }
+        if (world.get(entity, data.WeaponLaunch) catch null) |launch| {
+            const class = @import("weapon_catalog").find(launch.weapon) orelse return error.InvalidSavedLaunch;
+            if (@import("weapon_catalog").combatFor(launch.weapon, launch.sequence) != .projectile or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
+            const owner = world.find(launch.owner) orelse return error.InvalidSavedLaunch;
+            try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
         }
         if (world.get(entity, data.Pickup) catch null) |pickup| {
             try require(world, entity, .{ data.Binding, data.Body, data.ItemMotion, data.MapObject });
@@ -293,6 +300,11 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Character) catch null) |character| {
             for (character.attributes) |attribute| if (attribute < 0 or attribute > 5) return error.InvalidSavedCharacter;
             if (character.level < 1 or character.level > 25 or character.points < 0 or character.experience < 0 or character.save_gems < 0) return error.InvalidSavedCharacter;
+        }
+        if (world.get(entity, data.Ailments) catch null) |ailments| {
+            try require(world, entity, .{data.Health});
+            if (ailments.freeze_level < 0 or ailments.freeze_level > 1) return error.InvalidSavedAilment;
+            if (ailments.poison) |poison| if (poison.damage <= 0 or poison.damage > 1000000 or poison.interval_ms < 100 or poison.interval_ms > 3600000 or poison.weapon > 28 or poison.next_ms > poison.until_ms + poison.interval_ms) return error.InvalidSavedAilment;
         }
     };
     if (players != 1) return error.InvalidSavedPlayer;
@@ -332,9 +344,11 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = random.next();
     try world.put(player, random);
     (try world.get(player, data.Weapons)).last_fire_ms = 700;
+    _ = (try world.get(player, data.Ailments)).apply(.{ .poison = .{ .damage = 3, .duration_ms = 5000 } }, 7, 11, 700);
     _ = try world.create(43, .{ data.Transform{}, data.ImpactEvent{ .weapon = 4, .kind = .world, .normal = .{ 0, 0, 1 } }, data.Lifetime{ .expires_ms = 1200 } });
     _ = try world.create(44, .{ data.Transform{}, data.Binding{ .slot = 65 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 5, .damage = 50, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .sidewinder = .{ .accelerated = true } } }, data.Lifetime{ .expires_ms = 5000 } });
     _ = try world.create(45, .{ data.Transform{}, data.Melee{ .owner = 7, .weapon = 8, .sequence = 9, .experience = 0, .damage = 40, .started_ms = 700, .next_hit = 1 } });
+    _ = try world.create(46, .{ data.Transform{}, data.WeaponLaunch{ .owner = 7, .weapon = 11, .sequence = 0, .charge = 0, .execute_ms = 1100 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -350,6 +364,10 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try loaded.rebase(9000);
     const melee = (try loaded.world.get(loaded.world.find(45).?, data.Melee)).*;
     try std.testing.expectEqual(@as(?i64, 8700), (try loaded.world.get(loaded.world.find(7).?, data.Weapons)).last_fire_ms);
+    const poison = (try loaded.world.get(loaded.world.find(7).?, data.Ailments)).poison.?;
+    try std.testing.expectEqual(@as(i64, 9100), (try loaded.world.get(loaded.world.find(46).?, data.WeaponLaunch)).execute_ms);
+    try std.testing.expectEqual(@as(i64, 9700), poison.next_ms);
+    try std.testing.expectEqual(@as(i64, 13700), poison.until_ms);
     try std.testing.expectEqual(@as(u8, 1), melee.next_hit);
     try std.testing.expect(!try melee.due(9347));
     try std.testing.expect(try melee.due(9348));

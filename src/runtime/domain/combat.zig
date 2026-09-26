@@ -14,6 +14,8 @@ pub const Projectile = struct {
     wet: bool = false,
     stuck: bool = false,
     resting: bool = false,
+    lifetime_ms: i64 = 0,
+    speed: f32 = 0,
 };
 pub fn eye(position: v.Vec3, height: f32) v.Vec3 {
     return v.add(position, .{ 0, 0, height });

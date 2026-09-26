@@ -4,6 +4,14 @@ pub const weapons = .{ @import("descriptions/disruptor.zig"), @import("descripti
 pub const Spec = @import("profiles.zig").Spec;
 pub const ballistics = @import("ballistics.zig");
 pub const melee = @import("melee.zig");
+pub const affliction = @import("affliction.zig");
+pub fn combatFor(id: u5, sequence: i32) @import("profiles.zig").Combat {
+    inline for (weapons) |W| if (id == W.id) {
+        if (@hasDecl(W, "combatFor")) return W.combatFor(sequence);
+        return W.spec.combat;
+    };
+    return .pending;
+}
 pub fn meleePlan(id: u5, sequence: i32, experience: i32) !melee.Plan {
     inline for (weapons) |W| if (id == W.id) {
         if (@hasDecl(W, "meleePlan")) return W.meleePlan(sequence, experience);
@@ -59,11 +67,18 @@ pub fn flightContact(id: u5, contact: ballistics.Contact) !ballistics.Response {
     };
     return error.MissingProjectilePolicy;
 }
-pub fn flightLaunch(id: u5, offset: [3]f32, sequence: i32, attack: u8) ballistics.Launch {
+pub fn flightDamage(id: u5, hit: ballistics.Hit) ballistics.Damage {
     inline for (weapons) |W| if (id == W.id) {
-        if (@hasDecl(W, "flightLaunch")) return W.flightLaunch(sequence, attack);
+        if (@hasDecl(W, "flightDamage")) return W.flightDamage(hit);
+        return .{ .amount = hit.damage * W.spec.projectile.direct_scale };
     };
-    return .{ .muzzle = offset };
+    return .{ .amount = 0 };
+}
+pub fn flightLaunch(id: u5, tuning: values.Values, sequence: i32, attack: u8) ballistics.Launch {
+    inline for (weapons) |W| if (id == W.id) {
+        if (@hasDecl(W, "flightLaunch")) return W.flightLaunch(tuning, sequence, attack);
+    };
+    return .{ .muzzle = tuning.muzzle };
 }
 pub const impact_rules = @import("impact.zig");
 pub fn impact(id: u5, context: impact_rules.Context) impact_rules.Cue {
@@ -174,4 +189,31 @@ test "melee classes own delayed windows, directional defense, immunities and swo
     try std.testing.expectEqual(@as(f32, 0), meleeDamage(8, hit).amount);
     try std.testing.expectEqual(@as(i32, 5), swordExperience(8, 100));
     try std.testing.expectEqual(@as(i32, 0), swordExperience(15, 100));
+}
+
+test "Venomous owns alternate muzzles and bite poison; Kineticore ages and recovers speed" {
+    const std = @import("std");
+    const tuning: values.Values = .{ .muzzle = .{ -6, 30, 12 }, .alternate_muzzle = .{ 7, 30, 14 } };
+    try std.testing.expectEqual([3]f32{ -6, 40, 12 }, flightLaunch(11, tuning, 0, 0).muzzle);
+    try std.testing.expectEqual([3]f32{ 7, 40, 14 }, flightLaunch(11, tuning, 1, 0).muzzle);
+    try std.testing.expect(combatFor(11, 128) == .melee);
+    try std.testing.expect(combatFor(11, 0) == .projectile);
+    const poison = flightDamage(11, .{ .damage = 30, .age_ms = 10, .lifetime_ms = 10000 });
+    try std.testing.expectEqual(@as(u32, 5000), poison.effect.poison.duration_ms);
+    try std.testing.expectEqual(@as(f32, 3), poison.effect.poison.damage);
+    try std.testing.expectEqual(@as(f32, 14), flightDamage(24, .{ .damage = 12, .age_ms = 0, .lifetime_ms = 1500 }).amount);
+    try std.testing.expectEqual(@as(f32, 8), flightDamage(24, .{ .damage = 12, .age_ms = 750, .lifetime_ms = 1500 }).amount);
+    try std.testing.expectEqual(@as(f32, 5), flightDamage(24, .{ .damage = 12, .age_ms = 750, .lifetime_ms = 1500, .self_hit = true }).amount);
+    var core = try flightState(24);
+    var frame: ballistics.Frame = .{ .age_ms = 100, .delta_ms = 20, .distance = 10, .wet = false, .was_wet = false, .velocity = .{ 100, 0, 0 }, .speed = 300 };
+    frame.velocity = (try flightMotion(24, &core, frame)).velocity;
+    try std.testing.expectEqual(@as(f32, 200), frame.velocity[0]);
+    try std.testing.expectEqual(@as(f32, 200), (try flightMotion(24, &core, frame)).velocity[0]);
+    frame.age_ms = 200;
+    try std.testing.expectEqual(@as(f32, 300), (try flightMotion(24, &core, frame)).velocity[0]);
+    frame.age_ms = 2000000000;
+    try std.testing.expectEqual(@as(f32, 300), (try flightMotion(24, &core, frame)).velocity[0]);
+    var venom = try flightState(11);
+    frame.wet = true;
+    try std.testing.expect((try flightMotion(11, &venom, frame)).remove);
 }

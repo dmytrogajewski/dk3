@@ -34,7 +34,11 @@ combat policies are connected at sequence 233. Sequence 234 implements Silvercla
 and Daikatana timed strikes, save continuation and kill/sword experience. Authored
 worker kills and saved reward totals pass focused scenarios on both renderers;
 the repaired restored attack pose also passes on both renderers. Eleven combat policies
-are connected; the remaining 17 still need native combat. Schema-5 migration,
+are connected at sequence 234. Sequence 235 adds Gas Hands, Venomous and Kineticore,
+including saved poison/freeze effects, delayed releases, poison pools and sprite
+projectiles. Focused authored damage/status/save scenarios pass on both renderers;
+the complete water/trail/art comparison remains open. Fourteen combat policies
+are connected; the remaining 14 still need native combat. Schema-5 migration,
 companion/cinematic exits, multiplayer screens and complete menu parity remain open.
 See [runtime progress](runtime-zig.md).
 

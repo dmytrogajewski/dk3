@@ -42,14 +42,7 @@ pub const State = struct {
         return true;
     }
 };
-pub const Ailments = struct {
-    mask: u32 = 0,
-    freeze_level: f32 = 0,
-    pub fn cure(self: *Ailments) void {
-        self.mask &= ~@as(u32, 7);
-        self.freeze_level = 0;
-    }
-};
+pub const Ailments = @import("ailments.zig").State;
 pub fn attributeNamed(name: []const u8) ?Attribute {
     inline for (std.meta.fields(Attribute)) |field| if (std.ascii.eqlIgnoreCase(name, field.name)) return @enumFromInt(field.value);
     return null;

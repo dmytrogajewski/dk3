@@ -68,6 +68,7 @@ pub const Actors = struct {
             if (health <= 0) return error.InvalidActorHealth;
             try world.put(entity, data.Actor{ .definition = id, .changed_ms = now, .guard = .{ .random = try world.persistentId(entity) } });
             try world.put(entity, data.Hurt{});
+            try world.put(entity, data.Ailments{});
             try world.put(entity, data.Health{ .current = @intFromFloat(health), .maximum = @intFromFloat(health) });
             try world.put(entity, data.Velocity{});
             try world.put(entity, data.Body{ .mins = definition.mins, .maxs = definition.maxs, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID, .mass = definition.mass });
@@ -96,6 +97,7 @@ pub const Actors = struct {
         projection.state.eType = c.ET_GENERAL;
         projection.state.modelindex = binding.model;
         projection.state.angles2 = definition.scale;
+        projection.state.generic1 = if (world.get(entity, data.Ailments) catch null) |ailment| @intFromFloat(ailment.freeze_level * 1000) else 0;
         projection.state.groundEntityNum = actor.ground_entity;
         projection.state.frame = sequence.frame(now - (if (actor.mode == .attack or actor.mode == .reload) actor.guard.started_ms else actor.changed_ms), actor.mode == .idle or actor.mode == .flee or actor.mode == .chase);
         projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
@@ -159,7 +161,8 @@ pub const Actors = struct {
             }
             var velocity = (try world.get(entity, data.Velocity)).*;
             const threat = if (world.find(actor.threat)) |source| (try world.get(source, data.Transform)).position else actor.threat_position;
-            try @import("actor_motion.zig").step(&actor, &pose, &body, &velocity, navigation, threat, self.table.definitions[actor.definition].speed, binding.slot, now, elapsed);
+            const slow = if (world.get(entity, data.Ailments) catch null) |ailment| 1 - 0.8 * ailment.freeze_level else 1;
+            try @import("actor_motion.zig").step(&actor, &pose, &body, &velocity, navigation, threat, self.table.definitions[actor.definition].speed * slow, binding.slot, now, elapsed);
             (try world.get(entity, data.Actor)).* = actor;
             (try world.get(entity, data.Transform)).* = pose;
             (try world.get(entity, data.Velocity)).* = velocity;

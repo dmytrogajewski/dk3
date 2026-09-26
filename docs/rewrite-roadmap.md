@@ -14,6 +14,8 @@ an e1m3b/e1m3a round trip passing. Sequence 232 adds native pellet/rotary combat
 class-owned impact presentation; sequence 233 adds three projectile classes and
 animated explosions. Sequence 234 connects timed melee actions and kill progression,
 including saved remaining strikes and resumed attack poses on both renderers.
+Sequence 235 adds poison/freezing, delayed projectile releases and three more
+weapon policies, with focused authored damage and native save evidence.
 Schema-5 migration, remaining combat/actors,
 companion/cinematic progression and multiplayer remain implementation work.
 

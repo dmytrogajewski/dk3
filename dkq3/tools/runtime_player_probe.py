@@ -512,6 +512,125 @@ def melee_scenario(issue, capture, log, process):
     return {"kills": results, "saved_action": selected, "scope": "normal Silverclaw/Daikatana attacks against authored civilians, kill experience and persistent corpse rewards, two-strike save continuation without replay; collision-checked diagnostic placement/equipment, full arc/defense/visual parity remains open"}
 
 
+def status_weapons_scenario(issue, capture, log, process):
+    def aim(identity, radius, flat=False):
+        cursor = len(log.read_text(errors="replace"))
+        issue(f"dk3_runtime_face_target {identity} {radius}", 0.04)
+        wait(process, log, lambda text: re.search(rf"fixture player=[\d.,-]+ target={identity}", text[cursor:]) is not None, 4)
+        placements = re.findall(rf"fixture player=([\d.,-]+) target={identity}", log.read_text(errors="replace"))
+        if not placements:
+            raise RuntimeError(f"no standing point for status target {identity}")
+        player = list(map(float, placements[-1].split(',')))
+        cursor = len(log.read_text(errors="replace"))
+        issue("dk3_runtime_actors", 0.04)
+        wait(process, log, lambda text: f"zig actor: id={identity} " in text[cursor:], 4)
+        samples = re.findall(rf"zig actor: id={identity} state=\w+ health=(-?\d+) pos=([\d.,-]+)", log.read_text(errors="replace"))
+        if not samples:
+            raise RuntimeError("missing authored status target")
+        target = list(map(float, samples[-1][1].split(',')))
+        dx, dy, dz = target[0] - player[0], target[1] - player[1], target[2] + 8 - (player[2] + 16)
+        pitch = 0 if flat else -math.degrees(math.atan2(dz, math.hypot(dx, dy)))
+        issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {pitch}", 0.04)
+        return int(samples[-1][0])
+
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 1000")
+    issue("dk3_runtime_equip 7", 1.6)
+    issue("weapon 7", 1.6)
+    for _ in range(12):
+        if aim(383, 48) <= 0:
+            break
+        issue("+attack", 0.15)
+    issue("-attack", 0.6)
+    if aim(383, 48) > 0:
+        raise RuntimeError("Gas Hands did not kill its authored target")
+    capture("gas-hands-hit")
+
+    issue("dk3_runtime_equip 11", 0.8)
+    issue("weapon 11", 0.8)
+    aim(384, 64, flat=True)
+    before = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.3)
+    wait(process, log, lambda text: "status: target=384 effect=poison" in text[before:], 4)
+    issue("save venom_poison", 0.05)
+    issue("load venom_poison", 0.2)
+    issue("dk3_runtime_ailments", 0.05)
+    capture("venom-bite-restored")
+    before = len(log.read_text(errors="replace"))
+    wait(process, log, lambda text: re.search(r"status tick: target=384 weapon=11 .*killed=1", text[before:]) is not None, 7)
+    issue("dk3_runtime_progression", 0.05)
+
+    issue("dk3_runtime_equip 24", 0.8)
+    issue("weapon 24", 0.8)
+    aim(166, 256)
+    before = len(log.read_text(errors="replace"))
+    issue("+attack", 0.02)
+    issue("-attack", 0.02)
+    wait(process, log, lambda text: "status: target=166 effect=freeze" in text[before:], 4)
+    issue("dk3_look 0 -30", 0.02)  # Divert the remaining burst while preserving the live frozen target.
+    issue("save kinetic_freeze", 0.05)
+    issue("load kinetic_freeze", 0.2)
+    issue("dk3_runtime_ailments", 0.05)
+    capture("kinetic-freeze-restored")
+    text = log.read_text(errors="replace")
+    if not re.search(r"ailment state: id=166 mask=4 freeze=0\.[1-9]", text):
+        raise RuntimeError("native save lost the guard's freezing effect")
+    aim(166, 256)
+    capture("kinetic-frozen-guard")
+    issue("dk3_look 0 35", 0.05)
+    issue("+attack", 0.2)
+    capture("kinetic-flight")
+    issue("-attack", 2)
+    issue("dk3_runtime_equip 11", 1.2)
+    issue("weapon 11", 1.2)
+    aim(166, 256, flat=True)
+    before = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.05)
+    issue("save venom_launch", 0.05)
+    issue("load venom_launch", 0.15)
+    issue("dk3_runtime_projectiles", 0.15)
+    issue("dk3_runtime_projectiles", 0.2)
+    capture("venom-flight-restored")
+    if "weapon=11 stuck=0" not in log.read_text(errors="replace")[before:]:
+        raise RuntimeError("saved Venomous launch did not release a projectile")
+    issue("dk3_look 0 50", 0.7)
+    before = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.4)
+    pools = []
+    deadline = time.monotonic() + 6
+    while time.monotonic() < deadline:
+        issue("dk3_runtime_projectiles", 0.1)
+        pools = re.findall(r"projectile state: id=(\d+) weapon=11 stuck=0 resting=1 .*position=([\d.,-]+)", log.read_text(errors="replace")[before:])
+        if pools:
+            break
+    if not pools:
+        raise RuntimeError("Venomous did not settle into a contact pool")
+    issue("save venom_pool", 0.05)
+    issue("load venom_pool", 0.1)
+    cursor = len(log.read_text(errors="replace"))
+    issue("viewpos", 0.05)
+    wait(process, log, lambda text: "zig viewpos:" in text[cursor:], 4)
+    position = re.findall(r"zig viewpos: ([^,]+),", log.read_text(errors="replace"))[-1]
+    player = list(map(float, position.split()))
+    x, y, z = map(float, pools[-1][1].split(','))
+    dx, dy, dz = x - player[0], y - player[1], z - (player[2] + 22)
+    issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}", 0.1)
+    capture("venom-pool-restored")
+    before = len(log.read_text(errors="replace"))
+    issue(f"dk3_runtime_place {x} {y} {z + 22}", 0.2)
+    issue("dk3_runtime_ailments", 0.1)
+    if not re.search(r"status: target=\d+ effect=poison .*weapon=11", log.read_text(errors="replace")[before:]):
+        raise RuntimeError("restored poison pool did not poison its owner on contact")
+    capture("venom-pool-contact")
+    text = log.read_text(errors="replace")
+    if "missing weapon animation" in text or "could not find sounds/" in text.lower():
+        raise RuntimeError("missing status-weapon media")
+    return {"scope": "Gas Hands kill, Venomous bite/poison death, saved delayed launch and restored pool contact, Kineticore freeze/save and flight; ordinary attack input with diagnostic equipment/placement, complete water/trail/reference acceptance open"}
+
+
 def save_scenario(issue, capture, log, home):
     def inventory():
         issue("dk3_runtime_inventory")
@@ -860,6 +979,8 @@ def run(args):
                     result = grenade_contact_scenario(issue, capture, log)
                 elif args.scenario == "melee":
                     result = melee_scenario(issue, capture, log, process)
+                elif args.scenario == "status-weapons":
+                    result = status_weapons_scenario(issue, capture, log, process)
                 elif args.scenario == "save":
                     result = save_scenario(issue, capture, log, home)
                 elif args.scenario == "effects":
@@ -889,7 +1010,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -907,6 +1028,7 @@ def main():
         "ballistics": ("e1m3b", "runtime-zig-233/ballistics"),
         "grenade-contact": ("e1m3b", "runtime-zig-233/grenade-contact"),
         "melee": ("e1m2a", "runtime-zig-234/melee"),
+        "status-weapons": ("e1m3b", "runtime-zig-235/status-weapons"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

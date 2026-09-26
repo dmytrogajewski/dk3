@@ -2936,3 +2936,26 @@ as private behavior references; no reference implementation was imported.
 | First restored swing presentation | Failed visually; repaired | The second strike resumes at age 650 ms without replaying the first, but the initial capture shows the ready/draw pose. Saved fire timestamps and the restoration notice now resume the attack pose at its elapsed time. |
 | Restored attack and remaining strike | Passed, limited | `restored-view-opengl1/` and `restored-view-opengl2/`: both ordinary-kill/reward checks repeat; native save between the generated atakb strikes resumes strike 1 only and the atakb pose. Final captures inspected. `/tmp/dk3-runtime-234-restored-view-build.log`: all modules and 70 focused tests pass. |
 | Applicable broad checks | Passed | `/tmp/dk3-runtime-234-suite.log`: 208 Zig + 44 Python checks after the restored-view repair. Full arc/defense/audio acceptance, multiplayer rewards, remaining 17 combat policies and campaign completion stay open. |
+
+## runtime-zig — sequence 235 (status weapons and delayed releases)
+
+Gas Hands, Venomous and Kineticore now own concrete combat rules. Shared persistent
+ailments schedule poison and freeze damage, preserve source credit, decay with
+simulation time, and reset on cure/death/travel. Projectile animation callbacks use
+saved delayed-release actions. Venomous alternates supplied muzzle offsets, chooses
+body-traced bites, bounces/settles poison pools and dissolves in water. Kineticore
+ages damage, ricochets, allows self-contact after a bounce and recovers speed with
+bounded work even after a large clock gap. Sprite projectiles and frost/status
+overlays belong to client presentation. Gold callbacks, poison/freeze formulas and
+flight rules were consulted privately; no implementation or assets were imported.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated build and contracts | Passed after repair | `/tmp/dk3-runtime-235-integrated-build.log` exposed an i64/i32 client trajectory boundary; fixed. `/tmp/dk3-runtime-235-final-build.log`: three modules and 72 focused tests pass. Tests cover nonstacking poison, cure, frame-independent freeze decay, rebased effects/releases, class muzzle offsets, aging damage and bounded speed recovery. |
+| First poison fixture | Failed fixture; repaired | `runtime-zig-235/status-first/`: aiming down makes the body trace hit the floor, selecting a thrown shot (30 damage), so five poison ticks cannot kill a 50-health worker. The bite fixture now aims horizontally. |
+| Bite, poison and freezing | Passed, limited | `status-bite/`: normal Gas Hands kills worker 383; a 200 ms Venomous bite poisons worker 384, whose timed damage survives save/load and awards the kill. Kineticore freezes guard 166 and the effect survives a native save. Diagnostic equipment and collision-checked placement. |
+| Saved delayed launch | Passed after fixture repair | The final part of `status-bite/` fired during weapon switching and never attacked. `status-launch/` waits through selection/raise and fires from the guarded corridor; the saved delayed Venomous shot releases after restoration and damages the guard. |
+| Settled pool persistence and contact | Passed, limited | `status-pool/`: poison settles, survives native save/load, and poisons its owner after diagnostic placement into the restored bounds. Gas/bite/freeze checks also pass. Frost/flight/player-overlay captures inspected. Pool appearance remains unverified where geometry occludes the capture. |
+| Second renderer and diagnostic timing | Passed after fixture repair | `status-pool-opengl2/` read an actor diagnostic before its server frame printed it. `status-synchronized-opengl2/` waits for each requested diagnostic; all damage/status/save/pool-contact assertions pass. Frozen guard and pool captures inspected; the latter is still occluded. |
+| Shared projectile regression | Passed, limited | `ballistics-regression/`: ordinary Bolter/Sidewinder damage, stuck-bolt restoration, and Cordite bouncing/fuse/save/explosion pass after the shared flight/contact changes. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-235-suite.log`: 210 Zig + 44 Python checks. Fourteen combat policies remain to connect; full water/trail/audio/art parity and campaign completion stay open. |

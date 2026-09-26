@@ -11,7 +11,7 @@ const weapons = @import("../domain/weapons.zig");
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn launch(world: *data.World, owner: ecs.Entity, shot: weapons.Fired, table: *const weapons.Table, now: i64) !void {
-    const action: data.Melee = .{ .owner = try world.persistentId(owner), .weapon = shot.weapon, .sequence = shot.sequence, .experience = (try world.get(owner, data.Weapons)).dk3SwordExperience, .damage = table.entries[shot.weapon].damage, .started_ms = now };
+    const action: data.Melee = .{ .owner = try world.persistentId(owner), .weapon = shot.weapon, .sequence = shot.sequence, .experience = (try world.get(owner, data.Weapons)).dk3SwordExperience, .damage = table.entries[shot.weapon].damage, .started_ms = now, .timing_factor = catalog.transitions.attackFactor((try world.get(owner, data.Character)).attribute(.attack, now)) };
     _ = try action.plan();
     _ = try world.create(null, .{ data.Transform{ .position = shot.position }, action });
 }
@@ -22,7 +22,11 @@ fn arc(pose: data.Transform, plan: catalog.melee.Plan, index: u8, range: f32, sl
     const basis = v.basis(pose.angles);
     const up = v.cross(basis.right, basis.forward);
     const origin = v.add(pose.position, .{ 0, 0, if (ducked) plan.crouching_height else plan.height });
-    if (v.length(plan.from[index]) < 0.01) return trace(origin, v.add(origin, v.scale(basis.forward, range)), 0, slot);
+    if (v.length(plan.from[index]) < 0.01) {
+        const goal = v.add(origin, v.scale(basis.forward, plan.range orelse range));
+        if (plan.body_trace) return engine.collisionService().trace(.{ .start = origin, .end = goal, .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, if (ducked) @as(f32, 4) else 32 }, .slot = slot, .mask = c.MASK_SHOT });
+        return trace(origin, goal, plan.radius, slot);
+    }
     var last: @import("../domain/collision.zig").Trace = .{ .fraction = 1, .end = origin, .normal = @splat(0) };
     // Expand an arc in bounded radial bands, resolving the nearest band first.
     for (0..5) |band| {
@@ -72,8 +76,11 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 const target_pose = (try world.get(target, data.Transform)).*;
                 const object = world.get(target, data.MapObject) catch null;
                 const defending = if (world.get(target, data.Weapons) catch null) |weapons_state| weapons_state.weapon == action.weapon else false;
-                const result = catalog.meleeDamage(action.weapon, .{ .damage = action.damage, .experience = action.experience, .victim_class = if (object) |value| value.classname else "", .forward = v.basis(pose.angles).forward, .facing = v.basis(target_pose.angles).forward, .defending = defending, .serial = try world.persistentId(entity) });
-                _ = try @import("weapon_damage.zig").hurt(world, target, action.owner, action.weapon, result.amount, now, false);
+                const result = catalog.meleeDamage(action.weapon, .{ .damage = action.damage, .lifetime_ms = @intFromFloat(std.math.clamp(table.entries[action.weapon].lifetime * 1000, 0, 3600000)), .experience = action.experience, .victim_class = if (object) |value| value.classname else "", .forward = v.basis(pose.angles).forward, .facing = v.basis(target_pose.angles).forward, .defending = defending, .serial = try world.persistentId(entity) });
+                if (try @import("weapon_damage.zig").hurt(world, target, action.owner, action.weapon, result.amount, now, false)) {
+                    if (plan.inertial) try @import("weapon_damage.zig").shove(world, target, action.owner, v.basis(pose.angles).forward, result.amount, now);
+                    try @import("ailments.zig").apply(world, target, result.effect, action.owner, action.weapon, now);
+                }
                 if (result.sound) |sound| try @import("events.zig").sound(world, slots, projections, sound, pose.position, binding.slot, c.CHAN_BODY, now);
             };
             try @import("impacts.zig").contact(world, slots, projections, action.weapon, hit, .{ .sequence = action.sequence }, now);

@@ -30,7 +30,7 @@ const ballistic = @import("../ballistics.zig");
 const vector = @import("../vector.zig");
 pub const flight_tag = "cordite";
 pub const BallisticState = struct {};
-pub fn flightLaunch(_: i32, attack: u8) ballistic.Launch {
+pub fn flightLaunch(_: @import("../values.zig").Values, _: i32, attack: u8) ballistic.Launch {
     return .{ .muzzle = .{ 10, 5, 15 }, .pitch = -5 / (1 + @as(f32, @floatFromInt(attack))) };
 }
 pub fn flightMotion(_: *BallisticState, frame: ballistic.Frame) ballistic.Motion {
