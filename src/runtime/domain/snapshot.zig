@@ -252,8 +252,9 @@ pub fn validate(snapshot: *Loaded) !void {
             if (try world.persistentId(entity) != snapshot.header.player_id or state.timer_ms > 2147483647 or state.view_height < -64 or state.view_height > 128 or state.ground_entity > 2047) return error.InvalidSavedPlayer;
         }
         if (world.get(entity, data.Weapons) catch null) |weapons| {
-            if (weapons.weapon < 1 or weapons.weapon > 28 or weapons.weaponstate < 0 or weapons.weaponstate > 3 or weapons.dk3GlockClip < 0 or weapons.dk3GlockClip > 10) return error.InvalidSavedWeapons;
+            if (weapons.weapon < 1 or weapons.weapon > 28 or weapons.weaponstate < 0 or weapons.weaponstate > 3 or weapons.dk3GlockClip < 0 or weapons.dk3GlockClip > 10 or weapons.dk3SwordExperience < 0) return error.InvalidSavedWeapons;
             for (weapons.ammo) |amount| if (amount < 0 or amount > 1000000) return error.InvalidSavedWeapons;
+            if (weapons.last_fire_ms) |at| if (at > snapshot.header.at_ms + 200) return error.InvalidSavedWeapons;
         }
         if (world.get(entity, data.Actor) catch null) |actor| {
             if (actor.definition >= @import("actor_catalog").entries.len or actor.guard.pose >= 3 or actor.guard.rounds > 8) return error.InvalidSavedActor;
@@ -265,6 +266,13 @@ pub fn validate(snapshot: *Loaded) !void {
             if (std.meta.activeTag(projectile.flight) != std.meta.activeTag(flight) or projectile.damage < 0 or projectile.damage > 1000000) return error.InvalidSavedProjectile;
             try require(world, entity, .{ data.Binding, data.Velocity });
             if (flight != .ion) try require(world, entity, .{data.Lifetime});
+        }
+        if (world.get(entity, data.Melee) catch null) |melee| {
+            const plan = melee.plan() catch return error.InvalidSavedMelee;
+            if (melee.next_hit >= plan.hits or melee.damage < 0 or melee.damage > 1000000 or melee.experience < 0) return error.InvalidSavedMelee;
+            const owner = world.find(melee.owner) orelse return error.InvalidSavedMeleeOwner;
+            try require(world, owner, .{ data.Player, data.Weapons, data.Binding, data.Health });
+            if ((world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedMelee;
         }
         if (world.get(entity, data.Pickup) catch null) |pickup| {
             try require(world, entity, .{ data.Binding, data.Body, data.ItemMotion, data.MapObject });
@@ -323,8 +331,10 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     var random: data.Random = .{ .state = 92817 };
     _ = random.next();
     try world.put(player, random);
+    (try world.get(player, data.Weapons)).last_fire_ms = 700;
     _ = try world.create(43, .{ data.Transform{}, data.ImpactEvent{ .weapon = 4, .kind = .world, .normal = .{ 0, 0, 1 } }, data.Lifetime{ .expires_ms = 1200 } });
     _ = try world.create(44, .{ data.Transform{}, data.Binding{ .slot = 65 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 5, .damage = 50, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .sidewinder = .{ .accelerated = true } } }, data.Lifetime{ .expires_ms = 5000 } });
+    _ = try world.create(45, .{ data.Transform{}, data.Melee{ .owner = 7, .weapon = 8, .sequence = 9, .experience = 0, .damage = 40, .started_ms = 700, .next_hit = 1 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -338,6 +348,11 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expectEqual(random.next(), (try loaded.world.get(loaded.world.find(7).?, data.Random)).next());
     try std.testing.expectEqualStrings("next", (try loaded.world.get(loaded.world.find(42).?, data.Train)).next_target);
     try loaded.rebase(9000);
+    const melee = (try loaded.world.get(loaded.world.find(45).?, data.Melee)).*;
+    try std.testing.expectEqual(@as(?i64, 8700), (try loaded.world.get(loaded.world.find(7).?, data.Weapons)).last_fire_ms);
+    try std.testing.expectEqual(@as(u8, 1), melee.next_hit);
+    try std.testing.expect(!try melee.due(9347));
+    try std.testing.expect(try melee.due(9348));
     try std.testing.expect((try loaded.world.get(loaded.world.find(44).?, data.Projectile)).flight.sidewinder.accelerated);
     try std.testing.expectEqual(@as(i64, 13000), (try loaded.world.get(loaded.world.find(44).?, data.Lifetime)).expires_ms);
     try std.testing.expectEqual(@as(?i64, 10000), (try loaded.world.get(loaded.world.find(42).?, data.Train)).action.at_ms);

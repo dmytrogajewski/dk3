@@ -31,7 +31,7 @@ pub const State = struct {
         try trains.spawn(world, slots, projections, now);
         try special.spawn(world, slots, projections, now);
         try @import("items.zig").spawn(world, slots, projections, now, episode);
-        try self.actors.spawn(allocator, world, slots, projections, now);
+        try self.actors.spawn(allocator, world, slots, projections, now, episode);
         try @import("attachments.zig").spawn(world);
         try self.navigation.init(allocator, now);
     }
@@ -66,6 +66,7 @@ pub const State = struct {
             }
         }
         try @import("projectiles.zig").step(world, slots, projections, now);
+        try @import("melee.zig").step(world, slots, projections, table, now);
         try self.navigation.frame(now);
         self.navigation.sync(projections);
         try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);

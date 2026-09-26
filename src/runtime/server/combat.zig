@@ -36,7 +36,7 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             const hit = try trace(start, v.add(start, v.scale(forward, tuning.range)), slot, 0, c.MASK_SHOT);
             if (hit.fraction < 1) if (victim(slots, hit.entity)) |target| {
                 const amount = tuning.damage * (if (engine.integer("g_gametype") == c.GT_SINGLE_PLAYER) policy.single_player_scale else 1);
-                if (try damage.hurt(world, target, owner_id, amount, now, false)) if (policy.inertial) try damage.shove(world, target, owner_id, forward, amount, now);
+                if (try damage.hurt(world, target, owner_id, shot.weapon, amount, now, false)) if (policy.inertial) try damage.shove(world, target, owner_id, forward, amount, now);
             };
             try @import("impacts.zig").contact(world, slots, projections, shot.weapon, hit, .{ .charged = hit.entity < c.ENTITYNUM_WORLD or v.length(v.subtract(hit.end, shot.position)) < 40 }, now);
         },
@@ -64,7 +64,7 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             const blast_damage = tuning.damage * (if (engine.integer("g_gametype") == c.GT_SINGLE_PLAYER) policy.single_player_scale else 1);
             for (hits.ids[0..hits.used], 0..) |id, i| if (world.find(id)) |target| {
                 const amount = hits.damage(i, blast_damage, policy.count);
-                if (try damage.hurt(world, target, owner_id, amount, now, false)) if (policy.inertial) try damage.shove(world, target, owner_id, direction, amount, now);
+                if (try damage.hurt(world, target, owner_id, shot.weapon, amount, now, false)) if (policy.inertial) try damage.shove(world, target, owner_id, direction, amount, now);
             };
             try @import("impacts.zig").contact(world, slots, projections, shot.weapon, last, .{}, now);
             if (engine.integer("developer") > 0) {
@@ -72,6 +72,7 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig pellets: weapon={d} pellets={d} victims={d}\n", .{ shot.weapon, policy.count, hits.used }));
             }
         },
+        .melee => try @import("melee.zig").launch(world, owner, shot, table, now),
         .projectile => try @import("projectiles.zig").launch(world, slots, projections, owner, shot, table, now),
         .ion => |policy| {
             const start = (try trace(eye, rules.muzzle(eye, shot.angles, tuning.muzzle), slot, policy.radius, c.MASK_SHOT)).end;
@@ -87,5 +88,6 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try @import("projectiles.zig").publish(world, bolt, projections, now);
         },
     }
-    if (entry.spec.audio.fire) |sound| try @import("events.zig").sound(world, slots, projections, sound, eye, slot, c.CHAN_WEAPON, now);
+    if (entry.spec.combat == .melee and (try catalog.meleePlan(shot.weapon, shot.sequence, (try world.get(owner, data.Weapons)).dk3SwordExperience)).sound_on_strike) return;
+    if (catalog.fireSound(shot.weapon, shot.sequence, @truncate(@as(u64, @bitCast(shot.command_ms))))) |sound| try @import("events.zig").sound(world, slots, projections, sound, eye, slot, c.CHAN_WEAPON, now);
 }

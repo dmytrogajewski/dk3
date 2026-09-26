@@ -5,7 +5,7 @@ const profiles = @import("profiles.zig");
 const controller = @import("weapon_state.zig");
 pub const Phase = enum { ready, away, fire, settle, reload, idle };
 pub const Cue = struct { pose: [:0]const u8, sound: ?[:0]const u8 = null, phase: Phase, rate: u16 = 20, loop: bool = false };
-pub const Input = struct { weapon: u5, state: i32, sequence: i32, reloading: bool, attack_factor: f32 = 1, now_ms: i64 };
+pub const Input = struct { weapon: u5, state: i32, sequence: i32, reloading: bool, attack_factor: f32 = 1, now_ms: i64, fire_pose: ?[:0]const u8 = null, fire_rate: ?u16 = null };
 pub const State = struct {
     weapon: u5 = 0,
     state: i32 = controller.ready,
@@ -38,8 +38,9 @@ pub const State = struct {
             if (input.sequence >= 0 and input.sequence < spec.animation.fire_variants.len) if (spec.animation.fire_variants[@intCast(input.sequence)]) |name| {
                 pose = name;
             };
+            if (input.fire_pose) |name| pose = name;
             if (changed_weapon or self.phase != .fire or (!spec.animation.fire_loop and (!spec.animation.hold_fire or input.now_ms >= self.ended_ms))) {
-                cue = .{ .pose = pose, .phase = .fire, .rate = @intFromFloat(std.math.clamp(@as(f32, @floatFromInt(spec.animation.rate)) * (if (spec.animation.scale_fire_rate) input.attack_factor else 1), 1, 240)), .loop = spec.animation.fire_loop };
+                cue = .{ .pose = pose, .phase = .fire, .rate = @intFromFloat(std.math.clamp(@as(f32, @floatFromInt(input.fire_rate orelse spec.animation.rate)) * (if (spec.animation.scale_fire_rate) input.attack_factor else 1), 1, 240)), .loop = spec.animation.fire_loop };
             }
         } else if (changed_weapon or (changed_state and input.state == controller.raising)) {
             cue = .{ .pose = spec.animation.ready, .sound = spec.audio.ready, .phase = .ready };

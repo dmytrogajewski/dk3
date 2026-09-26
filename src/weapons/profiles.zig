@@ -21,6 +21,7 @@ pub const Animation = struct {
     finish_ms: u16 = 0,
     scale_fire_rate: bool = true,
 };
+pub const AttackAnimation = struct { pose: [:0]const u8, rate: u16 };
 
 pub const Audio = struct {
     /// Gold weaponTouch / ammo_touch defaults; individual classes override ammunition.
@@ -79,6 +80,7 @@ pub const Muzzle = struct {
 pub const Combat = union(enum) {
     pending,
     projectile,
+    melee,
     hitscan: struct { single_player_scale: f32 = 1, standing_height: ?f32 = null, crouching_height: ?f32 = null, inertial: bool = false },
     pellets: struct { count: u8, spread: f32, single_player_scale: f32 = 1, range: f32 = 4000, aim_reach: bool = false, max_victims: u8 = 12, inertial: bool = false, recoil: f32 = 0 },
     ion: struct { radius: f32, water_radius: f32, bounce_retention: f32, max_bounces: u8, cleanup_ms: i64 },

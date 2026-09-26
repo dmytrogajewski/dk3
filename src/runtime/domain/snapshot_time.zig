@@ -15,7 +15,10 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
     switch (id) {
         .lifetime => try shift(&value.expires_ms, delta),
         .player => try shift(&value.command_ms, delta),
-        .weapons => try active(&value.gas_until_ms, delta),
+        .weapons => {
+            try active(&value.gas_until_ms, delta);
+            try deadline(&value.last_fire_ms, delta);
+        },
         .mover => {
             try shift(&value.motion.start_ms, delta);
             try deadline(&value.return_at.at_ms, delta);
@@ -43,6 +46,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
         },
+        .melee => try shift(&value.started_ms, delta),
         .actor => {
             try shift(&value.changed_ms, delta);
             try active(&value.panic_until, delta);

@@ -466,3 +466,23 @@ stuck-bolt fade. Cosmetic media are owned by the client; restoring server projec
 does not register class loop sounds. Nine weapon combat policies are connected;
 remaining combat, trails, complete material/fade parity and campaign acceptance stay
 open. Focused evidence and diagnostic-input limits are recorded in the run log.
+
+## runtime-zig-234 — timed melee and kill progression
+
+Implemented with focused melee, progression, save and rendered evidence.
+Silverclaw and Daikatana own strike timing, arc geometry, directional damage,
+animation and contact sound policies. The server resolves collision for persistent
+melee actions using current owner poses. Saved actions preserve the strike cursor
+and relative start time; consumed strikes do not replay. Sword immunity, backstab,
+parry and experience rules stay in the sword class. Actor death dispatch awards
+ordinary experience once, using the recorded weapon/source for sword progression.
+
+Normal-input scenarios on both renderers kill authored civilians and retain both
+experience totals across save/load. They use collision-checked diagnostic placement
+and equipment. Visual inspection found that a restored swing resumed damage while
+playing the draw pose. The repair retains the last fire time and sends the resumed
+attack timestamp with the restoration notice, so the client can sample the saved
+animation position. Both repaired renderer replays pass; the aggregate suite passes
+208 Zig and 44 Python checks. Eleven combat policies are connected; remaining combat,
+complete defense/arc/audio parity, multiplayer rewards and campaign acceptance stay
+open. Scenario details and final verification belong to the run log.

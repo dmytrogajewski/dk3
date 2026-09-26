@@ -58,7 +58,7 @@ fn splash(world: *data.World, slots: *Slots, projectile: data.Projectile, positi
         if (amount <= 0) continue;
         const hit = try trace(position, target_position, skip, 0, c.MASK_SOLID);
         if (hit.fraction < 1 and hit.entity != index) continue;
-        _ = try damage.hurt(world, target, projectile.owner, amount, now, true);
+        _ = try damage.hurt(world, target, projectile.owner, projectile.weapon, amount, now, true);
     }
 }
 fn stepIon(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
@@ -98,7 +98,7 @@ fn stepIon(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
             try @import("impacts.zig").contact(world, slots, projections, projectile.weapon, hit, .{}, now);
             if (victim(slots, hit.entity)) |target| {
                 if (world.get(target, data.Health)) |_| {
-                    _ = try damage.hurt(world, target, projectile.owner, projectile.damage * (if (try world.persistentId(target) == projectile.owner) @as(f32, 0.5) else 1), now, true);
+                    _ = try damage.hurt(world, target, projectile.owner, projectile.weapon, projectile.damage * (if (try world.persistentId(target) == projectile.owner) @as(f32, 0.5) else 1), now, true);
                     destroyed = true;
                     break;
                 } else |_| {}
@@ -171,7 +171,7 @@ fn explode(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
         if (amount <= 0) continue;
         const visible = try trace(hit.end, center, skip, 0, c.MASK_SOLID);
         if (visible.fraction < 1 and visible.entity != index) continue;
-        _ = try damage.hurt(world, target, projectile.owner, amount, now, false);
+        _ = try damage.hurt(world, target, projectile.owner, projectile.weapon, amount, now, false);
     }
     try @import("impacts.zig").contact(world, slots, projections, projectile.weapon, hit, .{ .detonation = true }, now);
     if (engine.integer("developer") > 0) {
@@ -230,7 +230,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try @import("impacts.zig").contact(world, slots, projections, projectile.weapon, hit, .{}, now);
             switch (response) {
                 .direct => {
-                    if (target) |who| if (try damage.hurt(world, who, projectile.owner, projectile.damage * spec.projectile.direct_scale, now, false)) {
+                    if (target) |who| if (try damage.hurt(world, who, projectile.owner, projectile.weapon, projectile.damage * spec.projectile.direct_scale, now, false)) {
                         if (spec.projectile.inertial) try damage.shove(world, who, projectile.owner, velocity, projectile.damage, now);
                     };
                     try remove(world, slots, projections, entity);

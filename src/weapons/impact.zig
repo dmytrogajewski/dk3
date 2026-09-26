@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Shared presentation values. Concrete weapons select their response to contact.
 pub const Kind = enum(u8) { world, flesh, water, metal, wood };
-pub const Context = struct { kind: Kind, serial: u32, charged: bool = false, detonation: bool = false };
+pub const Context = struct { kind: Kind, serial: u32, charged: bool = false, detonation: bool = false, sequence: i32 = 0 };
 pub const Style = enum { none, bullet, pellets, disruptor };
 pub const Cue = struct {
     sprite: ?[:0]const u8 = null,
@@ -10,6 +10,7 @@ pub const Cue = struct {
     sound: ?[:0]const u8 = null,
     mark: ?[:0]const u8 = null,
     radius: f32 = 4,
+    angle_degrees: ?f32 = null,
     particles: u8 = 0,
     particle_shader: [:0]const u8 = "dk3/particle/sparks",
     color: [3]f32 = .{ 1, 0.7, 0.2 },

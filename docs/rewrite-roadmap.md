@@ -12,7 +12,9 @@ Sequence 230 connects native save/load, staged validation and direct saved-map m
 loading. Sequence 231 connects authored exits and saved visited-world archives, with
 an e1m3b/e1m3a round trip passing. Sequence 232 adds native pellet/rotary combat and
 class-owned impact presentation; sequence 233 adds three projectile classes and
-animated explosions. Schema-5 migration, remaining combat/actors,
+animated explosions. Sequence 234 connects timed melee actions and kill progression,
+including saved remaining strikes and resumed attack poses on both renderers.
+Schema-5 migration, remaining combat/actors,
 companion/cinematic progression and multiplayer remain implementation work.
 
 Sequence 217 begins the accepted [native Zig replacement runtime](runtime-zig.md):

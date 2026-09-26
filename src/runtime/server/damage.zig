@@ -11,6 +11,7 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
     const result = rules.apply(health, character, amount, now, options);
     if (result.blood > 0) if (world.get(entity, data.Hurt)) |receipt| {
         receipt.source = options.source;
+        receipt.weapon = options.weapon;
         receipt.at_ms = now;
         receipt.revision +%= 1;
     } else |_| {};

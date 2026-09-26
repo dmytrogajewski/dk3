@@ -41,7 +41,7 @@ pub fn consume(entity: c.entityState_t) !void {
     if (serial == 0 or seen[slot] == serial) return;
     seen[slot] = serial;
     const kind: catalog.impact_rules.Kind = @enumFromInt(entity.eventParm);
-    const cue = catalog.impact(@intCast(entity.weapon), .{ .kind = kind, .serial = serial, .charged = entity.frame & 1 != 0, .detonation = entity.frame & 2 != 0 });
+    const cue = catalog.impact(@intCast(entity.weapon), .{ .kind = kind, .serial = serial, .charged = entity.frame & 1 != 0, .detonation = entity.frame & 2 != 0, .sequence = entity.generic1 });
     if (cue.sound) |name| {
         const sound = try engine.registerSound(name);
         if (sound != 0) _ = engine.gateway.call(c.CG_S_STARTSOUND, .{ &entity.pos.trBase, @as(isize, entity.number), @as(isize, c.CHAN_AUTO), @as(isize, sound) });
@@ -59,7 +59,7 @@ pub fn consume(entity: c.entityState_t) !void {
         for (&decals) |*mark| if (mark.shader == shader and v.dot(mark.normal, normal) > 0.95 and v.length(v.subtract(mark.origin, entity.pos.trBase)) < cue.radius * 0.5) {
             mark.shader = 0;
         };
-        const angle = @as(f32, @floatFromInt((serial *% 137) % 360)) * (std.math.pi / 180.0);
+        const angle = (cue.angle_degrees orelse @as(f32, @floatFromInt((serial *% 137) % 360))) * (std.math.pi / 180.0);
         const projected = try marks.project(entity.pos.trBase, normal, cue.radius, angle);
         for (projected.polygons[0..projected.count]) |polygon| {
             decals[next_mark] = .{ .polygon = polygon, .shader = shader, .at = entity.time, .origin = entity.pos.trBase, .normal = normal };

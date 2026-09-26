@@ -2918,3 +2918,21 @@ on the client rather than mutating server resources during save restoration.
 | Explosion frames | Passed, limited | `explosions-opengl1/` and `explosions-opengl2/`: event-synchronized Sidewinder/Cordite frames inspected; additive explosion art/light render without an opaque background. The ineffective read-only pause requests were removed from the fixture. Exact Gold effect/trail parity remains open. |
 | Save-boundary diagnostic correction | Passed | `travel-boundaries/`: replay of the authored laser shutdown, e1m3b/e1m3a round trip and full visited-world save compares recorded save health at restoration, before live guard damage. No pause requests; incoming health 333/222/333 and the destroyed control survive. Final archive capture inspected. `/tmp/dk3-runtime-233-restore-log-build.log` records the diagnostic-only rebuild. |
 | Applicable broad checks | Passed | `/tmp/dk3-runtime-233-suite.log`: 206 Zig + 44 Python tests, once after integrated scenarios and fixture repair. |
+
+## runtime-zig — sequence 234 (timed melee and kill progression)
+
+Connected Silverclaw and Daikatana class-owned strike plans to persistent ECS actions,
+current-pose collision, directional damage and impact presentation. Actor death
+dispatch awards ordinary and sword experience exactly once. Saves retain action
+cursors, rebased strike/fire timestamps and the recorded killing weapon. The server
+restoration notice resumes the matching client attack animation without replaying
+the consumed damage window. Gold sword arcs and experience formulas were consulted
+as private behavior references; no reference implementation was imported.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated modules and contracts | Passed | `/tmp/dk3-runtime-234-integrated-build.log`: three modules and 70 focused tests. Covers strike windows at sword levels, parry/backstab/immunities, class rewards and saved second-strike deadlines. |
+| Authored melee kills and saved rewards | Passed, limited | `runtime-zig-234/melee-opengl1/` and `melee-opengl2/`: normal Silverclaw attacks kill worker 10; normal sword arcs kill worker 9. Experience advances 0→5→10; sword experience advances 0→0→2. Repeated native restores and corpse contacts leave rewards unchanged. Diagnostic equipment and collision-checked close placement; full combat/reference parity remains open. |
+| First restored swing presentation | Failed visually; repaired | The second strike resumes at age 650 ms without replaying the first, but the initial capture shows the ready/draw pose. Saved fire timestamps and the restoration notice now resume the attack pose at its elapsed time. |
+| Restored attack and remaining strike | Passed, limited | `restored-view-opengl1/` and `restored-view-opengl2/`: both ordinary-kill/reward checks repeat; native save between the generated atakb strikes resumes strike 1 only and the atakb pose. Final captures inspected. `/tmp/dk3-runtime-234-restored-view-build.log`: all modules and 70 focused tests pass. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-234-suite.log`: 208 Zig + 44 Python checks after the restored-view repair. Full arc/defense/audio acceptance, multiplayer rewards, remaining 17 combat policies and campaign completion stay open. |

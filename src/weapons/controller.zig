@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Shared weapon transitions; adapters own input, collision, data and event delivery.
 const catalog = @import("catalog.zig");
-const state = @import("weapon_state.zig");
+pub const state = @import("weapon_state.zig");
 const Shot = @import("shot.zig").Shot;
 pub fn owns(ps: anytype, weapon: i32) bool {
     return weapon > 0 and weapon <= 28 and (@as(u32, @bitCast(ps.dk3Inventory)) & (@as(u32, 1) << @intCast(weapon))) != 0;

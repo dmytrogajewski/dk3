@@ -3,6 +3,40 @@
 pub const weapons = .{ @import("descriptions/disruptor.zig"), @import("descriptions/ion.zig"), @import("descriptions/c4.zig"), @import("descriptions/shotcycler.zig"), @import("descriptions/sidewinder.zig"), @import("descriptions/shockwave.zig"), @import("descriptions/gas_hands.zig"), @import("descriptions/sword.zig"), @import("descriptions/discus.zig"), @import("descriptions/sunflare.zig"), @import("descriptions/venom.zig"), @import("descriptions/hammer.zig"), @import("descriptions/trident.zig"), @import("descriptions/zeus.zig"), @import("descriptions/silverclaw.zig"), @import("descriptions/bolter.zig"), @import("descriptions/stavros.zig"), @import("descriptions/ballista.zig"), @import("descriptions/wyndrax.zig"), @import("descriptions/nightmare.zig"), @import("descriptions/glock.zig"), @import("descriptions/ripgun.zig"), @import("descriptions/slugger.zig"), @import("descriptions/kineticore.zig"), @import("descriptions/novabeam.zig"), @import("descriptions/metamaser.zig"), @import("descriptions/cordite.zig"), @import("descriptions/flashlight.zig") };
 pub const Spec = @import("profiles.zig").Spec;
 pub const ballistics = @import("ballistics.zig");
+pub const melee = @import("melee.zig");
+pub fn meleePlan(id: u5, sequence: i32, experience: i32) !melee.Plan {
+    inline for (weapons) |W| if (id == W.id) {
+        if (@hasDecl(W, "meleePlan")) return W.meleePlan(sequence, experience);
+    };
+    return error.MissingMeleePolicy;
+}
+pub fn meleeDamage(id: u5, hit: melee.Hit) melee.Damage {
+    inline for (weapons) |W| if (id == W.id) {
+        if (@hasDecl(W, "meleeDamage")) return W.meleeDamage(hit);
+    };
+    return .{ .amount = hit.damage };
+}
+pub fn swordExperience(id: u5, health: i32) i32 {
+    inline for (weapons) |W| if (id == W.id) {
+        if (@hasDecl(W, "swordExperience")) return W.swordExperience(health);
+    };
+    return 0;
+}
+pub fn fireSound(id: u5, sequence: i32, serial: u32) ?[:0]const u8 {
+    inline for (weapons) |W| if (id == W.id) {
+        if (@hasDecl(W, "fireSound")) return W.fireSound(sequence, serial);
+        return W.spec.audio.fire;
+    };
+    return null;
+}
+pub fn attackAnimation(id: u5, sequence: i32, experience: i32) @import("profiles.zig").AttackAnimation {
+    inline for (weapons) |W| if (id == W.id) {
+        if (@hasDecl(W, "attackAnimation")) return W.attackAnimation(sequence, experience);
+        const pose = if (sequence >= 0 and sequence < W.spec.animation.fire_variants.len) W.spec.animation.fire_variants[@intCast(sequence)] orelse W.spec.animation.fire else W.spec.animation.fire;
+        return .{ .pose = pose, .rate = W.spec.animation.rate };
+    };
+    return .{ .pose = "", .rate = 20 };
+}
 pub fn flightState(id: u5) !ballistics.State {
     inline for (weapons) |W| if (id == W.id) {
         if (W.spec.combat == .ion) return .ion;
@@ -42,7 +76,11 @@ pub fn impact(id: u5, context: impact_rules.Context) impact_rules.Cue {
 pub const Entry = struct { id: u5, classname: [:0]const u8, label: [:0]const u8, episode: u8, interval: i32, spec: Spec };
 pub const entries = blk: {
     var result: [weapons.len]Entry = undefined;
-    for (weapons, 0..) |W, i| result[i] = .{ .id = W.id, .classname = W.identity.classname, .label = W.identity.label, .episode = W.identity.episode, .interval = W.identity.interval, .spec = W.spec };
+    for (weapons, 0..) |W, i| {
+        if (W.spec.combat == .projectile and (!@hasDecl(W, "flight_tag") or !@hasDecl(W, "flightMotion") or !@hasDecl(W, "flightContact"))) @compileError("projectile class must own its flight/contact contract");
+        if (W.spec.combat == .melee and !@hasDecl(W, "meleePlan")) @compileError("melee class must own its strike plan");
+        result[i] = .{ .id = W.id, .classname = W.identity.classname, .label = W.identity.label, .episode = W.identity.episode, .interval = W.identity.interval, .spec = W.spec };
+    }
     break :blk result;
 };
 pub fn find(id: u5) ?*const Entry {
@@ -113,4 +151,27 @@ test "projectile classes retain water/acceleration state and grenade damping is 
     try std.testing.expectError(error.InvalidProjectileState, flightMotion(16, &rocket, frame));
     try std.testing.expectEqual(ballistics.Response.direct, try flightContact(16, .{ .damageable = true, .living = true, .brush = false }));
     try std.testing.expectEqual(ballistics.Response.remove, try flightContact(16, .{ .damageable = false, .living = false, .brush = true }));
+}
+
+test "melee classes own delayed windows, directional defense, immunities and sword rewards" {
+    const std = @import("std");
+    const claw = try meleePlan(15, 2, 0);
+    try std.testing.expectEqual(@as(u16, 250), claw.delays_ms[0]);
+    try std.testing.expect(claw.sound_on_strike and !claw.require_selected);
+    const sword = try meleePlan(8, 9, 0);
+    try std.testing.expectEqualSlices(u16, &.{ 252, 648 }, &sword.delays_ms);
+    try std.testing.expectEqualSlices(u16, &.{ 140, 360 }, &(try meleePlan(8, 9, 3000)).delays_ms);
+    try std.testing.expectError(error.InvalidSwordSwing, meleePlan(8, 3, 0));
+    var hit: melee.Hit = .{ .damage = 40, .experience = 750, .victim_class = "monster_mishimaguard", .forward = .{ 1, 0, 0 }, .facing = .{ 1, 0, 0 }, .defending = false, .serial = 0 };
+    try std.testing.expectEqual(@as(f32, 120), meleeDamage(8, hit).amount);
+    hit.facing = .{ -1, 0, 0 };
+    try std.testing.expectEqual(@as(f32, 60), meleeDamage(8, hit).amount);
+    hit.defending = true;
+    const parry = meleeDamage(8, hit);
+    try std.testing.expectEqual(@as(f32, 30), parry.amount);
+    try std.testing.expect(parry.sound != null);
+    hit.victim_class = "monster_medusa";
+    try std.testing.expectEqual(@as(f32, 0), meleeDamage(8, hit).amount);
+    try std.testing.expectEqual(@as(i32, 5), swordExperience(8, 100));
+    try std.testing.expectEqual(@as(i32, 0), swordExperience(15, 100));
 }

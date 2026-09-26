@@ -141,7 +141,11 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
         campaign.deinit();
         campaign = state;
     }
-    engine.send(0, "dk3_restored");
+    const restored_loadout = (try world.?.get(world.?.find(header.player_id).?, component.Weapons)).*;
+    var restoration: [128]u8 = undefined;
+    if (restored_loadout.weaponstate == @import("weapon_catalog").transitions.state.firing and restored_loadout.last_fire_ms != null) {
+        engine.send(0, try std.fmt.bufPrintZ(&restoration, "dk3_restored {d} {d} {d}", .{ restored_loadout.weapon, restored_loadout.event_sequence -% 1, restored_loadout.last_fire_ms.? }));
+    } else engine.send(0, "dk3_restored");
     var restored_message: [96]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&restored_message, "dk3 zig: saved world restored health={d}\n", .{(try world.?.get(world.?.find(header.player_id).?, component.Health)).current}));
 }

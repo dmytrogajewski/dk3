@@ -9,6 +9,14 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_progression")) {
+        const owner = player orelse return error.MissingPlayer;
+        const state = (try world.get(owner, data.Character)).*;
+        const loadout = (try world.get(owner, data.Weapons)).*;
+        var output: [192]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig progression state: experience={d} sword={d} level={d} points={d}\n", .{ state.experience, loadout.dk3SwordExperience, state.level, state.points }));
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_projectiles")) {
         for (slots.occupants) |occupant| {
             const entity = occupant orelse continue;
@@ -39,9 +47,13 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
         const brush = projections[target_slot].shared.bmodel != 0;
         const target_position = if (brush) v.scale(v.add(projections[target_slot].shared.absmin, projections[target_slot].shared.absmax), 0.5) else (try world.get(target, data.Transform)).position;
         const target_body = (try world.get(target, data.Body)).*;
+        var radius_argument: [32]u8 = undefined;
+        const radius_text = engine.argv(2, &radius_argument);
+        const first_radius = if (radius_text.len == 0) 96 else try std.fmt.parseFloat(f32, radius_text);
+        if (!std.math.isFinite(first_radius) or first_radius < 32 or first_radius > 256) return error.InvalidTargetDistance;
         var reports: usize = 0;
         const heights: []const f32 = if (brush) &.{ 56, 0, -64, -128, -192 } else &.{target_body.mins[2] + 56};
-        for (heights) |height| for ([_]f32{ 96, 64, 160, 256 }) |radius| for (0..8) |direction| {
+        for (heights) |height| for ([_]f32{ first_radius, 64, 160, 256 }) |radius| for (0..8) |direction| {
             const angle = @as(f32, @floatFromInt(direction)) * (std.math.pi / 4.0);
             const candidate = v.add(target_position, .{ @cos(angle) * radius, @sin(angle) * radius, height });
             const floor = try engine.collisionService().trace(.{ .start = candidate, .end = v.add(candidate, .{ 0, 0, -96 }), .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .slot = owner_slot, .mask = c.MASK_PLAYERSOLID });

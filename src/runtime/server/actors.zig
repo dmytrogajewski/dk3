@@ -12,7 +12,9 @@ const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub const Actors = struct {
     table: rules.Table = .{},
-    pub fn spawn(self: *Actors, allocator: std.mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
+    episode: u8 = 1,
+    pub fn spawn(self: *Actors, allocator: std.mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8) !void {
+        self.episode = episode;
         const bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, "dk3/tables/aidata.cfg", 4 * 1024 * 1024);
         self.table = try rules.Table.parse(bytes);
         const event_bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, "dk3/tables/actor_events.cfg", 4 * 1024 * 1024);
@@ -165,6 +167,7 @@ pub const Actors = struct {
             try self.publish(world, entity, projections, now);
             if (dead and !actor.death_dispatched) {
                 (try world.get(entity, data.Actor)).death_dispatched = true;
+                try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode);
                 try router.fire(world, slots, projections, entity, hurt.source, now);
             }
         }

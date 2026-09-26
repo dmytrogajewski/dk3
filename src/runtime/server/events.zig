@@ -52,6 +52,7 @@ pub fn impact(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     projection.state.weapon = value.weapon;
     projection.state.eventParm = @intFromEnum(value.kind);
     projection.state.frame = @as(i32, @intFromBool(value.charged)) | (@as(i32, @intFromBool(value.detonation)) << 1);
+    projection.state.generic1 = value.sequence;
     projection.state.origin2 = value.normal;
     projection.state.time = @intCast(now);
     projection.state.time2 = @bitCast(try world.persistentId(entity));

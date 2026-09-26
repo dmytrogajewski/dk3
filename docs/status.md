@@ -30,7 +30,11 @@ world hits choose spark sounds. Six weapon combat policies are now implemented,
 including Disruptor. Sequence 233 adds Bolter, Sidewinder and Cordite flight/contact
 policies, explosion sprites and projectile saves. Focused checks pass on both
 renderers; Cordite detonates on an authored guard before its fuse expires. Nine
-combat policies are connected; the remaining 19 still need native combat. Schema-5 migration,
+combat policies are connected at sequence 233. Sequence 234 implements Silverclaw
+and Daikatana timed strikes, save continuation and kill/sword experience. Authored
+worker kills and saved reward totals pass focused scenarios on both renderers;
+the repaired restored attack pose also passes on both renderers. Eleven combat policies
+are connected; the remaining 17 still need native combat. Schema-5 migration,
 companion/cinematic exits, multiplayer screens and complete menu parity remain open.
 See [runtime progress](runtime-zig.md).
 

@@ -419,6 +419,99 @@ def grenade_contact_scenario(issue, capture, log):
     return {"explosion_ages_ms": list(map(int, ages)), "scope": "normal Cordite attacks detonate on an authored guard and apply blast damage before fuse expiry; diagnostic positioning/equipment, complete actor/campaign parity open"}
 
 
+def melee_scenario(issue, capture, log, process):
+    def progression():
+        issue("dk3_runtime_progression", 0.1)
+        samples = re.findall(r"progression state: experience=(\d+) sword=(\d+) level=(\d+) points=(\d+)", log.read_text(errors="replace"))
+        if not samples:
+            raise RuntimeError("missing progression state")
+        return tuple(map(int, samples[-1]))
+
+    def actor(identity):
+        issue("dk3_runtime_actors", 0.04)
+        samples = re.findall(rf"zig actor: id={identity} state=\w+ health=(-?\d+) pos=([\d.,-]+)", log.read_text(errors="replace"))
+        if not samples:
+            raise RuntimeError(f"missing authored melee target {identity}")
+        return int(samples[-1][0]), list(map(float, samples[-1][1].split(',')))
+
+    issue("developer 1")
+    initial = progression()
+    results = []
+    for weapon, identity in ((15, 10), (8, 9)):
+        issue(f"dk3_runtime_equip {weapon}", 0.7)
+        issue(f"weapon {weapon}", 0.7)
+        before = len(log.read_text(errors="replace"))
+        for _ in range(50):
+            health, _ = actor(identity)
+            if health <= 0:
+                break
+            # Collision-checked setup follows the moving civilian. Damage still
+            # comes exclusively from ordinary attack input and class strike timing.
+            issue(f"dk3_runtime_face_target {identity} 48", 0.04)
+            placements = re.findall(rf"fixture player=([\d.,-]+) target={identity}", log.read_text(errors="replace"))
+            if not placements:
+                raise RuntimeError("no close standing point for melee scenario")
+            player = list(map(float, placements[-1].split(',')))
+            _, target = actor(identity)
+            dx, dy = target[0] - player[0], target[1] - player[1]
+            issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} 0", 0.04)
+            issue("+attack", 0.15)
+        issue("-attack", 0.4)
+        health, _ = actor(identity)
+        text = log.read_text(errors="replace")[before:]
+        if health > 0 or not re.search(rf"melee: weapon={weapon} .*hit=1", text):
+            raise RuntimeError(f"melee weapon {weapon} did not kill authored actor {identity}")
+        results.append({"weapon": weapon, "actor": identity, "health": health, "progression": progression()})
+        capture(f"melee-{weapon}-victim")
+    after = progression()
+    if after[0] <= initial[0] or results[0]["progression"][1] != initial[1] or after[1] <= initial[1]:
+        raise RuntimeError("melee kills failed ordinary/sword experience ownership")
+    issue("save melee_rewards", 0.1)
+    issue("load melee_rewards", 0.3)
+    if progression() != after:
+        raise RuntimeError("restored dead actors changed kill rewards")
+
+    # Save between the two class-owned strikes of a real generated swing. No
+    # selected-sequence or action-state override is used by this fixture.
+    issue("dk3_look 0 65", 0.1)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.02)
+    selected = None
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        text = log.read_text(errors="replace")
+        for sequence, age, identity in re.findall(r"melee: weapon=8 sequence=(\d+) strike=0 age=(\d+) hit=\d+ id=(\d+)", text[cursor:]):
+            if int(sequence) & 7 == 1:
+                selected = int(identity)
+                break
+        cursor = len(text)
+        if selected is not None:
+            break
+        time.sleep(0.025)
+    if selected is None:
+        raise RuntimeError("normal sword attack did not generate its two-strike swing")
+    issue("save sword_second_strike", 0.02)
+    issue("-attack", 0.02)
+    before = len(log.read_text(errors="replace"))
+    issue("load sword_second_strike", 0.02)
+    wait(process, log, lambda text: re.search(rf"melee: weapon=8 .*strike=1 .*id={selected}\b", text[before:]) is not None, 5)
+    capture("sword-restored-strike")
+    text = log.read_text(errors="replace")[before:]
+    if "saved world restored" not in text or re.search(rf"melee: weapon=8 .*strike=0 .*id={selected}\b", text):
+        raise RuntimeError("restored sword action repeated its consumed strike")
+    if "zig view: weapon=8 phase=fire pose=atakb" not in text or "zig view: weapon=8 phase=ready" in text:
+        raise RuntimeError("restored sword resumed damage without its matching attack pose")
+    if progression() != after:
+        raise RuntimeError("corpse melee or a second restore awarded repeated experience")
+    text = log.read_text(errors="replace")
+    for weapon in (8, 15):
+        if f"zig view: weapon={weapon} phase=fire" not in text:
+            raise RuntimeError(f"missing melee view animation for weapon {weapon}")
+    if "missing weapon animation" in text or "could not find sounds/" in text.lower():
+        raise RuntimeError("missing melee media")
+    return {"kills": results, "saved_action": selected, "scope": "normal Silverclaw/Daikatana attacks against authored civilians, kill experience and persistent corpse rewards, two-strike save continuation without replay; collision-checked diagnostic placement/equipment, full arc/defense/visual parity remains open"}
+
+
 def save_scenario(issue, capture, log, home):
     def inventory():
         issue("dk3_runtime_inventory")
@@ -765,6 +858,8 @@ def run(args):
                     result = ballistics_scenario(issue, capture, log, process)
                 elif args.scenario == "grenade-contact":
                     result = grenade_contact_scenario(issue, capture, log)
+                elif args.scenario == "melee":
+                    result = melee_scenario(issue, capture, log, process)
                 elif args.scenario == "save":
                     result = save_scenario(issue, capture, log, home)
                 elif args.scenario == "effects":
@@ -794,7 +889,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -811,6 +906,7 @@ def main():
         "impacts": ("e1m2a", "runtime-zig-232/impacts"),
         "ballistics": ("e1m3b", "runtime-zig-233/ballistics"),
         "grenade-contact": ("e1m3b", "runtime-zig-233/grenade-contact"),
+        "melee": ("e1m2a", "runtime-zig-234/melee"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

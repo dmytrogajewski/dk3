@@ -95,10 +95,11 @@ fn draw(now: i32) !void {
         while (command_sequence < snapshot.serverCommandSequence) {
             command_sequence += 1;
             if (engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)}) != 0) {
-                if (@import("client/commands.zig").restored()) {
+                if (@import("client/commands.zig").restored()) |restored| {
                     @import("client/models.zig").reset();
                     @import("client/events.zig").reset();
                     weapon_view.init();
+                    if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
                     selected_weapon = snapshot.ps.weapon;
                 }
                 if (@import("client/commands.zig").selectedWeapon(snapshot.ps.dk3Inventory)) |id| selected_weapon = id;

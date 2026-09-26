@@ -74,7 +74,8 @@ pub const View = struct {
             }
             if (spec.audio.hum) |name| media.hum = try sound(name);
         }
-        if (self.state.update(spec, .{ .weapon = id, .state = loadout.weaponstate, .sequence = loadout.dk3WeaponSequence, .reloading = catalog.isReloading(&loadout), .attack_factor = catalog.transitions.attackFactor(character.attribute(.attack, now)), .now_ms = now })) |cue| {
+        const attack_animation = catalog.attackAnimation(id, loadout.dk3WeaponSequence, loadout.dk3SwordExperience);
+        if (self.state.update(spec, .{ .weapon = id, .state = loadout.weaponstate, .sequence = loadout.dk3WeaponSequence, .reloading = catalog.isReloading(&loadout), .attack_factor = catalog.transitions.attackFactor(character.attribute(.attack, now)), .now_ms = now, .fire_pose = attack_animation.pose, .fire_rate = attack_animation.rate })) |cue| {
             self.sequence = try media.view.?.sequence(cue.pose);
             self.sequence.fps = cue.rate;
             self.started_ms = if (cue.phase == .fire) (if (self.state.fire_weapon == id and !spec.animation.fire_loop) self.state.fire_ms else now) + spec.animation.fire_start_ms else now;

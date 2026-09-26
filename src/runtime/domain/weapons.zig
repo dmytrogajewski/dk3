@@ -22,6 +22,7 @@ pub const State = struct {
     dk3SwordExperience: i32 = 0,
     gas_until_ms: i64 = 0,
     event_sequence: u32 = 0,
+    last_fire_ms: ?i64 = null,
     pub fn acquire(self: *State, table: *const Table, id: u5, rounds: i32) bool {
         const entry = catalog.find(id) orelse return false;
         var owned: u32 = @bitCast(self.dk3Inventory);
@@ -135,6 +136,7 @@ pub const Context = struct {
     }
     pub fn fireEvent(self: *Context) void {
         self.ps.event_sequence +%= 1;
+        self.ps.last_fire_ms = self.command.time_ms;
         self.events.append(.{ .fired = .{ .weapon = @intCast(self.ps.weapon), .sequence = self.ps.dk3WeaponSequence, .command_ms = self.command.time_ms, .position = self.motion.position, .angles = self.command.angles, .view_height = self.player.view_height, .ducked = self.player.ducked, .charge = self.ps.dk3Charge } }) catch |err| {
             self.failure = err;
         };
