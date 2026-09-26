@@ -35,6 +35,7 @@ void DK_WorldMusic(void);
 qboolean DK_SpawnInteraction(gentity_t *entity);
 void DK_RestoreInteraction(gentity_t *entity);
 void DK_RunMonitors(void);
+void DK_RepairDisabledHazards(const char *map);
 qboolean DK_StopMonitor(gentity_t *player, qboolean force);
 void DK_SetMusic(const char *name);
 int DK_SoundIndex(const char *name);

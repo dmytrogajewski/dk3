@@ -41,7 +41,12 @@ cinematic trigger isolation and unique-ID script uses. Existing save2, the first
 conversation/rack crossing, keycard rescue and companion save/reload pass.
 Normal `dk3` uses the repaired build; saves/settings remain unchanged.
 
-Updated 2026-09-26, through **superfly-cinematic, sequence 215**.
+Sequence 216 clears the stranded e1m3b laser damage field after all three beams
+are removed. The owner’s existing quicksave, crossings from both ends at beam
+height, fresh weapon-driven shutdown and save/reload pass. Normal `dk3` is updated
+and existing saves/settings are preserved.
+
+Updated 2026-09-26, through **laser-shutdown, sequence 216**.
 
 **dk3 is a playable development build, not a completed Daikatana port.** Independent
 native systems exist across the game, but implementation and successful focused

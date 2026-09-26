@@ -24,6 +24,24 @@ qboolean DK_TriggerContact(const vec3_t mins, const vec3_t maxs, gentity_t *trig
     return qtrue;
 }
 
+/* e1m3b's laser buttons toggle a shared hurt field. The authored shutdown
+   removes all three buttons but omits a reset for an already enabled field.
+   Keep this correction scoped to that circuit, including older saved worlds. */
+void DK_RepairDisabledHazards(const char *map) {
+    gentity_t *hurt, *source;
+    int i;
+    static const char *names[] = {"laser1", "laser2", "laser3"};
+    if (Q_stricmp(map, "e1m3b")) return;
+    hurt = G_Find(NULL, FOFS(targetname), "laser_dam");
+    if (!hurt || !Is(hurt, "trigger_hurt") || !hurt->r.contents) return;
+    for (i = 0; i < ARRAY_LEN(names); ++i) {
+        source = G_Find(NULL, FOFS(targetname), names[i]);
+        if (source && Is(source, "func_button")) return;
+    }
+    hurt->r.contents = 0;
+    trap_LinkEntity(hurt);
+}
+
 static void HurtUse(gentity_t *entity, gentity_t *other, gentity_t *activator) {
     (void)other; (void)activator;
     if (!(entity->spawnflags & 1)) return;
@@ -33,6 +51,12 @@ static void HurtUse(gentity_t *entity, gentity_t *other, gentity_t *activator) {
 static void HurtTouch(gentity_t *entity, gentity_t *other, trace_t *trace) {
     int list[MAX_GENTITIES], count, i;
     (void)trace;
+    if (entity->targetname && !strcmp(entity->targetname, "laser_dam")) {
+        char map[MAX_QPATH];
+        trap_Cvar_VariableStringBuffer("mapname", map, sizeof(map));
+        DK_RepairDisabledHazards(map);
+    }
+    if (!(entity->r.contents & CONTENTS_TRIGGER)) return;
     if (!other->takedamage || other->health <= 0 || level.time < entity->dk.nextUse) return;
     entity->dk.nextUse = level.time + (int)(entity->wait * 1000);
     count = trap_EntitiesInBox(entity->r.absmin, entity->r.absmax, list, ARRAY_LEN(list));

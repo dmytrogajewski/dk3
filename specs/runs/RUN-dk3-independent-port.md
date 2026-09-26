@@ -2491,3 +2491,41 @@ was needed after that environment correction.
 Normal installation generation:
 `7884920588b8e6a5716f15925e58a6b70edb37af25d8194add44b186e371c690`.
 Existing running processes need a restart to use these modules.
+
+## laser-shutdown-216 — Clear the disabled laser circuit's damage field
+
+The owner reports dying while crossing the e1m3b laser corridor after destroying
+its control box. The latest quicksave contains no laser1/laser2/laser3 brushes,
+but laser_dam still has CONTENTS_TRIGGER and 100 damage. Replayed an isolated,
+unchanged copy with normal forward input from the saved position; the old build
+kills Hiro in the visibly disabled corridor.
+
+Gold `Triggers.cpp`, trigger_hurt_use/touch, toggles a persistent enabled flag.
+The map's three moving laser buttons target that shared field, while the shutdown
+event removes the buttons at 0/2/4 seconds and omits a hurt-field reset. This is a
+scoped circuit correction, not a claim that Gold explicitly resets this field.
+It clears only e1m3b's laser_dam after all three beam buttons are absent. Any
+remaining beam keeps normal damage behavior. Other hurt fields/maps are unchanged.
+The correction runs with world updates and checks again before hurt contact, so
+existing saves with the stranded enabled field become safe without editing them.
+Disabled hurt volumes also reject direct touch callbacks. No save schema change.
+
+Implementation initially unverified; integrated results:
+
+| Scenario | State | Evidence |
+|---|---|---|
+| Owner quicksave baseline | Passed | Three beams absent, field active; ordinary forward crossing kills Hiro. |
+| Owner quicksave repaired and reloaded | Passed | Field clears on load, forward corridor crossing keeps 100 health; repeated traversal and save/reload retain 100. Some return paths descend below beam height and are not sufficient by themselves for reverse-side acceptance. |
+| Both directions at beam height | Passed | Localized positioning followed by ordinary movement reaches (-144,1088,-129) and (-144,1063,-128), inside the former hurt volume, with 100 health from each end. |
+| Fresh circuit weapon shutdown | Passed | Fresh level with weapons supplied for the probe; ordinary fire destroys the control box. After all three shutdown stages no beams remain and the hurt field is disabled. Captured box before/after. |
+| Native regression and broad suite | Passed | Fixture covers remaining beams, complete shutdown, old-save state, unrelated maps/fields and idempotence. ReleaseSafe build and make test pass (49 Python checks plus Zig checks). |
+| Normal dk3 launcher | Passed | Installed generation 63f989b8918d99e59675a86b6f94f084980f094362343e2e061b9c5de3bc6491; retained appearance overlay and all 62 save/settings files, hashed unchanged. Actual launcher restores a copied quicksave directly into e1m3b using the updated executable. |
+
+Local evidence: `zig-out/reports/laser-shutdown-216/` and isolated profiles under
+`/tmp/dk3-laser-shutdown-216/`. The original quicksave is hashed unchanged.
+The laser control box is distinct from the box that exposes Superfly's keycard
+behind the Mishima logo upstairs.
+
+The first beam-height probe read a save before writing completed; the corrected
+runner waits for the save and both directions pass. No code change or repeat
+broad suite was needed after the scenario correction.

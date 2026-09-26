@@ -82,6 +82,18 @@ class GameplayContractsTest(unittest.TestCase):
             result = run_guarded([output], REPO_ROOT)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_disabled_laser_hazard(self):
+        with tempfile.TemporaryDirectory(prefix='dk3-hazards-') as temporary:
+            output = str(Path(temporary) / 'hazards')
+            command = [os.environ.get('ZIG', 'zig'), 'cc', '-std=gnu99', '-O1',
+                       '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
+                       '-DDK3_GAME', '-Iengine/ioquake3/code/game', '-Isrc/game', '-Isrc/shared',
+                       'dkq3/tools/tests/fixtures/disabled_hazards.c', '-lm', '-o', output]
+            result = run_guarded(command, REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = run_guarded([output], REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_weapon_sequences(self):
         with tempfile.TemporaryDirectory(prefix='dk3-weapons-') as temporary:
             output = str(Path(temporary) / 'sequences')

@@ -162,6 +162,7 @@ void DK_RunWorld(void) {
         memset(&actions[i], 0, sizeof(actions[i]));
         if (owner) FireTargets(owner, DK_FindEntity(action.activator));
     }
+    DK_RepairDisabledHazards(mapName);
 }
 
 static void InitBrush(gentity_t *ent, int contents, qboolean visible) {
