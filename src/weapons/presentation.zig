@@ -5,7 +5,7 @@ const profiles = @import("profiles.zig");
 const controller = @import("weapon_state.zig");
 pub const Phase = enum { ready, away, fire, settle, reload, idle };
 pub const Cue = struct { pose: [:0]const u8, sound: ?[:0]const u8 = null, phase: Phase, rate: u16 = 20, loop: bool = false };
-pub const Input = struct { weapon: u5, state: i32, sequence: i32, reloading: bool, attack_factor: f32 = 1, now_ms: i64, fire_pose: ?[:0]const u8 = null, fire_rate: ?u16 = null };
+pub const Input = struct { weapon: u5, state: i32, sequence: i32, reloading: bool, attack_factor: f32 = 1, now_ms: i64, fire_pose: ?[:0]const u8 = null, fire_rate: ?u16 = null, finish_ms: ?i64 = null };
 pub const State = struct {
     weapon: u5 = 0,
     state: i32 = controller.ready,
@@ -46,7 +46,7 @@ pub const State = struct {
             cue = .{ .pose = spec.animation.ready, .sound = spec.audio.ready, .phase = .ready };
         } else if (changed_state and input.state == controller.dropping) {
             cue = .{ .pose = spec.animation.away, .sound = spec.audio.away, .phase = .away };
-        } else if (input.state == controller.ready and self.phase == .fire and spec.animation.fire_end != null) {
+        } else if ((input.state == controller.ready or input.finish_ms != null) and self.phase == .fire and spec.animation.fire_end != null) {
             cue = .{ .pose = spec.animation.fire_end.?, .phase = .settle };
         } else if (input.state == controller.ready and input.now_ms >= self.ended_ms and self.phase != .idle) {
             if (spec.animation.idle[0]) |name| cue = .{ .pose = name, .phase = .idle, .loop = true };

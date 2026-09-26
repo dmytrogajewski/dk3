@@ -233,7 +233,7 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Binding) catch null) |binding| {
             if (binding.slot >= occupied.len or occupied[binding.slot] or (binding.slot > 0 and binding.slot < 64)) return error.InvalidSavedBinding;
             occupied[binding.slot] = true;
-            if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null and (world.get(entity, data.Shockwave) catch null) == null) try require(world, entity, .{data.Body});
+            if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null and (world.get(entity, data.Shockwave) catch null) == null and (world.get(entity, data.Nova) catch null) == null and (world.get(entity, data.Flashlight) catch null) == null) try require(world, entity, .{data.Body});
         }
         if (world.get(entity, data.Body) catch null) |body| {
             if (body.mass <= 0 or body.mass > 100000) return error.InvalidSavedMass;
@@ -329,6 +329,19 @@ pub fn validate(snapshot: *Loaded) !void {
             if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedWave;
             for (wave.rings[0..wave.count]) |ring| if (ring.start_ms < wave.born_ms or ring.start_ms > snapshot.header.at_ms + 200 or ring.inner < -20 or ring.inner > 350 or ring.outer < 0 or ring.outer > 350) return error.InvalidSavedWave;
         }
+        if (world.get(entity, data.Nova) catch null) |beam| {
+            if (beam.lifetime_ms <= 0 or beam.lifetime_ms > 3600000 or beam.remaining_damage < 0 or beam.remaining_damage > 1000000 or beam.boost > 5 or beam.ammo_cost < 1 or beam.ammo_cost > 32767 or beam.alpha < 0 or beam.alpha > 1) return error.InvalidSavedNova;
+            const duration = std.math.sub(i64, beam.expires_ms, beam.born_ms) catch return error.InvalidSavedNova;
+            if (duration != @as(i64, beam.lifetime_ms) + 200 or beam.next_ms < beam.born_ms or ((beam.phase == .closing or beam.phase == .finished) != (beam.end_ms != null))) return error.InvalidSavedNova;
+            const owner = world.find(beam.owner) orelse return error.InvalidSavedNova;
+            try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+            if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedNova;
+        }
+        if (world.get(entity, data.Flashlight) catch null) |light| {
+            if (light.strength < 0 or light.strength > 1 or (try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedLight;
+            const owner = world.find(light.owner) orelse return error.InvalidSavedLight;
+            try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+        }
         if (world.get(entity, data.Pickup) catch null) |pickup| {
             try require(world, entity, .{ data.Binding, data.Body, data.ItemMotion, data.MapObject });
             switch (pickup.kind) {
@@ -409,6 +422,10 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = try world.create(54, .{ data.Transform{}, data.Binding{ .slot = 71 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 13, .damage = 30, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .trident = .{ .kind = .left, .leader = 53, .reversed = true } } }, data.Lifetime{ .expires_ms = 5000 } });
     _ = try world.create(55, .{ data.Transform{}, data.Binding{ .slot = 72 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 18, .damage = 80, .born_ms = 900, .stepped_ms = 1000, .stuck = true, .flight = .{ .ballista = .{ .victim = 7, .last_victim = 7, .release_ms = 2100 } } }, data.Lifetime{ .expires_ms = 3000 } });
     (try world.get(player, data.Body)).motion_owner = 55;
+    var nova = data.Nova.init(7, .{ .damage = 250, .ammoCost = 2, .lifetime = 2 }, 0, 500);
+    _ = nova.advance(800, 100);
+    _ = try world.create(56, .{ data.Transform{}, data.Binding{ .slot = 73 }, nova });
+    _ = try world.create(57, .{ data.Transform{}, data.Binding{ .slot = 74 }, data.Flashlight{ .owner = 7, .expires_ms = 1150, .strength = 0.75 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -441,6 +458,11 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expect((try loaded.world.get(loaded.world.find(54).?, data.Projectile)).flight.trident.reversed);
     try std.testing.expectEqual(@as(i64, 2100), (try loaded.world.get(loaded.world.find(55).?, data.Projectile)).flight.ballista.release_ms);
     try std.testing.expectEqual(@as(?u32, 55), (try loaded.world.get(loaded.world.find(7).?, data.Body)).motion_owner);
+    const saved_nova = (try loaded.world.get(loaded.world.find(56).?, data.Nova)).*;
+    try std.testing.expectEqual(@as(f32, 200), saved_nova.remaining_damage);
+    try std.testing.expectEqual(@as(i64, 8900), saved_nova.next_ms);
+    try std.testing.expectEqual(@as(i64, 10700), saved_nova.expires_ms);
+    try std.testing.expectEqual(@as(i64, 9150), (try loaded.world.get(loaded.world.find(57).?, data.Flashlight)).expires_ms);
     const melee = (try loaded.world.get(loaded.world.find(45).?, data.Melee)).*;
     try std.testing.expectEqual(@as(?i64, 8700), (try loaded.world.get(loaded.world.find(7).?, data.Weapons)).last_fire_ms);
     const poison = (try loaded.world.get(loaded.world.find(7).?, data.Ailments)).poison.?;

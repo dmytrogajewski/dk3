@@ -166,9 +166,11 @@ fn draw(now: i32) !void {
     ref.dk3Lightstyles = @splat(1);
     _ = engine.gateway.call(c.CG_R_CLEARSCENE, .{});
     _ = engine.gateway.call(c.CG_S_CLEARLOOPINGSOUNDS, .{@as(isize, c.qfalse)});
+    var weapon_end_ms: ?i64 = null;
     for (snapshot.entities[0..@intCast(snapshot.numEntities)]) |entity| {
         if (entity.eType == c.ET_DK3_EFFECT) {
-            try @import("client/area_effects.zig").draw(entity, now);
+            try @import("client/weapon_effects.zig").draw(entity, now, &ref, client_number);
+            if (entity.weapon == @import("weapon_catalog").novabeam.id and entity.otherEntityNum == client_number and entity.weapon == loadout.weapon and entity.frame == 3) weapon_end_ms = entity.time2;
             continue;
         }
         if (entity.eType == c.ET_MISSILE and try @import("client/projectiles.zig").sprite(entity, now, &ref)) continue;
@@ -199,7 +201,7 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_GENERAL and entity.generic1 > 0 and entity.generic1 <= 1000) try @import("client/status_visuals.zig").frost(rendered, @as(f32, @floatFromInt(entity.generic1)) / 1000);
     }
     @import("client/impacts.zig").draw(now, &ref);
-    if (player.mode == .normal and snapshot.ps.stats[c.STAT_HEALTH] > 0) try weapon_view.draw(loadout.*, character.*, &ref, client_number, now);
+    if (player.mode == .normal and snapshot.ps.stats[c.STAT_HEALTH] > 0) try weapon_view.draw(loadout.*, character.*, &ref, client_number, now, weapon_end_ms);
     _ = engine.gateway.call(c.CG_R_RENDERSCENE, .{&ref});
     @import("client/status_visuals.zig").screen(ailments.*, display);
     try hud.render(display, .{ .current = snapshot.ps.stats[c.STAT_HEALTH], .armor = snapshot.ps.stats[c.STAT_ARMOR] }, character.*, .{ .mask = @bitCast(snapshot.ps.dk3Keys), .quest = @bitCast(snapshot.ps.dk3Quest) }, loadout.*, &weapon_table, selected_weapon, now);

@@ -631,6 +631,72 @@ def status_weapons_scenario(issue, capture, log, process):
     return {"scope": "Gas Hands kill, Venomous bite/poison death, saved delayed launch and restored pool contact, Kineticore freeze/save and flight; ordinary attack input with diagnostic equipment/placement, complete water/trail/reference acceptance open"}
 
 
+def beams_scenario(issue, capture, log, process, home):
+    def diagnostic(command, marker):
+        cursor = len(log.read_text(errors="replace"))
+        issue(command, 0.03)
+        wait(process, log, lambda text: marker in text[cursor:], 3)
+        return log.read_text(errors="replace")[cursor:]
+
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 10000")
+    issue("dk3_runtime_equip 25", 0.8)
+    issue("weapon 25", 0.8)
+    placement = diagnostic("dk3_runtime_face_target 383 128", "target=383")
+    player = list(map(float, re.findall(r"fixture player=([\d.,-]+)", placement)[-1].split(',')))
+    dx, dy, dz = -1180 - player[0], 1310 - player[1], -288 - player[2] - 22
+    issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}", 0.03)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.03)
+    issue("save nova_pending", 0.03)
+    issue("load nova_pending", 0.03)
+    wait(process, log, lambda text: "novabeam:" in text[cursor:] and "phase=firing" in text[cursor:], 4)
+    first = diagnostic("dk3_runtime_beams", "beam states complete")
+    state = re.findall(r"nova state: id=(\d+) phase=firing remaining=([\d.]+)", first)
+    if not state:
+        raise RuntimeError("Novabeam did not begin its saved pending discharge")
+    identity, remaining = state[-1][0], float(state[-1][1])
+    issue("save nova_active", 0.03)
+    issue("load nova_active", 0.03)
+    resumed = diagnostic("dk3_runtime_beams", "beam states complete")
+    restored = re.findall(rf"nova state: id={identity} phase=firing remaining=([\d.]+)", resumed)
+    if not restored or float(restored[-1]) > remaining:
+        raise RuntimeError("Novabeam restarted its spent damage after restoration")
+    capture("novabeam-active-restored")
+    wait(process, log, lambda text: f"novabeam: id={identity} phase=finished" in text, 4)
+    capture("novabeam-finished")
+    if not re.search(r"target=383 .*killed=1", log.read_text(errors="replace")[cursor:]):
+        raise RuntimeError("Novabeam failed to kill its authored target")
+    issue("-attack", 1.3)
+    if f"nova state: id={identity}" in diagnostic("dk3_runtime_beams", "beam states complete"):
+        raise RuntimeError("Novabeam controller outlived its cooldown")
+
+    issue("dk3_runtime_equip 28", 0.8)
+    issue("weapon 28", 0.8)
+    capture("flashlight-off")
+    issue("+attack", 0.4)
+    state = diagnostic("dk3_runtime_beams", "beam states complete")
+    if "flashlight state:" not in state:
+        raise RuntimeError("held flashlight did not create its light")
+    capture("flashlight-on")
+    issue("save flashlight_active", 0.03)
+    saved = home / "state/dk3/saves/flashlight_active.sav"
+    wait(process, log, lambda _: saved.exists(), 3)
+    if b'flashlight' not in saved.read_bytes():
+        raise RuntimeError("flashlight controller was omitted from save")
+    issue("load flashlight_active", 0.1)
+    capture("flashlight-restored")
+    issue("-attack", 0.3)
+    if "flashlight state:" in diagnostic("dk3_runtime_beams", "beam states complete"):
+        raise RuntimeError("released flashlight did not expire")
+    capture("flashlight-released")
+    text = log.read_text(errors="replace")
+    if "missing weapon animation" in text or "could not find sounds/" in text.lower():
+        raise RuntimeError("missing beam/light media")
+    return {"scope": "Novabeam saved release, authored kill, spent burst restoration, closure/cooldown; held flashlight, native save and release expiry; diagnostic equipment and placement"}
+
+
 def linked_projectiles_scenario(issue, capture, log, process, home):
     def diagnostic(command, marker):
         cursor = len(log.read_text(errors="replace"))
@@ -1335,6 +1401,8 @@ def run(args):
                     result = shockwave_scenario(issue, capture, log, process)
                 elif args.scenario == "linked-projectiles":
                     result = linked_projectiles_scenario(issue, capture, log, process, home)
+                elif args.scenario == "beams":
+                    result = beams_scenario(issue, capture, log, process, home)
                 elif args.scenario == "attached-charge":
                     result = attached_charge_scenario(issue, capture, log, process)
                 elif args.scenario == "area-weapons":
@@ -1370,7 +1438,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -1393,6 +1461,7 @@ def main():
         "attached-charge": ("e1m3a", "runtime-zig-236/attached-charge"),
         "shockwave": ("e1m3b", "runtime-zig-237/shockwave"),
         "linked-projectiles": ("e1m3b", "runtime-zig-238/linked-projectiles"),
+        "beams": ("e1m3b", "runtime-zig-239/beams"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

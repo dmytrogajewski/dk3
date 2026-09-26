@@ -1,4 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+dk3/fx/novabeam
+{
+ cull disable
+ { map pics/misc/novalaser.tga
+   blendFunc GL_SRC_ALPHA GL_ONE
+   rgbGen vertex
+   alphaGen vertex
+ }
+}
+
 dk3/fx/shotcycler-mark
 {
  polygonOffset

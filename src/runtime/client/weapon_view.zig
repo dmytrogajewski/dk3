@@ -64,7 +64,7 @@ pub const View = struct {
     pub fn fire(self: *View, weapon: u5, serial: u32, now: i64) void {
         self.state.noteFire(weapon, serial, now);
     }
-    pub fn draw(self: *View, loadout: data.Weapons, character: data.Character, ref: *const c.refdef_t, client: i32, now: i64) !void {
+    pub fn draw(self: *View, loadout: data.Weapons, character: data.Character, ref: *const c.refdef_t, client: i32, now: i64, weapon_end_ms: ?i64) !void {
         if (loadout.weapon <= 0 or loadout.weapon >= self.media.len or engine.integer("cg_drawGun") == 0) return;
         const id: u5 = @intCast(loadout.weapon);
         const entry = catalog.find(id) orelse return;
@@ -80,10 +80,13 @@ pub const View = struct {
             if (spec.audio.hum) |name| media.hum = try sound(name);
         }
         const attack_animation = catalog.attackAnimation(id, loadout.dk3WeaponSequence, loadout.dk3SwordExperience);
-        if (self.state.update(spec, .{ .weapon = id, .state = loadout.weaponstate, .sequence = loadout.dk3WeaponSequence, .reloading = catalog.isReloading(&loadout), .attack_factor = catalog.transitions.attackFactor(character.attribute(.attack, now)), .now_ms = now, .fire_pose = attack_animation.pose, .fire_rate = attack_animation.rate })) |cue| {
+        if (self.state.update(spec, .{ .weapon = id, .state = loadout.weaponstate, .sequence = loadout.dk3WeaponSequence, .reloading = catalog.isReloading(&loadout), .attack_factor = catalog.transitions.attackFactor(character.attribute(.attack, now)), .now_ms = now, .fire_pose = attack_animation.pose, .fire_rate = attack_animation.rate, .finish_ms = weapon_end_ms })) |cue| {
             self.sequence = try media.view.?.sequence(cue.pose);
             self.sequence.fps = cue.rate;
             self.started_ms = if (cue.phase == .fire) (if (self.state.fire_weapon == id and !spec.animation.fire_loop) self.state.fire_ms else now) + spec.animation.fire_start_ms else now;
+            if (cue.phase == .settle) if (weapon_end_ms) |at| {
+                self.started_ms = at;
+            };
             if (cue.phase == .fire) if (spec.animation.charge) |charge| {
                 const frame = @min(charge.max_frame, @divTrunc(@max(0, loadout.dk3Charge), charge.frame_ms));
                 self.started_ms -= @divTrunc(@as(i64, frame) * 1000, cue.rate);

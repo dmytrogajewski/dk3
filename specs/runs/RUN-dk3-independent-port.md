@@ -3011,3 +3011,19 @@ own engine slots, collision and area impulses. Gold was consulted privately.
 | Ballista saved victim | Passed after fixture repair | First shot from an elevated south position reaches geometry immediately after restore. Flat eastern aim hits outside the torso. `linked-torso/` uses a normal torso aim from the east: saved delayed launch, active victim bytes in the native save, restored reference, wall pinning, 1-point ticks and final release/explosion. Worker 384 has diagnostic health 500 to survive the observed action. Capture inspected. |
 | Trident saved merge | Failed fixture; open | Oversized diagnostic clearance bounds begin in scenery (`linked-torso/`). After switching to a centerline measurement, `linked-lanes/` finds 935 units, but outer tips hit nearby walls before merging. The saved three-tip group restores; a suitable authored merge lane still needs verification. |
 | Media and broader verification | Unrun | Shockwave's trail binding was corrected from Gold's global path to the supplied e1 path. Trident merge/water/partial ammo, Ballista water/oblique walls, complete art/audio, second renderer, actor-motion regression and refreshed aggregate suite remain open. No still-valid broad suite was duplicated as a per-item gate. |
+
+## runtime-zig — sequence 239 (continuous beams and personal actions)
+
+Novabeam and flashlight use class-owned timing, damage/battery and visual rules.
+Components 39/40 preserve controller identity and relative clocks. Shared effect
+projection and camera-facing beam geometry remain mechanical adapters. Personal
+melee, delayed releases, pending Hammer, Nova and light controllers are cancelled
+on player arrival/disconnect. Gold behavior and internal flashlight defaults were
+consulted privately; no private implementation/assets imported.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated modules/contracts | Passed | `/tmp/dk3-runtime-239-beams-build.log`: three modules and 79 focused checks pass, including diminishing discharge, battery thresholds and restored controller clocks. |
+| Beam and light persistence | Passed, limited | `runtime-zig-239/beams-first/`: ordinary attacks after diagnostic equipment/placement; saved pending/active Nova restores its identity and remaining damage, kills worker 383, closes and expires. Held flashlight spends battery, restores active state and expires after release. |
+| Rendered presentation | Passed, limited | Active restored Nova and flashlight on/off captures inspected: orange beam, transparent muzzle/end flare and changed surface illumination are visible. Full material/audio parity and second renderer remain open. |
+| Broader integration | Unrun | Arrival/disconnect cancellation, multiplayer and refreshed aggregate checks remain pending the connected weapon batch. Twenty-one combat policies are connected; seven remain. |

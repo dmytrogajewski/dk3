@@ -9,6 +9,15 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_beams")) {
+        for (slots.occupants) |occupant| if (occupant) |entity| {
+            var output: [200]u8 = undefined;
+            if (world.get(entity, data.Nova) catch null) |beam| engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig nova state: id={d} phase={s} remaining={d:.3} next={d} expires={d}\n", .{ try world.persistentId(entity), @tagName(beam.phase), beam.remaining_damage, beam.next_ms - now, beam.expires_ms - now }));
+            if (world.get(entity, data.Flashlight) catch null) |light| engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig flashlight state: id={d} strength={d:.3} expires={d}\n", .{ try world.persistentId(entity), light.strength, light.expires_ms - now }));
+        };
+        engine.print("dk3 zig beam states complete\n");
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_area_weapons")) {
         var query = world.queryAccess(data.World.mask(.{data.Transform}), 0, 0);
         defer query.deinit();

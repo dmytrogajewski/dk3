@@ -564,3 +564,19 @@ the first lane intersects outer tips before merging. Complete trail/impact/audio
 water, actor motion regressions and multiplayer qualification also remain open.
 The Shockwave trail binding now uses the supplied e1 asset path; open-flight rendered
 verification is pending. This checkpoint is not a gate on dependent implementation.
+
+## runtime-zig-239 — continuous beams and personal action lifetime
+
+Novabeam owns its delayed discharge, ammunition ticks, diminishing damage and closing
+phase. Flashlight owns its battery curve, held-input consumption and surface lights.
+Their server controllers retain persistent owner IDs and rebased deadlines; the
+client draws replicated beam/light state using shared beam and sprite mechanisms.
+Personal attacks are cancelled on player arrival and disconnect, while independent
+world projectiles remain world state. The flashlight uses Gold's internal battery
+defaults when the supplied internal weapon row has no ammunition values.
+
+Twenty-one combat policies are connected. The focused live scenario passes saved
+pending and active Novabeam, an authored worker kill, closing/expiry, held flashlight
+consumption, restoration and release. Inspected captures show the orange beam and
+surface illumination. Full audio/effect parity, second renderer, action cancellation
+through travel, multiplayer and the refreshed aggregate suite remain open.

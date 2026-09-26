@@ -404,7 +404,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 };
             };
             if (arg0 == 0) if (campaign.arrival) |arrival| {
-                clients.arrive(&world.?, &projection, &players, arrival, clock.now_ms) catch |err| runtimeFailure(err);
+                clients.arrive(&world.?, &slots, &projection, &players, arrival, clock.now_ms) catch |err| runtimeFailure(err);
                 campaign.arrival = null;
                 restoring_visit = false;
             };

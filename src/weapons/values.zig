@@ -24,6 +24,11 @@ pub fn parse(id: u5, row: anytype) !Values {
         @field(result, field[0]) = @intFromFloat(value);
     }
     if (result.initialAmmo > result.ammoMax) return error.InvalidWeaponAmmo;
+    // Retail's internal flashlight row is empty; retain its reviewed class battery.
+    if (id == 28 and result.ammoMax == 0) {
+        result.ammoMax = 1000;
+        result.ammoCost = 1;
+    }
     inline for (.{ "damage", "range", "speed", "lifetime" }) |field| {
         const value = try row.number(field, 0);
         if (!std.math.isFinite(value) or value < 0) return error.InvalidWeaponValue;

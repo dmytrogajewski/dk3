@@ -10,6 +10,8 @@ pub const hammer = @import("descriptions/hammer.zig");
 pub const shockwave = @import("descriptions/shockwave.zig");
 pub const trident = @import("descriptions/trident.zig");
 pub const ballista = @import("descriptions/ballista.zig");
+pub const novabeam = @import("descriptions/novabeam.zig");
+pub const flashlight = @import("descriptions/flashlight.zig");
 pub fn flightScale(id: u5, flags: i32) f32 {
     inline for (weapons) |W| if (id == W.id) {
         if (@hasDecl(W, "flightScale")) return W.flightScale(flags);
