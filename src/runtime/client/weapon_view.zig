@@ -40,6 +40,11 @@ pub const View = struct {
     shine: c.qhandle_t = 0,
     cloak: c.qhandle_t = 0,
     finish_ms: ?i64 = null,
+    reselect_pending: bool = false,
+    charge_sound_ms: i32 = 0,
+    pub fn reselect(self: *View) void {
+        self.reselect_pending = true;
+    }
     pub fn deinit(self: *View) void {
         for (self.media) |media| {
             if (media.view) |model| std.heap.c_allocator.free(model.metadata);
@@ -79,6 +84,10 @@ pub const View = struct {
             self.sequence = try media.view.?.sequence(cue.pose);
             self.sequence.fps = cue.rate;
             self.started_ms = if (cue.phase == .fire) (if (self.state.fire_weapon == id and !spec.animation.fire_loop) self.state.fire_ms else now) + spec.animation.fire_start_ms else now;
+            if (cue.phase == .fire) if (spec.animation.charge) |charge| {
+                const frame = @min(charge.max_frame, @divTrunc(@max(0, loadout.dk3Charge), charge.frame_ms));
+                self.started_ms -= @divTrunc(@as(i64, frame) * 1000, cue.rate);
+            };
             if (cue.phase == .ready or cue.phase == .away) self.finish_ms = null;
             if (cue.phase == .fire and spec.animation.finish_ms > 0) self.finish_ms = self.started_ms + spec.animation.finish_ms;
             self.looping = cue.loop;
@@ -88,6 +97,17 @@ pub const View = struct {
                 engine.print(try std.fmt.bufPrintZ(&message, "dk3 zig view: weapon={d} phase={s} pose={s} frames={d}..{d} rate={d}\n", .{ id, @tagName(cue.phase), cue.pose, self.sequence.first, self.sequence.last, cue.rate }));
             }
             if (cue.sound) |name| _ = engine.gateway.call(c.CG_S_STARTLOCALSOUND, .{ @as(isize, try sound(name)), @as(isize, c.CHAN_WEAPON) });
+        }
+        if (self.reselect_pending) {
+            self.reselect_pending = false;
+            if (spec.animation.reselect) |pose| {
+                self.sequence = try media.view.?.sequence(pose);
+                self.sequence.fps = 20;
+                self.started_ms = now;
+                self.looping = false;
+                self.state.ended_ms = now + self.sequence.duration();
+                self.state.phase = .settle;
+            }
         }
         if (self.finish_ms) |at| if (now >= at) {
             if (spec.audio.finish) |name| _ = engine.gateway.call(c.CG_S_STARTLOCALSOUND, .{ @as(isize, try sound(name)), @as(isize, c.CHAN_WEAPON) });
@@ -101,7 +121,21 @@ pub const View = struct {
         rendered.axis = ref.viewaxis;
         rendered.renderfx = c.RF_DEPTHHACK | c.RF_FIRST_PERSON | c.RF_MINLIGHT;
         rendered.shaderRGBA = @splat(255);
-        const sample = self.sequence.sample(now - self.started_ms, self.looping);
+        var sample = self.sequence.sample(now - self.started_ms, self.looping);
+        if (spec.animation.charge) |charge| {
+            if (loadout.dk3AttackHeld != 0 and loadout.dk3Charge > 0) {
+                var sequence = try media.view.?.sequence(spec.animation.fire);
+                sequence.last = @min(sequence.last, sequence.first + charge.max_frame);
+                sequence.fps = @divTrunc(1000, charge.frame_ms);
+                sample = sequence.sample(loadout.dk3Charge, false);
+                if (loadout.dk3Charge < self.charge_sound_ms) self.charge_sound_ms = 0;
+                const threshold = @divTrunc(loadout.dk3Charge, charge.sound_ms) * charge.sound_ms;
+                if (threshold > self.charge_sound_ms) {
+                    _ = engine.gateway.call(c.CG_S_STARTLOCALSOUND, .{ @as(isize, try sound(charge.sound)), @as(isize, c.CHAN_WEAPON) });
+                    self.charge_sound_ms = threshold;
+                }
+            } else self.charge_sound_ms = 0;
+        }
         rendered.frame = sample.frame;
         rendered.oldframe = sample.oldframe;
         rendered.backlerp = sample.backlerp;

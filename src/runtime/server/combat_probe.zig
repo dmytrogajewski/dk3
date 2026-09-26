@@ -9,6 +9,21 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_area_weapons")) {
+        var query = world.queryAccess(data.World.mask(.{data.Transform}), 0, 0);
+        defer query.deinit();
+        while (query.next()) |view| for (view.entities(), view.read(data.Transform)) |entity, pose| {
+            var output: [300]u8 = undefined;
+            if (world.get(entity, data.Charge) catch null) |charge| {
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig charge state: id={d} attached={d} health={d} next={d} remaining={d} detonate={d} parent={d} position={d:.2},{d:.2},{d:.2}\n", .{ try world.persistentId(entity), @intFromBool(charge.attached), (try world.get(entity, data.Health)).current, charge.next_ms - now, charge.expires_ms - now, if (charge.detonate_ms) |at| at - now else -1, if (world.get(entity, data.Attachment) catch null) |value| value.parent_id else 0, pose.position[0], pose.position[1], pose.position[2] }));
+            }
+            if (world.get(entity, data.Hammer) catch null) |hammer| {
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig hammer state: id={d} charge={d} next={d} quake_remaining={d}\n", .{ try world.persistentId(entity), hammer.charge_ms, hammer.next_ms - now, if (hammer.quake_until_ms) |at| at - now else 0 }));
+            }
+        };
+        engine.print("dk3 zig area weapon states complete\n");
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_ailments")) {
         for (slots.occupants) |occupant| {
             const target = occupant orelse continue;
@@ -63,9 +78,14 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
         const radius_text = engine.argv(2, &radius_argument);
         const first_radius = if (radius_text.len == 0) 96 else try std.fmt.parseFloat(f32, radius_text);
         if (!std.math.isFinite(first_radius) or first_radius < 32 or first_radius > 256) return error.InvalidTargetDistance;
+        var minimum_argument: [32]u8 = undefined;
+        const minimum_text = engine.argv(3, &minimum_argument);
+        const minimum_radius = if (minimum_text.len == 0) 0 else try std.fmt.parseFloat(f32, minimum_text);
+        if (!std.math.isFinite(minimum_radius) or minimum_radius < 0 or minimum_radius > 256) return error.InvalidTargetDistance;
         var reports: usize = 0;
         const heights: []const f32 = if (brush) &.{ 56, 0, -64, -128, -192 } else &.{target_body.mins[2] + 56};
         for (heights) |height| for ([_]f32{ first_radius, 64, 160, 256 }) |radius| for (0..8) |direction| {
+            if (radius < minimum_radius) continue;
             const angle = @as(f32, @floatFromInt(direction)) * (std.math.pi / 4.0);
             const candidate = v.add(target_position, .{ @cos(angle) * radius, @sin(angle) * radius, height });
             const floor = try engine.collisionService().trace(.{ .start = candidate, .end = v.add(candidate, .{ 0, 0, -96 }), .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .slot = owner_slot, .mask = c.MASK_PLAYERSOLID });

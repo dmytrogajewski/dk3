@@ -233,7 +233,7 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Binding) catch null) |binding| {
             if (binding.slot >= occupied.len or occupied[binding.slot] or (binding.slot > 0 and binding.slot < 64)) return error.InvalidSavedBinding;
             occupied[binding.slot] = true;
-            if ((world.get(entity, data.Projectile) catch null) == null) try require(world, entity, .{data.Body});
+            if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null) try require(world, entity, .{data.Body});
         }
         if (world.get(entity, data.Body) catch null) |body| {
             if (body.mass <= 0 or body.mass > 100000) return error.InvalidSavedMass;
@@ -280,6 +280,21 @@ pub fn validate(snapshot: *Loaded) !void {
             if (@import("weapon_catalog").combatFor(launch.weapon, launch.sequence) != .projectile or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
             const owner = world.find(launch.owner) orelse return error.InvalidSavedLaunch;
             try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+        }
+        if (world.get(entity, data.Charge) catch null) |charge| {
+            const lifetime = std.math.sub(i64, charge.expires_ms, charge.born_ms) catch return error.InvalidSavedCharge;
+            if (charge.damage < 0 or charge.damage > 1000000 or lifetime < 0 or lifetime > 3600000) return error.InvalidSavedCharge;
+            try require(world, entity, .{ data.Body, data.Binding, data.Velocity, data.Health, data.Random });
+            if ((world.get(entity, data.Projectile) catch null) != null) return error.InvalidSavedCharge;
+        }
+        if (world.get(entity, data.Hammer) catch null) |hammer| {
+            if (hammer.damage < 0 or hammer.damage > 1000000 or hammer.range <= 0 or hammer.range > 8192 or hammer.charge_ms < 0 or hammer.charge_ms > 1800) return error.InvalidSavedHammer;
+            try require(world, entity, .{data.Random});
+            if (hammer.quake_until_ms == null) {
+                if ((world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedHammer;
+                const owner = world.find(hammer.owner) orelse return error.InvalidSavedHammer;
+                try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+            } else if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedHammer;
         }
         if (world.get(entity, data.Pickup) catch null) |pickup| {
             try require(world, entity, .{ data.Binding, data.Body, data.ItemMotion, data.MapObject });
@@ -349,6 +364,9 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = try world.create(44, .{ data.Transform{}, data.Binding{ .slot = 65 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 5, .damage = 50, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .sidewinder = .{ .accelerated = true } } }, data.Lifetime{ .expires_ms = 5000 } });
     _ = try world.create(45, .{ data.Transform{}, data.Melee{ .owner = 7, .weapon = 8, .sequence = 9, .experience = 0, .damage = 40, .started_ms = 700, .next_hit = 1 } });
     _ = try world.create(46, .{ data.Transform{}, data.WeaponLaunch{ .owner = 7, .weapon = 11, .sequence = 0, .charge = 0, .execute_ms = 1100 } });
+    _ = try world.create(47, .{ data.Transform{}, data.Binding{ .slot = 66 }, data.Velocity{}, data.Body{}, data.Health{ .current = 5, .maximum = 5 }, data.Random{ .state = 77 }, data.Charge{ .owner = 7, .damage = 100, .born_ms = 800, .stepped_ms = 1000, .next_ms = 1800, .expires_ms = 20000, .detonate_ms = 1200, .beep_ms = 900, .attached = true } });
+    _ = try world.create(48, .{ data.Transform{}, data.Hammer{ .owner = 7, .damage = 100, .range = 128, .charge_ms = 1800, .next_ms = 1100 }, data.Random{ .state = 78 } });
+    _ = try world.create(49, .{ data.Transform{}, data.Binding{ .slot = 67 }, data.Hammer{ .owner = 7, .damage = 100, .range = 128, .charge_ms = 1800, .next_ms = 1100, .quake_until_ms = 6100 }, data.Random{ .state = 79 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -362,6 +380,13 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expectEqual(random.next(), (try loaded.world.get(loaded.world.find(7).?, data.Random)).next());
     try std.testing.expectEqualStrings("next", (try loaded.world.get(loaded.world.find(42).?, data.Train)).next_target);
     try loaded.rebase(9000);
+    const charge = (try loaded.world.get(loaded.world.find(47).?, data.Charge)).*;
+    try std.testing.expectEqual(@as(?i64, 9200), charge.detonate_ms);
+    try std.testing.expectEqual(@as(?i64, 8900), charge.beep_ms);
+    try std.testing.expectEqual(@as(i64, 28000), charge.expires_ms);
+    try std.testing.expect(charge.attached);
+    try std.testing.expectEqual(@as(i64, 9100), (try loaded.world.get(loaded.world.find(48).?, data.Hammer)).next_ms);
+    try std.testing.expectEqual(@as(?i64, 14100), (try loaded.world.get(loaded.world.find(49).?, data.Hammer)).quake_until_ms);
     const melee = (try loaded.world.get(loaded.world.find(45).?, data.Melee)).*;
     try std.testing.expectEqual(@as(?i64, 8700), (try loaded.world.get(loaded.world.find(7).?, data.Weapons)).last_fire_ms);
     const poison = (try loaded.world.get(loaded.world.find(7).?, data.Ailments)).poison.?;
@@ -376,6 +401,13 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expectEqual(@as(?i64, 10000), (try loaded.world.get(loaded.world.find(42).?, data.Train)).action.at_ms);
     try std.testing.expectEqual(@as(i64, 9300), (try loaded.world.get(loaded.world.find(7).?, data.Character)).boost_until[1]);
     try std.testing.expectEqual(@as(i64, 1300), (try world.get(world.find(7).?, data.Character)).boost_until[1]);
+    (try world.get(world.find(47).?, data.Charge)).born_ms = std.math.minInt(i64);
+    try std.testing.expectError(error.InvalidSnapshotNumber, capture(allocator, &bytes, &world, "e1m3a", 3, .{ .at_ms = 1000, .episode = 1, .player_id = 7, .next_id = 100 }));
+    (try world.get(world.find(47).?, data.Charge)).born_ms = 800;
+    (try world.get(world.find(47).?, data.Charge)).expires_ms = 3600801;
+    const bad_lifetime = try capture(allocator, &bytes, &world, "e1m3a", 3, .{ .at_ms = 1000, .episode = 1, .player_id = 7, .next_id = 100 });
+    try std.testing.expectError(error.InvalidSavedCharge, decode(allocator, bad_lifetime));
+    (try world.get(world.find(47).?, data.Charge)).expires_ms = 20000;
     try world.put(world.find(42).?, data.Binding{ .slot = 0 });
     try world.put(world.find(42).?, data.Body{});
     const duplicate_slot = try capture(allocator, &bytes, &world, "e1m3a", 3, .{ .at_ms = 1000, .episode = 1, .player_id = 7, .next_id = 100 });

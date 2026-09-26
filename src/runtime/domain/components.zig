@@ -24,6 +24,8 @@ pub const Exit = @import("travel.zig").Exit;
 pub const Projectile = @import("combat.zig").Projectile;
 pub const Melee = @import("melee.zig").State;
 pub const WeaponLaunch = struct { owner: u32, weapon: u5, sequence: i32, charge: i32, execute_ms: i64 };
+pub const Charge = @import("weapon_catalog").c4.Charge;
+pub const Hammer = @import("weapon_catalog").hammer.Action;
 pub const SoundEvent = struct { sound: u16, subject: u16, channel: u8 };
 pub const ImpactEvent = struct { weapon: u5, kind: @import("weapon_catalog").impact_rules.Kind, normal: Vec3, charged: bool = false, detonation: bool = false, sequence: i32 = 0 };
 pub const Character = @import("character.zig").State;
@@ -45,7 +47,7 @@ pub const Gravity = struct { acceleration: f32 = 800 };
 pub const Motion = struct { destination: Vec3 = @splat(0), velocity: Vec3 = @splat(0) };
 pub const Lifetime = struct { expires_ms: i64 };
 pub const Attachment = struct { parent_id: u32, offset: Vec3 };
-pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21, character = 22, ailments = 23, sound_event = 24, projectile = 25, actor = 26, hurt = 27, hazard = 28, destructible = 29, wall = 30, target_sequence = 31, exit = 32, impact_event = 33, melee = 34, weapon_launch = 35 };
+pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21, character = 22, ailments = 23, sound_event = 24, projectile = 25, actor = 26, hurt = 27, hazard = 28, destructible = 29, wall = 30, target_sequence = 31, exit = 32, impact_event = 33, melee = 34, weapon_launch = 35, charge = 36, hammer = 37 };
 pub const Component = union(ComponentId) {
     transform: Transform,
     velocity: Velocity,
@@ -83,6 +85,8 @@ pub const Component = union(ComponentId) {
     impact_event: ImpactEvent,
     melee: Melee,
     weapon_launch: WeaponLaunch,
+    charge: Charge,
+    hammer: Hammer,
 };
 pub const types = blk: {
     const fields = std.meta.fields(Component);

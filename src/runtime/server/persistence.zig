@@ -55,6 +55,7 @@ pub fn admit(loaded: *format.Loaded, systems: *const @import("world_systems.zig"
     while (query.next()) |view| for (view.entities()) |entity| {
         if (loaded.world.get(entity, data.Actor) catch null) |actor| if (!systems.actors.table.definitions[actor.definition].loaded) return error.UnavailableSavedActorDefinition;
         if (loaded.world.get(entity, data.Binding) catch null) |binding| {
+            if ((loaded.world.get(entity, data.Hammer) catch null) != null) continue;
             const object = loaded.world.get(entity, data.MapObject) catch null;
             const brush = object != null and object.?.model.len > 1 and object.?.model[0] == '*';
             if (brush) {
@@ -69,7 +70,7 @@ pub fn admit(loaded: *format.Loaded, systems: *const @import("world_systems.zig"
                     engine.print(try std.fmt.bufPrintZ(&text, "dk3 save: invalid model on entity {d} ({s}), model={d}, registered={d}\n", .{ try loaded.world.persistentId(entity), if (object) |value| value.classname else "dynamic", binding.model, loaded.header.resources.models.len }));
                     return error.InvalidSavedModel;
                 }
-                if ((loaded.world.get(entity, data.Actor) catch null) == null and (loaded.world.get(entity, data.Pickup) catch null) == null and (loaded.world.get(entity, data.Projectile) catch null) == null) return error.UnsupportedSavedEntity;
+                if ((loaded.world.get(entity, data.Actor) catch null) == null and (loaded.world.get(entity, data.Pickup) catch null) == null and (loaded.world.get(entity, data.Projectile) catch null) == null and (loaded.world.get(entity, data.Charge) catch null) == null) return error.UnsupportedSavedEntity;
             }
         }
     };
@@ -113,6 +114,14 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         }
         if ((world.get(entity, data.Projectile) catch null) != null) {
             try @import("projectiles.zig").publish(world, entity, projections, now);
+            continue;
+        }
+        if ((world.get(entity, data.Charge) catch null) != null) {
+            try @import("c4.zig").publish(world, entity, projections, now);
+            continue;
+        }
+        if ((world.get(entity, data.Hammer) catch null) != null) {
+            try @import("hammer.zig").publish(world, entity, projections);
             continue;
         }
         const object = (try world.get(entity, data.MapObject)).*;

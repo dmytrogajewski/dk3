@@ -74,6 +74,11 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             }
         },
         .melee => try @import("melee.zig").launch(world, owner, shot, table, now),
+        .charge => try @import("c4.zig").launch(world, slots, projections, owner, shot, table, now),
+        .hammer => {
+            try @import("hammer.zig").launch(world, owner, shot, table, now);
+            return;
+        },
         .projectile => {
             if (entry.spec.projectile.action_delay_ms > 0) {
                 const factor = catalog.transitions.attackFactor((try world.get(owner, data.Character)).attribute(.attack, now));

@@ -3,6 +3,9 @@ const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const rules = @import("../domain/damage.zig");
 pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, options: rules.Options) !rules.Result {
+    // C4 explosions schedule nearby charges explicitly; radius damage must not
+    // collapse the staggered chain into simultaneous deaths.
+    if ((world.get(entity, data.Charge) catch null) != null and options.weapon == @import("weapon_catalog").c4.id) return .{};
     if (world.get(entity, data.Destructible)) |state| {
         if (state.hidden or state.broken or !state.shootable) return .{};
     } else |_| {}

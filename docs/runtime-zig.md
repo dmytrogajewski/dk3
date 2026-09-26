@@ -504,3 +504,28 @@ are connected in code. Authored kills, poison ticks, freezing, saved delayed lau
 and restored pool contact pass on both renderers. The prior projectile regression
 also passes. Full rendered/audio, water behavior and campaign acceptance remain
 open; the pool capture is occluded and does not verify its complete appearance.
+
+## runtime-zig-236 — persistent C4 charges and Hammer quakes
+
+Implemented with focused native combat, save and mover evidence. C4 owns arming,
+proximity thresholds, detonation scheduling and contact cues. Its server controller
+resolves flight, shootable hulls, remote selection, mover attachments and staggered
+chains. Charges use the existing transactional attachment system, including saved
+parent identity. Damage from a C4 blast cannot bypass the chain's pending deadline.
+
+Hammer owns charge/release timing, quake strength and visual parameters. Its server
+controller resolves the delayed small-box strike and radius hit, then retains a
+six-second quake for grounded full charges. Full quakes cost 20 health, require
+visibility for their initial area damage and apply later ground impulses without
+repeating the damage. Saved strikes and quakes rebase their deadlines. Class-owned
+charge animation and sounds, C4 button presses, oriented ring sprites and camera
+shake remain client presentation. Shared area geometry and engine entity lifetimes
+are separate mechanisms, not another weapon behavior interpreter.
+
+Sixteen combat policies are connected. Focused scenarios cover C4 direct contact,
+saved remote detonation, shooting, chain amplification and an attachment carried by
+the authored bigplat lift. Hammer scenarios cover saved partial strikes, full-charge
+self damage, a visible guard kill, protection of an occluded worker and quake
+restoration. Both renderers pass the combat/save scenario; rendered/audio parity,
+all C4 deployment/lifetime/material cases, complete quake motion and multiplayer
+remain open. Evidence and repairs are recorded in the run log.

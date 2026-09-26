@@ -446,6 +446,14 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     const state = world.?.get(entity, component.Character) catch return 0;
                     _ = state.spend(attribute);
                 }
+            } else if (std.mem.eql(u8, client_command, "detonate")) {
+                if (clients.entities[@intCast(arg0)]) |entity| {
+                    const loadout = world.?.get(entity, component.Weapons) catch return 0;
+                    const health = world.?.get(entity, component.Health) catch return 0;
+                    if (loadout.weapon == @import("weapon_catalog").c4.id and health.current > 0) {
+                        _ = @import("server/c4.zig").detonate(&world.?, world.?.persistentId(entity) catch return 0, clock.now_ms, false) catch |err| runtimeFailure(err);
+                    }
+                }
             } else if (std.mem.eql(u8, client_command, "use")) {
                 if (clients.entities[@intCast(arg0)]) |entity| @import("server/interactions.zig").use(&world.?, &slots, &projection, &targets, entity, clock.now_ms) catch |err| runtimeFailure(err);
             }

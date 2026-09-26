@@ -20,6 +20,8 @@ pub const Animation = struct {
     fire_start_ms: i16 = 0,
     finish_ms: u16 = 0,
     scale_fire_rate: bool = true,
+    charge: ?struct { max_frame: u16, frame_ms: u16, sound: [:0]const u8, sound_ms: u16 } = null,
+    reselect: ?[:0]const u8 = null,
 };
 pub const AttackAnimation = struct { pose: [:0]const u8, rate: u16 };
 
@@ -89,12 +91,15 @@ pub const Combat = union(enum) {
     pending,
     projectile,
     melee,
+    charge,
+    hammer,
     hitscan: struct { single_player_scale: f32 = 1, standing_height: ?f32 = null, crouching_height: ?f32 = null, inertial: bool = false },
     pellets: struct { count: u8, spread: f32, single_player_scale: f32 = 1, range: f32 = 4000, aim_reach: bool = false, max_victims: u8 = 12, inertial: bool = false, recoil: f32 = 0 },
     ion: struct { radius: f32, water_radius: f32, bounce_retention: f32, max_bounces: u8, cleanup_ms: i64 },
 };
 
 pub const Spec = struct {
+    reselect_command: ?[:0]const u8 = null,
     combat: Combat = .pending,
     impact: @import("impact.zig").Style = .none,
     ammo_class: ?[:0]const u8 = null,

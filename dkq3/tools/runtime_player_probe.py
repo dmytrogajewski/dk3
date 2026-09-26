@@ -631,6 +631,193 @@ def status_weapons_scenario(issue, capture, log, process):
     return {"scope": "Gas Hands kill, Venomous bite/poison death, saved delayed launch and restored pool contact, Kineticore freeze/save and flight; ordinary attack input with diagnostic equipment/placement, complete water/trail/reference acceptance open"}
 
 
+def attached_charge_scenario(issue, capture, log, process):
+    def charge_state():
+        cursor = len(log.read_text(errors="replace"))
+        issue("dk3_runtime_area_weapons", 0.03)
+        wait(process, log, lambda text: "area weapon states complete" in text[cursor:], 3)
+        values = re.findall(r"charge state: id=(\d+) attached=(\d+) .*parent=(\d+) position=([\d.,-]+)", log.read_text(errors="replace")[cursor:])
+        if len(values) != 1:
+            raise RuntimeError(f"expected one attached lift charge: {values}")
+        identity, attached, parent, position = values[0]
+        return identity, attached, parent, list(map(float, position.split(',')))
+
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 10000")
+    issue("dk3_runtime_equip 3", 0.8)
+    issue("weapon 3", 0.8)
+    issue("dk3_runtime_place 818.916 -479.481 -823.875", 0.2)
+    issue("dk3_look 0 75", 0.1)
+    issue("+attack", 0.03)
+    issue("-attack", 0.1)
+    first = charge_state()
+    if first[1:3] != ("1", "3"):
+        raise RuntimeError(f"C4 did not attach to bigplat: {first}")
+    # Move outside proximity range while leaving the charge on the lift.
+    issue(f"dk3_runtime_face_target {first[0]} 256", 0.1)
+    issue("dk3_runtime_activate 3", 0.3)
+    second = charge_state()
+    if second[3][2] <= first[3][2] + 10:
+        raise RuntimeError("C4 did not follow the moving lift")
+    issue("save attached_charge", 0.03)
+    issue("load attached_charge", 0.08)
+    restored = charge_state()
+    if restored[:3] != first[:3] or restored[3][2] < second[3][2]:
+        raise RuntimeError("saved C4 mover attachment did not resume")
+    capture("c4-lift-restored")
+    issue("weapon 3", 0.2)
+    wait(process, log, lambda text: f"charge: id={first[0]} exploded" in text, 3)
+    return {"scope": "C4 attached to authored bigplat, moved with lift, saved/restored attachment and remote detonation; diagnostic standing position/activation"}
+
+
+def area_weapons_scenario(issue, capture, log, process):
+    def diagnostics():
+        cursor = len(log.read_text(errors="replace"))
+        issue("dk3_runtime_area_weapons", 0.03)
+        wait(process, log, lambda text: "area weapon states complete" in text[cursor:], 3)
+        return log.read_text(errors="replace")[cursor:]
+
+    def charges():
+        return re.findall(r"charge state: id=(\d+) attached=(\d+) .*position=([\d.,-]+)", diagnostics())
+
+    def place_near(identity, distance=256, minimum=0):
+        cursor = len(log.read_text(errors="replace"))
+        issue(f"dk3_runtime_face_target {identity} {distance} {minimum}", 0.03)
+        wait(process, log, lambda text: f"target={identity}" in text[cursor:], 3)
+        point = re.findall(rf"fixture player=([\d.,-]+) target={identity}", log.read_text(errors="replace")[cursor:])
+        if not point:
+            raise RuntimeError("area-weapon fixture has no clear standing point")
+        return list(map(float, point[-1].split(',')))
+
+    def look_at(player, target):
+        dx, dy, dz = target[0] - player[0], target[1] - player[1], target[2] - player[2] - 22
+        issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}", 0.03)
+
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 10000")
+    issue("dk3_runtime_equip 3", 0.8)
+    issue("weapon 3", 0.8)
+    place_near(383, 128)
+    # The placement keeps the authored target visible; orient through normal input.
+    issue("dk3_runtime_actors", 0.1)
+    worker = re.findall(r"zig actor: id=383 state=\w+ health=(-?\d+) pos=([\d.,-]+)", log.read_text(errors="replace"))[-1]
+    player = place_near(383, 128)
+    target = list(map(float, worker[1].split(',')))
+    target[2] += 8
+    look_at(player, target)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.5)
+    wait(process, log, lambda text: "target=383" in text[cursor:] and "killed=1" in text[cursor:], 5)
+    capture("c4-contact")
+    issue("dk3_runtime_place -998.981 1491.019 -295.875", 0.1)
+    issue("dk3_look 0 60", 1.1)
+    issue("+attack", 0.03)
+    issue("-attack", 0.1)
+    found = charges()
+    if not found or found[-1][1] != "1":
+        raise RuntimeError("C4 did not attach to the floor")
+    charge_id = found[-1][0]
+    issue("save c4_attached", 0.03)
+    issue("load c4_attached", 0.08)
+    if not any(row[0] == charge_id and row[1] == "1" for row in charges()):
+        raise RuntimeError("C4 attachment was lost in native save")
+    cursor = len(log.read_text(errors="replace"))
+    issue("weapon 3", 0.04)  # Ordinary reselect presses the remote detonator.
+    capture("c4-remote-button")
+    wait(process, log, lambda text: f"charge: id={charge_id} exploded" in text[cursor:], 3)
+
+    issue("dk3_look 0 60", 1.2)
+    issue("+attack", 0.03)
+    issue("-attack", 0.1)
+    found = charges()
+    if not found:
+        raise RuntimeError("missing charge for shot-triggered detonation")
+    charge_id, attached, position = found[-1]
+    player = place_near(charge_id, minimum=160)
+    point = list(map(float, position.split(',')))
+    issue("dk3_runtime_equip 21", 0.8)
+    issue("weapon 21", 0.8)
+    look_at(player, point)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.04)
+    issue("-attack", 0.2)
+    wait(process, log, lambda text: f"charge: id={charge_id} exploded" in text[cursor:], 3)
+    capture("c4-shot-detonation")
+
+    issue("dk3_runtime_equip 3", 0.8)
+    issue("weapon 3", 0.8)
+    issue("dk3_look 0 60", 0.1)
+    issue("+attack", 0.03)
+    issue("-attack", 0.1)
+    first = charges()[-1]
+    player = place_near(first[0], minimum=160)
+    point = list(map(float, first[2].split(',')))
+    aim = point.copy()
+    aim[1] += 40
+    aim[2] += 40  # Compensate for the thrown charge's gravity over this distance.
+    look_at(player, aim)
+    issue("-attack", 1.4)
+    issue("+attack", 0.03)
+    issue("-attack", 0.5)
+    found = charges()
+    if len(found) != 2 or not all(row[1] == "1" for row in found):
+        raise RuntimeError(f"chain fixture did not retain two attached charges: {found}")
+    player = place_near(found[-1][0], minimum=160)
+    point = list(map(float, found[-1][2].split(',')))
+    issue("save c4_chain", 0.03)
+    issue("load c4_chain", 0.1)
+    issue("dk3_runtime_equip 21", 0.8)
+    issue("weapon 21", 0.8)
+    look_at(player, point)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.04)
+    issue("-attack", 0.4)
+    wait(process, log, lambda text: len(re.findall(r"zig charge: id=\d+ exploded", text[cursor:])) == 2, 3)
+    if "chain=2" not in log.read_text(errors="replace")[cursor:]:
+        raise RuntimeError("C4 chain did not amplify its initiating blast")
+    capture("c4-restored-chain")
+
+    issue("dk3_runtime_equip 12", 0.8)
+    issue("weapon 12", 0.8)
+    place_near(384, 64)
+    issue("dk3_look 180 0", 0.1)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.4)
+    issue("-attack", 0.03)
+    issue("save hammer_strike", 0.03)
+    issue("load hammer_strike", 0.08)
+    if "hammer state:" not in diagnostics():
+        raise RuntimeError("Hammer's pending strike was not restored")
+    wait(process, log, lambda text: "zig hammer: strike" in text[cursor:] and "quake=0" in text[cursor:], 3)
+    capture("hammer-partial-strike")
+    issue("dk3_look 180 65", 0.8)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 2)
+    capture("hammer-full-charge")
+    issue("-attack", 0.03)
+    wait(process, log, lambda text: "charge=1800" in text[cursor:] and "quake=1" in text[cursor:], 3)
+    capture("hammer-quake")
+    issue("save hammer_quake", 0.03)
+    issue("load hammer_quake", 0.08)
+    states = diagnostics()
+    if not re.search(r"hammer state: .*quake_remaining=[1-9]\d+", states):
+        raise RuntimeError("saved Hammer quake did not resume")
+    capture("hammer-quake-restored")
+    issue("dk3_runtime_actors", 0.2)
+    text = log.read_text(errors="replace")
+    if not re.search(r"target=90 .*killed=1", text):
+        raise RuntimeError("Hammer quake did not kill the visible nearby guard")
+    worker = re.findall(r"zig actor: id=384 state=\w+ health=(-?\d+)", text)
+    if not worker or not 0 < int(worker[-1]) < 50:
+        raise RuntimeError("Hammer's full quake ignored the obstruction protecting the injured worker")
+    issue("dk3_runtime_inventory", 0.2)
+    text = log.read_text(errors="replace")
+    if "missing weapon animation" in text or "could not find sounds/" in text.lower():
+        raise RuntimeError("missing area-weapon media")
+    return {"scope": "C4 contact kill, saved attachment, remote reselect, shooting detonation and saved chain amplification; Hammer saved partial strike, charged quake, visible guard kill, occluded worker protection and quake save; ordinary attacks with diagnostic equipment/placement"}
+
+
 def save_scenario(issue, capture, log, home):
     def inventory():
         issue("dk3_runtime_inventory")
@@ -979,6 +1166,10 @@ def run(args):
                     result = grenade_contact_scenario(issue, capture, log)
                 elif args.scenario == "melee":
                     result = melee_scenario(issue, capture, log, process)
+                elif args.scenario == "attached-charge":
+                    result = attached_charge_scenario(issue, capture, log, process)
+                elif args.scenario == "area-weapons":
+                    result = area_weapons_scenario(issue, capture, log, process)
                 elif args.scenario == "status-weapons":
                     result = status_weapons_scenario(issue, capture, log, process)
                 elif args.scenario == "save":
@@ -1010,7 +1201,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -1029,6 +1220,8 @@ def main():
         "grenade-contact": ("e1m3b", "runtime-zig-233/grenade-contact"),
         "melee": ("e1m2a", "runtime-zig-234/melee"),
         "status-weapons": ("e1m3b", "runtime-zig-235/status-weapons"),
+        "area-weapons": ("e1m3b", "runtime-zig-236/area-weapons"),
+        "attached-charge": ("e1m3a", "runtime-zig-236/attached-charge"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

@@ -48,6 +48,18 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
         },
         .melee => try shift(&value.started_ms, delta),
         .weapon_launch => try shift(&value.execute_ms, delta),
+        .charge => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.stepped_ms, delta);
+            try shift(&value.next_ms, delta);
+            try shift(&value.expires_ms, delta);
+            try deadline(&value.detonate_ms, delta);
+            try deadline(&value.beep_ms, delta);
+        },
+        .hammer => {
+            try shift(&value.next_ms, delta);
+            try deadline(&value.quake_until_ms, delta);
+        },
         .ailments => {
             if (value.poison) |*poison| {
                 try shift(&poison.until_ms, delta);

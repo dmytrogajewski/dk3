@@ -18,6 +18,9 @@ pub fn sprite(entity: c.entityState_t, now: i32, ref: *const c.refdef_t) !bool {
 pub fn decorate(rendered: *c.refEntity_t, entity: c.entityState_t, now: i64) !void {
     if (entity.weapon <= 0 or entity.weapon > 28) return error.InvalidProjectileWeapon;
     const spec = catalog.find(@intCast(entity.weapon)).?.spec;
+    if (entity.weapon == catalog.c4.id and entity.time2 > 0 and now >= entity.time2 and now - entity.time2 < 100) {
+        _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &rendered.origin, engine.floatArg(100), engine.floatArg(1), engine.floatArg(0), engine.floatArg(0) });
+    }
     if (entity.generic1 == 0) if (spec.projectile.loop_sound) |name| {
         const handle = try engine.registerSound(name);
         if (handle != 0) _ = engine.gateway.call(c.CG_S_ADDLOOPINGSOUND, .{ @as(isize, entity.number), &rendered.origin, &entity.pos.trDelta, @as(isize, handle) });

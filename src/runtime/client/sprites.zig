@@ -33,6 +33,9 @@ pub fn register(name: []const u8) !u8 {
     return index;
 }
 pub fn draw(index: u8, frame: usize, origin: v.Vec3, scale: f32, additive: bool, ref: *const c.refdef_t) void {
+    drawPlane(index, frame, origin, scale, additive, v.scale(ref.viewaxis[1], -1), ref.viewaxis[2], @splat(255));
+}
+pub fn drawPlane(index: u8, frame: usize, origin: v.Vec3, scale: f32, additive: bool, right_axis: v.Vec3, up_axis: v.Vec3, color: [4]u8) void {
     if (index >= used or frame >= media[index].count) return;
     const value = media[index].frames[frame];
     const left = -value.origin_x * scale;
@@ -41,7 +44,7 @@ pub fn draw(index: u8, frame: usize, origin: v.Vec3, scale: f32, additive: bool,
     const top = (value.height - value.origin_y) * scale;
     var vertices: [4]c.polyVert_t = undefined;
     for ([_][4]f32{ .{ left, bottom, 0, 1 }, .{ right, bottom, 1, 1 }, .{ right, top, 1, 0 }, .{ left, top, 0, 0 } }, &vertices) |point, *vertex| {
-        vertex.* = .{ .xyz = v.add(origin, v.add(v.scale(ref.viewaxis[1], -point[0]), v.scale(ref.viewaxis[2], point[1]))), .st = .{ point[2], point[3] }, .modulate = @splat(255) };
+        vertex.* = .{ .xyz = v.add(origin, v.add(v.scale(right_axis, point[0]), v.scale(up_axis, point[1]))), .st = .{ point[2], point[3] }, .modulate = color };
     }
     _ = engine.gateway.call(c.CG_R_ADDPOLYTOSCENE, .{ @as(isize, value.shaders[@intFromBool(additive)]), @as(isize, 4), &vertices });
 }

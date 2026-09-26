@@ -158,7 +158,7 @@ fn draw(now: i32) !void {
     ref.fov_y = std.math.atan(@as(f32, @floatFromInt(ref.height)) / @as(f32, @floatFromInt(ref.width))) * 360 / std.math.pi;
     ref.vieworg = transform.position;
     ref.vieworg[2] += player.view_height;
-    const basis = v.basis(view_angles);
+    const basis = v.basis(v.add(view_angles, @import("client/area_effects.zig").shake(snapshot.entities[0..@intCast(snapshot.numEntities)], ref.vieworg, now)));
     ref.viewaxis[0] = basis.forward;
     ref.viewaxis[1] = v.scale(basis.right, -1);
     ref.viewaxis[2] = v.cross(ref.viewaxis[0], ref.viewaxis[1]);
@@ -167,6 +167,10 @@ fn draw(now: i32) !void {
     _ = engine.gateway.call(c.CG_R_CLEARSCENE, .{});
     _ = engine.gateway.call(c.CG_S_CLEARLOOPINGSOUNDS, .{@as(isize, c.qfalse)});
     for (snapshot.entities[0..@intCast(snapshot.numEntities)]) |entity| {
+        if (entity.eType == c.ET_DK3_EFFECT) {
+            try @import("client/area_effects.zig").draw(entity, now);
+            continue;
+        }
         if (entity.eType == c.ET_MISSILE and try @import("client/projectiles.zig").sprite(entity, now, &ref)) continue;
         var handle: c.qhandle_t = 0;
         if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
@@ -210,7 +214,13 @@ fn console() isize {
     if (std.mem.eql(u8, name, "weapon")) {
         _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 1), &buffer, @as(isize, buffer.len) });
         const id = std.fmt.parseInt(u5, std.mem.sliceTo(&buffer, 0), 10) catch return 1;
-        if (@import("weapon_catalog").find(id) != null and @as(u32, @bitCast(snapshot.ps.dk3Inventory)) & (@as(u32, 1) << id) != 0) selected_weapon = id;
+        if (@import("weapon_catalog").find(id)) |entry| if (@as(u32, @bitCast(snapshot.ps.dk3Inventory)) & (@as(u32, 1) << id) != 0) {
+            if (selected_weapon == id and snapshot.ps.weapon == id) if (entry.spec.reselect_command) |command| {
+                _ = engine.gateway.call(c.CG_SENDCLIENTCOMMAND, .{command.ptr});
+                weapon_view.reselect();
+            };
+            selected_weapon = id;
+        };
         return 1;
     }
     if (std.mem.eql(u8, name, "weapnext") or std.mem.eql(u8, name, "weapprev")) {
