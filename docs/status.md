@@ -1,14 +1,5 @@
 # Game completion state
 
-Sequence 223 removes the legacy game/client/UI and their C-dependent Zig adapters.
-Only the native Zig runtime is built. Its 41 focused tests and module builds pass;
-full gameplay remains incomplete. Sequence 222 connects character/status pickups,
-damage accounting and snapshot sound events. Weapon pickup audio belongs to weapon
-metadata. See [native runtime progress](runtime-zig.md#active-decision-runtime-zig-223).
-
-The preserved installed game and saves are untouched. The results below describe
-historical runtime versions and do not establish acceptance of the new runtime.
-
 Sequence 203 is implementing the accepted [Zig multiplayer/Internet-room scope](multiplayer-zig.md).
 The one-host IP deployment passes explicit-CA HTTPS verification and focused real
 Internet scenarios: three encrypted clients, readiness, browser ping, reconnect,
@@ -55,25 +46,7 @@ are removed. The owner’s existing quicksave, crossings from both ends at beam
 height, fresh weapon-driven shutdown and save/reload pass. Normal `dk3` is updated
 and existing saves/settings are preserved.
 
-Sequence 217 begins the [native Zig replacement](runtime-zig.md): isolated native
-entrypoints, ECS/job/scheduler infrastructure, map metadata, collision probes,
-shared inventory rules and a save-record codec. **The replacement is not playable;
-full migration and cutover remain open.** See the run log for foundation checks.
-The normal launcher and owner saves remain on the existing runtime.
-
-Sequence 218 continues native movement/prediction, shared input policies and tuning
-for all 28 weapons, build-identity checks, binary movers and target routing. Native
-client connection and focused movement/weapon/door checks have passed. Transactional
-rider pushing and authored target progression remain unverified; native combat,
-actors, persistence, presentation and UI are still unfinished. **Full migration and
-cutover remain open.** The ordinary launcher remains on the existing runtime.
-
-Sequence 219 adds train path/dwell transitions and attachment assemblies. The native
-e1m3a lift carries the rider, holds its ten-second upper dwell and returns to lower
-rest in the isolated replay. Compound obstruction, rotating riders and authored
-progression remain unverified. Native gameplay migration is still in progress.
-
-Updated 2026-09-26, through **runtime-zig, sequence 219 (active)**.
+Updated 2026-09-26, through **laser-shutdown, sequence 216**.
 
 **dk3 is a playable development build, not a completed Daikatana port.** Independent
 native systems exist across the game, but implementation and successful focused

@@ -15,9 +15,6 @@ pub const Animation = struct {
 };
 
 pub const Audio = struct {
-    /// Gold weaponTouch / ammo_touch defaults; individual classes override ammunition.
-    pickup: [:0]const u8 = "global/i_pickup6.wav",
-    ammo_pickup: [:0]const u8 = "global/i_c4ammo.wav",
     fire: ?[:0]const u8 = null,
     variants: [3]?[:0]const u8 = .{ null, null, null },
     ready: ?[:0]const u8 = null,
