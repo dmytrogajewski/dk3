@@ -75,6 +75,9 @@ complete new-game-to-ending path still require verification. See
 [asset inputs and installation](docs/assets.md). Original and converted assets stay local
 and are not covered by the project's GPL license.
 
+For a private RPM containing an existing converted installation, HD textures and
+default Internet-server trust, see [RPM packaging](docs/rpm.md).
+
 ## Project layout
 
 ```text

@@ -21,6 +21,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "g_local.h"
+#ifdef DK3_GAME
+#include "dk_multiplayer.h"
+#endif
 
 // g_client.c -- client functions that don't happen every frame
 
@@ -785,6 +788,18 @@ void ClientUserinfoChanged( int clientNum ) {
 #endif
 	client->ps.stats[STAT_MAX_HEALTH] = client->pers.maxHealth;
 
+#ifdef DK3_GAME
+    {
+        int appearance = DK_AppearanceFind(Info_ValueForKey(userinfo, "model"));
+        if (appearance < 0) {
+            appearance = 0;
+            Info_SetValueForKey(userinfo, "model", DK_AppearanceSelection(appearance));
+            trap_SetUserinfo(clientNum, userinfo);
+        }
+        Q_strncpyz(model, DK_AppearanceSelection(appearance), sizeof(model));
+        Q_strncpyz(headModel, model, sizeof(headModel));
+    }
+#else
 	// set model
 	if( g_gametype.integer >= GT_TEAM ) {
 		Q_strncpyz( model, Info_ValueForKey (userinfo, "team_model"), sizeof( model ) );
@@ -793,6 +808,8 @@ void ClientUserinfoChanged( int clientNum ) {
 		Q_strncpyz( model, Info_ValueForKey (userinfo, "model"), sizeof( model ) );
 		Q_strncpyz( headModel, Info_ValueForKey (userinfo, "headmodel"), sizeof( headModel ) );
 	}
+
+#endif
 
 /*	NOTE: all client side now
 
@@ -966,6 +983,16 @@ char *ClientConnect( int clientNum, qboolean firstTime, qboolean isBot ) {
 		G_InitSessionData( client, userinfo );
 	}
 	G_ReadSessionData( client );
+
+#ifdef DK3_GAME
+	{
+		const char *denied = DK_RoomConnect(clientNum, isBot);
+		if (denied) {
+			client->pers.connected = CON_DISCONNECTED;
+			return (char *)denied;
+		}
+	}
+#endif
 
 	// get and distribute relevant parameters
 	G_LogPrintf( "ClientConnect: %i\n", clientNum );
@@ -1313,6 +1340,9 @@ void ClientDisconnect( int clientNum ) {
 	}
 
 	G_LogPrintf( "ClientDisconnect: %i\n", clientNum );
+#ifdef DK3_GAME
+	DK_RoomDisconnect(clientNum);
+#endif
 
 	// if we are playing in tourney mode and losing, give a win to the other player
 	if ( (g_gametype.integer == GT_TOURNAMENT )

@@ -1,0 +1,15 @@
+{
+  "permanent_rooms": [
+    {
+      "id": "always-dm",
+      "name": "dk3 Always DM",
+      "region": "default",
+      "mode": "dm",
+      "maps": ["e1dm1", "e2dm1", "e3dm1", "e4dm1"],
+      "players": 16,
+      "skill": 3,
+      "map_minutes": 10,
+      "enabled": true
+    }
+  ]
+}

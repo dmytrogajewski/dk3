@@ -14,6 +14,8 @@ pub fn build(b: *std.Build) void {
     toolchain.enforce(manifest.minimum_zig_version, @import("builtin").zig_version);
     const target = b.standardTargetOptions(.{ .default_target = .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .gnu } });
     const optimize = b.option(std.builtin.OptimizeMode, "optimize", "Optimization mode") orelse .ReleaseSafe;
+    @import("build/online.zig").declare(b, target, optimize);
+    @import("build/compatibility.zig").declare(b);
     const guard = b.addExecutable(.{ .name = "dkguard", .root_module = b.createModule(.{
         .root_source_file = b.path("src/dkguard/main.zig"),
         .target = target,
@@ -24,6 +26,8 @@ pub fn build(b: *std.Build) void {
     if (engine.declare(b, target, optimize)) |products| game.declare(b, target, optimize, products);
     qvm.declare(b, optimize);
     const checks = b.step("test", "Run the existing published component checks");
+    checks.dependOn(&b.top_level_steps.get("test-online").?.step);
+    checks.dependOn(&b.top_level_steps.get("test-codec").?.step);
     checks.dependOn(&b.addFmt(.{ .paths = &.{ "build.zig", "build.zig.zon", "build", "src" }, .check = true }).step);
     const info = b.addOptions();
     info.addOption([]const u8, "pinned_zig_version", manifest.minimum_zig_version);

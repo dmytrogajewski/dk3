@@ -1909,3 +1909,526 @@ rest, using the same native runtime through dkguard and an isolated home. This i
 a gallery presentation change, not an additional muzzle-flash repair or visual
 acceptance claim. Inspected the unretouched capture and recorded reproduction
 inputs in `zig-out/reports/readme-gallery-202/arena-settled-inputs.txt`.
+
+## multiplayer-zig-203 — connected implementation and IP hosting
+
+The accepted scope is in `docs/multiplayer-zig.md`. Active changes include native
+Zig objectives, shared appearance catalog and converted skin bindings, equipped
+melee presentation policy, music resolution, fragment channel and authenticated
+UDP admission, coordinator persistence, worker supervision, guest identity client,
+room membership/readiness and identity-bound votes. Focused acceptance results are
+recorded below; the complete accepted scope remains in progress. Bot decisions,
+remaining engine network paths and the full UI/recovery matrix are still open.
+
+The owner provided one machine for coordinator and worker, and explicitly selected
+IP HTTPS with a trusted test certificate. Coordinator and Caddy run as separate
+unprivileged services. Credentials remain outside the checkout. The private test
+CA was retrieved through SSH and configured explicitly; no global trust change.
+
+| Scenario | State | Evidence |
+|---|---|---|
+| IP HTTPS with explicit CA | Passed | `zig-out/reports/multiplayer-zig-203/tls.json`: `/healthz` returned API 1 |
+| Same endpoint without test CA | Passed | TLS certificate verification rejected the connection |
+| Public creation/search/admission/game traffic | Passed (focused) | One host, DM, three encrypted native clients; full map/mode matrix remains open |
+| Votes, reconnect, readiness, worker/coordinator recovery | Passed (focused) | Three-client Internet lifecycle replay; full abuse/recovery matrix remains open |
+| Appearance | Passed (focused) | Three rendered character/color combinations; all 36 and equipped weapons remain open |
+| Music transitions | Passed (focused) | e1dm1 through e4dm1 captured audio matches four distinct assigned songs; full map/override/fallback matrix remains open |
+| Equipped weapons and campaign regressions | Unrun | Implementation does not establish full acceptance |
+| Two distinct worker hosts | Blocked | One machine supplied; same-host coordinator/worker is the selected first deployment |
+
+The first native HTTPS request failed with `TlsInitializationFailed`. Source review
+found that Zig 0.16 `Certificate.verifyHostName` handles DNS SANs but skips IP SANs.
+The adapter now uses the already-admitted libcurl dependency with peer verification
+and IP/hostname checks enabled. Replayed native `dk3-online ... list` returned `[]`
+with the test CA, and `CertificateVerificationFailed` without it. This verifies the
+native transport trust boundary, not room or gameplay acceptance.
+
+The first real Internet room probe succeeded: the native guest client authenticated
+by Ed25519 challenge, created a DM room, found it through the public service, waited
+for worker ticket acknowledgment, and joined the remote dedicated process. The local
+rendered client used dkguard software rendering. Movement/attack input, continuing
+snapshots and a bot killing the human were observed. Server status reported one human;
+server logs showed distinct Hiro and Mikiko bots. Evidence: `internet-1.log`,
+`internet-1-inputs.txt`, and the local capture
+`/tmp/dk3-multiplayer-zig-203/internet-1/dk3/screenshots/internet-room-203.jpg`.
+This is one public host running coordinator and worker, not two-worker acceptance.
+The capture includes the harmless result of issuing the local `status` command in a
+remote client; use server/client-specific status commands in subsequent probes.
+
+This probe does not certify voting, restart/readiness, content rejection, recovery,
+packet-fault handling, the complete UI, or the wider Zig migration. A follow-up change
+uses the standard acknowledged map restart after readiness and varies bot colors as
+well as models in the first few assignments; those changes remain unverified.
+
+The follow-up integrated build passed. Focused `zig build test-online` checks cover
+single-use Ed25519 proof, idempotent allocation, sticky draining and reserved capacity,
+transaction rollback on invalid worker reports, authorized moderation acknowledgments,
+and AEAD replay/tampering/reordering. Seven checks passed after adding forged-counter, ciphertext, nonce exhaustion and reconnect-key cases. They do not replace native
+packet-fault scenarios or the final broad suite.
+
+The coordinator/worker upgrade drained the already-empty host, took a private SQLite
+snapshot (`integrity_check = ok`) and re-enrolled the new compatibility manifest. An
+additional live snapshot restored into a separate local coordinator, preserving room
+IDs and returning healthy status. Evidence: `backup-restore.json` and
+`restore-probe.log` under the sequence-203 report directory. Backups remain outside
+the checkout because they contain private control state.
+
+The first lifecycle sequence passed public allocation, mismatched-rules rejection,
+three simultaneous encrypted clients and readiness-triggered match restart. The
+browser step then exposed the engine startup argument parser treating `//` in the
+HTTPS URL as a comment, leaving `https:`. First evidence is preserved in
+`internet-lifecycle-attempt1.json` and `lifecycle-url-failure.log`. The startup argument
+builder now quotes URLs/comment markers and empty values. Replay is in progress.
+
+The URL-parser repair passed the full replay in `internet-lifecycle.json`. The
+native browser listed the public room and measured UDP RTT; native fresh-ticket
+reconnect retained guest identity. With the coordinator stopped, the client received
+more than ten continuing authoritative snapshots; after restart the worker reconciled
+three humans. A two-yes kick vote removed its identity-bound target, whose fresh-ticket
+reconnect was then rejected by the persisted room ban. Authenticated operator removal
+reached the game and cleared its pending acknowledgment. Restarting the worker ended
+the match as failed without recreating it. Input/log evidence is `lifecycle-[1-3]*`,
+`coordinator-outage-client.log` and the structured lifecycle result. These passing
+cases apply to the pre-codec-migration build; network changes require relevant replay.
+
+The remaining message codec migration now has Zig scalar/bit, user-command,
+entity/extension and player-state schemas. The original licensed C codec is excluded
+from the active engine build and retained only as a differential-test reference.
+Huffman compression remains a reviewed upstream C dependency. Compilation and
+wire-comparison checks are in progress; no gameplay acceptance is claimed for this
+new codec yet. Remaining sockets, connections, snapshot scheduling, replay/prediction,
+bot decisions and other accepted modules still require migration and verification.
+
+The codec integrated build and all three differential/bounds checks passed. The
+three-client public lifecycle sequence then passed again with Zig codecs on both
+ends (`internet-lifecycle.json`; prior results retained separately). The bounded
+UDP fault proxy passed: 284 dropped, 342 reordered, 123 duplicated and 131 tampered
+packets, with 222 progressing client snapshots after movement/attack input.
+Evidence: `packet-faults.json`, `packet-faults.log` and its input trace. A first proxy
+fixture failed because a loopback-bound socket cannot send to the public server;
+its log is retained, and the repaired fixture accepts client traffic only from
+loopback while allowing the server reply address.
+
+These results do not complete the remaining engine/gameplay migration, map/mode and
+appearance matrix, both-renderer acceptance, vote-abuse cases, campaign replay or
+final broad suite. Two-worker-host acceptance remains blocked by the single supplied
+host. No preserved installation or saves were repointed or overwritten.
+
+A focused appearance probe rendered Hiro/Gold, Mikiko/Blue and Superfly/Orange in
+third person. The game log shows the population controller independently choosing
+Mikiko/Blue and Superfly/Orange for its two bots alongside the human. Evidence:
+`appearance-probe.json`, inputs and local screenshots under the isolated
+`appearance-probe` home. This demonstrates distinct models and body colors, not all
+36 catalog entries or complete equipped-weapon/rendering acceptance.
+
+The music probe routes only the owned test game's playback stream to a private null
+sink and compares captured PCM with the assigned local Ogg track. e1dm1 and e2dm1
+matched distinct authored songs with correlations 0.9997 and 0.9994. The e3dm1 client
+then trapped in the OpenGL 1 renderer before capture; `music-e3dm1-first-failure.log`
+and `e3-codec-debug.log` preserve the failure. Renderer diagnostics now retain
+individual sanitizer trap origins rather than merging unrelated failure sites.
+The remaining music/map replay is in repair; the two passing audio results stand.
+
+The unmerged renderer backtrace identified the actual fault in `R_CullModel`:
+`models/e3/a3_hlth.dkm.md3` had a null detail-level-one pointer. The loader split at
+the first dot, interpreting the independent `a3_hlth_2.dkm.md3` pickup as a detail
+level, then counted two loaded files despite the hole. Both renderers now split at
+the final extension, fill missing detail slots from an available model, discard failed
+loads and require alternate levels to share the base animation frame count. The
+integrated build passes. e3dm1 rendered and accepted movement with OpenGL 2; inspected
+`e3-lod-repaired-opengl2.jpg` in its isolated home. OpenGL 1 music replay also reached
+both e3dm1 and e4dm1 without the crash. `e3-model-origin.log` retains the named model,
+null slot and backtrace; the broader renderer/map matrix remains open.
+
+The repaired OpenGL 1 replay traversed e1dm1, e2dm1, e3dm1 and e4dm1 in one
+client and captured each map's audio. Long-window correlation thresholds initially
+misclassified e4dm1's noisy ambient mix; muting `s_volume` also muted music and was
+discarded as an invalid fixture. The final analysis compares nine consecutive
+one-second windows per map against all four reference songs. Every window selects
+its assigned song, with matching source positions advancing at playback speed
+(maximum timing spread 0.273 ms). `music-continuity.json`, `music-analyze.py` and
+`music-transitions-filtered-inputs.txt` retain the measurements, method and game
+inputs. Earlier correlation attempts remain recorded separately. This verifies
+four distinct songs and map handoffs, not the full soundtrack, looping, authored
+triggers, fallback behavior or physical-speaker mix.
+
+Final hosting check: Caddy, coordinator and worker are active, explicitly trusted
+HTTPS is healthy, and all test allocations are terminal (`final-host-health.json`).
+The owned audio probe sink was removed; private recordings remain local. Canonical
+play installation and saves remain unchanged. The complete accepted migration and
+final broad acceptance suite are still pending.
+
+## launcher-compatibility-204 — preserved installation launch
+
+The user reported `dk3` failing because the preserved sequence-200 installation
+has no `rules.json`. The current launcher incorrectly applied newly introduced
+online metadata requirements to that older installation. Launch validation now
+accepts legacy format-1 manifests without online metadata, while format 2 requires
+both `rules.json` and `compatibility.json`. Transitional format-1 online installs
+also verify both files. New installations write format 2. Missing or altered
+required files still fail validation; no current metadata is copied into old builds.
+
+Both focused runtime-media tests pass, including preserved launch, current and
+transitional online metadata integrity, and shader updates preserving asset identity.
+The existing fixture now supplies valid package archives and rules JSON.
+The actual user `dk3` command rendered the main menu under dkguard software rendering
+and exited normally, using an isolated home. Evidence is in
+`zig-out/reports/launcher-compatibility-204/`, including the input command, log and
+capture path. The first probe omitted its test home `dk3` directory and could not
+create its command pipe; its log is retained. Creating that fixture directory
+allowed the replay to pass. The preserved installation pointer, files and user saves
+were not changed.
+
+## online-menu-205 — launch the online build and exercise room controls
+
+The user could not find Internet room controls because `dk3` still selected the
+preserved pre-online build. Installed the verified sequence-203 runtime separately
+under `zig-out/online/play/`, with its appearance bindings, existing local HD
+artwork, compatible metadata and an isolated profile. The local `dk3` wrapper now
+selects this installation. Its profile configures the provisioned IP coordinator
+and explicit test CA. `dk3-preserved` retains the former command, installation and
+saves; the old `zig-out/play/current` pointer is unchanged.
+
+Using the actual `dk3` wrapper through dkguard software rendering and a separate
+probe home, normal keyboard navigation opened Multiplayer, Create Internet room,
+then Create room and join. The rendered client joined the public server. After
+disconnecting, Internet rooms listed the allocation; selecting it and Join selected
+room established another authenticated connection. Inspected the multiplayer,
+creation, browser and join-action captures. The controlled test allocation was
+ended afterward. Evidence: `zig-out/reports/online-menu-205/` contains installation
+identities, input command, key trace, client log and scenario results. This verifies
+the visible create/find/join paths, not every menu option or the complete port.
+
+## scoreboard-206 — aligned values and hold-to-show controls
+
+The reported scoreboard placed headers using spaces in a proportional font, while
+rows used fixed coordinates: score values appeared beneath the Ping heading.
+Headers and values now share column coordinates, and names are clipped to the
+available name column. Visible multiplayer boards request refreshed authoritative
+scores every two seconds, including automatic death/intermission views.
+
+Tab now defaults to `+scores`, with a Show scores (hold) control in the Keyboard
+menu. A one-time UI profile upgrade fills an unused Tab binding for existing asset
+installations; it preserves custom bindings and later deliberate unbinding.
+The native game-module build passed. Installed the updated client-game and UI
+modules as a new immutable generation of the online runtime; protocol, gameplay
+metadata, server processes, prior generations and user saves were unchanged.
+
+The actual `dk3` wrapper ran an isolated local DM scenario under dkguard software
+rendering. Real Tab key events displayed the board, a normal suicide changed the
+authoritative score from zero to minus one while Tab remained held, and the board
+remained visible through respawn. Releasing Tab immediately restored the HUD;
+another press/release repeated that behavior. Inspected the aligned headers,
+negative score and released-state captures. Separate startup probes verified a
+custom Tab binding and an intentionally unbound upgraded profile survive startup.
+Evidence: `zig-out/reports/scoreboard-206/` contains build/deployment identities,
+input commands, key trace, logs, capture paths and binding results. No public match
+was interrupted or restarted for this client presentation repair.
+
+## empty-rooms-207 — explain empty Internet browser results
+
+The user saw no room rows while the footer said to select a room. Authenticated
+host status confirmed there were no active allocations. The browser now reports
+no public rooms with guidance to return and create one, or no matching rooms with
+filter/refresh guidance when returned rooms were filtered out. Nonempty results
+retain the selection prompt. The engine build passed; the new client was installed
+as another online runtime generation without changing the server or user profile.
+Native empty-browser verification is recorded under
+`zig-out/reports/empty-rooms-207/`.
+
+A public `My room` allocation appeared during verification, so the original empty
+server assertion no longer applied. The replay refreshed the populated browser,
+then used an isolated-profile search that matched no rooms and verified the new
+filter guidance in the rendered menu. The live user's room was not changed or
+stopped. The no-public-room branch was built but was not replayed against an empty
+live service after that allocation appeared.
+
+## rpm-bundle-208 — local assets and default Internet service
+
+The user requested an RPM including game assets and the default online server for
+another machine. Added an RPM spec, desktop launcher and manifest-verified packaging
+script. The local x86-64 bundle contains the current native runtime, converted game
+packages, selected HD/appearance artwork, dkguard, online guest CLI, component
+notices and public CA. Fresh per-user profiles receive the IP coordinator and CA
+path; later settings remain editable. Credentials, identities and saves are excluded.
+It does not install hosting services or change either development launcher/profile.
+
+Built `dk3-0.1.0-208.fc43.x86_64.rpm` (1,756,097,472 bytes) under `zig-out/rpm/RPMS/`.
+RPM digest verification passed; all 278 regular payload files matched their staged
+hashes after extracting the finished RPM. Relative module links resolved, packaged
+paths were limited to `/usr`, and the desktop entry validated. The first rpmbuild
+attempt needed sandbox approval for its `/var/tmp` scripts; the approved replay
+completed. No host installation was performed.
+
+The extracted package launched under dkguard software rendering with fresh XDG
+data/state directories. Its generated profile used the packaged IP endpoint and
+CA. The first Internet request timed out; the log is retained. Direct HTTPS with
+certificate verification then passed, and the unmodified packaged-client replay
+successfully listed rooms and exited normally. Evidence is under
+`zig-out/reports/rpm-208/`; the package has a SHA-256 sidecar. This verifies local
+package integrity, startup and default HTTPS room access, not installation or a
+new gameplay session on a second physical machine. Assets and the RPM remain local.
+
+## permanent-rooms-209 — server-owned population and timed rotation
+
+The owner requested configurable permanent rooms and explicitly required keeping
+the distributed client unchanged. Implemented a private hosting policy in Zig,
+coordinator reconciliation and worker capability negotiation, plus dedicated-only
+engine hooks for bot replacement, population filling and elapsed-time rotation.
+Public API structures, client/browser code, game module, compatibility metadata and
+the sequence-208 RPM remain unchanged. Permanent assignments use stable room IDs
+and monotonic generations; confirmed process exit and a 30-second backoff precede
+recreation. Unreachable workers retain their reservations. Changed/removed config
+drains the old allocation. Empty rooms do not expire or transfer to human owners.
+
+The server fills 16 total occupied slots by default, counts connecting humans as
+reservations, displaces a bot only after authenticated admission, and replenishes
+vacated slots through the existing bot controller. Bot startup is progressive,
+roughly one per second. The default ten-minute rotation uses normal map transitions
+without waiting for ready votes. Public occupancy remains the existing human count
+so the old client's availability filter still offers a room full of replaceable
+bots. The browser's existing map field follows the actual rotation.
+
+Deployed coordinator, worker and dedicated binaries to the idle provisioned host
+after draining it and taking private config/binary/SQLite backups. Gameplay-module,
+rules and compatibility file hashes matched before and after deployment. Configured
+**dk3 Always DM** with 16 slots, skill 3 and `e1dm1 → e2dm1 → e3dm1 → e4dm1` every
+ten minutes. Worker capacity is now two, with a 1 GiB per-room limit beneath the
+existing 2560 MiB service cap, leaving one allocation for a player-created room.
+Configuration and operating details are in
+[online operations](../../docs/online-operations.md#permanent-rooms).
+
+| Scenario | State | Evidence |
+|---|---|---|
+| Old worker response and client room schemas, empty expiry exemption, generation fencing/backoff, config removal and map validation | Passed | Ten focused online tests, including three new permanent-room cases |
+| Empty local room fills 16 bots; unchanged RPM joins and replaces one bot; departure restores 16 bots | Passed | Isolated dkguard server/client, local status and logs |
+| One-minute local rotation retains the connected human and wraps to the first map | Passed | `e1dm1 → e2dm1 → e1dm1`, 1 human and 15 bots |
+| Distributed RPM discovers and joins live permanent room through actual Internet menus | Passed | Inspected room-list, join-action and 16-player scoreboard captures; 1 human/15 bots after join, 0/16 after departure |
+| Live ten-minute rotation and continued empty-room operation | Passed | After 3270 seconds, generation 1 had traversed all four maps, wrapped and advanced again; coordinator and engine agreed on e2dm1, with 16 bots and no worker restart |
+| Permanent allocation recreation and bounded service logging | Passed | With no humans or pending joins, ended generation 1 for the worker logging update; generation 2 returned after the backoff, filled 16 bots and wrote to the service journal without an engine.log file |
+| Unchanged client delivery | Passed | Original public API/browser/client source hashes and 1.7 GB RPM SHA-256 all match; no client rebuild or reinstall |
+
+The dedicated build initially used an unavailable filesystem function; changing the
+private status writer to the engine's home-data file API fixed that build failure.
+The first aggregate check found a stale `va(char *)` declaration in the synthetic
+gameplay fixture, conflicting with the current `va(const char *)` engine header.
+Corrected that fixture only. The replay passed all 44 Python tests; all 138 Zig tests
+passed. Permanent workers also stream engine output into the bounded service
+journal so an indefinitely running room does not hit the engine-log file-size cap.
+The worker rebuilt successfully after this logging repair.
+
+Evidence lives under `zig-out/reports/permanent-rooms-209/`: local and Internet
+commands, input traces, scenario results, captures in isolated temporary homes,
+deployment hashes, continuity history and broad-check logs. Full CTF/deathtag,
+maximum-human/concurrent-join and multi-worker failover matrices remain unrun for
+this policy. The complete multiplayer migration and second-physical-client-machine
+acceptance remain open. No Git operations or client-package changes were performed.
+
+## online-latency-210 — distinguish server timing from connection stalls
+
+The owner reported delayed movement/hits and jumping players on the development
+machine, and requested leaving Wi-Fi and VPN settings alone. Inspected the host
+and reproduced the symptom using the unchanged sequence-208 RPM in temporary
+profiles under dkguard software rendering. No gameplay code, installed profile,
+RPM, server configuration or network configuration was changed.
+
+| Measurement | Observed result |
+|---|---|
+| Dedicated host load | Game process about 4.5% CPU and 80 MB RSS; sampled host CPU 97–98% idle, no swap activity or observed steal time |
+| Router reachability | Initial 30-probe sample had 1.6 ms minimum and 1166 ms maximum RTT; saved 40-probe replay had 10% unanswered probes and 298 ms maximum RTT |
+| Direct server probes, explicitly bound to Wi-Fi | Saved 40-probe sample: 5.5 ms minimum, 311 ms maximum RTT and 15% unanswered probes |
+| Actual server-to-client gameplay sends | 384 messages over approximately 20 seconds: 19.2/s, median spacing 50 ms, maximum 100.3 ms, no gap over 150 ms; about 8.7 KB/s UDP traffic |
+| Actual inputs arriving at the server | Maximum inter-message gap 2052 ms; 27 gaps over 150 ms in the same capture |
+| Client's default-setting gameplay sample | 320 decoded snapshots, maximum arrival/processing gap 1743 ms, median reported ping 216 ms |
+| Higher client limits in an isolated profile | `rate 90000`, `snaps 60`, `cl_maxpackets 125` did not remove long gaps; the final sample still had a 2516 ms gap. These settings were not applied to the user's profile |
+
+The server's regular sends do not explain the multi-second receive stalls. Router
+and direct-server probes also show local network jitter independent of the VPN
+route. This supports investigating the connection before changing simulation
+timing; it does not prove a particular driver, power-saving or access-point cause.
+During inspection, the normal route used `prrr0` and Wi-Fi power saving was on.
+Before the owner's restriction, a live NetworkManager power-saving change was
+attempted and rejected because reapplication was unsupported; no reconnect or
+profile change occurred. Subsequent read-only checks confirmed the original route,
+power-saving state and default profile setting. Wi-Fi/VPN changes were then excluded.
+
+The first UDP discovery probe exceeded the server's per-address query allowance,
+so its timeout count is not used as gameplay-loss evidence. An initial server
+packet observer captured only incoming IPv4 traffic; the corrected ETH_P_ALL
+observer distinguished directions and returned summary metadata without packet
+payloads. One observer timed out on SSH, then a shorter capture completed. Client
+ping values of 999 are fallback values when the sent-command history cannot match
+the snapshot; they are not treated as measured 999 ms RTTs. Headless rendering is
+not a measurement of the user's physical display performance.
+
+Evidence: `zig-out/reports/online-latency-210/` contains host load, router/direct
+probe logs, the final server timing summary, client snapshot traces and isolated
+captures. The lag was reproduced and localized beyond normal server send timing;
+it is **not fixed**. No speculative server tuning or client rebuild was deployed.
+
+## gameplay-bugs-211 — lifts, save selection, effects and actor timing
+
+Implemented the owner's connected gameplay/UI repair batch. Called vertical trains
+whose automatic return corner omits a wait now dwell for three seconds; explicit
+waits and button-only stops retain their authored behavior. Starting a train leg
+clears its previous think deadline, and linked binary movers dispatch arrival
+targets once through their master. Actor think runs each server frame and movement,
+gravity, turning and corpse fade use elapsed simulation time instead of advancing
+50 ms after an arbitrarily late think. Visible civilian witnesses can react beyond
+the short voice-alert radius, with range and architectural occlusion retained.
+
+Save rows commit selection on click; hovering another row or the Load button does
+not replace it. Panel widgets take precedence over the overlapping menu-strip hit
+area. Extra Options no longer repeats difficulty; it offers archived Shiny Weapons
+Off/On/Enhanced settings, backed by a view-dependent additive reflection pass for
+held weapons. This is an independent effect, not established original-renderer
+parity. The Glock muzzle model explicitly uses its supplied texture with additive
+blending. Ion terminal bursts select the supplied explosion sounds instead of
+always layering the metallic ion-hit sample; flesh contacts emit one terminal
+burst, while wall bounces retain their electrical feedback.
+
+| Scenario | State | Evidence |
+|---|---|---|
+| e1m2a button lift t424: board, press physical button, ascend, dwell, return with rider | Passed | `lift-cycle`: `cin_skip`, test positioning at -1544 -335 -520, `dk3_look 270 8`, ordinary `use`; saved samples show z -552 → -376, a 3001 ms return deadline and return to -552. This is focused lift acceptance, not campaign traversal. |
+| Click save row, hover Load at its right edge, click to restore | Passed | `probe-focus`, XTest mouse input on the dkguard-owned display; inspected selection and restored-game captures |
+| Difficulty screen and Extra Options | Passed | Inspected three difficulty figures and options panel with no second difficulty control |
+| Glock flash and weapon shine | Passed | OpenGL1 captures show additive flash without a black rectangle; Off/On/Enhanced captures show the held-weapon reflection levels |
+| Ion hits on workers | Passed | `ion-workers.log`: 30-damage worker hits followed by `we_ionexplodeb/c`, no `we_ionhit.wav`; sound dispatch traced with `s_show 1` |
+| Worker death with an uninjured surviving witness | Passed | `worker-panic-final`: aimed Slugger shot kills the first worker; the second remains at 50 health and enters flee state, confirmed in trace and save. |
+| Actor elapsed-time gravity and witness occlusion/range | Passed | New native fixture calls actual actor physics: 400-unit fall/800-unit velocity after one second at 10/20/40/50 Hz. Actual alert code accepts a visible worker 450 units away and rejects walls/out-of-range witnesses. |
+| Full campaign, every lift and original-renderer effect parity | Unrun | Focused repairs do not establish these broader acceptance groups. |
+
+ReleaseSafe integrated build and development installation pass. `make test` passes
+all 45 Python checks and its Zig checks; no duplicate broad suite was run. Evidence
+is under `zig-out/reports/gameplay-bugs-211/`, with isolated homes under `/tmp`.
+Initial driver failures are retained: X input required selecting/focusing the
+isolated client and sending relative motion; e1m2a required skipping its camera,
+waiting for save completion, and aiming at the actual button. Initial worker
+shots missed moving actors or placed both workers on the same firing line; these
+are not treated as witness-acceptance results. Shader/UI captures use software
+OpenGL1, not the physical display or an OpenGL2 parity comparison. The supplied
+private asset packages, preserved installation/saves, live online server and
+published RPM were not replaced. No Git operations were performed.
+
+The usual `dk3` launcher targets `zig-out/online`, whose live-room rules fingerprint
+is older than this gameplay repair. It remains unchanged. Added `dk3-dev` targeting
+the verified `zig-out/play/current` installation for the fixed campaign build;
+existing development saves/settings remain in that prefix. No live-server update
+or fingerprint bypass was performed. The fixed build needs matching gameplay
+rules to join a multiplayer room. The successful worker replay used separate view
+updates before spawning and selected the weapon after the give commands completed.
+
+Owner follow-up identified the latest save. Inspected the actual online profile's
+`save1.sav` (campaign e1m3a), copied it into the isolated `latest-save-lift` home,
+and restored it with the repaired build. The nearby `bigplat` train travels between
+`t539` (button-only lower stop, authored wait 10) and `t540` (automatic upper stop,
+no wait). From the owner's unchanged saved position, aimed at the nearby button
+with `dk3_look` and issued ordinary `use`. Recorded 21 saved samples: lift z -902 →
+-274, 3001 ms top dwell, then return to -902 and button-only rest. Player snapshots
+confirm the rider traveled with it. This verifies the owner's exact lift, not just
+the earlier e1m2a analogue. No additional implementation changes or duplicate broad
+checks were needed. Source save SHA-256 was checked before and after and matched.
+Evidence: `latest-save-lift.py`, `latest-drive.py`, `latest-lift-cycle.json`, logs
+and captures under the sequence-211 report/isolated home.
+
+## train-wait-212 — correct departure-corner wait semantics
+
+The owner's request to inspect Gold revealed the actual cause behind sequence
+211's lift workaround. Private reference review of `dlls/world/DOOR.CPP`,
+`train_next` (around lines 3137–3201) and `train_wait` (3305–3345), establishes that
+train travel copies the departure corner's wait and applies it after arrival.
+A positive wait is handled before the destination's WAITFORTRIGGER flag. Original
+`train_use` ignores use while the train is moving. No reference implementation or
+assets were imported into the independent project.
+
+For the owner's e1m3a `bigplat`, departure t539 has wait 10; arrival t540 has no
+wait. Original behavior therefore dwells ten seconds at the top, returns using
+t540's zero wait, and stops at t539 until triggered. The earlier claim that the
+missing upper wait explained original behavior was incorrect: sequence 211's
+three seconds was an independent workaround, not parity. This section supersedes
+that interpretation and dwell acceptance.
+
+Implemented departure wait capture in the existing persisted train `wait` field,
+removed the three-second fallback, retained positive-wait precedence, and made
+ordinary use during travel leave the train moving. Initial train placement clears
+the leg wait before dispatching its first movement. Implementation initially
+unverified; focused replay results are recorded below.
+
+| Scenario | State | Evidence |
+|---|---|---|
+| Owner's save1/e1m3a physical button activation | Passed | Restored an isolated copy; ordinary `use` at the saved position starts bigplat. |
+| Departure wait survives save/load during ascent | Passed | Mid-motion save contains train wait 10; restored ascent reaches the upper stop with a 10001 ms think deadline. |
+| Authored upper dwell and return | Passed | 42 recorded samples show z -274 held for ten simulation seconds, then return to z -902 with trigger-only rest and the rider carried throughout. |
+
+ReleaseSafe build and development installation pass. `dk3-dev` now points to the
+corrected generation. The source save hash is unchanged; online launcher/server
+and RPM remain untouched. Evidence is under `zig-out/reports/train-wait-212/`.
+Full train scripting, every authored route, and older mid-action-save migration
+are not established by this focused replay.
+The applicable `make test` aggregate passed after the replay (45 Python checks
+and the Zig checks); no duplicate aggregate was run for this correction.
+
+## launcher-fixes-213 — normal dk3 uses the repaired build
+
+The owner correctly reported that `dk3` still launched the pre-repair online
+installation. Updated that launcher's installation pointer to a new immutable
+local generation containing the verified sequence-212 binaries/modules/shader.
+Retained its appearance overlay and all 51 existing profile files (saves/settings
+hashed before and after, unchanged); retained the previous installation. This
+supersedes the sequence-211/212 decision to leave normal `dk3` on older code.
+No game source or live-room server was changed. The new gameplay fingerprint
+requires matching multiplayer servers; old live-room compatibility was not forged.
+Evidence: `zig-out/reports/launcher-fixes-213/`.
+Focused launch verification passed through the actual `~/.local/bin/dk3` command
+under dkguard software rendering with an isolated profile. Checked the running
+executable path against the new generation and restored a copy of the owner's
+latest save successfully. No duplicate game build or broad suite was necessary
+for this installation-only correction.
+
+
+## crouch-load-214 — Gold crouch clearance and direct saved-map loading
+
+The owner reported the e1m3a triangular opening as impassable while crouched and
+Marsh loading before every requested saved level. Private Gold review of
+`base/qcommon/pmove.cpp`, PM_CheckDuck around lines 1118–1167, confirms crouched
+bounds z -24 to 4 and eye offset -2. The independent shared movement constants
+previously used max z 16 and eye 12: a 40-unit body instead of 28, with the camera
+14 units too high. Corrected the shared server/prediction bounds and eye height.
+No private implementation or assets were imported.
+
+The disconnected load menu explicitly started e1m1a to reach the server save
+reader. Added an engine command that uses the existing portable save parser and
+safe save-file interface to validate the slot/checksum, read campaign map/skill,
+check map availability, stage the save and start the saved map once. Full game
+schema validation and reconstruction remain in the game module. Menu resume also
+stages the saved visited-world archives. Invalid preflight requests leave the
+menu available and start no world; successful retries clear the error message.
+The parser now builds in the engine client as well as the game module. Existing
+in-game load behavior remains available.
+
+Implementation initially unverified; integrated results:
+
+| Scenario | State | Evidence |
+|---|---|---|
+| Owner save3 and pictured triangular opening | Passed | Restored an isolated copy of save3, navigated with ordinary movement, crouched through the exact red-corridor opening: (2341,207,-168) to (2341,136,-168), crossing y192. Entry/exit screenshots match the reported location; eye offset -2. No teleport, noclip or modified save used. |
+| Low ceiling and safe crouch release | Passed | Shared PM_CheckDuck fixture rejects standing under a 32-unit ceiling, fits crouched, retains crouch under the ceiling, and stands again with clearance. |
+| Disconnected mouse save selection then Load | Passed | XTest clicks the quick row, moves to Load, clicks it; one server initialization, e1m3a, no Marsh bootstrap. |
+| Corrupt save and subsequent valid retry | Passed | Checksum failure starts no map; valid save3 copy restores directly into e1m3a once. |
+| Previous-save recovery and visited worlds | Passed | Corrupt primary/valid previous restores directly; a subsequent save retains the six archived worlds (intro through e1m2b) unchanged. Initial evidence parser used the wrong field name; corrected it to snapshot and checked the existing saved result. |
+| Normal dk3 launch installation | Passed | New immutable local generation retains the appearance overlay, previous installation and all 53 existing profile files, hashed unchanged. Actual launcher smoke verifies the executable and direct owner-save restore in an isolated profile. |
+
+ReleaseSafe build and development installation pass. The applicable `make test`
+aggregate passed once (46 Python checks and the Zig checks), including the new
+clearance fixture. No duplicate broad suite was run. Initial scenario assertions
+looked for an absent InitGame console marker; corrected to Server Initialization.
+Early navigation captures were not acceptance of the exact doorway; the final
+triangle-entry/triangle-passed captures and saved positions establish that result.
+
+Local evidence: `zig-out/reports/crouch-load-214/`, with isolated captures/saves
+under `/tmp/dk3-crouch-load-214/`. Normal installation generation:
+`ed85b930d2cf0fdf50726846fff68389dbfa200f2abb967124a3f91212ff5d33`.
+Full campaign traversal, every clearance shape, original-save migration and live
+multiplayer server updates remain outside this focused acceptance.
+
+Owner follow-up confirms the reported issues now work correctly in their own
+play session and authorizes committing and publishing all pending project code.

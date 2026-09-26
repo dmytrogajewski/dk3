@@ -685,6 +685,8 @@ def package(args, rows):
                 entries[skin['image']] = os.path.join(base, skin['image'])
                 with open(entries[skin['image']], 'rb') as f:
                     variants.add((skin['shader'], skin['image'], png_has_alpha(f.read(32))))
+    import appearances
+    appearances.package(args, rows, entries, variants)
     _write(entries[SHADER_SCRIPT], model_shader_script(variants).encode('ascii'))
     pk3.write_files(args.pk3, sorted(entries.items()))
 

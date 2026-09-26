@@ -33,6 +33,31 @@ class GameplayContractsTest(unittest.TestCase):
             result = run_guarded([output], root)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_actor_timing_and_witnesses(self):
+        with tempfile.TemporaryDirectory(prefix='dk3-actor-timing-') as temporary:
+            output = str(Path(temporary) / 'actors')
+            command = [os.environ.get('ZIG', 'zig'), 'cc', '-std=gnu99', '-O1',
+                       '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
+                       '-DDK3_GAME', '-Iengine/ioquake3/code/game', '-Isrc/game', '-Isrc/shared',
+                       'dkq3/tools/tests/fixtures/actor_timing.c',
+                       'engine/ioquake3/code/qcommon/q_math.c',
+                       'engine/ioquake3/code/qcommon/q_shared.c', '-lm', '-o', output]
+            result = run_guarded(command, REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = run_guarded([output], REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_crouch_clearance(self):
+        with tempfile.TemporaryDirectory(prefix='dk3-crouch-') as temporary:
+            output = str(Path(temporary) / 'crouch')
+            command = [os.environ.get('ZIG', 'zig'), 'cc', '-std=gnu99', '-O1',
+                       '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
+                       'dkq3/tools/tests/fixtures/crouch_clearance.c', '-lm', '-o', output]
+            result = run_guarded(command, REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = run_guarded([output], REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_weapon_sequences(self):
         with tempfile.TemporaryDirectory(prefix='dk3-weapons-') as temporary:
             output = str(Path(temporary) / 'sequences')

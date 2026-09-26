@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "cg_local.h"
+#include "dk_multiplayer.h"
 
 #define DK_MODEL_CACHE 64
 #define DK_MODEL_SEQUENCES 256
@@ -163,9 +164,11 @@ void DK_DrawCharacter(centity_t *cent) {
     memset(&entity, 0, sizeof(entity));
     if (cgs.gametype != GT_SINGLE_PLAYER && state->clientNum >= 0 && state->clientNum < MAX_CLIENTS) {
         clientInfo_t *info = &cgs.clientinfo[state->clientNum];
-        if (!Q_stricmp(info->modelName, "mikiko")) model = "models/global/m_mikiko.dkm";
-        else if (!Q_stricmp(info->modelName, "superfly")) model = "models/global/m_superfly.dkm";
-        skin = (int)Com_Clamp(0, 2, atoi(info->skinName));
+        int appearance = DK_AppearanceFind(va("%s/%s", info->modelName, info->skinName));
+        if (appearance < 0) appearance = 0;
+        model = DK_AppearanceModel(appearance);
+        entity.customSkin = trap_R_RegisterSkin(DK_AppearanceSkin(appearance));
+
     }
     DK_ModelAnimation(model, animation, characterStart[state->number], loop, &entity);
     entity.skinNum = skin;

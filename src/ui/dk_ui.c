@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Original dk3 menus. Artwork and glyphs come only from supplied game assets. */
 #include "ui_local.h"
+#include "dk_multiplayer.h"
 #include "../shared/dk_font.h"
 #include "../shared/dk_loading.h"
 
@@ -14,6 +15,23 @@ static char feedback[160], address[128] = "localhost";
 static char errorText[2048];
 static int errorScroll;
 static qboolean editingAddress, stripFocus, keyboardFocus;
+static const char *editingCvar;
+static char editValue[256];
+static int onlineRow, roomPlayers[MAX_CLIENTS], roomPlayerCount, voteTarget;
+static void EditOnline(const char *name) {
+    editingCvar = name;
+    trap_Cvar_VariableStringBuffer(name, editValue, sizeof(editValue));
+    Q_strncpyz(feedback, "Type a value; Enter saves, Escape cancels.", sizeof(feedback));
+}
+static void RoomPlayers(void) {
+    int i;
+    char info[MAX_INFO_STRING];
+    roomPlayerCount = 0;
+    for (i = 0; i < MAX_CLIENTS; ++i) {
+        trap_GetConfigString(CS_PLAYERS + i, info, sizeof(info));
+        if (*Info_ValueForKey(info, "n")) roomPlayers[roomPlayerCount++] = i;
+    }
+}
 static int plate, panelPlate, uiTime, previousUiTime;
 static qboolean cursorInPanel;
 static char saveNames[128][48];
@@ -36,8 +54,8 @@ static const int gameTypes[] = {0, 4, 8};
 static const float normal[4] = {0.8f, 0.85f, 0.9f, 1};
 static const float accent[4] = {1, 0.8f, 0.3f, 1};
 static const char *labels[] = {"Start campaign (development)", "Resume", "Save / load", "Controls", "Video / audio / gameplay", "Multiplayer", "Console", "Quit"};
-static const char *controlLabels[] = {"Forward", "Back", "Left", "Right", "Jump / climb", "Crouch", "Attack", "Walk", "Next weapon", "Previous weapon", "Use", "Inventory", "Next inventory item", "Previous inventory item", "Quicksave", "Quickload", "Companions follow", "Companions wait", "Companions attack", "Companions pickup", "Next attribute", "Increase attribute", "Detonate C4"};
-static const char *commands[] = {"+forward", "+back", "+moveleft", "+moveright", "+moveup", "+movedown", "+attack", "+speed", "weapnext", "weapprev", "use", "inventory", "invnext", "invprev", "save quick", "load quick", "companion follow", "companion wait", "companion attack", "companion pickup", "attribute_next", "attribute_increase", "detonate"};
+static const char *controlLabels[] = {"Forward", "Back", "Left", "Right", "Jump / climb", "Crouch", "Attack", "Walk", "Next weapon", "Previous weapon", "Use", "Inventory", "Next inventory item", "Previous inventory item", "Quicksave", "Quickload", "Companions follow", "Companions wait", "Companions attack", "Companions pickup", "Next attribute", "Increase attribute", "Detonate C4", "Show scores (hold)"};
+static const char *commands[] = {"+forward", "+back", "+moveleft", "+moveright", "+moveup", "+movedown", "+attack", "+speed", "weapnext", "weapprev", "use", "inventory", "invnext", "invprev", "save quick", "load quick", "companion follow", "companion wait", "companion attack", "companion pickup", "attribute_next", "attribute_increase", "detonate", "+scores"};
 
 void QDECL Com_Printf(const char *format, ...) {
     va_list args;
@@ -149,14 +167,16 @@ static void UpdateHover(void) {
     int i;
     hoveredWidget = -1; cursorInPanel = qfalse;
     stripFocus = cursorX >= 440 && cursorX < 640 && cursorY >= 58 && cursorY < 449;
-    if (stripFocus) { plate = (int)Com_Clamp(0, 13, (cursorY - 58) / (391.0f / 14)); return; }
     for (i = 0; i < widgetCount; ++i) {
         widget_t *item = &widgets[i];
         if (cursorX >= item->x && cursorX < item->x + item->width &&
             cursorY >= item->y && cursorY < item->y + item->height) {
-            hoveredWidget = i; cursorInPanel = qtrue; selected = item->row; return;
+            hoveredWidget = i; cursorInPanel = qtrue; stripFocus = qfalse;
+            if (page != 3) selected = item->row;
+            return;
         }
     }
+    if (stripFocus) plate = (int)Com_Clamp(0, 13, (cursorY - 58) / (391.0f / 14));
 }
 
 static void LoadMaps(void) {
@@ -252,7 +272,13 @@ static int Rows(void) {
     if (page == 1) return ARRAY_LEN(commands) + 1;
     if (page == 2) return SettingRow(-1);
     if (page == 3) return panelPlate == 3 ? 9 : saveCount + 3;
-    if (page == 4) return 7;
+    if (page == 4) return 11;
+    if (page == 14) return 7 + (int)Com_Clamp(0, 128, trap_Cvar_VariableValue("dk3_roomCount"));
+    if (page == 15) return 11;
+    if (page == 16) return 6;
+    if (page == 17) return 3;
+    if (page == 18) { RoomPlayers(); return 5 + roomPlayerCount; }
+    if (page == 19) return 6;
     if (page == 5) return 8;
     if (page == 6) return 6;
     if (page == 7) { count = trap_LAN_GetServerCount(serverSource); return 2 + (int)Com_Clamp(0, 128, count); }
@@ -276,7 +302,12 @@ static void RefreshServers(void) {
 
 static void Close(void) {
     if (active) trap_S_StartLocalSound(trap_S_RegisterSound("sounds/menus/exit menu_001.wav", qfalse), CHAN_LOCAL_SOUND);
-    if (menuMusic) { trap_S_StopBackgroundTrack(); menuMusic = qfalse; }
+    if (menuMusic) {
+        uiClientState_t state;
+        trap_GetClientState(&state);
+        if (state.connState < CA_ACTIVE) trap_S_StopBackgroundTrack();
+        menuMusic = qfalse;
+    }
     active = qfalse;
     trap_Key_SetCatcher(trap_Key_GetCatcher() & ~KEYCATCH_UI);
     trap_Key_ClearStates();
@@ -405,8 +436,7 @@ static void Activate(void) {
         if (setting == 8) { float value = trap_Cvar_VariableValue("sensitivity") + 0.5f; trap_Cvar_SetValue("sensitivity", value > 10 ? 0.5f : value); }
         if (setting == 9) trap_Cvar_SetValue("m_pitch", -trap_Cvar_VariableValue("m_pitch"));
         if (setting == 10) {
-            int skill = trap_Cvar_VariableValue("g_spSkill");
-            trap_Cvar_SetValue("g_spSkill", skill <= 2 ? 3 : skill == 3 ? 5 : 1);
+            trap_Cvar_SetValue("cg_shinyWeapons", ((int)trap_Cvar_VariableValue("cg_shinyWeapons") + 1) % 3);
         }
         if (setting == 11) SelectPlate(0);
         if (setting == SETTING_BRIGHTNESS) {
@@ -424,28 +454,74 @@ static void Activate(void) {
         } else if (writing) Q_strncpyz(feedback, "Start a campaign before saving.", sizeof(feedback));
         else {
             trap_Cvar_Set("g_gametype", "2"); trap_Cvar_Set("teampref", "auto");
-            trap_Cvar_Set("dk3_loadRequest", slot); trap_Cvar_SetValue("dk3_loadPrevious", previous);
-            Close(); trap_Cmd_ExecuteText(EXEC_APPEND, "map e1m1a\n");
+            trap_Cmd_ExecuteText(EXEC_APPEND, va("dk3_loadmenu %s%s\n", slot, previous ? " previous" : ""));
         }
     } else if (page == 4) {
-        if (selected == 0) { page = 5; mapChoice = -1; ChooseMap(1); }
-        else if (selected == 1) page = 6;
-        else if (selected == 2) page = 8;
-        else if (selected == 3 || selected == 4) {
+        if (selected == 0) { page = 14; trap_Cmd_ExecuteText(EXEC_APPEND, "dk3_online list\n"); }
+        else if (selected == 1) { page = 15; mapChoice = -1; ChooseMap(1); }
+        else if (selected == 2) { page = 5; mapChoice = -1; ChooseMap(1); }
+        else if (selected == 3) page = 6;
+        else if (selected == 4) page = 8;
+        else if (selected == 5 || selected == 6) {
             char model[MAX_QPATH];
-            static const char *names[] = {"hiro", "mikiko", "superfly"};
-            int character = 0, skin = 0, n;
+            int appearance;
             trap_Cvar_VariableStringBuffer("model", model, sizeof(model));
-            for (n = 0; n < 3; ++n) if (!Q_stricmpn(model, names[n], strlen(names[n]))) character = n;
-            if (strchr(model, '/')) skin = atoi(strchr(model, '/') + 1);
-            if (selected == 3) character = (character + 1) % 3;
-            else skin = (skin + 1) % 3;
-            trap_Cvar_Set("model", va("%s/%d", names[character], skin));
+            appearance = DK_AppearanceNext(DK_AppearanceFind(model), selected == 5);
+            trap_Cvar_Set("model", DK_AppearanceSelection(appearance));
             return;
-        }
-        else if (selected == 5) { Close(); trap_Cmd_ExecuteText(EXEC_APPEND, "disconnect\n"); return; }
+        } else if (selected == 7) page = 18;
+        else if (selected == 8) page = 16;
+        else if (selected == 9) { Close(); trap_Cmd_ExecuteText(EXEC_APPEND, "disconnect\n"); return; }
         else SelectPlate(0);
         selected = 0;
+    } else if (page == 14) {
+        if (selected == 0) trap_Cmd_ExecuteText(EXEC_APPEND, "dk3_online list\n");
+        else if (selected == 1) trap_Cvar_SetValue("ui_roomFilterMode", ((int)trap_Cvar_VariableValue("ui_roomFilterMode") + 2) % 4 - 1);
+        else if (selected == 2) EditOnline("ui_roomFilterRegion");
+        else if (selected == 3) EditOnline("ui_roomSearch");
+        else if (selected == 4) trap_Cvar_SetValue("ui_roomAvailableOnly", !trap_Cvar_VariableValue("ui_roomAvailableOnly"));
+        else if (selected == 5) trap_Cvar_SetValue("ui_roomFavoritesOnly", !trap_Cvar_VariableValue("ui_roomFavoritesOnly"));
+        else if (selected == 6) { page = 4; selected = 0; }
+        else { onlineRow = selected - 7; page = 17; selected = 0; }
+    } else if (page == 15) {
+        if (selected == 0) EditOnline("ui_roomName");
+        else if (selected == 1) EditOnline("ui_roomRegion");
+        else if (selected == 2) { mode = (mode + 1) % 3; mapChoice = -1; ChooseMap(1); }
+        else if (selected == 3) ChooseMap(1);
+        else if (selected == 4) { slots = slots >= 32 ? 2 : slots + 2; if (botCount >= slots) botCount = slots - 1; }
+        else if (selected == 5) botCount = (botCount + 1) % slots;
+        else if (selected == 6) botSkill = botSkill % 5 + 1;
+        else if (selected == 7) trap_Cvar_SetValue("ui_roomPrivate", !trap_Cvar_VariableValue("ui_roomPrivate"));
+        else if (selected == 8) EditOnline("ui_roomRotation");
+        else if (selected == 10) { page = 4; selected = 0; }
+        else if (selected == 9 && mapChoice >= 0) {
+            trap_Cvar_Set("ui_roomMap", maps[mapChoice].name);
+            trap_Cvar_SetValue("ui_roomMode", mode); trap_Cvar_SetValue("ui_roomSlots", slots);
+            trap_Cvar_SetValue("ui_roomBots", botCount); trap_Cvar_SetValue("ui_roomSkill", botSkill);
+            trap_Cmd_ExecuteText(EXEC_APPEND, "dk3_online create\n");
+        }
+    } else if (page == 16) {
+        const char *settings[] = {"dk3_coordinator", "dk3_ca_file", "ui_privateRoom", "ui_roomCode"};
+        if (selected < 4) EditOnline(settings[selected]);
+        else if (selected == 4) trap_Cmd_ExecuteText(EXEC_APPEND, "dk3_online private\n");
+        else { page = 4; selected = 0; }
+    } else if (page == 17) {
+        if (selected < 2) trap_Cmd_ExecuteText(EXEC_APPEND, va("dk3_online %s %d\n", selected ? "favorite" : "join", onlineRow));
+        else { page = 14; selected = 0; }
+    } else if (page == 18) {
+        if (selected == 0) trap_Cmd_ExecuteText(EXEC_APPEND, "cmd ready\n");
+        else if (selected == 1) EditOnline("ui_roomChat");
+        else if (selected == 2) { page = 8; selected = 0; }
+        else if (selected == 3) trap_Cmd_ExecuteText(EXEC_APPEND, "disconnect; dk3_online reconnect\n");
+        else if (selected == 4) { page = 4; selected = 0; }
+        else { voteTarget = roomPlayers[selected - 5]; page = 19; selected = 0; }
+    } else if (page == 19) {
+        if (selected == 0) trap_Cmd_ExecuteText(EXEC_APPEND, va("cmd callvote kick %d\n", voteTarget));
+        else if (selected == 1) trap_Cmd_ExecuteText(EXEC_APPEND, "cmd vote yes\n");
+        else if (selected == 2) trap_Cmd_ExecuteText(EXEC_APPEND, "cmd vote no\n");
+        else if (selected == 3) trap_Cmd_ExecuteText(EXEC_APPEND, "cmd callvote map_restart\n");
+        else if (selected == 4) trap_Cmd_ExecuteText(EXEC_APPEND, "cmd callvote nextmap\n");
+        else { page = 18; selected = 0; }
     } else if (page == 8) {
         static const char *teams[] = {"auto", "red", "blue", "spectator"};
         uiClientState_t state;
@@ -534,6 +610,21 @@ static void Key(int key, int down) {
         return;
     }
     if (key == K_MOUSE1 && !stripFocus && !cursorInPanel) return;
+    if (editingCvar) {
+        size_t length = strlen(editValue);
+        if (key == K_ENTER) {
+            trap_Cvar_Set(editingCvar, editValue);
+            if (!strcmp(editingCvar, "ui_roomChat")) trap_Cmd_ExecuteText(EXEC_APPEND, va("cmd say \"%s\"\n", editValue));
+            editingCvar = NULL; feedback[0] = 0; return;
+        }
+        if (key == K_ESCAPE) { editingCvar = NULL; feedback[0] = 0; return; }
+        if (key == K_BACKSPACE && length) editValue[length - 1] = 0;
+        if ((key & K_CHAR_FLAG) && length < sizeof(editValue) - 1) {
+            int ch = key & ~K_CHAR_FLAG;
+            if (ch >= 32 && ch < 127 && ch != '"' && ch != '\\' && ch != ';') { editValue[length] = ch; editValue[length + 1] = 0; }
+        }
+        return;
+    }
     if (editingAddress) {
         int length = strlen(address);
         if (key == K_ENTER || key == K_ESCAPE) { editingAddress = qfalse; feedback[0] = 0; return; }
@@ -560,7 +651,7 @@ static void Key(int key, int down) {
     }
     if (key == K_MOUSE1 && !stripFocus && hoveredWidget >= 0 && hoveredWidget < widgetCount) {
         widget_t *item = &widgets[hoveredWidget];
-        if (item->kind == WIDGET_SELECT) return;
+        if (item->kind == WIDGET_SELECT) { selected = item->row; return; }
         if (item->kind == WIDGET_SLIDER) {
             MoveSlider(item); draggingWidget = hoveredWidget; return;
         }
@@ -639,8 +730,8 @@ static qboolean DrawPanel(void) {
                 else if (setting == 4) Com_sprintf(text, sizeof(text), "Subtitles: %s", trap_Cvar_VariableValue("cg_subtitles") ? "On" : "Off");
                 else if (setting == 9) Com_sprintf(text, sizeof(text), "Reverse Mouse: %s", trap_Cvar_VariableValue("m_pitch") < 0 ? "On" : "Off");
                 else {
-                    int skill = trap_Cvar_VariableValue("g_spSkill");
-                    Com_sprintf(text, sizeof(text), "Difficulty: %s", skill <= 2 ? "Ronin" : skill == 3 ? "Samurai" : "Shogun");
+                    int shine = trap_Cvar_VariableValue("cg_shinyWeapons");
+                    Com_sprintf(text, sizeof(text), "Shiny Weapons: %s", shine <= 0 ? "Off" : shine == 1 ? "On" : "Enhanced");
                 }
                 Text(180, y, text, selected == i && !stripFocus);
                 Widget(175, y, 250, 22, i, setting, WIDGET_BUTTON);
@@ -750,8 +841,8 @@ static void Draw(qboolean connecting) {
             else if (setting == 9) Com_sprintf(line, sizeof(line), "Invert mouse: %s", trap_Cvar_VariableValue("m_pitch") < 0 ? "on" : "off");
             else if (setting == SETTING_BRIGHTNESS) Com_sprintf(line, sizeof(line), "Brightness: %.2f (Apply to update)", trap_Cvar_VariableValue("r_gamma"));
             else if (setting == 10) {
-                int skill = trap_Cvar_VariableValue("g_spSkill");
-                Com_sprintf(line, sizeof(line), "Difficulty: %s", skill <= 2 ? "Easy" : skill == 3 ? "Normal" : "Hard");
+                int shine = trap_Cvar_VariableValue("cg_shinyWeapons");
+                Com_sprintf(line, sizeof(line), "Shiny weapons: %s", shine <= 0 ? "Off" : shine == 1 ? "On" : "Enhanced");
             }
             else Q_strncpyz(line, "Back", sizeof(line));
             label = line;
@@ -761,11 +852,54 @@ static void Draw(qboolean connecting) {
             else Q_strncpyz(line, i == 0 ? "Quick load" : i == 1 ? "Load entry autosave" : "Recover previous quick save", sizeof(line));
             label = line;
         } else if (page == 4) {
-            const char *multi[] = {"Host a game", "Join a game", "Choose team", "Character", "Skin", "Disconnect", "Back"}; label = multi[i];
-            if (i == 3 || i == 4) {
+            const char *multi[] = {"Internet rooms", "Create Internet room", "Host LAN game", "Join LAN game", "Choose team", "Character", "Skin", "Lobby / players", "Online settings / private room", "Disconnect", "Back"}; label = multi[i];
+            if (i == 5 || i == 6) {
                 char model[MAX_QPATH]; trap_Cvar_VariableStringBuffer("model", model, sizeof(model));
                 Com_sprintf(line, sizeof(line), "%s: %s", multi[i], model); label = line;
             }
+        } else if (page == 14) {
+            if (i < 7) {
+                const char *fields[] = {"Refresh", "Mode", "Region (empty: all)", "Search", "Available compatible rooms", "Favorites only", "Back"};
+                const char *vars[] = {"", "", "ui_roomFilterRegion", "ui_roomSearch", "", "", ""};
+                char value[128] = "";
+                if (i == 1) { int filter = trap_Cvar_VariableValue("ui_roomFilterMode"); Q_strncpyz(value, filter < 0 ? "all" : modeNames[(int)Com_Clamp(0,2,filter)], sizeof(value)); }
+                else if (i == 2 || i == 3) trap_Cvar_VariableStringBuffer(vars[i], value, sizeof(value));
+                else if (i == 4 || i == 5) Q_strncpyz(value, trap_Cvar_VariableValue(i == 4 ? "ui_roomAvailableOnly" : "ui_roomFavoritesOnly") ? "yes" : "no", sizeof(value));
+                Com_sprintf(line, sizeof(line), "%s%s%s", fields[i], *value ? ": " : "", value);
+            } else {
+                char info[MAX_INFO_STRING], name[80], map[48], region[48], ping[24];
+                trap_Cvar_VariableStringBuffer(va("dk3_room%d", i - 7), info, sizeof(info));
+                Q_strncpyz(name, Info_ValueForKey(info, "name"), sizeof(name)); Q_strncpyz(map, Info_ValueForKey(info, "map"), sizeof(map));
+                Q_strncpyz(region, Info_ValueForKey(info, "region"), sizeof(region));
+                Q_strncpyz(ping, Info_ValueForKey(info, "ping"), sizeof(ping));
+                Com_sprintf(line, sizeof(line), "%s | %s | %s | %s | %s", name, map, region, Info_ValueForKey(info, "players"), ping);
+            }
+            label = line;
+        } else if (page == 15) {
+            char value[128];
+            if (i == 0 || i == 1) { trap_Cvar_VariableStringBuffer(i ? "ui_roomRegion" : "ui_roomName", value, sizeof(value)); Com_sprintf(line,sizeof(line),"%s: %s",i ? "Region" : "Room name",value); }
+            else if (i == 2) Com_sprintf(line,sizeof(line),"Mode: %s",modeNames[mode]);
+            else if (i == 3) Com_sprintf(line,sizeof(line),"Map: %s",mapChoice >= 0 ? maps[mapChoice].label : "none available");
+            else if (i == 4) Com_sprintf(line,sizeof(line),"Player slots: %d",slots);
+            else if (i == 5) Com_sprintf(line,sizeof(line),"Bots: %d",botCount);
+            else if (i == 6) Com_sprintf(line,sizeof(line),"Bot skill: %d / 5",botSkill);
+            else if (i == 7) Com_sprintf(line,sizeof(line),"Privacy: %s",trap_Cvar_VariableValue("ui_roomPrivate") ? "private" : "public");
+            else if (i == 8) { trap_Cvar_VariableStringBuffer("ui_roomRotation",value,sizeof(value)); Com_sprintf(line,sizeof(line),"Next maps: %s", *value ? value : "repeat current map"); }
+            else Q_strncpyz(line,i == 9 ? "Create room and join" : "Back",sizeof(line));
+            label = line;
+        } else if (page == 16) {
+            const char *fields[] = {"Coordinator HTTPS URL", "Trusted test CA (optional)", "Private room ID", "Private room code", "Join private room", "Back"};
+            const char *vars[] = {"dk3_coordinator", "dk3_ca_file", "ui_privateRoom", "ui_roomCode"};
+            char value[128] = "";
+            if (i < 4) trap_Cvar_VariableStringBuffer(vars[i],value,sizeof(value));
+            Com_sprintf(line,sizeof(line),"%s%s%s",fields[i],*value ? ": " : "",value); label=line;
+        } else if (page == 17) {
+            const char *actions[] = {"Join selected room", "Toggle favorite", "Back"}; label=actions[i];
+        } else if (page == 18) {
+            if (i < 5) { const char *actions[] = {"Toggle ready", "Send lobby chat", "Choose team / spectate", "Reconnect to Internet room", "Back"}; label=actions[i]; }
+            else { char info[MAX_INFO_STRING]; trap_GetConfigString(CS_PLAYERS+roomPlayers[i-5],info,sizeof(info)); Com_sprintf(line,sizeof(line),"Player %d: %s",roomPlayers[i-5],Info_ValueForKey(info,"n")); label=line; }
+        } else if (page == 19) {
+            const char *actions[] = {"Vote to kick selected player", "Vote yes", "Vote no", "Vote to restart map", "Vote next map", "Back"}; label=actions[i];
         } else if (page == 8) {
             const char *teams[] = {"Join balanced team", "Join red", "Join blue", "Spectate", "Back"}; label = teams[i];
         } else if (page == 5) {
@@ -813,6 +947,8 @@ static void Draw(qboolean connecting) {
         }
     }
 overlay:
+    if (editingCvar) { char line[280]; Com_sprintf(line, sizeof(line), "%s_", editValue); Text(105, 403, line, qtrue); }
+    if (page >= 14 && page <= 17 && !editingCvar) trap_Cvar_VariableStringBuffer("dk3_onlineStatus", feedback, sizeof(feedback));
     Text(105, 425, feedback, qtrue);
     trap_R_SetColor(NULL);
     trap_R_DrawStretchPic(offsetX + (cursorX - 6) * scale, offsetY + (cursorY - 8) * scale, 32 * scale, 32 * scale,
@@ -826,7 +962,17 @@ Q_EXPORT intptr_t vmMain(int command, int arg0, int arg1, int arg2, int arg3, in
     switch (command) {
         case UI_GETAPIVERSION: return UI_API_VERSION;
         case UI_INIT:
+            /* Upgrade pre-scoreboard profiles once; preserve custom bindings and
+               allow players to unbind Tab afterward without restoring it. */
+            trap_Cvar_Register(NULL, "ui_scoreBindingVersion", "0", CVAR_ARCHIVE);
+            if (trap_Cvar_VariableValue("ui_scoreBindingVersion") < 1) {
+                char tabBinding[128];
+                trap_Key_GetBindingBuf(K_TAB, tabBinding, sizeof(tabBinding));
+                if (!*tabBinding) trap_Key_SetBinding(K_TAB, "+scores");
+                trap_Cvar_Set("ui_scoreBindingVersion", "1");
+            }
             trap_Cvar_Register(NULL, "teampref", "auto", CVAR_ARCHIVE | CVAR_USERINFO);
+            trap_Cvar_Register(NULL, "cg_shinyWeapons", "1", CVAR_ARCHIVE);
             trap_Cvar_Register(NULL, "cg_hudScale", "1", CVAR_ARCHIVE);
             trap_Cvar_Register(NULL, "cg_subtitleScale", "1", CVAR_ARCHIVE);
             trap_Cvar_Register(NULL, "cg_subtitles", "1", CVAR_ARCHIVE);

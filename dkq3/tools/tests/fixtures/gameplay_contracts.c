@@ -11,7 +11,7 @@ qboolean trap_EntityContact(const vec3_t mins, const vec3_t maxs, const gentity_
     (void)mins; (void)maxs; (void)entity;
     return qfalse;
 }
-char *QDECL va(char *format, ...) {
+char *QDECL va(const char *format, ...) {
     static char text[1024];
     va_list args;
     va_start(args, format); vsnprintf(text, sizeof(text), format, args); va_end(args);

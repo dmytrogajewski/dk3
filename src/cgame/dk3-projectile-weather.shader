@@ -187,3 +187,24 @@ dk3/mark/blood2
  alphaGen vertex
  }
 }
+
+// Black-backed muzzle art needs additive blending, independent of model skins.
+dk3/fx/glock-flash
+{
+ cull disable
+ { map skins/we_mflash1.png
+   blendFunc GL_SRC_ALPHA GL_ONE
+   rgbGen entity
+   alphaGen entity
+ }
+}
+
+dk3/fx/weapon-shine
+{
+ { map gfx/dk3/particle.tga
+   tcGen environment
+   blendFunc GL_SRC_ALPHA GL_ONE
+   rgbGen entity
+   alphaGen entity
+ }
+}

@@ -856,7 +856,11 @@ int main( int argc, char **argv )
 			break;
 		}
 
-		containsSpaces = strchr(argv[i], ' ') != NULL;
+		/* Preserve URL values and other single shell arguments when rebuilding
+         * the engine command line. Its tokenizer recognizes line and block comments
+         * outside quotes, including the slashes in an HTTPS coordinator URL. */
+        containsSpaces = !*argv[i] || strpbrk(argv[i], " \t\r\n;") != NULL ||
+            strstr(argv[i], "//") != NULL || strstr(argv[i], "/*") != NULL;
 		if (containsSpaces)
 			Q_strcat( commandLine, sizeof( commandLine ), "\"" );
 

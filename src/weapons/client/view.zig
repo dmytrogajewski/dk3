@@ -85,6 +85,17 @@ pub fn View(comptime W: type) type {
         }
     };
 }
+fn shine(entity: *const c.refEntity_t) void {
+    var value: [16]u8 = @splat(0);
+    c.trap_Cvar_VariableStringBuffer("cg_shinyWeapons", &value, value.len);
+    if (value[0] != '1' and value[0] != '2') return;
+    if (entity.customShader != 0) return;
+    var overlay = entity.*;
+    overlay.customShader = c.trap_R_RegisterShader("dk3/fx/weapon-shine");
+    overlay.shaderRGBA = .{ 200, 215, 255, if (value[0] == '2') 110 else 45 };
+    c.trap_R_AddRefEntityToScene(&overlay);
+}
+
 pub fn draw(comptime W: type, ps: *c.playerState_t) void {
     if (W.spec.animation.view_model.len == 0 or c.cg.renderingThirdPerson != 0 or ps.pm_type != c.PM_NORMAL or c.cg_drawGun.integer == 0) return;
     var entity = std.mem.zeroes(c.refEntity_t);
@@ -100,6 +111,7 @@ pub fn draw(comptime W: type, ps: *c.playerState_t) void {
         entity.shaderRGBA[3] = 100;
     }
     c.trap_R_AddRefEntityToScene(&entity);
+    shine(&entity);
     const offset = v.sub(r.muzzlePoint(&entity), c.cg.refdef.vieworg);
     for (&muzzle_offset, 0..) |*axis, index| axis.* = v.dot(offset, c.cg.refdef.viewaxis[index]);
     muzzle_weapon = W.id;
@@ -108,12 +120,15 @@ pub fn draw(comptime W: type, ps: *c.playerState_t) void {
 }
 pub fn world(comptime W: type, parent: *c.refEntity_t, cent: *c.centity_t) void {
     if (W.spec.audio.hum) |hum| c.trap_S_AddLoopingSound(cent.currentState.number, &cent.lerpOrigin, &v.zero, r.sound(hum));
+    if (!W.spec.equipped) return;
     const path = W.spec.world_model orelse return;
     if (path.len == 0) return;
     var entity = std.mem.zeroes(c.refEntity_t);
     entity.hModel = c.DK_RegisterModel(path);
     if (entity.hModel == 0) return;
     entity.reType = c.RT_MODEL;
+    entity.frame = W.spec.equipped_frame;
+    entity.oldframe = entity.frame;
     entity.axis = r.identity;
     c.CG_PositionEntityOnTag(&entity, parent, parent.hModel, @constCast("hp_gun"));
     entity.axis = parent.axis;
@@ -121,6 +136,7 @@ pub fn world(comptime W: type, parent: *c.refEntity_t, cent: *c.centity_t) void 
     entity.renderfx = parent.renderfx;
     entity.customShader = parent.customShader;
     c.trap_R_AddRefEntityToScene(&entity);
+    shine(&entity);
     if (cent.currentState.number != c.cg.clientNum or c.cg.renderingThirdPerson != 0) {
         if (@hasDecl(W, "muzzle")) W.muzzle(&entity, cent.muzzleFlashTime);
         if (@hasDecl(W, "heldEffect")) W.heldEffect(&entity, cent.currentState.number);

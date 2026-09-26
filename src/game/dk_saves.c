@@ -571,8 +571,13 @@ qboolean DK_ResumeSave(gentity_t *player) {
     snapshotLength = trap_DK3SaveRead(1, SAVE_PENDING, buffer, sizeof(storage), qfalse);
     if (snapshotLength < 0 || !ValidateSnapshot(snapshotLength)) {
         trap_Cvar_Set("dk3_resume", "0");
+        trap_Cvar_Set("dk3_menuResume", "0");
         G_Error("dk3: pending save restore failed: %s", snapshotLength < 0 ? "staged file unavailable" : failure);
         return qfalse;
+    }
+    if (trap_Cvar_VariableIntegerValue("dk3_menuResume")) {
+        trap_Cvar_Set("dk3_menuResume", "0");
+        if (!StageVisited(snapshotLength)) G_Error("dk3: could not restore visited worlds: %s", failure);
     }
     if (!trap_DK3HoldWorld(1, qtrue)) G_Error("dk3: restore requires one local client and world-hold interface v1");
     ApplySnapshot(player);

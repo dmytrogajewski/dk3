@@ -105,7 +105,7 @@ pub fn drawProjectile(cent: *c.centity_t) void {
 }
 
 pub fn muzzle(parent: *c.refEntity_t, fired: c_int) void {
-    render.flash(parent, fired, .{ .model = "models/global/we_mflash.dkm", .sequence = "amba" });
+    render.flash(parent, fired, .{ .model = "models/global/we_mflash.dkm", .sequence = "amba", .shader = "dk3/fx/glock-flash" });
 }
 pub fn dropPose(view: anytype, ps: *c.playerState_t) void {
     const reload = ps.dk3WeaponSequence == c.DK_GLOCK_RELOAD_SEQUENCE;

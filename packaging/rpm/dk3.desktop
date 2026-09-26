@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=dk3
+Comment=Daikatana development port with Internet rooms
+Exec=/usr/bin/dk3
+Icon=applications-games
+Terminal=false
+Categories=Game;ActionGame;

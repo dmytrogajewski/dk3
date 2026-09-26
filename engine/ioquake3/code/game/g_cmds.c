@@ -21,6 +21,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 //
 #include "g_local.h"
+#ifdef DK3_GAME
+#include "dk_multiplayer.h"
+#endif
 
 #ifdef MISSIONPACK
 #include "../../ui/menudef.h"			// for the voice chats
@@ -1735,6 +1738,7 @@ void ClientCommand( int clientNum ) {
 	trap_Argv( 0, cmd, sizeof( cmd ) );
 
 #ifdef DK3_GAME
+    if (DK_RoomCommand(clientNum, cmd)) return;
     if (DK_ClientCommand(ent, cmd)) return;
 #endif
 

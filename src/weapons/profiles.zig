@@ -63,6 +63,9 @@ pub const Spec = struct {
     protects_water: bool = false,
     inventory_view_model: bool = false,
     world_model: ?[:0]const u8 = null,
+    /// Pickup and equipped representations have independent contracts.
+    equipped: bool = true,
+    equipped_frame: c_int = 4,
     animation: Animation = .{},
     audio: Audio = .{},
     visual: Visual = .{},

@@ -1,6 +1,41 @@
 # Game completion state
 
-Updated 2026-09-25, through **weapons-gold-review, sequence 200**.
+Sequence 203 is implementing the accepted [Zig multiplayer/Internet-room scope](multiplayer-zig.md).
+The one-host IP deployment passes explicit-CA HTTPS verification and focused real
+Internet scenarios: three encrypted clients, readiness, browser ping, reconnect,
+vote bans, operator removal, coordinator outage continuity and worker restart.
+SQLite backup/isolated restore and loss/reordering/tampering probes also passed.
+The Zig message codec passed differential checks and the Internet lifecycle replay.
+Focused captures demonstrate three character/color combinations and distinct music
+through e1dm1, e2dm1, e3dm1 and e4dm1 transitions. The full appearance, music and
+equipped-weapon matrix remains open. Sequence 209 adds configurable permanent
+server-owned rooms: 16 total players by default, replaceable bots and ten-minute
+map rotation. The unchanged sequence-208 RPM discovered and joined the live room
+through its menu; bot replacement/refill and a full live rotation cycle passed.
+See [hosting configuration](online-operations.md#permanent-rooms).
+The complete migration and all-map/mode acceptance remain open. The broader
+campaign/weapon snapshot below remains sequence 200.
+
+Sequence 211 repairs called-lift dwell, mouse save selection, duplicate difficulty
+options, Glock muzzle blending, configurable weapon shine, ion terminal audio,
+actor timing and civilian witness alerts. Focused lift/UI/effect scenarios and
+native timing/alert regressions pass; all-map and original-renderer parity remain
+open. See the sequence-211 run log for evidence and limits.
+
+Sequence 212 corrects the lift repair after reviewing Gold: waits belong to the
+departure corner and apply after arrival. The owner's e1m3a lift therefore uses its
+authored ten-second upper dwell, superseding sequence 211's three-second fallback.
+
+Sequence 213 updates the normal `dk3` launcher's local installation to these fixes,
+retaining its existing saves/settings and appearance overlay. Live multiplayer
+servers still need matching gameplay rules.
+
+Sequence 214 restores Gold crouch clearance and loads menu saves directly into
+their saved map. The owner’s e1m3a triangular passage, mouse-only loading, corrupt
+save rejection, previous-save recovery and visited-world preservation pass. Normal
+`dk3` uses the updated build; its saves/settings remain unchanged.
+
+Updated 2026-09-26, through **crouch-load, sequence 214**.
 
 **dk3 is a playable development build, not a completed Daikatana port.** Independent
 native systems exist across the game, but implementation and successful focused
@@ -22,7 +57,7 @@ code; remaining work includes both implementation repairs and gameplay verificat
 | Saves and transitions | Named, validated saves, atomic replacement, checkpoint death recovery and visited-world persistence exist. Focused corruption/recovery, air deadline, mover/cinematic and weapon restores pass. Sequence 200 verifies C4, Hammer, Nightmare and Metamaser, including delayed launch and rebased lock deadlines. | All mid-encounter/controller phases and cross-episode state, plus broader archived-development-save compatibility. Omitting the two new optional weapon fields was tested with a fixture; this is not verification of every older save. Original Daikatana save migration is outside scope. |
 | Multiplayer | DM, CTF, deathtag, bots and host/join flows exist. Recorded joins, deaths/respawns/reconnects and contested objectives pass. Latest delayed-network checks verify Shotcycler, Sidewinder, Trident, Ripgun and Kineticore. | Complete mode/map, team, bot, scoring, disconnect and protocol-error matrix. Focused successful matches do not certify all multiplayer behavior. Co-op is outside scope. |
 | Presentation and UI | Supplied artwork, menus/HUD, loading, cinematic/audio/effect systems and multiple renderer repairs exist. Selected rendered comparisons, menu flows and mixer dispatch pass. | Remaining options/panels, actor scale and matched cinematic shots, lightstyles, all weapon trails/fragments/view kick and full sound mix. OpenGL2 yellow saturation near the marsh pool remains a recorded defect. Physical display/speaker behavior is not established by headless checks. |
-| Release | Reviewed source and build/install documentation are published as development snapshots. Latest broad suite passes: 43 Python tests plus Zig checks. | Complete V1–V12 acceptance, final source/license/publication review and verified new-game-to-ending installation path. A successful push is not a completed-game release. |
+| Release | Reviewed source and build/install documentation are published as development snapshots. Sequence 208 produced and verified a local asset-inclusive RPM with default Internet endpoint and CA. Sequence-209 broad checks passed: 44 Python tests and 138 Zig tests, after repairing a stale test-fixture declaration. | Complete V1–V12 acceptance, final source/license/publication review and verified new-game-to-ending installation path. RPM installation on the second physical machine is not verified here. A successful push is not a completed-game release. |
 
 ## Latest verified weapon pass
 

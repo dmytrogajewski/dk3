@@ -78,9 +78,14 @@ fn installPath(product: config.Product) []const u8 {
 }
 
 pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, settings: config.Config, product: config.Product, dk3: bool) *std.Build.Step.Compile {
-    const native_weapons = dk3 and (product == .qagame or product == .cgame);
+    const native_runtime = dk3 and (product == .qagame or product == .cgame or product == .ui);
     const module = b.createModule(.{
-        .root_source_file = if (native_weapons) b.path(if (product == .qagame) "src/weapons/server.zig" else "src/weapons/client.zig") else null,
+        .root_source_file = if (native_runtime) b.path(switch (product) {
+            .qagame => "src/runtime_game.zig",
+            .cgame => "src/runtime_client.zig",
+            .ui => "src/runtime_ui.zig",
+            else => unreachable,
+        }) else null,
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -90,6 +95,9 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
     var seen: std.StringHashMapUnmanaged(void) = .empty;
     const root = b.build_root.join(b.allocator, &.{source_root}) catch @panic("OOM");
     for (config.productSources(b.allocator, product, settings) catch @panic("OOM")) |path| {
+        // Protocol messages are owned by the Zig network module. Keep the
+        // licensed upstream C codec as a differential test reference only.
+        if ((product == .client or product == .server) and std.mem.eql(u8, path, "code/qcommon/msg.c")) continue;
         if (dk3 and product == .ui and
             !std.mem.eql(u8, path, "code/ui/ui_syscalls.c") and
             !std.mem.eql(u8, path, "code/qcommon/q_shared.c") and
@@ -113,6 +121,10 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         } else b.path(b.pathJoin(&.{ source_root, path }));
         module.addCSourceFile(.{ .file = file, .flags = config.sourceFlags(product, path) });
     }
+    if (product == .client) {
+        module.addIncludePath(b.path("src/game"));
+        module.addCSourceFile(.{ .file = b.path("src/game/dk_save_format.c"), .flags = config.sourceFlags(product, "src/game/dk_save_format.c") });
+    }
     if (dk3) {
         module.addCMacro("DK3_GAME", "1");
         module.addIncludePath(b.path("engine/ioquake3/code/qcommon"));
@@ -122,7 +134,7 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         module.addIncludePath(b.path("engine/ioquake3/code/cgame"));
         module.addIncludePath(b.path("engine/ioquake3/code/ui"));
         const sources: []const []const u8 = switch (product) {
-            .qagame => &.{ "src/game/dk_world.c", "src/game/dk_movers.c", "src/game/dk_attachments.c", "src/game/dk_actors.c", "src/game/dk_navigation.c", "src/game/dk_companions.c", "src/game/dk_bots.c", "src/game/dk_multiplayer.c", "src/game/dk_scripts.c", "src/game/dk_cinematics.c", "src/game/dk_items.c", "src/game/dk_resources.c", "src/game/dk_decor.c", "src/game/dk_media.c", "src/game/dk_interactions.c", "src/game/dk_effects.c", "src/game/dk_travel.c", "src/game/dk_saves.c", "src/game/dk_save_format.c", "src/game/dk_save_schema.c", "src/game/dk_tables.c", "src/shared/dk_inventory.c" },
+            .qagame => &.{ "src/game/dk_world.c", "src/game/dk_movers.c", "src/game/dk_attachments.c", "src/game/dk_actors.c", "src/game/dk_navigation.c", "src/game/dk_companions.c", "src/game/dk_bots.c", "src/game/dk_scripts.c", "src/game/dk_cinematics.c", "src/game/dk_items.c", "src/game/dk_resources.c", "src/game/dk_decor.c", "src/game/dk_media.c", "src/game/dk_interactions.c", "src/game/dk_effects.c", "src/game/dk_travel.c", "src/game/dk_saves.c", "src/game/dk_save_format.c", "src/game/dk_save_schema.c", "src/game/dk_tables.c", "src/shared/dk_inventory.c" },
             .ui => &.{"src/ui/dk_ui.c"},
             .cgame => &.{ "src/cgame/dk_presentation.c", "src/cgame/dk_effects.c", "src/cgame/dk_subtitles.c", "src/cgame/dk_inventory.c", "src/cgame/dk_models.c", "src/cgame/dk_sprites.c", "src/game/dk_tables.c", "src/shared/dk_inventory.c" },
             else => unreachable,
@@ -160,6 +172,14 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         .client, .server => b.addExecutable(.{ .name = name(product), .root_module = module }),
         else => b.addLibrary(.{ .name = name(product), .linkage = .dynamic, .root_module = module }),
     };
+    if (product == .client or product == .server) {
+        const network_module = b.createModule(.{ .root_source_file = b.path("src/network_engine.zig"), .target = target, .optimize = optimize, .link_libc = true });
+        network_module.addIncludePath(b.path("engine/ioquake3/code/qcommon"));
+        network_module.addIncludePath(b.path("engine/ioquake3/code/thirdparty/curl-8.15.0/include"));
+        @import("header_inputs.zig").track(b, network_module, &.{source_root});
+        const network = b.addLibrary(.{ .name = "dk3-network", .linkage = .static, .root_module = network_module });
+        artifact.root_module.linkLibrary(network);
+    }
     artifact.lto = .full;
     if (product == .client) artifact.linker_allow_shlib_undefined = true;
     return artifact;

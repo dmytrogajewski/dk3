@@ -13,6 +13,7 @@ const server = @import("../server/combat.zig");
 
 pub const id = c.DK_W_DISRUPTOR;
 pub const spec: profiles.Spec = .{
+    .equipped = false,
     .inventory_view_model = true,
     .start_episode = 1, // disruptor
     .world_model = "models/e1/a_tazer.dkm",

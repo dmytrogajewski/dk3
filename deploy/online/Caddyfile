@@ -1,0 +1,26 @@
+{
+	admin localhost:2019
+	skip_install_trust
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 15s
+			write 30s
+			idle 30s
+		}
+	}
+}
+
+https://{$DK3_COORDINATOR_IP} {
+	tls internal
+	request_body {
+		max_size 64KB
+	}
+	reverse_proxy 127.0.0.1:8090 {
+		header_up X-Real-IP {remote_host}
+		transport http {
+			dial_timeout 3s
+			response_header_timeout 20s
+		}
+	}
+}

@@ -14,7 +14,9 @@ from assets import digest, write_json
 
 BINARIES = ('dk3', 'dk3ded', 'renderer_opengl1.so', 'renderer_opengl2.so')
 MODULES = ('qagame.so', 'cgame.so', 'ui.so')
-RUNTIME_MEDIA = ('scripts/dk3-projectile-weather.shader',)
+LEGACY_RUNTIME_MEDIA = ('scripts/dk3-projectile-weather.shader',)
+ONLINE_METADATA = ('rules.json', 'compatibility.json')
+RUNTIME_MEDIA = (*LEGACY_RUNTIME_MEDIA, 'rules.json')
 PACKAGES = ('base', 'textures', 'maps', 'shaders', 'models', 'sprites', 'hud', 'sound', 'music', 'voice', 'data', 'navigation')
 REQUIRED_ENTRIES = ('default.cfg', 'fonts/con_font.dkf', 'fonts/con_font.tga', 'maps/e1m1a.bsp',
                     'dk3/navigation/e1m1a.cfg')
@@ -67,6 +69,20 @@ def install(prefix, assets, hd_textures=None):
             if invalid:
                 raise ValueError(f'{hd}: corrupt texture {invalid}')
         files['share/dk3/zz-dk3-textures-hd.pk3'] = hd
+    # Canonical package entries ignore ZIP timestamps/compression and native ELF
+    # bytes. Approved texture-only overlays do not change gameplay compatibility.
+    gameplay = hashlib.sha256()
+    for name in ('base', 'maps', 'data', 'navigation'):
+        with zipfile.ZipFile(source / 'packages' / f'dk3-{name}.pk3') as archive:
+            for entry in sorted(archive.namelist()):
+                if entry.endswith('/'): continue
+                gameplay.update(entry.lower().encode() + b'\0')
+                gameplay.update(hashlib.sha256(archive.read(entry)).digest())
+    compatibility = json.loads((prefix / 'share/dk3/rules.json').read_text())
+    compatibility.update(gameplay=gameplay.hexdigest(), cosmetic='hd-textures-v1' if 'share/dk3/zz-dk3-textures-hd.pk3' in files else 'stock-v1')
+    compatibility_file = prefix / 'share/dk3/compatibility.json'
+    write_json(compatibility_file, compatibility)
+    files['share/dk3/compatibility.json'] = compatibility_file
     records = {}
     for name, path in files.items():
         if not path.is_file():
@@ -88,7 +104,7 @@ def install(prefix, assets, hd_textures=None):
                 target.chmod(0o755 if name.startswith('bin/') else 0o644)
                 if digest(target) != records[name]:
                     raise ValueError(f'{path} changed while installing; rerun play-install')
-            write_json(destination / 'installation.json', dict(format=1, files=records,
+            write_json(destination / 'installation.json', dict(format=2, files=records,
                        asset_profile=manifest['profile'], asset_generation=manifest['key'], gameplay='incomplete'))
         current, temporary = root / 'current', root / 'current.partial'
         temporary.unlink(missing_ok=True)
@@ -103,10 +119,19 @@ def install(prefix, assets, hd_textures=None):
 def launch(prefix, guard, extra):
     directory = (prefix / 'play' / 'current').resolve(strict=True)
     manifest = json.loads((directory / 'installation.json').read_text())
-    if manifest.get('format') != 1:
+    if manifest.get('format') not in (1, 2):
         raise ValueError('unsupported installation manifest')
+    # The launcher also serves preserved installations made before online rooms.
+    # Those format-1 runtimes never contained the new compatibility metadata.
+    # Early online installations used format 1 too; either metadata entry opts
+    # them into checking the complete pair, including missing or corrupt files.
+    media = list(LEGACY_RUNTIME_MEDIA)
+    if manifest['format'] == 2 or any(f'share/dk3/{n}' in manifest['files'] for n in ONLINE_METADATA):
+        media.extend(ONLINE_METADATA)
     for name in [*[f'bin/{n}' for n in BINARIES], *[f'share/dk3/{n}' for n in MODULES],
-                 *[f'share/dk3/{n}' for n in RUNTIME_MEDIA]]:
+                 *[f'share/dk3/{n}' for n in media]]:
+        if name not in manifest['files'] or not (directory / name).is_file():
+            raise ValueError(f'installed product missing: {name}; rerun play-install')
         if digest(directory / name) != manifest['files'][name]:
             raise ValueError(f'installed product changed: {name}; rerun play-install')
     print('play: independent dk3 development runtime; campaign implementation and verification incomplete', flush=True)

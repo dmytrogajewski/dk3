@@ -13,6 +13,7 @@ const server = @import("../server/combat.zig");
 
 pub const id = c.DK_W_GASHANDS;
 pub const spec: profiles.Spec = .{
+    .equipped = false,
     .companion_pickup = false, // gashands
     .droppable = false,
     .world_model = "models/e1/a_gashand.dkm",

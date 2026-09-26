@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-#include "g_local.h"
+#include "../../engine/ioquake3/code/qcommon/q_shared.h"
 #include "dk_save_format.h"
 
 #define HEADER_BYTES 24
@@ -226,13 +226,13 @@ qboolean DK_SaveNextField(dkSaveReader_t *reader, dkSaveField_t *field) {
 }
 
 int DK_SaveInt(const dkSaveField_t *field, int index) {
-    if (field->type != DK_SAVE_INT || index < 0 || index >= field->count) G_Error("dk3 save: integer accessor mismatch");
+    if (field->type != DK_SAVE_INT || index < 0 || index >= field->count) Com_Error(ERR_FATAL, "dk3 save: integer accessor mismatch");
     return (int)Read32(field->data + index * 4);
 }
 
 float DK_SaveFloat(const dkSaveField_t *field, int index) {
     floatint_t value;
-    if (field->type != DK_SAVE_FLOAT || index < 0 || index >= field->count) G_Error("dk3 save: float accessor mismatch");
+    if (field->type != DK_SAVE_FLOAT || index < 0 || index >= field->count) Com_Error(ERR_FATAL, "dk3 save: float accessor mismatch");
     value.ui = Read32(field->data + index * 4);
     return value.f;
 }

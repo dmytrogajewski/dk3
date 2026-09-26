@@ -275,6 +275,7 @@ void DK_DrawScores(void) {
     const float white[4] = {0.9f, 0.94f, 1, 1}, red[4] = {1, 0.4f, 0.3f, 1}, blue[4] = {0.35f, 0.65f, 1, 1};
     const float background[4] = {0.02f, 0.03f, 0.04f, 0.92f};
     float scale = cgs.glconfig.vidHeight / 720.0f, left = cgs.glconfig.vidWidth * 0.1f, y = 90 * scale;
+    float scoreX = left + 350 * scale, pingX = left + 465 * scale;
     int i, rows = (int)((cgs.glconfig.vidHeight - y - 60 * scale) / (28 * scale)) - 2;
     char text[160];
     if (!font.shader) DK_LoadFont(&font);
@@ -287,7 +288,15 @@ void DK_DrawScores(void) {
             "You died. Load a save from the menu or press your quick-load key." : "Campaign status", white);
         return;
     }
-    DK_Text(&font, left, y, scale, "Player                         Score     Ping", white); y += 38 * scale;
+    /* Refresh held and automatic death/intermission boards, not just key presses. */
+    if (!cg.scoresRequestTime || cg.time - cg.scoresRequestTime >= 2000) {
+        cg.scoresRequestTime = cg.time;
+        trap_SendClientCommand("score");
+    }
+    DK_Text(&font, left, y, scale, "Player", white);
+    DK_Text(&font, scoreX, y, scale, "Score", white);
+    DK_Text(&font, pingX, y, scale, "Ping", white);
+    y += 38 * scale;
     for (i = 0; i < cg.numScores && i < rows; ++i) {
         score_t *score = &cg.scores[i];
         clientInfo_t *client;
@@ -296,11 +305,13 @@ void DK_DrawScores(void) {
         client = &cgs.clientinfo[score->client];
         color = client->team == TEAM_RED ? red : client->team == TEAM_BLUE ? blue : white;
         Com_sprintf(text, sizeof(text), "%.28s", client->name);
+        while (*text && DK_TextWidth(&font, text, scale) > scoreX - left - 24 * scale)
+            text[strlen(text) - 1] = 0;
         DK_Text(&font, left, y, scale, text, color);
         Com_sprintf(text, sizeof(text), "%d", score->score);
-        DK_Text(&font, left + 350 * scale, y, scale, text, color);
+        DK_Text(&font, scoreX, y, scale, text, color);
         Com_sprintf(text, sizeof(text), "%d", score->ping);
-        DK_Text(&font, left + 465 * scale, y, scale, text, color);
+        DK_Text(&font, pingX, y, scale, text, color);
         y += 28 * scale;
     }
 }

@@ -851,7 +851,7 @@ float	LittleFloat (const float *l);
 
 void	Swap_Init (void);
 */
-char	* QDECL va(char *format, ...) Q_PRINTF_FUNC(1, 2);
+char	* QDECL va(const char *format, ...) Q_PRINTF_FUNC(1, 2);
 
 #define TRUNCATE_LENGTH	64
 void Com_TruncateLongString( char *buffer, const char *s );

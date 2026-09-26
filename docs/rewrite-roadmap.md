@@ -2,6 +2,17 @@
 
 ## Current completion state
 
+Sequence 209 adds [configurable permanent rooms](online-operations.md#permanent-rooms)
+entirely on the server, retaining compatibility with the already distributed RPM.
+Focused acceptance verifies 16-slot bot filling, human replacement/refill, local
+rotation with a connected human, and live Internet menu joins and timed rotation.
+This does not close the broader multiplayer migration or campaign acceptance.
+
+The active sequence 203 implements the accepted [native Zig multiplayer and Internet
+room plan](multiplayer-zig.md). This extends the multiplayer implementation scope;
+acceptance remains open. [Operations](online-operations.md) records the one-host IP
+HTTPS deployment and explicitly trusted test certificate.
+
 As of **sequence 200 (2026-09-25)**, this is a playable native development build;
 the full game is incomplete. All 28 weapons are implemented in Zig, the Gold
 correction pass has focused acceptance, and the latest build and broad suite pass.

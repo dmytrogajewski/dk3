@@ -1381,6 +1381,7 @@ S_StopBackgroundTrack
 ======================
 */
 void S_Base_StopBackgroundTrack( void ) {
+	s_rawend[0] = 0;
 	if(!s_backgroundStream)
 		return;
 	S_CodecCloseStream(s_backgroundStream);
@@ -1443,6 +1444,9 @@ void S_Base_StartBackgroundTrack( const char *intro, const char *loop ){
 
 	Q_strncpyz( s_backgroundLoop, loop, sizeof( s_backgroundLoop ) );
 
+	// A newly selected track must not play samples queued by the previous map.
+	// Seamless loop restarts call S_OpenBackgroundStream directly below.
+	S_Base_StopBackgroundTrack();
 	S_OpenBackgroundStream( intro );
 }
 

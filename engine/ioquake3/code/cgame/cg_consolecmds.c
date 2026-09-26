@@ -86,6 +86,12 @@ static void CG_Viewpos_f (void) {
 
 static void CG_ScoresDown_f( void ) {
 
+#ifdef DK3_GAME
+	// The visible board owns refreshes, including death and intermission views.
+	cg.showScores = qtrue;
+	return;
+#endif
+
 #ifdef MISSIONPACK
 		CG_BuildSpectatorString();
 #endif

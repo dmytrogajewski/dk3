@@ -1,9 +1,19 @@
 # dk3 protocol and native state
 
-The standalone wire protocol is **1344**. Engine, server, game and client modules must
+The in-progress standalone wire protocol is **1346**. Engine, server, game and client modules must
 be built together. Upstream foundation modules remain separate development targets;
 dk3 modules advertise game version `dk3-1`. Native gameplay state contains no Gold
 edict mirror, import/export table or function registry.
+
+The active engine message codec is now Zig: `src/network/message.zig` owns bounded
+bit/scalar reads and writes, user-command deltas and entity/player snapshots;
+`message_schema.zig` defines their ordered fields and widths. ABI offsets locate
+local fields but never serialize native structure memory. Compile-time checks catch
+missing entity fields, duplicate offsets and invalid scalar widths. Upstream Huffman
+compression remains a reviewed C dependency. `zig build test-codec` compares encoded
+bytes and decoded state against the licensed C reference, including signed timers,
+extensions and command changes; additional cases cover truncated buffers and bounds.
+The C message codec is compiled only for this differential check.
 
 The engine's standard model indices, entity frame, origins, trajectories, events and
 collision fields retain their meanings. A game entity owns additional campaign data
@@ -41,6 +51,15 @@ engine's private home-state game directory. Writes sync the pending file, preser
 old inode as the previous save, atomically replace the current path and sync the directory.
 A game module supplies and validates the versioned records; the engine does not know game
 rules. The Linux x86-64 target implements the filesystem durability operations directly.
+
+The [Zig multiplayer migration](multiplayer-zig.md) introduces managed-room tickets
+and directional ChaCha20-Poly1305 keys. Each protected datagram retains the channel
+sequence/qport/checksum header as authenticated associated data, followed by a
+little-endian 64-bit nonce counter, 16-byte authentication tag and encrypted payload.
+Counters start at one; a 64-packet replay window admits reordering. Authentication
+must succeed before replay, fragment or NAT mapping state changes. Offline channels
+remain separate from mandatory authenticated public-room admission. Protocol 1346
+acceptance is still unverified; older protocol evidence below is historical.
 
 Protocol 1342 uses 9-bit model indices, 10-bit looping sound indices and 16-bit event
 parameters. Models and sounds have separate limits of 512 and 1,024; configstrings have
@@ -146,3 +165,11 @@ contact normal, `otherEntityNum` is the contacted entity, and event parameter 0/
 means surface/damageable body/liquid. `dk3RenderFlags` bit 8 reverses the explicit
 finite model animation range. Effect flags bits 8–10 identify CP1–CP4 atlas particles
 (0 selects the existing simple/smoke/bubble flags). Matching modules are required.
+
+Managed room compatibility is separate from binary identity. `rules.json` records
+protocol/schema and a conservative digest of admitted gameplay sources; build flags
+and ELF bytes do not participate. Installation adds a canonical hash of sorted,
+uncompressed base/map/data/navigation package entries. ZIP timestamps and compression
+do not participate. Cosmetic profile names distinguish stock and texture-only HD
+packages, which workers explicitly allow. This establishes compatibility claims;
+it cannot attest that a hostile client is executing an approved binary.

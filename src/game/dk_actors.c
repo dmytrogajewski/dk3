@@ -8,7 +8,9 @@
 
 #define DK_ACTOR_DEFINITIONS 128
 #define DK_ANIMATIONS 256
-#define DK_ACTOR_TICK 50
+/* Think every server frame: a fixed 50 ms step ran slow whenever the
+   server frame interval did not divide 50 ms (or exceeded it). */
+#define DK_ACTOR_TICK (level.time - level.previousTime)
 #define DK_STEP_HEIGHT 18
 #define DK_POD_HATCH_RANGE 200
 #define DK_POD_NOTICE_RANGE 512
@@ -531,6 +533,15 @@ static void EnemyAlert(gentity_t *actor, gentity_t *enemy) {
         if (info->companion || (info->civilian && !Timid(other)) || info->turret) continue;
         if (!trap_InPVS(actor->r.currentOrigin, other->r.currentOrigin) &&
             !trap_InPVS(other->r.currentOrigin, enemy->r.currentOrigin)) continue;
+        /* Civilians who witness violence panic even outside the short
+           voice-alert radius. Architecture still occludes the witness. */
+        if (Timid(other) && Distance(other->r.currentOrigin, actor->r.currentOrigin) < info->sightRange &&
+            Visible(other, actor)) {
+            other->enemy = enemy;
+            other->dk.lastSeenTime = level.time;
+            VectorCopy(enemy->r.currentOrigin, other->dk.lastSeenOrigin);
+            continue;
+        }
         if (Distance(other->r.currentOrigin, actor->r.currentOrigin) >= speak &&
             Distance(other->r.currentOrigin, enemy->r.currentOrigin) >= speak) continue;
         if (!Visible(actor, other) && !Visible(other, enemy)) continue;
@@ -2311,7 +2322,7 @@ static void ActorThink(gentity_t *actor) {
     unsigned int id = actor->dk.id;
     if (actor->health > 0 && actor->dk.weaponHoldUntil > level.time) {
         VectorClear(actor->dk.actorVelocity);
-        actor->nextthink = level.time + DK_ACTOR_TICK;
+        actor->nextthink = level.time + 1;
         return;
     }
     if (fabs(actor->r.currentOrigin[0]) > MAX_WORLD_COORD ||
@@ -2322,10 +2333,10 @@ static void ActorThink(gentity_t *actor) {
         if (actor->inuse && actor->dk.id == id) G_FreeEntity(actor);
         return;
     }
-    if (actor->s.dk3RenderFlags & DK3_RF_STONE) { actor->nextthink = level.time + DK_ACTOR_TICK; return; }
+    if (actor->s.dk3RenderFlags & DK3_RF_STONE) { actor->nextthink = level.time + 1; return; }
     FrameEvents(actor);
     if (!actor->inuse || actor->dk.id != id) return;
-    actor->nextthink = level.time + DK_ACTOR_TICK;
+    actor->nextthink = level.time + 1;
     Physics(actor);
     if (!actor->inuse || actor->dk.id != id) return;
     DK_TouchActorTriggers(actor);
@@ -2334,7 +2345,7 @@ static void ActorThink(gentity_t *actor) {
         !actor->dk.cinematicControlled && !actor->dk.cinematicOwned && strncmp(actor->classname, "cine_", 5) &&
         level.time >= actor->dk.animationTime + AnimationDuration(actor) + 3000) {
         /* AI_ThinkFade: alpha x0.92 per 100 ms, removed below 0.1. */
-        actor->s.dk3Alpha *= 0.9592f;
+        actor->s.dk3Alpha *= powf(0.92f, DK_ACTOR_TICK / 100.0f);
         if (actor->s.dk3Alpha < 0.1f) { G_FreeEntity(actor); return; }
     }
     if (Resurrect(actor) || actor->health <= 0 || (!actor->dk.cinematicControlled && level.time < actor->dk.scriptUntil)) return;
@@ -2718,7 +2729,7 @@ qboolean DK_SpawnActor(gentity_t *actor) {
     G_SetOrigin(actor, actor->s.origin);
     actor->pain = Pain; actor->die = Die; actor->think = ActorThink;
     actor->use = ActorUse;
-    actor->nextthink = level.time + DK_ACTOR_TICK;
+    actor->nextthink = level.time + 1;
     Animation(actor, "amba", ACTOR_IDLE);
     if (!strcmp(name, "monster_rockgat")) {
         static const char *keys[] = {"sound", "sound_up", "sound_down"};

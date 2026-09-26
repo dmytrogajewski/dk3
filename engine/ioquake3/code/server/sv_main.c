@@ -864,13 +864,15 @@ void SV_PacketEvent( netadr_t from, msg_t *msg ) {
 		// the IP port can't be used to differentiate them, because
 		// some address translating routers periodically change UDP
 		// port assignments
-		if (cl->netchan.remoteAddress.port != from.port) {
+		if (!cl->netchan.dk3Secure && cl->netchan.remoteAddress.port != from.port) {
 			Com_Printf( "SV_PacketEvent: fixing up a translated port\n" );
 			cl->netchan.remoteAddress.port = from.port;
 		}
 
 		// make sure it is a valid, in sequence packet
 		if (SV_Netchan_Process(cl, msg)) {
+			// Authenticated packets alone may update a managed session's NAT mapping.
+			cl->netchan.remoteAddress.port = from.port;
 			// zombie clients still need to do the Netchan_Process
 			// to make sure they don't need to retransmit the final
 			// reliable message, but they don't do any other processing
@@ -1070,6 +1072,49 @@ Player movement occurs as a result of packet events, which
 happen before SV_Frame is called
 ==================
 */
+#ifdef DEDICATED
+/* Hosting policy only: unchanged game VM, snapshots and client compatibility.
+   Public-game bot_minplayers denotes a bot count. Adjust it before bot thinking
+   to fill the remaining slots, counting connecting humans as reservations too. */
+static void SV_PermanentRoomFrame(void) {
+    static int mapId, mapStarted, reported;
+    int i, humans = 0, bots = 0, target = Cvar_VariableIntegerValue("dk3_fillSlots");
+    int seconds = Cvar_VariableIntegerValue("dk3_rotationSeconds");
+    int now = Sys_Milliseconds();
+    if (!Cvar_VariableIntegerValue("dk3_public") || target <= 0) return;
+    if (target > sv_maxclients->integer) target = sv_maxclients->integer;
+    for (i = 0; i < sv_maxclients->integer; ++i) {
+        if (svs.clients[i].state < CS_CONNECTED) continue;
+        if (svs.clients[i].netchan.remoteAddress.type == NA_BOT) ++bots;
+        else ++humans;
+    }
+    target = target > humans ? target - humans : 0;
+    if (Cvar_VariableIntegerValue("bot_minplayers") != target)
+        Cvar_Set("bot_minplayers", va("%d", target));
+    if (mapId != sv.serverId) { mapId = sv.serverId; mapStarted = now; reported = (int)((unsigned int)now - 1000u); }
+    if ((unsigned int)now - (unsigned int)reported >= 1000u) {
+        const char *map = Cvar_VariableString("mapname");
+        char status[256];
+        fileHandle_t file;
+        reported = now;
+        // Maps are operator-selected IDs. Do not emit malformed JSON for a
+        // manually entered map name outside the permanent-room namespace.
+        if (*map && strlen(map) <= 64 && strspn(map, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") == strlen(map)) {
+            Com_sprintf(status, sizeof(status), "{\"map\":\"%s\",\"humans\":%d,\"bots\":%d}\n", map, humans, bots);
+            file = FS_FOpenFileWrite_HomeData("permanent-status.json");
+            if (file) { FS_Write(status, strlen(status), file); FS_FCloseFile(file); }
+        }
+    }
+    if (seconds > 0 && seconds <= 86400 && ((unsigned int)now - (unsigned int)mapStarted) >= (unsigned int)seconds * 1000u) {
+        // Ordinary map transition keeps connected clients and starts a new round.
+        // Avoid waiting for ready votes at an empty or unattended intermission.
+        mapStarted = now;
+        SV_SendServerCommand(NULL, "print \"Rotation time reached. Loading next map.\n\"");
+        Cbuf_AddText("vstr nextmap\n");
+    }
+}
+#endif
+
 void SV_Frame( int msec ) {
 	int		frameMsec;
 	int		startTime;
@@ -1123,6 +1168,9 @@ void SV_Frame( int msec ) {
 	}
 	sv.timeResidual += msec;
 
+#ifdef DEDICATED
+    SV_PermanentRoomFrame();
+#endif
 	if (!com_dedicated->integer) SV_BotFrame (sv.time + sv.timeResidual);
 
 	// if time is about to hit the 32nd bit, kick all clients

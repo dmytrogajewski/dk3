@@ -210,6 +210,13 @@ typedef struct {
 	int			fragmentSequence;
 	int			fragmentLength;	
 	byte		fragmentBuffer[MAX_MSGLEN];
+    byte receivedFragments[MAX_MSGLEN / 1300 + 1];
+    int fragmentTotal;
+    qboolean dk3Secure;
+    byte dk3SendKey[32], dk3ReceiveKey[32];
+    uint64_t dk3SendCounter, dk3ReceiveHighest, dk3ReceiveMask;
+	char dk3Identity[65];
+	char dk3Ticket[65];
 
 	// outgoing fragment buffer
 	// we need to space out the sending of large fragmented messages
@@ -227,6 +234,15 @@ typedef struct {
 #endif
 } netchan_t;
 
+qboolean DK_NetAdmit(netchan_t *channel, char *userinfo);
+qboolean DK_NetLoadTicket(const char *path);
+void DK_NetProof(char *userinfo, int challenge);
+void DK_NetClientReady(netchan_t *channel);
+qboolean DK_NetRepeat(netchan_t *channel, const char *userinfo, int challenge);
+void DK_OnlineInit(void);
+void DK_OnlinePoll(void);
+void DK_OnlineCommand(void);
+int DK_OnlineInfo(netadr_t from, const char *info);
 void Netchan_Init( int qport );
 void Netchan_Setup(netsrc_t sock, netchan_t *chan, netadr_t adr, int qport, int challenge, qboolean compat);
 
@@ -244,7 +260,7 @@ PROTOCOL
 ==============================================================
 */
 
-#define	PROTOCOL_VERSION	1345
+#define	PROTOCOL_VERSION	1346
 #define PROTOCOL_LEGACY_VERSION	68
 // 1.31 - 67
 

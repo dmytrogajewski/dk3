@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "client.h"
 #include <limits.h>
+#include "dk_save_format.h"
 
 #include "../sys/sys_local.h"
 #include "../sys/sys_loadlib.h"
@@ -1682,6 +1683,10 @@ CL_Reconnect_f
 ================
 */
 void CL_Reconnect_f( void ) {
+    if (*Cvar_VariableString("dk3_currentRoom")) {
+        Cbuf_AddText("disconnect; dk3_online reconnect\n");
+        return;
+    }
 	if ( !strlen( cl_reconnectArgs ) )
 		return;
 	Cvar_Set("ui_singlePlayerActive", "0");
@@ -1694,6 +1699,15 @@ CL_Connect_f
 
 ================
 */
+static void CL_DK3Ticket_f(void) {
+	if (Cmd_Argc() != 2) {
+		Com_Printf("usage: dk3_ticket local-ticket.json (then connect to the room)\n");
+		return;
+	}
+	if (!DK_NetLoadTicket(Cmd_Argv(1)))
+		Com_Printf("Room ticket is missing, invalid or expired. Request a new admission.\n");
+}
+
 void CL_Connect_f( void ) {
 	char	server[MAX_OSPATH];
 	const char	*serverString;
@@ -1718,6 +1732,10 @@ void CL_Connect_f( void ) {
 		
 		Q_strncpyz( server, Cmd_Argv(2), sizeof( server ) );
 	}
+
+    if (strcmp(server, Cvar_VariableString("dk3_roomEndpoint"))) {
+        Cvar_Set("dk3_currentRoom", "");
+    }
 
 	// save arguments for reconnect
 	Q_strncpyz( cl_reconnectArgs, Cmd_Args(), sizeof( cl_reconnectArgs ) );
@@ -2430,6 +2448,7 @@ void CL_CheckForResend( void ) {
 			Info_SetValueForKey(info, "protocol", va("%i", com_protocol->integer));
 		Info_SetValueForKey( info, "qport", va("%i", port ) );
 		Info_SetValueForKey( info, "challenge", va("%i", clc.challenge ) );
+		DK_NetProof(info, clc.challenge);
 		
 		Com_sprintf( data, sizeof(data), "connect \"%s\"", info );
 		NET_OutOfBandData( NS_CLIENT, clc.serverAddress, (byte *) data, strlen ( data ) );
@@ -2776,8 +2795,9 @@ void CL_ConnectionlessPacket( netadr_t from, msg_t *msg ) {
 			      clc.challenge, clc.compat);
 #else
 		Netchan_Setup(NS_CLIENT, &clc.netchan, from, Cvar_VariableValue("net_qport"),
-			      clc.challenge, qfalse);
+		      clc.challenge, qfalse);
 #endif
+		DK_NetClientReady(&clc.netchan);
 
 		clc.state = CA_CONNECTED;
 		clc.lastPacketSentTime = -9999;		// send first packet immediately
@@ -2977,6 +2997,7 @@ CL_Frame
 ==================
 */
 void CL_Frame ( int msec ) {
+	DK_OnlinePoll();
 
 	if ( !com_cl_running->integer ) {
 		return;
@@ -3553,6 +3574,53 @@ void CL_Sayto_f( void ) {
 CL_Init
 ====================
 */
+/* Validate the portable save before starting its map. Full gameplay validation
+   and world reconstruction remain owned by DK_ResumeSave. */
+static void CL_LoadSaveMenu_f(void) {
+    byte *bytes = NULL;
+    dkSaveReader_t reader;
+    dkSaveField_t field;
+    char kind[DK_SAVE_NAME], map[DK_SAVE_NAME] = "", error[160] = "Invalid save request.";
+    unsigned int id;
+    int length, skill = 0, i;
+    const char *slot = Cmd_Argv(1);
+    qboolean previous = Cmd_Argc() == 3 && !strcmp(Cmd_Argv(2), "previous");
+    if (clc.state > CA_DISCONNECTED || Cmd_Argc() < 2 || Cmd_Argc() > 3 ||
+        (Cmd_Argc() == 3 && !previous) || !*slot || strlen(slot) >= 48 || !strncmp(slot, "dk3-", 4)) goto refused;
+    for (i = 0; slot[i]; ++i)
+        if (!((slot[i] >= 'a' && slot[i] <= 'z') || (slot[i] >= '0' && slot[i] <= '9') || slot[i] == '_' || slot[i] == '-')) goto refused;
+    bytes = malloc(DK_SAVE_LIMIT);
+    if (!bytes) { Q_strncpyz(error, "Not enough memory to read the save.", sizeof(error)); goto refused; }
+    length = FS_DK3SaveRead(1, slot, bytes, DK_SAVE_LIMIT, previous);
+    if (length < 0) { Q_strncpyz(error, "Save is missing or unreadable.", sizeof(error)); goto refused; }
+    if (!DK_SaveValidate(bytes, length, error, sizeof(error))) goto refused;
+    DK_SaveOpen(&reader, bytes, length);
+    if (!DK_SaveNextRecord(&reader, kind, &id) || strcmp(kind, "campaign") || id) goto refused;
+    while (DK_SaveNextField(&reader, &field)) {
+        if (!strcmp(field.name, "map") && !DK_SaveString(&field, map, sizeof(map))) goto refused;
+        if (!strcmp(field.name, "skill") && field.type == DK_SAVE_INT && field.count == 1) skill = DK_SaveInt(&field, 0);
+    }
+    if (!*map || skill < 1 || skill > 5) goto refused;
+    for (i = 0; map[i]; ++i)
+        if (!((map[i] >= 'a' && map[i] <= 'z') || (map[i] >= '0' && map[i] <= '9') || map[i] == '_' || map[i] == '-')) goto refused;
+    if (FS_ReadFile(va("maps/%s.bsp", map), NULL) <= 0) { Q_strncpyz(error, "The saved map is unavailable.", sizeof(error)); goto refused; }
+    if (FS_DK3SaveWrite(1, "dk3-resume-internal", bytes, length) != length) {
+        Q_strncpyz(error, "Could not stage the save.", sizeof(error)); goto refused;
+    }
+    free(bytes);
+    Cvar_Set("com_errorMessage", "");
+    Cvar_Set("g_gametype", "2"); Cvar_Set("g_spSkill", va("%d", skill));
+    Cvar_Set("dk3_loadRequest", ""); Cvar_Set("dk3_loadPrevious", "0");
+    Cvar_Set("dk3_travel", ""); Cvar_Set("dk3_entry", "");
+    Cvar_Set("dk3_resume", "1"); Cvar_Set("dk3_menuResume", "1");
+    Cbuf_AddText(va("map %s\n", map));
+    return;
+refused:
+    free(bytes);
+    Com_Printf("Load refused: %s\n", error);
+    Cvar_Set("com_errorMessage", error);
+}
+
 void CL_Init( void ) {
 	Com_Printf( "----- Client Initialization -----\n" );
 
@@ -3750,6 +3818,10 @@ void CL_Init( void ) {
 	Cmd_AddCommand ("cinematic", CL_PlayCinematic_f);
 	Cmd_AddCommand ("stoprecord", CL_StopRecord_f);
 	Cmd_AddCommand ("connect", CL_Connect_f);
+	Cmd_AddCommand ("dk3_loadmenu", CL_LoadSaveMenu_f);
+	Cmd_AddCommand ("dk3_ticket", CL_DK3Ticket_f);
+	DK_OnlineInit();
+	Cmd_AddCommand ("dk3_online", DK_OnlineCommand);
 	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
 	Cmd_AddCommand ("localservers", CL_LocalServers_f);
 	Cmd_AddCommand ("globalservers", CL_GlobalServers_f);
@@ -3828,6 +3900,9 @@ void CL_Shutdown(char *finalmsg, qboolean disconnect, qboolean quit)
 	Cmd_RemoveCommand ("cinematic");
 	Cmd_RemoveCommand ("stoprecord");
 	Cmd_RemoveCommand ("connect");
+	Cmd_RemoveCommand ("dk3_loadmenu");
+	Cmd_RemoveCommand ("dk3_ticket");
+	Cmd_RemoveCommand ("dk3_online");
 	Cmd_RemoveCommand ("reconnect");
 	Cmd_RemoveCommand ("localservers");
 	Cmd_RemoveCommand ("globalservers");
@@ -3912,6 +3987,7 @@ void CL_ServerInfoPacket( netadr_t from, msg_t *msg ) {
 	qboolean gameMismatch;
 
 	infoString = MSG_ReadString( msg );
+	if (DK_OnlineInfo(from, infoString)) return;
 
 	// if this isn't the correct gamename, ignore it
 	gamename = Info_ValueForKey( infoString, "gamename" );

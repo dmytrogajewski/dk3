@@ -22,6 +22,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 //
 
 #include "g_local.h"
+#ifdef DK3_GAME
+#include "dk_multiplayer.h"
+#endif
 
 level_locals_t	level;
 
@@ -1481,6 +1484,9 @@ Once a frame, check for changes in tournement player state
 =============
 */
 void CheckTournament( void ) {
+#ifdef DK3_GAME
+	if (DK_RoomWarmup()) return;
+#endif
 	// check because we run 3 game frames before calling Connect and/or ClientBegin
 	// for clients on a map_restart
 	if ( level.numPlayingClients == 0 ) {
@@ -1602,6 +1608,10 @@ CheckVote
 ==================
 */
 void CheckVote( void ) {
+#ifdef DK3_GAME
+	DK_RoomTick();
+	return;
+#endif
 	if ( level.voteExecuteTime && level.voteExecuteTime < level.time ) {
 		level.voteExecuteTime = 0;
 		trap_SendConsoleCommand( EXEC_APPEND, va("%s\n", level.voteString ) );

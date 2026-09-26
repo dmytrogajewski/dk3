@@ -17,7 +17,7 @@ pub const spec: profiles.Spec = .{
     .ammo_class = "ammo_ionpack", // ion
     .ammo_pack = 50,
     .projectile = .{ .water_collision = true, .loop_sound = "e1/we_ionflyby.wav" },
-    .visual = .{ .projectile_model = "models/e1/we_ionbl.dkm", .impact_sprite = "models/e1/we_ionexpl.sp2", .blast_sound = "e1/we_ionhit.wav", .color = .{ 0, 0.8, 0 } },
+    .visual = .{ .projectile_model = "models/e1/we_ionbl.dkm", .impact_sprite = "models/e1/we_ionexpl.sp2", .blast_sound = "e1/we_ionexplodea.wav", .color = .{ 0, 0.8, 0 } },
     .world_model = "models/e1/a_ion.dkm",
     .animation = .{
         .view_model = "models/e1/w_ionblaster.dkm",
@@ -43,8 +43,9 @@ pub fn update(controller: anytype) void {
     controller.automatic(@This());
 }
 
-pub fn blastSound(_: c_int) [*c]const u8 {
-    return pointer(spec.visual.blast_sound);
+pub fn blastSound(entity: c_int) [*c]const u8 {
+    const explosions = [_][:0]const u8{ "e1/we_ionexplodea.wav", "e1/we_ionexplodea.wav", "e1/we_ionexplodeb.wav", "e1/we_ionexplodeb.wav", "e1/we_ionexplodec.wav" };
+    return pointer(explosions[@intCast(@mod(entity *% 7, 5))]);
 }
 
 pub fn impactCue(context: impact.Context) impact.Cue {
@@ -107,7 +108,6 @@ pub fn contact(hit: server.Contact) void {
     if ((hit.hit.contents & c.MASK_WATER) != 0) return discharge(ent);
     const victim = hit.victim();
     if (victim.takedamage != 0) {
-        hit.effect(@This());
         const owner = hit.owner();
         server.damage(@This(), .{ .victim = victim, .inflictor = ent, .owner = owner, .direction = ent.s.pos.trDelta, .point = hit.hit.endpos, .amount = v.f(ent.damage) * (if (victim == owner) @as(f32, 0.5) else 1), .flags = unshielded });
         return hit.detonate(@This());

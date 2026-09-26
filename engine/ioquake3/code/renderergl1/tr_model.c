@@ -50,7 +50,9 @@ qhandle_t R_RegisterMD3(const char *name, model_t *mod)
 
 	strcpy(filename, name);
 
-	fext = strchr(filename, '.');
+	/* Converted names can contain an original extension (name.dkm.md3).
+	 * Only the final extension defines MD3 detail-level siblings. */
+	fext = strrchr(filename, '.');
 	if(!fext)
 		fext = defex;
 	else
@@ -70,6 +72,7 @@ qhandle_t R_RegisterMD3(const char *name, model_t *mod)
 		if(!buf.u)
 			continue;
 		
+		loaded = qfalse;
 		ident = LittleLong(* (unsigned *) buf.u);
 		if (ident == MD3_IDENT)
 			loaded = R_LoadMD3(mod, lod, buf.u, name);
@@ -83,20 +86,35 @@ qhandle_t R_RegisterMD3(const char *name, model_t *mod)
 			mod->numLods++;
 			numLoaded++;
 		}
-		else
+		else {
+			mod->md3[lod] = NULL;
 			break;
+		}
 	}
 
 	if(numLoaded)
 	{
-		// duplicate into higher lod spots that weren't
-		// loaded, in case the user changes r_lodbias on the fly
-		for(lod--; lod >= 0; lod--)
-		{
-			mod->numLods++;
-			mod->md3[lod] = mod->md3[lod + 1];
-		}
-
+        int highest = -1, fallback;
+        /* Model selection requires a contiguous table, including level zero.
+         * A partial installation may omit intermediate or base detail files. */
+        for (lod = 0; lod < MD3_MAX_LODS; ++lod)
+            if (mod->md3[lod]) highest = lod;
+        for (lod = 0; lod <= highest; ++lod) {
+            if (mod->md3[lod]) continue;
+            for (fallback = lod - 1; fallback >= 0 && !mod->md3[fallback]; --fallback) {}
+            if (fallback < 0)
+                for (fallback = lod + 1; fallback <= highest && !mod->md3[fallback]; ++fallback) {}
+            mod->md3[lod] = mod->md3[fallback];
+        }
+        mod->numLods = highest + 1;
+        /* Frame validation uses level zero; alternate levels must share its
+         * animation range before they can be selected for rendering. */
+        for (lod = 1; lod < mod->numLods; ++lod) {
+            if (mod->md3[lod]->numFrames != mod->md3[0]->numFrames) {
+                ri.Printf(PRINT_WARNING, "R_RegisterMD3: mismatched detail frames for %s level %d\n", name, lod);
+                mod->md3[lod] = mod->md3[0];
+            }
+        }
 		return mod->index;
 	}
 

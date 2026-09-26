@@ -65,14 +65,15 @@ const FlagSet = struct {
     }
 };
 
-/// The product-wide disabled checks of the products that trapped.
+/// Product-wide sanitizer flags. Preserve renderer trap origins for diagnosis.
 const client_sanitizer = nonnull_attribute_off;
-const renderer_gl2_sanitizer = nonnull_attribute_off;
+const renderer_gl1_sanitizer = nonnull_attribute_off ++ [_][]const u8{"-fno-sanitize-merge"};
+const renderer_gl2_sanitizer = renderer_gl1_sanitizer;
 
 const flag_sets = std.enums.EnumArray(Product, FlagSet).init(.{
     .server = .init(&nonnull_attribute_off),
     .client = .init(&client_sanitizer),
-    .renderer_opengl1 = .init(&nonnull_attribute_off),
+    .renderer_opengl1 = .init(&renderer_gl1_sanitizer),
     .renderer_opengl2 = .init(&renderer_gl2_sanitizer),
     .cgame = .init(&.{}),
     .qagame = .init(&.{}),

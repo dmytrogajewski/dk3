@@ -1,0 +1,31 @@
+[Unit]
+Description=dk3 room coordinator
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=dk3-coordinator
+Group=dk3-coordinator
+ExecStart=/opt/dk3/bin/dk3-coordinator /etc/dk3/coordinator.json
+WorkingDirectory=/var/lib/dk3-coordinator
+StateDirectory=dk3-coordinator
+StateDirectoryMode=0700
+UMask=0077
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+MemoryMax=384M
+TasksMax=80
+LimitNOFILE=512
+
+[Install]
+WantedBy=multi-user.target

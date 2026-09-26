@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /* Native bot decisions drive normal ioquake3 client commands and AAS routing. */
 #include "g_local.h"
+#include "dk_multiplayer.h"
 #include "dk_weapons.h"
 #include "../botlib/botlib.h"
 #include "../botlib/be_aas.h"
@@ -82,7 +83,19 @@ static void AddBot(const char *name, float skill, const char *team) {
     Info_SetValueForKey(userinfo, "rate", "25000");
     Info_SetValueForKey(userinfo, "snaps", "20");
     Info_SetValueForKey(userinfo, "skill", va("%.2f", Com_Clamp(1, 5, skill)));
-    Info_SetValueForKey(userinfo, "model", "hiro");
+    {
+        int counts[36] = {0}, chosen = 0, i;
+        for (i = 0; i < level.maxclients; ++i) {
+            char other[MAX_INFO_STRING];
+            int appearance;
+            if (i == client || !g_entities[i].inuse || !g_entities[i].client) continue;
+            trap_GetUserinfo(i, other, sizeof(other));
+            appearance = DK_AppearanceFind(Info_ValueForKey(other, "model"));
+            if (appearance >= 0 && appearance < 36) ++counts[appearance];
+        }
+        chosen = DK_AppearanceChoose(counts, ARRAY_LEN(counts));
+        Info_SetValueForKey(userinfo, "model", DK_AppearanceSelection(chosen));
+    }
     Info_SetValueForKey(userinfo, "teampref", *team ? team : "auto");
     Info_SetValueForKey(userinfo, "ip", "localhost");
     trap_SetUserinfo(client, userinfo);
@@ -1100,6 +1113,7 @@ int DK_BotFrame(int time) {
         for (i = 0; i < level.maxclients; ++i) if (level.clients[i].pers.connected != CON_DISCONNECTED) {
             ++present;
             if (bots[i].active) removable = i;
+            else if (trap_Cvar_VariableIntegerValue("dk3_public")) ++desired;
         }
         if (desired > present && present < level.maxclients) AddBot(va("dk3 bot %d", present + 1), Com_Clamp(1, 5, trap_Cvar_VariableIntegerValue("g_spSkill")), "");
         if (desired > 0 && present > desired && removable >= 0) trap_DropClient(removable, "Bot population reduced");

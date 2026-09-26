@@ -13,6 +13,7 @@ const server = @import("../server/combat.zig");
 
 pub const id = c.DK_W_SILVERCLAW;
 pub const spec: profiles.Spec = .{
+    .equipped = false,
     .start_episode = 3, // silverclaw
     .world_model = "models/e3/a_claw.dkm",
     .animation = .{

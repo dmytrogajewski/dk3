@@ -2,7 +2,6 @@
 #include "g_local.h"
 #include "dk_tables.h"
 
-static char currentMap[MAX_QPATH], mapMusic[MAX_QPATH];
 
 static void SoundPath(const char *name, char *out, int capacity, qboolean music) {
     char normalized[MAX_QPATH];
@@ -38,25 +37,6 @@ int DK_SoundIndex(const char *name) {
         Q_strncpyz(path, "sounds/global/a_speedwhoosh.wav", sizeof(path));
     }
     return G_SoundIndex(path);
-}
-
-void DK_SetMusic(const char *name) {
-    char path[MAX_QPATH];
-    if (!name || !*name) { trap_SetConfigstring(CS_MUSIC, ""); return; }
-    SoundPath(name, path, sizeof(path), qtrue);
-    trap_SetConfigstring(CS_MUSIC, va("%s %s", path, path));
-}
-
-static void MusicRow(const dkRecord_t *row) {
-    if (!Q_stricmp(DK_Field(row, "mapname"), currentMap)) Q_strncpyz(mapMusic, DK_Field(row, "song"), sizeof(mapMusic));
-}
-
-void DK_WorldMusic(void) {
-    char *override;
-    trap_Cvar_VariableStringBuffer("mapname", currentMap, sizeof(currentMap)); mapMusic[0] = 0;
-    DK_ReadTable("music", MusicRow);
-    G_SpawnString("musictrack", "", &override);
-    DK_SetMusic(*override ? override : mapMusic);
 }
 
 static unsigned int NextRandom(gentity_t *entity) {

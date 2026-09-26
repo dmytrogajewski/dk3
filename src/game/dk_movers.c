@@ -108,7 +108,8 @@ static void BinaryReached(gentity_t *ent) {
         ent->think = BinaryReturn;
         ent->nextthink = level.time + (int)(ent->wait * 1000) + 1;
     }
-    if (opened) G_UseTargets(ent, DK_FindEntity(ent->dk.ownerId));
+    /* Linked brush parts share one activation, including arrival targets. */
+    if (opened && !(ent->flags & FL_TEAMMEMBER)) G_UseTargets(ent, DK_FindEntity(ent->dk.ownerId));
 }
 
 static void BinaryUse(gentity_t *ent, gentity_t *other, gentity_t *activator) {
@@ -179,12 +180,15 @@ static void TrainReached(gentity_t *ent) {
     if (corner->dk.aiScript) DK_StartScript(corner->dk.aiScript, ent, DK_FindEntity(ent->dk.ownerId), qfalse);
     if (corner->dk.cineScript) DK_StartCinematic(corner->dk.cineScript, ent, DK_FindEntity(ent->dk.ownerId));
     ent->target = corner->target;
-    ent->dk.moverPaused = (corner->spawnflags & 8) || corner->wait < 0 || corner->health > 0;
+    /* The departure corner supplies the dwell after this leg. A positive
+       dwell takes precedence over the destination's trigger-only flag. */
+    ent->dk.moverPaused = ent->wait <= 0 &&
+        ((corner->spawnflags & 8) || ent->wait < 0 || corner->health > 0);
     if (corner->health > 0) { ent->health = ent->dk.maxHealth = corner->health; ent->takedamage = qtrue; }
     if (corner->soundPos1) G_AddEvent(ent, EV_GENERAL_SOUND, corner->soundPos1);
     if (!ent->dk.moverPaused && ent->target) {
         ent->think = TrainThink;
-        ent->nextthink = level.time + (int)(corner->wait * 1000) + 1;
+        ent->nextthink = level.time + (int)(ent->wait * 1000) + 1;
     }
 }
 
@@ -199,8 +203,10 @@ static void TrainLeave(gentity_t *ent) {
         ent->dk.moverPaused = 1;
         return;
     }
+    ent->wait = previous ? previous->wait : 0;
     ent->dk.destinationId = corner->dk.id;
     ent->dk.moverPaused = 0;
+    ent->nextthink = 0;
     ent->takedamage = qfalse;
     VectorCopy(ent->r.currentOrigin, ent->s.pos.trBase);
     VectorSubtract(corner->s.origin, ent->r.currentOrigin, delta);
@@ -239,6 +245,7 @@ static void TrainInit(gentity_t *ent) {
     ent->dk.destinationId = first->dk.id;
     ent->target = first->target;
     ent->dk.moverInitialized = 1;
+    ent->wait = 0;
     ent->dk.moverPaused = ent->targetname && !(ent->spawnflags & 128);
     if (!ent->dk.moverPaused) TrainReached(ent);
 }
@@ -249,12 +256,11 @@ static void TrainUse(gentity_t *ent, gentity_t *other, gentity_t *activator) {
     if (other && other != ent && other->dk.pathTarget) {
         ent->target = other->dk.pathTarget;
         Stop(ent); TrainLeave(ent);
-    } else if (ent->s.pos.trType != TR_STATIONARY) {
-        gentity_t *destination = DK_FindEntity(ent->dk.destinationId);
-        Stop(ent);
-        if (destination) ent->target = destination->targetname;
-        ent->dk.moverPaused = 1; ent->nextthink = 0;
-    } else TrainLeave(ent);
+    } else if (ent->s.pos.trType == TR_STATIONARY) {
+        gentity_t *corner = DK_FindEntity(ent->dk.destinationId);
+        if (corner && (corner->spawnflags & 8) && ent->nextthink) return;
+        TrainLeave(ent);
+    }
 }
 
 static void ElevatorUse(gentity_t *ent, gentity_t *other, gentity_t *activator) {

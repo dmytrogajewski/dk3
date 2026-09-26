@@ -24,7 +24,7 @@ BINDINGS = (("w", "+forward"), ("s", "+back"), ("a", "+moveleft"), ("d", "+mover
             ("e", "use"), ("i", "inventory"), ("MWHEELUP", "weapprev"), ("MWHEELDOWN", "weapnext"),
             ("F5", "save quick"), ("F9", "load quick"), ("f", "companion follow"), ("h", "companion wait"),
             ("g", "companion attack"), ("j", "companion pickup"), ("p", "attribute_next"),
-            ("o", "attribute_increase"), ("ENTER", "cin_skip"))
+            ("o", "attribute_increase"), ("ENTER", "cin_skip"), ("TAB", "+scores"))
 
 # sound/feedback/hit.wav: the default sound effect (code/client/snd_openal.c:484, code/client/snd_dma.c:402), a short
 # square-wave click in 16-bit mono PCM (code/client/snd_codec_wav.c:131-176).

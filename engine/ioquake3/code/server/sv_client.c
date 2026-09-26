@@ -369,6 +369,16 @@ void SV_DirectConnect( netadr_t from ) {
 	challenge = atoi( Info_ValueForKey( userinfo, "challenge" ) );
 	qport = atoi( Info_ValueForKey( userinfo, "qport" ) );
 
+    // A lost connectResponse may be retried without consuming a ticket twice or
+    // resetting nonce counters. Only the authenticated original endpoint qualifies.
+    for (i=0, cl=svs.clients; i<sv_maxclients->integer; ++i, ++cl) {
+        if (cl->state == CS_CONNECTED && NET_CompareAdr(from, cl->netchan.remoteAddress) &&
+            DK_NetRepeat(&cl->netchan, userinfo, challenge)) {
+            NET_OutOfBandPrint(NS_SERVER, from, "connectResponse %d", challenge);
+            return;
+        }
+    }
+
 	// quick reject
 	for (i=0,cl=svs.clients ; i < sv_maxclients->integer ; i++,cl++) {
 		if ( cl->state == CS_FREE ) {
@@ -453,9 +463,26 @@ void SV_DirectConnect( netadr_t from ) {
 	newcl = &temp;
 	Com_Memset (newcl, 0, sizeof(client_t));
 
+    // Authenticate into temporary state before touching any occupied client slot.
+    Netchan_Setup(NS_SERVER, &temp.netchan, from, qport, challenge, qfalse);
+    if (!DK_NetAdmit(&temp.netchan, userinfo)) {
+        NET_OutOfBandPrint(NS_SERVER, from, "print\nRoom admission failed or expired; request a new ticket.\n");
+        return;
+    }
+    if (temp.netchan.dk3Secure) {
+        for (i=0, cl=svs.clients; i<sv_maxclients->integer; ++i, ++cl) {
+            if (cl->state != CS_FREE && cl->netchan.dk3Secure &&
+                !strcmp(cl->netchan.dk3Identity, temp.netchan.dk3Identity)) {
+                SV_DropClient(cl, "Reconnected with a fresh room ticket");
+                newcl = cl;
+                goto gotnewcl;
+            }
+        }
+    }
+
 	// if there is already a slot for this ip, reuse it
 	for (i=0,cl=svs.clients ; i < sv_maxclients->integer ; i++,cl++) {
-		if ( cl->state == CS_FREE ) {
+		if ( cl->state == CS_FREE || temp.netchan.dk3Secure ) {
 			continue;
 		}
 		if ( NET_CompareBaseAdr( from, cl->netchan.remoteAddress )
@@ -502,6 +529,21 @@ void SV_DirectConnect( netadr_t from ) {
 		}
 	}
 
+#ifdef DEDICATED
+    // Only an authenticated admission may replace a bot in a permanent room.
+    // Human slots are never displaced; ordinary rooms retain their slot policy.
+    if (!newcl && temp.netchan.dk3Secure && Cvar_VariableIntegerValue("dk3_fillSlots") > 0) {
+        for (i = startIndex; i < sv_maxclients->integer; ++i) {
+            cl = &svs.clients[i];
+            if (cl->state >= CS_CONNECTED && cl->netchan.remoteAddress.type == NA_BOT) {
+                SV_DropClient(cl, "Bot replaced by joining player");
+                newcl = cl;
+                break;
+            }
+        }
+    }
+#endif
+
 	if ( !newcl ) {
 		if ( NET_IsLocalAddress( from ) ) {
 			count = 0;
@@ -544,12 +586,9 @@ gotnewcl:
 	// save the challenge
 	newcl->challenge = challenge;
 
-	// save the address
+    // Address, verified identity and fresh keys came from the admitted temporary channel.
 #ifdef LEGACY_PROTOCOL
-	newcl->compat = compat;
-	Netchan_Setup(NS_SERVER, &newcl->netchan, from, qport, challenge, compat);
-#else
-	Netchan_Setup(NS_SERVER, &newcl->netchan, from, qport, challenge, qfalse);
+    newcl->compat = compat;
 #endif
 	// init the netchan queue
 	newcl->netchan_end_queue = &newcl->netchan_start_queue;
@@ -1409,6 +1448,7 @@ void SV_UserinfoChanged( client_t *cl ) {
 	int	len;
 
 	// name for C code
+    Info_SetValueForKey(cl->userinfo, "dk3_identity", cl->netchan.dk3Identity);
 	Q_strncpyz( cl->name, Info_ValueForKey (cl->userinfo, "name"), sizeof(cl->name) );
 
 	// rate command
