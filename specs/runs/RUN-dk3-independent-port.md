@@ -2758,3 +2758,26 @@ transaction now admits actor/corpse bodies as well as players.
 Reports use dkguard software rendering, temporary profiles and supplied local assets.
 Neither main, installed game, saves nor private reference files are changed by these
 runtime scenarios.
+
+
+## runtime-zig — sequence 226 (Mishima guard combat)
+
+Added a pure class-owned guard controller and hostile perception/attack adapter.
+The controller owns ammunition, pose selection, strike/reload deadlines and RNG;
+world systems own the actor lifecycle. Supplied tuning/events/animation files provide
+model scale, health/speed/sight, damage/spread/muzzle offsets, attack sounds and strike
+frames. Engine collision resolves visibility and bullets; the shared damage service
+records player damage and source identity. No private runtime or assets were imported.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| First guard build | Failed; repaired | Signed duration division required explicit `@divTrunc`; repaired before engine runs. |
+| Native modules and aggregate checks | Passed | `/tmp/dk3-runtime-226-suite.log`: 182 Zig and 44 Python checks. |
+| Class test admission correction | Passed | Named-module tests were not included by importing the actor catalog. `test-runtime` now explicitly runs the catalog root. `/tmp/dk3-runtime-226-class-tests.log`: 44 runtime + 2 actor catalog tests, all modules built. The pure test covers eight rounds, exactly one reload cue, and blocked-shot ammunition behavior. |
+| e1m3b authored guard 166 | Passed | `runtime-zig-226/guard/`: ordinary player fire provokes guard; eight guard shots report rounds 7..0, player health falls from diagnostic 1000 to 911, reload sound dispatches. Reload capture inspected. Diagnostic placement/equipment/health; full encounter balance not certified. |
+| Worker witness and player weapon regression | Passed | `runtime-zig-226/civilians/` and `combat/` after hostile integration; e1m2a death/witness behavior and Glock/Ion target kills retained. |
+| Full hostile behavior | Unrun | Cover, route navigation, pain responses, scripted activation, difficulty scaling and remaining actor classes remain open. |
+
+Development remains on `rewrite/native-zig-runtime`; main still points to restoration
+`e3966c4`. Both native scenario families use guarded software rendering and temporary
+profiles; the preserved installation and saves remain unchanged.

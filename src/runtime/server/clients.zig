@@ -33,7 +33,7 @@ pub const Clients = struct {
         }
         var transform = spawn orelse return error.MissingPlayerSpawn;
         transform.position[2] += 9;
-        const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Keys{}, data.Character{}, data.Ailments{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
+        const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Hurt{}, data.Keys{}, data.Character{}, data.Ailments{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
         errdefer world.destroy(entity) catch unreachable;
         _ = try slots.acquire(entity, @intCast(index));
         self.entities[index] = entity;

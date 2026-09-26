@@ -158,6 +158,10 @@ fn draw(now: i32) !void {
         rendered.axis[0] = orientation.forward;
         rendered.axis[1] = v.scale(orientation.right, -1);
         rendered.axis[2] = v.cross(rendered.axis[0], rendered.axis[1]);
+        if (entity.eType == c.ET_GENERAL and entity.angles2[0] > 0 and entity.angles2[1] > 0 and entity.angles2[2] > 0) {
+            for (&rendered.axis, entity.angles2) |*axis, scale| axis.* = v.scale(axis.*, scale);
+            rendered.nonNormalizedAxes = c.qtrue;
+        }
         rendered.shaderRGBA = @splat(255);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
     }

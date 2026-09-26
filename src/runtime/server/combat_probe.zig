@@ -9,6 +9,14 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_probe_health")) {
+        const owner = player orelse return error.MissingPlayer;
+        var argument: [16]u8 = undefined;
+        const value = try std.fmt.parseInt(i32, engine.argv(1, &argument), 10);
+        if (value < 1 or value > 10000) return error.InvalidProbeHealth;
+        (try world.get(owner, data.Health)).current = value;
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_face_target")) {
         const owner = player orelse return error.MissingPlayer;
         var argument: [32]u8 = undefined;

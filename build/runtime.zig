@@ -9,6 +9,9 @@ pub fn declareTests(b: *std.Build, optimize: std.builtin.OptimizeMode) *std.Buil
     for ([_][]const u8{ "engine/ioquake3/code/game/bg_pmove.c", "engine/ioquake3/code/game/bg_slidemove.c", "engine/ioquake3/code/qcommon/q_math.c", "src/runtime/tests/movement_reference.c" }) |source| root.addCSourceFile(.{ .file = b.path(source), .flags = &.{ "-std=gnu99", "-ffp-contract=off" } });
     root.linkSystemLibrary("m", .{});
     step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = root })).step);
+    // Named module imports do not contribute their own tests to the runtime root.
+    const actors = b.createModule(.{ .root_source_file = b.path("src/actors/catalog.zig"), .target = b.graph.host, .optimize = optimize });
+    step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = actors })).step);
     const audit = b.addExecutable(.{ .name = "dk3-runtime-audit", .root_module = b.createModule(.{ .root_source_file = b.path("src/runtime/audit.zig"), .target = b.graph.host, .optimize = optimize }) });
     const audit_step = b.step("runtime-audit", "Build read-only save compatibility inspector");
     audit_step.dependOn(&b.addInstallArtifact(audit, .{}).step);

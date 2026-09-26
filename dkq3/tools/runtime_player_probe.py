@@ -287,6 +287,44 @@ def civilians_scenario(issue, capture, log):
             "scope": "e1m2a authored civilian bodies, normal Glock input, death and witness panic; diagnostic player positioning/equipment, navigation and full actor parity unqualified"}
 
 
+def guard_scenario(issue, capture, log):
+    identity = 166
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 1000")
+    issue(f"dk3_runtime_face_target {identity}", 0.3)
+    placement = re.findall(rf"zig combat: fixture player=([\d.,-]+) target={identity}", log.read_text(errors="replace"))
+    if not placement:
+        raise RuntimeError(f"no clear standing point near guard {identity}")
+    player = list(map(float, placement[-1].split(',')))
+    issue("dk3_runtime_equip 21")
+    issue("dk3_runtime_actors")
+    matches = re.findall(rf"zig actor: id={identity} state=(\w+) health=(-?\d+) pos=([\d.,-]+)", log.read_text(errors="replace"))
+    if not matches:
+        raise RuntimeError("guard did not spawn")
+    target = list(map(float, matches[-1][2].split(',')))
+    dx, dy, dz = target[0] - player[0], target[1] - player[1], target[2] + 8 - (player[2] + 22)
+    issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}")
+    issue("+attack", 0.15)
+    issue("-attack", 0.2)
+    capture("guard-retaliation")
+    deadline = time.monotonic() + 25
+    text = ""
+    while time.monotonic() < deadline:
+        issue("dk3_runtime_inventory", 0.4)
+        text = log.read_text(errors="replace")
+        if f"guard: id={identity} reload sound dispatched" in text:
+            break
+    shots = [int(value) for value in re.findall(rf"guard: id={identity} fired rounds=(\d+)", text)]
+    health = re.findall(r"zig inventory .*health=(-?\d+)", text)
+    if shots[:8] != list(range(7, -1, -1)) or f"guard: id={identity} reload sound dispatched" not in text:
+        raise RuntimeError(f"guard did not complete eight rounds and reload: {shots}")
+    if not health or int(health[-1]) >= 1000:
+        raise RuntimeError("guard fire did not damage the player")
+    capture("guard-reload")
+    return {"guard": identity, "rounds": shots, "player_health": int(health[-1]),
+            "scope": "e1m3b authored guard retaliation, eight-round firing cycle, reload and player damage; diagnostic placement/equipment/1000 health, navigation/cover/pain and full actor parity unqualified"}
+
+
 def run(args):
     args.report.mkdir(parents=True, exist_ok=True)
     log = args.report / "client.log"
@@ -328,6 +366,8 @@ def run(args):
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
                 if args.scenario == "lift":
                     result = lift_scenario(issue, capture, log)
+                elif args.scenario == "guard":
+                    result = guard_scenario(issue, capture, log)
                 elif args.scenario == "civilians":
                     result = civilians_scenario(issue, capture, log)
                 elif args.scenario == "combat":
@@ -359,7 +399,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "civilians"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "civilians", "guard"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -373,6 +413,7 @@ def main():
         "effects": ("e4m4b", "runtime-zig-222/effects"),
         "combat": ("e1m3b", "runtime-zig-224/combat"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
+        "guard": ("e1m3b", "runtime-zig-226/guard"),
     }
     expected_map, report_name = defaults[args.scenario]
     if args.map is None:

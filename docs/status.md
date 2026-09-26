@@ -5,8 +5,9 @@ Feature branch `rewrite/native-zig-runtime` contains the incomplete native runti
 source root with `src/runtime` and enforces domain/engine dependency boundaries.
 Glock/Disruptor trace damage and Ion projectiles are connected. Four civilian classes
 have authored metadata, animation, movement, death and witness panic; the e1m2a
-worker scenario has passed with diagnostic positioning/equipment. Most combat,
-hostile actors/navigation, scripts/cinematics, save restore/travel, full presentation
+worker scenario has passed with diagnostic positioning/equipment. Sequence 226 connects Mishima guard perception, retaliation, pistol/reload cycles
+and player damage, with an authored guard scenario passing. Most weapon combat,
+remaining actors/navigation, scripts/cinematics, save restore/travel, full presentation
 and multiplayer integration remain open. See [runtime progress](runtime-zig.md).
 
 The preserved installed game and saves are untouched. The results below describe

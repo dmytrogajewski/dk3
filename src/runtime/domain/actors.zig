@@ -3,9 +3,10 @@ const std = @import("std");
 const catalog = @import("actor_catalog");
 const v = @import("vector.zig");
 const animation = @import("animation.zig");
-pub const Mode = enum { idle, flee, dead };
+pub const Mode = enum { idle, flee, chase, attack, reload, dead };
 pub const State = struct {
     definition: u8,
+    guard: catalog.mishima.State = .{},
     mode: Mode = .idle,
     changed_ms: i64 = 0,
     panic_until: i64 = 0,
@@ -19,7 +20,7 @@ pub const State = struct {
         if (self.mode == .dead) return;
         if (self.mode != .flee) self.changed_ms = now;
         self.mode = .flee;
-        self.panic_until = now + catalog.civilians[self.definition].panic_ms;
+        self.panic_until = now + catalog.entries[self.definition].panic_ms;
         self.threat = source;
         self.threat_position = point;
     }
@@ -34,14 +35,36 @@ pub const Definition = struct {
     idle: animation.Sequence = .{},
     run: animation.Sequence = .{},
     death: animation.Sequence = .{},
+    attacks: [3]animation.Sequence = @splat(.{}),
+    strikes: [3]u16 = @splat(1),
+    attack_sounds: [3][]const u8 = @splat(""),
+    reload: animation.Sequence = .{},
+    sight_range: f32 = 0,
+    fov: f32 = 180,
+    damage: f32 = 0,
+    random_damage: f32 = 0,
+    range: f32 = 0,
+    offset: v.Vec3 = @splat(0),
+    spread: [2]f32 = @splat(0),
+    scale: v.Vec3 = @splat(1),
+    pub fn guardTiming(self: Definition) catalog.mishima.Timing {
+        var result: catalog.mishima.Timing = undefined;
+        for (self.attacks, self.strikes, 0..) |sequence, strike, i| {
+            result.attack_ms[i] = @divTrunc(@as(i64, sequence.last - sequence.first + 1) * 1000, sequence.fps);
+            result.strike_ms[i] = @divTrunc(@as(i64, strike) * 1000, sequence.fps);
+        }
+        result.reload_ms = @divTrunc(@as(i64, self.reload.last - self.reload.first + 1) * 1000, self.reload.fps);
+        result.reload_sound_ms = @divTrunc(@as(i64, catalog.mishima.reload_sound_frame) * 1000, self.reload.fps);
+        return result;
+    }
 };
 pub const Table = struct {
-    definitions: [catalog.civilians.len]Definition = @splat(.{}),
+    definitions: [catalog.entries.len]Definition = @splat(.{}),
     pub fn parse(bytes: []const u8) !Table {
         var result: Table = .{};
         var reader = try @import("tables.zig").Reader.init(bytes);
         while (try reader.next()) |row| {
-            const id = catalog.civilian(row.field("classname") orelse return error.MissingActorClass) orelse continue;
+            const id = catalog.find(row.field("classname") orelse return error.MissingActorClass) orelse continue;
             const entry = &result.definitions[id];
             if (entry.loaded) return error.DuplicateActorClass;
             entry.model = row.field("model_name") orelse return error.MissingActorModel;
@@ -50,7 +73,25 @@ pub const Table = struct {
             entry.speed = try row.number("run_speed", 0);
             if (health <= 0 or health > 1000000 or entry.speed < 0 or entry.speed > 2000) return error.InvalidActorTuning;
             entry.health = @intFromFloat(health);
+            entry.sight_range = try row.number("active_distance", 1000);
+            entry.fov = try row.number("fov", 180);
+            entry.damage = try row.number("weapon1_base_damage", 0);
+            entry.random_damage = try row.number("weapon1_random_damage", 0);
+            entry.range = try row.number("weapon1_distance", 0);
+            entry.spread = .{ try row.number("weapon1_spread_x", 0), try row.number("weapon1_spread_z", 0) };
+            if (entry.sight_range < 0 or entry.sight_range > 65536 or entry.fov < 0 or entry.fov > 360 or entry.damage < 0 or entry.damage > 1000000 or entry.random_damage < 0 or entry.random_damage > 1000000 or entry.range < 0 or entry.range > 65536) return error.InvalidActorTuning;
+            for (entry.spread) |spread| if (spread < 0 or spread > 8192) return error.InvalidActorSpread;
+            if (row.field("render_scale")) |scale| {
+                var axes = std.mem.tokenizeAny(u8, scale, " \t");
+                for (&entry.scale) |*value| {
+                    value.* = try std.fmt.parseFloat(f32, axes.next() orelse return error.InvalidActorScale);
+                    if (!std.math.isFinite(value.*) or value.* <= 0 or value.* > 16) return error.InvalidActorScale;
+                }
+                if (axes.next() != null) return error.InvalidActorScale;
+            }
             inline for (.{ "x", "y", "z" }, 0..) |axis, i| {
+                entry.offset[i] = try row.number("weapon1_offset_" ++ axis, 0);
+                if (@abs(entry.offset[i]) > 1024) return error.InvalidActorOffset;
                 entry.mins[i] = try row.number("size_min_" ++ axis, 0);
                 entry.maxs[i] = try row.number("size_max_" ++ axis, 0);
                 if (entry.mins[i] >= entry.maxs[i] or @abs(entry.mins[i]) > 1024 or @abs(entry.maxs[i]) > 1024) return error.InvalidActorBounds;

@@ -304,3 +304,25 @@ equipment are diagnostic; this is not a campaign-route or full actor acceptance.
 zig build game test-runtime --prefix zig-out/native-dev
 python3 dkq3/tools/runtime_player_probe.py --engine /path/to/local/engine-generation --prefix zig-out/native-dev --scenario civilians
 ```
+
+## Active implementation: runtime-zig-226
+
+Mishima guards now have a class-owned pistol controller: eight rounds, supplied
+attack sequences/strike timing, pose selection, reload sound timing and randomized
+recovery. Supplied aidata provides health, speed, sight/FOV, damage, spread, muzzle
+offset and model scale. The hostile adapter acquires visible living players, reacts
+to player damage, traces shots and routes damage through the shared service.
+Actor animations and scaling project through public snapshots. Definition data is
+validated before use; mutable controller/RNG state belongs to each actor.
+
+The authored e1m3b guard 166 scenario demonstrates retaliation, rounds 7 through 0,
+player damage, and reload animation/audio dispatch. Diagnostic placement/equipment
+and increased player health keep the fixture alive across the full cycle. The
+worker witness and Glock/Ion scenarios still pass after hostile actor integration.
+Cover, path navigation, pain responses, authored actor script activation, difficulty
+scaling and complete Gold behavior remain unqualified or unimplemented.
+
+Named Zig imports do not automatically include their module's tests. The runtime
+check target now explicitly runs the actor catalog tests alongside the runtime root;
+46 runtime/catalog checks pass. This prevents a class-policy test from merely
+compiling without executing.
