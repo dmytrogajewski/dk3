@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) void {
     const optimize = b.option(std.builtin.OptimizeMode, "optimize", "Optimization mode") orelse .ReleaseSafe;
     @import("build/online.zig").declare(b, target, optimize);
     const runtime = b.option(game.Runtime, "game-runtime", "Select legacy or isolated native Zig replacement") orelse .legacy;
-    @import("build/compatibility.zig").declare(b, runtime == .zig);
+    const rules_identity = @import("build/compatibility.zig").declare(b, runtime == .zig);
     const guard = b.addExecutable(.{ .name = "dkguard", .root_module = b.createModule(.{
         .root_source_file = b.path("src/dkguard/main.zig"),
         .target = target,
@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) void {
     }) });
     b.installArtifact(guard);
     b.installFile("src/cgame/dk3-projectile-weather.shader", "share/dk3/scripts/dk3-projectile-weather.shader");
-    if (engine.declare(b, target, optimize)) |products| game.declare(b, target, optimize, products, runtime);
+    if (engine.declare(b, target, optimize)) |products| game.declare(b, target, optimize, products, runtime, rules_identity);
     qvm.declare(b, optimize);
     const checks = b.step("test", "Run the existing published component checks");
     checks.dependOn(@import("build/replacement.zig").declareTests(b, optimize));

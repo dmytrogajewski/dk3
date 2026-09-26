@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,39 +10,19 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/disruptor.zig");
 pub const id = c.DK_W_DISRUPTOR;
-pub const spec: profiles.Spec = .{
-    .equipped = false,
-    .inventory_view_model = true,
-    .start_episode = 1, // disruptor
-    .world_model = "models/e1/a_tazer.dkm",
-    .animation = .{
-        .view_model = "models/e1/w_tglove.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ "amba", "ambb", null },
-        .raise_ms = 700,
-        .drop_ms = 700,
-    },
-    .audio = .{
-        .fire = "e1/we_dgloveshoota.wav",
-        .ready = "e1/we_dgloveready.wav",
-        .away = "e1/we_dgloveaway.wav",
-        .idle = .{ "e1/we_dgloveamba.wav", "e1/we_dgloveambb.wav", null },
-    },
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 /// Gold picks shoota (12 frames) or shootb (10 frames) at random; the next
 /// punch waits for the animation plus 0.1 s.
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    var result = shot_rules.standard(controller);
-    const seed: u32 = @bitCast(controller.move.cmd.serverTime);
-    result.sequence = @intCast(((seed *% 1103515245 +% 12345) >> 16) & 1);
-    result.duration_ms = controller.scaled(if (result.sequence == 0) 600 else 500) + 100;
-    return result;
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -77,7 +56,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_disruptor", .label = "Disruptor", .episode = 1, .interval = 650 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     const owner = shot.owner;

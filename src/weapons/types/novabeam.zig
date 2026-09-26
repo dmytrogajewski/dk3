@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,36 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/novabeam.zig");
 pub const id = c.DK_W_NOVABEAM;
-pub const spec: profiles.Spec = .{
-    .ammo_class = "ammo_novabeam", // novabeam
-    .visual = .{ .impact_sprite = "models/e4/we_novahit.sp2" },
-    .world_model = "models/e4/a_nova.dkm",
-    .animation = .{
-        .view_model = "models/e4/w_novabeam.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ "amba", null, null },
-        .alternate = "shootb",
-        .raise_ms = 500,
-        .drop_ms = 450,
-    },
-    .audio = .{
-        .fire = "e4/we_novafirea.wav",
-        .ready = "e4/we_novaready.wav",
-        .away = "e4/we_novaaway.wav",
-        .finish = "e4/we_novafireb.wav",
-    },
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    var result = shot_rules.standard(controller);
-    result.duration_ms = c.DK_NovaLifetime(controller.boost()) + 200;
-    if (controller.ps.ammo[id] >= c.dk_weapons[id].ammoCost) result.cost = 0;
-    return result;
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -57,7 +37,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return impact.none(context);
 }
 
-pub const identity = .{ .classname = "weapon_novabeam", .label = "Novabeam", .episode = 4, .interval = 80 };
+pub const identity = description.identity;
 pub fn fire(shot: server.Fire) void {
     const boost = shot.boost();
     const lifetime = c.DK_NovaLifetime(boost);
@@ -142,7 +122,5 @@ pub fn validPlayer(ps: *const c.playerState_t, _: c_int) bool {
 }
 
 pub export fn DK_NovaLifetime(boost: c_int) callconv(.c) c_int {
-    const lifetime = if (c.dk_weapons[id].lifetime > 0) c.dk_weapons[id].lifetime * 1000 else 2000;
-    if (boost <= 0) return v.i(lifetime);
-    return @intFromFloat(lifetime / (@as(f32, @floatFromInt(boost + 1)) * 0.5));
+    return description.lifetime(boost, c.dk_weapons[id].lifetime);
 }

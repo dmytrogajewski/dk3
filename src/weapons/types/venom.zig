@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,41 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/venom.zig");
 pub const id = c.DK_W_VENOM;
-pub const spec: profiles.Spec = .{
-    .companion_episode = 2,
-    .ammo_class = "ammo_venomous", // venom
-    .visual = .{ .projectile_model = "models/e2/we_3dvenom.dkm", .impact_sprite = "models/e2/we_vendis.sp2", .color = .{ 0.35, 1, 0.2 } },
-    .world_model = "models/e2/a_venom.dkm",
-    .animation = .{
-        .view_model = "models/e2/w_venomous.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ "amba", null, null },
-        .alternate = "melee",
-        .raise_ms = 500,
-        .drop_ms = 500,
-    },
-    .audio = .{
-        .fire = "e2/we_venomshoota.wav",
-        .ready = "e2/we_venomready.wav",
-        .away = "e2/we_venomaway.wav",
-        .variants = .{ "e2/we_venomshoota.wav", "e2/we_venomshootb.wav", "e2/we_venomshootc.wav" },
-    },
-    .projectile_muzzle = true,
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    var result = shot_rules.standard(controller);
-    if (biteContact(controller)) {
-        result.cost = 0;
-        result.sequence = 128;
-    }
-    result.duration_ms = controller.scaled(if (result.sequence == 128) 400 else 350) + 100;
-    return result;
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -72,7 +47,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return cue;
 }
 
-pub const identity = .{ .classname = "weapon_venomous", .label = "Venomous", .episode = 2, .interval = 450 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     if (shot.sequence() == 128) {
@@ -162,16 +137,4 @@ pub fn drawImpact(cent: *c.centity_t) void {
 pub fn drawProjectile(cent: *c.centity_t) void {
     render.model(@This(), cent);
     if (cent.currentState.dk3Effect == 0) @import("venom_client.zig").trail(cent);
-}
-
-fn biteContact(self: anytype) bool {
-    if (self.move.waterlevel > 1 or self.ps.ammo[c.DK_W_VENOM] < c.dk_weapons[c.DK_W_VENOM].ammoCost) return true;
-    var eye = self.ps.origin;
-    eye[2] += 4;
-    var forward: v.Vec = undefined;
-    c.AngleVectors(&self.ps.viewangles, &forward, null, null);
-    const end = v.madd(eye, 150, forward);
-    var hit: c.trace_t = undefined;
-    self.move.trace.?(&hit, &eye, &self.move.mins, &self.move.maxs, &end, self.ps.clientNum, c.MASK_SHOT);
-    return hit.fraction < 1 and hit.entityNum < c.ENTITYNUM_WORLD;
 }

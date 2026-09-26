@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,42 +10,22 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/shotcycler.zig");
 pub const id = c.DK_W_SHOTCYCLER;
-pub const spec: profiles.Spec = .{
-    .ammo_class = "ammo_shells", // shotcycler
-    .ammo_pack = 24,
-    .world_model = "models/e1/a_shot.dkm",
-    .animation = .{
-        .view_model = "models/e1/w_shotcycler.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoot",
-        .idle = .{ "ambc", null, null },
-        .rate = 22,
-        .raise_ms = 350,
-        .drop_ms = 350,
-    },
-    .audio = .{
-        .fire = "e1/we_shotcyclershoota.wav",
-        .ready = "e1/we_shotcyclerready.wav",
-        .away = "e1/we_shotcycleraway.wav",
-        .finish = "e1/we_shotcyclershootb.wav",
-        .idle = .{ "e1/we_shotcycleramba.wav", null, null },
-    },
-    .burst_shots = 6,
-    .burst_recovery_ms = 1800,
-    .projectile_muzzle = true,
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 
 pub fn blastSound(_: c_int) [*c]const u8 {
     return pointer(spec.visual.blast_sound);
 }
 
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 pub fn viewCue(_: c_int, _: c_int) d.ViewCue {
     var cue = basicView(spec);
@@ -65,7 +44,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return cue;
 }
 
-pub const identity = .{ .classname = "weapon_shotcycler", .label = "Shotcycler-6", .episode = 1, .interval = 270 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     // Gold pellets reach the crosshair point plus 64 units, not the table range.

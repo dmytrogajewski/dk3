@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,34 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/sunflare.zig");
 pub const id = c.DK_W_SUNFLARE;
-pub const spec: profiles.Spec = .{ // sunflare
-    .projectile = .{ .gravity = true },
-    .visual = .{ .projectile_model = "models/e2/we_sunprj.dkm", .blast_sound = "e2/we_sflareexplodea.wav", .spin = true },
-    .world_model = "models/e2/a_sflare.dkm",
-    .animation = .{
-        .view_model = "models/e2/w_sflare.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ "amba", "ambb", null },
-        .raise_ms = 350,
-        .drop_ms = 350,
-    },
-    .audio = .{
-        .fire = "e2/we_sflareshoota.wav",
-        .ready = "e2/we_sflareready.wav",
-        .away = "e2/we_sflareaway.wav",
-        .hum = "e2/we_sflareamba.wav",
-        .idle = .{ "e2/we_sflareamba.wav", null, null },
-    },
-    .projectile_muzzle = true,
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -55,7 +37,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_sunflare", .label = "Sunflare", .episode = 2, .interval = 900 };
+pub const identity = description.identity;
 
 const flame_life_ms = 5000;
 const linger_ms = 5000;

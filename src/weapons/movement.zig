@@ -13,6 +13,51 @@ pub const Controller = struct {
     fn init(move: *c.pmove_t, msec: c_int) Controller {
         return .{ .msec = msec, .move = move, .ps = @ptrCast(move.ps) };
     }
+    pub fn canFire(self: *const Controller) bool {
+        return self.ps.pm_type == c.PM_NORMAL and self.ps.stats[c.STAT_HEALTH] > 0 and self.ps.pm_flags & c.PMF_RESPAWNED == 0;
+    }
+    pub fn inventoryTick(self: *Controller) void {
+        registry.inventoryPrediction(self);
+    }
+    pub fn selection(self: *const Controller) i32 {
+        return self.move.cmd.weapon;
+    }
+    pub fn noAmmo(self: *const Controller) void {
+        self.event(c.EV_NOAMMO);
+    }
+    pub fn now(self: *const Controller) c_int {
+        return self.move.cmd.serverTime;
+    }
+    pub fn ammoCost(_: *const Controller, weapon: c_int) c_int {
+        return c.dk_weapons[@intCast(weapon)].ammoCost;
+    }
+    pub fn lifetime(_: *const Controller, weapon: c_int) f32 {
+        return c.dk_weapons[@intCast(weapon)].lifetime;
+    }
+    pub fn interval(_: *const Controller, weapon: c_int) c_int {
+        return c.dk_weapons[@intCast(weapon)].interval;
+    }
+    pub fn discusMelee(self: *const Controller) bool {
+        var eye = self.ps.origin;
+        eye[2] += @as(f32, @floatFromInt(self.ps.viewheight));
+        var forward: [3]f32 = undefined;
+        c.AngleVectors(&self.ps.viewangles, &forward, null, null);
+        const end = @import("vector.zig").madd(eye, 100, forward);
+        var hit: c.trace_t = undefined;
+        self.move.trace.?(&hit, &eye, null, null, &end, self.ps.clientNum, c.MASK_SHOT);
+        return hit.fraction < 1;
+    }
+    pub fn venomBite(self: *const Controller) bool {
+        if (self.move.waterlevel > 1 or self.ps.ammo[c.DK_W_VENOM] < c.dk_weapons[c.DK_W_VENOM].ammoCost) return true;
+        var eye = self.ps.origin;
+        eye[2] += 4;
+        var forward: [3]f32 = undefined;
+        c.AngleVectors(&self.ps.viewangles, &forward, null, null);
+        const end = @import("vector.zig").madd(eye, 150, forward);
+        var hit: c.trace_t = undefined;
+        self.move.trace.?(&hit, &eye, &self.move.mins, &self.move.maxs, &end, self.ps.clientNum, c.MASK_SHOT);
+        return hit.fraction < 1 and hit.entityNum < c.ENTITYNUM_WORLD;
+    }
     pub fn event(self: *const Controller, event_id: c_int) void {
         c.BG_AddPredictableEventToPlayerstate(event_id, 0, self.ps);
     }
@@ -30,10 +75,7 @@ pub const Controller = struct {
     }
 
     pub fn release(self: *Controller) void {
-        self.ps.dk3AttackHeld = 0;
-        if (self.ps.weaponTime > 0) return;
-        self.ps.weaponstate = c.WEAPON_READY;
-        self.ps.dk3NovaSpent = 0;
+        @import("controller.zig").release(self);
     }
 
     pub fn fireEvent(self: *const Controller) void {
@@ -42,68 +84,15 @@ pub const Controller = struct {
     }
 
     pub fn fire(self: *Controller, comptime Weapon: type, shot: Shot) void {
-        const weapon: usize = @intCast(self.ps.weapon);
-        if (shot.cost != 0 and self.ps.ammo[weapon] < shot.cost) {
-            self.event(c.EV_NOAMMO);
-            self.ps.weaponTime = @max(300, if (self.ps.dk3Burst != 0) Weapon.spec.burst_recovery_ms else 0);
-            self.ps.dk3Burst = 0;
-            return;
-        }
-        if (self.ps.dk3Burst == 0) self.ps.dk3Burst = Weapon.spec.burst_shots;
-        self.ps.ammo[weapon] -= shot.cost;
-        if (shot.consume_clip) self.ps.dk3GlockClip -= 1;
-        self.ps.dk3WeaponSequence = shot.sequence;
-        if (self.ps.weaponstate != c.WEAPON_FIRING) self.ps.weaponTime = @max(0, self.ps.weaponTime);
-        self.ps.weaponstate = c.WEAPON_FIRING;
-        self.fireEvent();
-        self.ps.weaponTime += shot.duration_ms;
-        if (self.ps.dk3Burst != 0) {
-            self.ps.dk3Burst -= 1;
-            if (self.ps.dk3Burst == 0) self.ps.weaponTime += Weapon.spec.burst_recovery_ms;
-        }
+        @import("controller.zig").fire(self, Weapon, shot);
     }
 
     pub fn automatic(self: *Controller, comptime Weapon: type) void {
-        if (!self.pressed() and self.ps.dk3Burst == 0) {
-            self.release();
-            return;
-        }
-        self.ps.dk3AttackHeld = @intFromBool(self.pressed());
-        if (self.ps.weaponTime <= 0) self.fire(Weapon, Weapon.predictionShot(self));
-    }
-
-    fn switchWeapon(self: *Controller, selected: c_int) bool {
-        if (self.ps.weaponstate == c.WEAPON_DROPPING and !registry.isReloading(self.ps)) {
-            if (self.ps.weaponTime > 0) return true;
-            if (c.DK_HasWeapon(self.ps, selected) != 0) {
-                self.ps.weapon = selected;
-                self.ps.dk3Burst = 0;
-                self.ps.dk3Charge = 0;
-                self.ps.dk3NovaSpent = 0;
-                self.ps.dk3WeaponSequence = 0;
-            }
-            self.ps.weaponstate = c.WEAPON_RAISING;
-            self.ps.weaponTime = c.DK_WeaponSwitchTime(self.ps.weapon, c.qtrue);
-            return true;
-        }
-        if (selected != self.ps.weapon and self.ps.weaponstate != c.WEAPON_DROPPING and
-            c.DK_HasWeapon(self.ps, selected) != 0 and self.ps.weaponTime <= 0 and self.ps.dk3Burst == 0)
-        {
-            self.ps.weaponstate = c.WEAPON_DROPPING;
-            self.ps.weaponTime = c.DK_WeaponSwitchTime(self.ps.weapon, c.qfalse);
-            return true;
-        }
-        return false;
+        @import("controller.zig").automatic(self, Weapon);
     }
 
     fn tick(self: *Controller) void {
-        if (self.ps.pm_type != c.PM_NORMAL or self.ps.stats[c.STAT_HEALTH] <= 0 or
-            (self.ps.pm_flags & c.PMF_RESPAWNED) != 0) return;
-        registry.inventoryPrediction(self);
-        self.ps.weaponTime = @max(self.ps.weaponTime - self.msec, -self.msec);
-        if (self.switchWeapon(self.move.cmd.weapon)) return;
-        if (c.DK_HasWeapon(self.ps, self.ps.weapon) == 0) return;
-        registry.update(self.ps.weapon, self);
+        @import("controller.zig").tick(self);
     }
 };
 

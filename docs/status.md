@@ -52,7 +52,14 @@ shared inventory rules and a save-record codec. **The replacement is not playabl
 full migration and cutover remain open.** See the run log for foundation checks.
 The normal launcher and owner saves remain on the existing runtime.
 
-Updated 2026-09-26, through **runtime-zig, sequence 217**.
+Sequence 218 continues native movement/prediction, shared input policies and tuning
+for all 28 weapons, build-identity checks, binary movers and target routing. Native
+client connection and focused movement/weapon/door checks have passed. Transactional
+rider pushing and authored target progression remain unverified; native combat,
+actors, persistence, presentation and UI are still unfinished. **Full migration and
+cutover remain open.** The ordinary launcher remains on the existing runtime.
+
+Updated 2026-09-26, through **runtime-zig, sequence 218 (active)**.
 
 **dk3 is a playable development build, not a completed Daikatana port.** Independent
 native systems exist across the game, but implementation and successful focused

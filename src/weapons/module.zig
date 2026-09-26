@@ -17,11 +17,7 @@ fn pointer(value: ?[:0]const u8) [*c]const u8 {
 }
 
 export fn DK_WeaponSwitchTime(weapon: c_int, raising: c.qboolean) callconv(.c) c_int {
-    inline for (registry.weapons) |W| if (weapon == W.id) {
-        const duration = if (raising != 0) W.spec.animation.raise_ms else W.spec.animation.drop_ms;
-        return if (duration > 0) duration else 250;
-    };
-    return 250;
+    return @import("controller.zig").switchTime(weapon, raising != 0);
 }
 export fn DK_WeaponWorldModel(weapon: c_int) callconv(.c) [*c]const u8 {
     inline for (registry.weapons) |W| if (weapon == W.id) return if (W.spec.world_model) |path| path.ptr else "";

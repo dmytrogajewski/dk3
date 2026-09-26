@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,31 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/nightmare.zig");
 pub const id = c.DK_W_NIGHTMARE;
-pub const spec: profiles.Spec = .{ // nightmare
-    .projectile = .{ .action_delay_ms = 800, .lifetime_ms = 3000 },
-    .visual = .{ .projectile_model = "models/e3/we_nnreaper.dkm", .color = .{ 0.9, 0.2, 1 } },
-    .world_model = "models/e3/a_nmare.dkm",
-    .animation = .{
-        .view_model = "models/e3/w_nmare.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoot",
-        .idle = .{ "amba", "ambb", "ambc" },
-        .raise_ms = 750,
-        .drop_ms = 500,
-    },
-    .audio = .{
-        .fire = "e3/we_chant5.wav",
-        .ready = "e3/we_nharreready.wav",
-        .away = "e3/we_nharreaway.wav",
-    },
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -52,7 +37,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_nightmare", .label = "Nharre's Nightmare", .episode = 3, .interval = 60000 };
+pub const identity = description.identity;
 const Incantation = enum(c_int) { start, marking, reaping };
 pub fn fire(shot: server.Fire) void {
     _ = server.controller(@This(), shot.owner, shot.start, .nightmare, 60000);

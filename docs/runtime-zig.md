@@ -83,7 +83,7 @@ suite after integrated repairs, not per-item duplicate gates. Engine runs use dk
 Full four-episode completion is separate from implemented-scope cutover. Keep the old
 installation for rollback and preserve user profiles throughout.
 
-## Implementation checkpoint: runtime-zig-217
+## Foundation checkpoint: runtime-zig-217 (historical)
 
 **The replacement is not playable and cutover has not occurred.** The ordinary
 `dk3` installation continues to use the legacy runtime. Server, client and UI
@@ -124,3 +124,53 @@ The probe uses a temporary home, copies only the replacement server module, invo
 `dkguard`, and records logs/inputs in `zig-out/reports/runtime-zig-217`. It compares
 0/1/4 workers and map restarts. The audit command only reads its input. Neither
 command installs a replacement into the normal launcher or writes existing saves.
+
+## Active implementation: runtime-zig-218
+
+The native development client now connects with `dk3_runtime_probe=2`. All three
+modules embed the same source rules identity; the UI advertises it before connect,
+the server checks userinfo, and the client checks the server configstring. Normal
+launch/install still uses the existing runtime. This is not a qualified playable
+replacement, and the complete accepted migration remains active.
+
+Implemented, with acceptance still incomplete:
+
+- Shared native server/client player movement and collision adapters: crouching,
+  stepping/sliding, jumping, water, ladders, gravity, spectator and noclip paths.
+  ECS owns player, transform, velocity and weapon state; snapshots are projections.
+- One pure catalog for all 28 weapon descriptions, input policies and supplied
+  numeric tuning. Legacy and native adapters use the same firing/switching rules,
+  inventory acquisition, sword calculations and special input transitions.
+  Native shot events do not yet dispatch damage or projectile controllers.
+- Native BSP/brush rendering, snapshot ingestion and command replay. Full HUD,
+  model/animation/effect/sound presentation and actual UI screens remain absent.
+- Binary translating/rotating doors, buttons and platforms, grouped travel,
+  authored delays and dwell, accelerated/bouncing curves, transactional player
+  pushing, use rays, rider-only automatic platform activation and door proximity.
+- Bounded target routing and delayed actions, killtargets, repeated/once triggers,
+  counters and relays. Authored key locks are preserved; key inventory, scripts,
+  cinematics, trains, secret doors and other interactions remain open.
+
+Focused evidence: 1,440 command frames agree with bundled movement on flat-ground
+walking/diagonal motion/crouch/jump/gravity and shallow/deep-water swimming; weapon controller checks cover all 28
+policies and specific burst/reload/charge/spin transitions. Isolated e1m3b client
+connection, movement captures and repeated delayed-door activation have run.
+These checks do not certify movement through all geometry, blocked assemblies,
+rider transport, actor behavior, damage, progression or multiplayer parity.
+
+The movement differential fixture links bundled GPL C movement **only into the
+test executable**. Replacement products link no legacy gameplay C sources.
+Adapted movement retains upstream attribution; no private reference source or
+assets were imported.
+
+Reproduce the native development client probe (local converted assets required):
+
+```sh
+zig build game --prefix zig-out/replacement -Dgame-runtime=zig
+python3 dkq3/tools/runtime_player_probe.py --engine zig-out/play/current --prefix zig-out/replacement --mover 255
+```
+
+The script runs software rendering through `dkguard --headless`, uses a temporary
+profile, and keeps inputs/logs/captures under the ignored report directory. The
+optional mover assertion is specific to e1m3b's delayed door. Visual captures need
+inspection; diagnostic command success does not establish scenario acceptance.

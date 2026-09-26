@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,41 +10,22 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/gas_hands.zig");
 pub const id = c.DK_W_GASHANDS;
-pub const spec: profiles.Spec = .{
-    .equipped = false,
-    .companion_pickup = false, // gashands
-    .droppable = false,
-    .world_model = "models/e1/a_gashand.dkm",
-    .animation = .{
-        .view_model = "models/e1/w_gashand.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shootb",
-        .idle = .{ "amba", null, null },
-        .alternate = "shootc",
-        .raise_ms = 1550,
-        .drop_ms = 1050,
-    },
-    .audio = .{
-        .fire = "e1/we_gasloop.wav",
-        .ready = "e1/we_gasstart.wav",
-        .away = "e1/we_gasstopa.wav",
-    },
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 
 pub fn blastSound(_: c_int) [*c]const u8 {
     return pointer(spec.visual.blast_sound);
 }
 
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    var shot = shot_rules.standard(controller);
-    const seed: u32 = @bitCast(controller.move.cmd.serverTime);
-    shot.sequence = @intCast(((seed *% 1103515245 +% 12345) >> 16) & 1);
-    return shot;
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 pub fn viewCue(sequence: c_int, _: c_int) d.ViewCue {
     var cue = basicView(spec);
@@ -66,7 +46,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return cue;
 }
 
-pub const identity = .{ .classname = "weapon_gashands", .label = "Gas hands", .episode = 1, .interval = 900 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     const action = server.controller(@This(), shot.owner, shot.start, .melee, 900);
@@ -174,20 +154,8 @@ pub fn inventoryText(ps: *const c.playerState_t, time: c_int, buffer: [*c]u8, si
 }
 
 pub export fn DK_ExpireGasHands(ps: *c.playerState_t) callconv(.c) void {
-    ps.dk3Inventory &= ~(@as(@TypeOf(ps.dk3Inventory), 1) << c.DK_W_GASHANDS);
     ps.powerups[c.PW_DK3_GASHANDS] = 0;
-    if (ps.weapon != c.DK_W_GASHANDS) return;
-    var weapon: c_int = c.DK_W_DISRUPTOR;
-    if (c.DK_HasWeapon(ps, weapon) == c.qfalse) {
-        weapon = 1;
-        while (weapon < c.DK_WEAPON_COUNT and c.DK_HasWeapon(ps, weapon) == c.qfalse) : (weapon += 1) {}
-    }
-    ps.weapon = if (weapon < c.DK_WEAPON_COUNT) weapon else c.DK_W_NONE;
-    ps.weaponstate = c.WEAPON_RAISING;
-    ps.weaponTime = c.DK_WeaponSwitchTime(ps.weapon, c.qtrue);
-    ps.dk3Burst = 0;
-    ps.dk3Charge = 0;
-    ps.dk3AttackHeld = 0;
+    @import("../controller.zig").expireGas(ps);
 }
 pub fn hudValue(ps: *const c.playerState_t, time: c_int) c_int {
     return @divTrunc(ps.powerups[c.PW_DK3_GASHANDS] - time + 999, 1000);

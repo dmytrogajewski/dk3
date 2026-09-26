@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,33 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/stavros.zig");
 pub const id = c.DK_W_STAVROS;
-pub const spec: profiles.Spec = .{
-    .ammo_class = "ammo_stavros", // stavros
-    .projectile = .{ .direct_scale = 0, .splash_scale = 1, .splash_radius = 200, .lifetime_ms = 12000, .loop_sound = "global/e_torchd.wav" },
-    .visual = .{ .projectile_model = "models/e3/we_fball.dkm", .blast_sound = "global/e_explode1.wav" },
-    .world_model = "models/e3/a_stav.dkm",
-    .animation = .{
-        .view_model = "models/e3/w_stavros.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoot",
-        .idle = .{ "amba", "ambb", null },
-        .raise_ms = 300,
-        .drop_ms = 300,
-    },
-    .audio = .{
-        .fire = "e3/we_stavefire.wav",
-        .ready = "e3/we_staveready.wav",
-        .away = "e3/we_staveaway.wav",
-    },
-    .projectile_muzzle = true,
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -54,7 +37,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_stavros", .label = "Stavros staff", .episode = 3, .interval = 900 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     const ent = server.spawn(@This(), shot);

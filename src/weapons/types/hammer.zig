@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,47 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/hammer.zig");
 pub const id = c.DK_W_HAMMER;
-pub const spec: profiles.Spec = .{
-    .bot_charge_ms = 900,
-    .bot_range = 110,
-    .start_episode = 2, // hammer
-    .visual = .{},
-    .world_model = "models/e2/a_hammer.dkm",
-    .animation = .{
-        .view_model = "models/e2/w_hammer.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ null, null, null },
-        .raise_ms = 300,
-        .drop_ms = 300,
-    },
-    .audio = .{
-        .fire = "e2/we_hammerd.wav",
-        .ready = "e2/we_hammerready.wav",
-        .away = "e2/we_hammeraway.wav",
-    },
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    const ps = controller.ps;
-    if (controller.pressed()) {
-        if (ps.dk3AttackHeld == 0) ps.dk3Charge = 0;
-        ps.dk3Charge = @min(ps.dk3Charge + controller.msec, 1800);
-        ps.dk3AttackHeld = 1;
-        return;
-    }
-    if (ps.dk3AttackHeld == 0) {
-        controller.release();
-        return;
-    }
-    if (ps.weaponTime <= 0) {
-        ps.dk3AttackHeld = 0;
-        controller.fire(@This(), predictionShot(controller));
-    }
+    description.update(controller);
 }
 
 pub fn blastSound(entity: c_int) [*c]const u8 {
@@ -69,7 +38,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return impact.none(context);
 }
 
-pub const identity = .{ .classname = "weapon_hammer", .label = "Hammer of Hephaestus", .episode = 2, .interval = 700 };
+pub const identity = description.identity;
 fn strike(shot: server.Fire) void {
     const data = server.info(@This());
     const charge = @max(0.15, @min(1, v.f(shot.charge_ms) / 1800));

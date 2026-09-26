@@ -31,26 +31,18 @@ fn read(row: [*c]const c.dkRecord_t) callconv(.c) void {
     if (id == 0) failure("dk3: unsupported weapon table class %s", name);
     const weapon = &dk_weapons[@intCast(id)];
     if (weapon.loaded != 0) failure("dk3: duplicate weapon table class %s", name);
-    const ints = .{ .{ "ammoMax", "ammo_max" }, .{ "ammoCost", "ammo_per_use" }, .{ "initialAmmo", "initial_ammo" } };
-    inline for (ints) |field| {
-        const value = c.DK_Number(row, field[1], 0);
-        if (!std.math.isFinite(value) or value < 0 or value > 32767) failure("dk3: invalid ammunition for %s", name);
-        @field(weapon, field[0]) = @intFromFloat(value);
-    }
-    inline for (.{ "damage", "speed", "range", "lifetime" }) |field| {
-        const value = c.DK_Number(row, field, 0);
-        if (!std.math.isFinite(value) or value < 0) failure("dk3: invalid weapon value for %s", name);
-        @field(weapon, field) = value;
-    }
-    inline for (.{ "x", "y", "z" }, 0..) |axis, index| {
-        weapon.muzzle[index] = c.DK_Number(row, "projectile_" ++ axis ++ "1", c.DK_Number(row, "projectile_" ++ axis, .{ 8, 12, 0 }[index]));
-        if (!std.math.isFinite(weapon.muzzle[index])) failure("dk3: invalid muzzle for %s", name);
-    }
-    if (weapon.initialAmmo > weapon.ammoMax) failure("dk3: invalid initial ammunition for %s", name);
+    const Adapter = struct {
+        record: [*c]const c.dkRecord_t,
+        pub fn number(self: @This(), key: [:0]const u8, fallback: f32) !f32 {
+            return c.DK_Number(self.record, key.ptr, fallback);
+        }
+    };
+    const values = @import("values.zig").parse(@intCast(id), Adapter{ .record = row }) catch failure("dk3: invalid weapon values for %s", name);
+    inline for (.{ "ammoMax", "ammoCost", "initialAmmo", "damage", "range", "speed", "lifetime", "muzzle" }) |field| @field(weapon, field) = @field(values, field);
     var model: [*c]const u8 = "";
     inline for (registry.weapons) |W| if (id == W.id) {
         model = W.spec.animation.view_model.ptr;
-        if (@hasDecl(W, "readData")) W.readData(row, weapon);
+        if (@hasDecl(W, "readValues")) W.readValues(values);
     };
     c.Q_strncpyz(&weapon.model, if (model != null) model else "", weapon.model.len);
     weapon.loaded = c.qtrue;

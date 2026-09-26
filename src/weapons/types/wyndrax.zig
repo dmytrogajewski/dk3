@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,31 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/wyndrax.zig");
 pub const id = c.DK_W_WYNDRAX;
-pub const spec: profiles.Spec = .{
-    .ammo_class = "ammo_wisp", // wyndrax
-    .visual = .{ .projectile_model = "models/e3/we_wisp.dkm", .color = .{ 0.25, 0.45, 0.85 }, .glow = false },
-    .world_model = "models/e3/a_wyndrx.dkm",
-    .animation = .{
-        .view_model = "models/e3/w_wisp.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoot",
-        .idle = .{ "amba", null, null },
-        .raise_ms = 600,
-        .drop_ms = 400,
-    },
-    .audio = .{
-        .fire = "e3/we_wwispshoota.wav",
-        .ready = "e3/we_wwispready.wav",
-        .away = "e3/we_wwispaway.wav",
-    },
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -52,7 +37,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_wyndrax", .label = "Wyndrax's wisp", .episode = 3, .interval = 1400 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     server.schedule(@This(), shot, 500);

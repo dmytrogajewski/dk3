@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,34 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/cordite.zig");
 pub const id = c.DK_W_CORDITE;
-pub const spec: profiles.Spec = .{
-    .splash_hazard = true,
-    .ammo_class = "ammo_cordite", // cordite
-    .projectile = .{ .direct_scale = 0, .splash_scale = 1, .splash_radius = 150, .lifetime_ms = 3000 },
-    .visual = .{ .projectile_model = "models/e4/we_ripgren.dkm", .blast_sound = "global/e_explode1.wav" },
-    .world_model = "models/e4/a_cslug.dkm",
-    .animation = .{
-        .view_model = "models/e4/w_slugger.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shootb",
-        .idle = .{ "amba", "ambb", null },
-        .raise_ms = 250,
-        .drop_ms = 250,
-    },
-    .audio = .{
-        .fire = "e4/we_ripgunshootb.wav",
-        .ready = "e4/we_ripgunready.wav",
-        .away = "e4/we_ripgunaway.wav",
-    },
-    .projectile_muzzle = true,
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -55,7 +37,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_cordite", .label = "Cordite", .episode = 4, .interval = 2000 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     var launch = shot;

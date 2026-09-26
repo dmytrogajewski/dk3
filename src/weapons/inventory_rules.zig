@@ -40,3 +40,9 @@ test "pickup ownership, saturation and selection share one transition" {
     try std.testing.expect(!state.add(3, 0, .{ .maximum = 0, .auto_select = true }));
     try std.testing.expectEqual(@as(i32, 0), state.ammunition[3]);
 }
+
+pub fn grantPair(owned: *u32, ammunition: []i32, id: u5, maximum: i32, rounds: i32) void {
+    std.debug.assert(id < ammunition.len and maximum >= 0 and rounds >= 0);
+    owned.* |= @as(u32, 1) << id;
+    ammunition[id] = @intCast(@min(@as(i64, maximum), @as(i64, ammunition[id]) + rounds));
+}

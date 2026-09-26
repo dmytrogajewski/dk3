@@ -2,6 +2,10 @@
 //! Runtime data only: no engine imports or callbacks.
 const std = @import("std");
 pub const Inventory = @import("inventory_rules").Inventory;
+pub const Weapons = @import("weapons.zig").State;
+pub const Trigger = struct { uses: u32 = 0, limit: u32 = 0, ready_ms: i64 = 0, wait_ms: i32 = 200, counter: bool = false };
+pub const Mover = @import("movers.zig").Binary;
+pub const Player = @import("player_move.zig").Player;
 pub const Vec3 = [3]f32;
 pub const Transform = struct { position: Vec3 = @splat(0), angles: Vec3 = @splat(0) };
 pub const Velocity = struct { linear: Vec3 = @splat(0) };
@@ -21,7 +25,7 @@ pub const Gravity = struct { acceleration: f32 = 800 };
 pub const Motion = struct { destination: Vec3 = @splat(0), velocity: Vec3 = @splat(0) };
 pub const Lifetime = struct { expires_ms: i64 };
 pub const Attachment = struct { parent_id: u32, offset: Vec3 };
-pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11 };
+pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15 };
 pub const Component = union(ComponentId) {
     transform: Transform,
     velocity: Velocity,
@@ -35,6 +39,10 @@ pub const Component = union(ComponentId) {
     gravity: Gravity,
     motion: Motion,
     inventory: Inventory,
+    player: Player,
+    weapons: Weapons,
+    mover: Mover,
+    trigger: Trigger,
 };
 pub const types = blk: {
     const fields = std.meta.fields(Component);

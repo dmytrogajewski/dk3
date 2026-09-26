@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,57 +10,14 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/sword.zig");
 pub const id = c.DK_W_SWORD;
-pub const spec: profiles.Spec = .{
-    .companion_pickup = false, // sword
-    .world_model = "models/global/a_daikatana.dkm",
-    .audio = .{ .ready = "global/we_swordwhoosha.wav", .away = "global/we_swordwhooshc.wav" },
-    .animation = .{
-        .view_model = "models/global/w_daikatana.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "ataka",
-        .idle = .{ "amba", null, null },
-        .raise_ms = 600,
-        .drop_ms = 500,
-    },
-};
-pub fn update(controller: anytype) void {
-    const ps = controller.ps;
-    if (!controller.pressed() and ps.dk3Burst == 0) {
-        ps.dk3AttackHeld = 0;
-        if (ps.weaponTime <= 0) {
-            if (((ps.dk3WeaponSequence >> 3) & 15) != 0) {
-                ps.dk3WeaponSequence &= 7;
-                const factor: f32 = 1 - 0.1 * @as(f32, @floatFromInt(controller.boost()));
-                ps.weaponTime += @intFromFloat(500 * factor);
-            }
-            ps.weaponstate = c.WEAPON_READY;
-            ps.dk3NovaSpent = 0;
-        }
-        return;
-    }
-    ps.dk3AttackHeld = @intFromBool(controller.pressed());
-    if (ps.weaponTime <= 0) fireSwing(controller);
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
 }
-fn fireSwing(controller: anytype) void {
-    const ps = controller.ps;
-    const level = c.DK_SwordLevel(ps.dk3SwordExperience);
-    const chain = (ps.dk3WeaponSequence >> 3) & 15;
-    const previous = if (chain != 0) ps.dk3WeaponSequence & 7 else -1;
-    const selected = if (chain >= 2 * level) -1 else c.DK_SwordSelect(previous, @bitCast(controller.move.cmd.serverTime));
-    if (selected < 0) {
-        ps.dk3WeaponSequence &= 7;
-        ps.weaponstate = c.WEAPON_READY;
-        const factor: f32 = 1 - 0.1 * @as(f32, @floatFromInt(controller.boost()));
-        ps.weaponTime += @intFromFloat(1000 * factor);
-        return;
-    }
-    ps.dk3WeaponSequence = selected | ((chain + 1) << 3);
-    ps.weaponstate = c.WEAPON_FIRING;
-    controller.fireEvent();
-    const duration = c.dk_swordSwings[@intCast(selected)].followThrough * c.DK_SwordFrameTime(ps.dk3SwordExperience);
-    ps.weaponTime += duration;
+pub const spec = description.spec;
+pub fn update(controller: anytype) void {
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -92,7 +48,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return cue;
 }
 
-pub const identity = .{ .classname = "weapon_daikatana", .label = "Daikatana", .episode = 0, .interval = 420 };
+pub const identity = description.identity;
 pub fn fire(shot: server.Fire) void {
     const index: usize = @intCast(shot.sequence() & 7);
     const selected = if (index < c.DK_SWORD_SWINGS) index else 0;

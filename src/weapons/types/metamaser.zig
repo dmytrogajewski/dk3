@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -15,53 +14,24 @@ var supplied_charges: c_int = 120;
 var supplied_health: c_int = 1000;
 var supplied_lifetime: c_int = 60000;
 
-/// Gold overloads the second offset triple with cube capacity, health and life.
-pub fn readData(row: [*c]const c.dkRecord_t, data: *c.dkWeaponInfo_t) void {
-    inline for (.{ "x", "y", "z" }, 0..) |axis, index| {
-        const coordinate = c.DK_Number(row, "projectile_" ++ axis ++ "1", .{ 6, 18, 19 }[index]);
-        if (!std.math.isFinite(coordinate)) invalidData();
-        data.muzzle[index] = coordinate;
-    }
-    const charges = c.DK_Number(row, "projectile_x2", 120);
-    const health = c.DK_Number(row, "projectile_y2", 1000);
-    const lifetime = c.DK_Number(row, "projectile_z2", 60);
-    if (!std.math.isFinite(charges) or charges < 1 or charges > 120 or !std.math.isFinite(health) or health < 1 or health > 32767 or !std.math.isFinite(lifetime) or lifetime <= 0 or lifetime > 3600) invalidData();
-    supplied_charges = v.i(charges);
-    supplied_health = v.i(health);
-    supplied_lifetime = v.i(lifetime * 1000);
-}
-fn invalidData() noreturn {
-    if (@import("../abi.zig").side == .client) c.CG_Error("dk3: invalid metamaser capacity, health, lifetime or muzzle") else c.G_Error("dk3: invalid metamaser capacity, health, lifetime or muzzle");
-    unreachable;
+/// Values are validated by the shared supplied-data parser before publication.
+pub fn readValues(values: @import("../values.zig").Values) void {
+    supplied_charges = values.cube_charges;
+    supplied_health = values.cube_health;
+    supplied_lifetime = values.cube_lifetime_ms;
 }
 
+const description = @import("../descriptions/metamaser.zig");
 pub const id = c.DK_W_METAMASER;
-pub const spec: profiles.Spec = .{
-    .ammo_class = "ammo_metamaser", // metamaser
-    .projectile = .{ .gravity = true, .action_delay_ms = 300, .lifetime_ms = 19000 },
-    .visual = .{ .projectile_model = "models/e4/we_mmprj.dkm", .impact_sprite = "models/e4/we_mmaserexp.sp2", .color = .{ 0.9, 0.2, 1 } },
-    .world_model = "models/e4/a_mmaser.dkm",
-    .animation = .{
-        .view_model = "models/e4/w_mmaser.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoot",
-        .idle = .{ "amba", null, null },
-        .raise_ms = 400,
-        .drop_ms = 250,
-    },
-    .audio = .{
-        .fire = "e2/we_sflareshoota.wav",
-        .ready = "e4/we_metaready.wav",
-        .away = "e4/we_metaaway.wav",
-    },
-    .projectile_muzzle = true,
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -78,7 +48,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_metamaser", .label = "Metamaser", .episode = 4, .interval = 1000 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     server.schedule(@This(), shot, 300);

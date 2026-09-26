@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,24 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/flashlight.zig");
 pub const id = c.DK_W_FLASHLIGHT;
-pub const spec: profiles.Spec = .{
-    .companion_pickup = false,
-    .auto_select = false,
-    .droppable = false, // flashlight
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    const ps = controller.ps;
-    if (!controller.pressed()) {
-        controller.release();
-        return;
-    }
-    if (ps.dk3AttackHeld != 0) return;
-    ps.dk3AttackHeld = 1;
-    if (ps.weaponTime <= 0) controller.fire(@This(), predictionShot(controller));
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -45,7 +37,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return impact.none(context);
 }
 
-pub const identity = .{ .classname = "weapon_flashlight", .label = "Flashlight", .episode = 0, .interval = 300 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     if (shot.owner.client != null) shot.owner.client[0].ps.dk3Status ^= 8;

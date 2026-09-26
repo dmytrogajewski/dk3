@@ -4,8 +4,7 @@ const c = @import("abi.zig").c;
 
 /// Gold winfoAnimate's attack multiplier; level one has its own step.
 pub fn attackFactor(level: c_int) f32 {
-    if (level <= 0) return 1;
-    return (@as(f32, @floatFromInt(level)) + @as(f32, if (level == 1) 1.5 else 1)) * 0.5;
+    return @import("controller.zig").attackFactor(level);
 }
 
 pub export fn DK_ExperienceThreshold(level: c_int) callconv(.c) c_int {

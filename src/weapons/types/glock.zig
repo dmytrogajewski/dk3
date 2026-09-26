@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,60 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/glock.zig");
 pub const id = c.DK_W_GLOCK;
-pub const spec: profiles.Spec = .{
-    .companion_episode = 4,
-    .start_episode = 4,
-    .ammo_class = "ammo_bullets", // glock
-    .world_model = "models/e4/a_glock.dkm",
-    .animation = .{
-        .view_model = "models/e4/w_glock.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ "amba", "ambb", null },
-        .raise_ms = 300,
-        .drop_ms = 250,
-    },
-    .audio = .{
-        .fire = "e4/we_glockshootb.wav",
-        .ready = "e4/we_glockready.wav",
-        .away = "e4/we_glockaway.wav",
-        .reload = "e4/we_glockreload.wav",
-    },
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    var result = shot_rules.standard(controller);
-    result.consume_clip = true;
-    return result;
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    const ps = controller.ps;
-    if (ps.weaponstate == c.WEAPON_DROPPING and ps.dk3WeaponSequence == c.DK_GLOCK_RELOAD_SEQUENCE) {
-        if (ps.weaponTime > 0) return;
-        ps.dk3GlockClip = @min(ps.ammo[c.DK_W_GLOCK], 10);
-        ps.dk3WeaponSequence = 0;
-        ps.weaponstate = c.WEAPON_READY;
-    }
-    if (!controller.pressed() and ps.dk3Burst == 0) {
-        controller.release();
-        return;
-    }
-    ps.dk3AttackHeld = @intFromBool(controller.pressed());
-    if (ps.weaponTime > 0) return;
-    const next = predictionShot(controller);
-    if (ps.dk3GlockClip <= 0 and (next.cost == 0 or ps.ammo[id] >= next.cost)) {
-        ps.weaponstate = c.WEAPON_DROPPING;
-        ps.weaponTime = 1650;
-        ps.dk3WeaponSequence = c.DK_GLOCK_RELOAD_SEQUENCE;
-        return;
-    }
-    controller.fire(@This(), next);
-    if (ps.dk3GlockClip == 0 and ps.ammo[id] > 0) {
-        ps.weaponstate = c.WEAPON_DROPPING;
-        ps.weaponTime = 1650;
-        ps.dk3WeaponSequence = c.DK_GLOCK_RELOAD_SEQUENCE;
-    }
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -81,7 +37,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return impact.bullet(context);
 }
 
-pub const identity = .{ .classname = "weapon_glock", .label = "Glock", .episode = 4, .interval = 500 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     server.traceShot(@This(), shot, server.info(@This()).damage, server.info(@This()).range);
@@ -117,7 +73,7 @@ pub fn initializePlayer(ps: *c.playerState_t) void {
 }
 
 pub fn isReloading(ps: *const c.playerState_t) bool {
-    return ps.weaponstate == c.WEAPON_DROPPING and ps.dk3WeaponSequence == c.DK_GLOCK_RELOAD_SEQUENCE;
+    return description.isReloading(ps);
 }
 pub fn validPlayer(ps: *const c.playerState_t, _: c_int) bool {
     return ps.dk3GlockClip >= 0 and ps.dk3GlockClip <= 10;

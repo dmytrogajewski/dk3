@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,35 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/silverclaw.zig");
 pub const id = c.DK_W_SILVERCLAW;
-pub const spec: profiles.Spec = .{
-    .equipped = false,
-    .start_episode = 3, // silverclaw
-    .world_model = "models/e3/a_claw.dkm",
-    .animation = .{
-        .view_model = "models/e3/w_silverclaw.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ "amba", "ambb", "ambc" },
-        .raise_ms = 300,
-        .drop_ms = 300,
-    },
-    .audio = .{
-        .fire = "e3/we_sclawshoota.wav",
-        .ready = "e3/we_sclawready.wav",
-        .away = "e3/we_sclawaway.wav",
-        .variants = .{ "e3/we_sclawshoota.wav", "e3/we_sclawshootb.wav", "e3/we_sclawshootc.wav" },
-    },
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    var result = shot_rules.standard(controller);
-    result.sequence = @mod(@divTrunc(controller.move.cmd.serverTime, 7), 3);
-    result.duration_ms = controller.scaled(([_]c_int{ 850, 600, 1000 })[@intCast(result.sequence)]) + 100;
-    return result;
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -65,7 +46,7 @@ pub fn impactCue(context: impact.Context) impact.Cue {
     return cue;
 }
 
-pub const identity = .{ .classname = "weapon_silverclaw", .label = "Silverclaw", .episode = 3, .interval = 950 };
+pub const identity = description.identity;
 pub fn fire(shot: server.Fire) void {
     const ent = server.controller(@This(), shot.owner, shot.start, .melee, 400);
     ent.dk.action = @mod(shot.sequence(), 3);

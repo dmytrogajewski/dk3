@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,50 +10,22 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/discus.zig");
 pub const id = c.DK_W_DISCUS;
-pub const spec: profiles.Spec = .{ // discus
-    .visual = .{ .projectile_model = "models/e2/we_discus.dkm", .spin = true },
-    .world_model = "models/e2/a_discus.dkm",
-    .animation = .{
-        .view_model = "models/e2/w_discus.dkm",
-        .ready = "readya",
-        .away = "awaya",
-        .fire = "shootb",
-        .idle = .{ "amba", "ambb", null },
-        .alternate = "shootc",
-        .raise_ms = 400,
-        .drop_ms = 350,
-    },
-    .audio = .{
-        .fire = "e2/we_discfire.wav",
-        .ready = "e2/we_discreadya.wav",
-        .away = "e2/we_discawaya.wav",
-    },
-    .projectile = .{ .loop_sound = "e2/we_discshoota.wav" },
-    .projectile_muzzle = true,
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 const melee_sequence = 128;
 const flag_reflected = 1;
 const flag_seek = 2;
 
 /// Something within 100 units turns the throw into a free melee swing.
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    var result = shot_rules.standard(controller);
-    var eye = controller.ps.origin;
-    eye[2] += v.f(controller.ps.viewheight);
-    var forward: v.Vec = undefined;
-    c.AngleVectors(&controller.ps.viewangles, &forward, null, null);
-    const end = v.madd(eye, 100, forward);
-    var hit: c.trace_t = undefined;
-    controller.move.trace.?(&hit, &eye, null, null, &end, controller.ps.clientNum, c.MASK_SHOT);
-    if (hit.fraction < 1) {
-        result.cost = 0;
-        result.sequence = melee_sequence + @mod(@divTrunc(controller.move.cmd.serverTime, 50), 2);
-    }
-    return result;
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -89,7 +60,7 @@ pub fn audioCue(context: AudioContext) d.AudioCue {
     return cue;
 }
 
-pub const identity = .{ .classname = "weapon_discus", .label = "Discus of Daedalus", .episode = 2, .interval = 650 };
+pub const identity = description.identity;
 
 fn effect(hit: *const c.trace_t, flesh: bool, frame: c_int) void {
     marker = frame;

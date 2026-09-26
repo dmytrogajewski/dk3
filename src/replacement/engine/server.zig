@@ -32,11 +32,25 @@ pub fn argv(index: i32, out: []u8) []const u8 {
 }
 
 pub fn collisionService() @import("../domain/collision.zig").Collision {
-    return .{ .context = &gateway, .trace_fn = trace };
+    return .{ .context = &gateway, .trace_fn = trace, .contents_fn = contents };
 }
 fn trace(raw: *anyopaque, request: @import("../domain/collision.zig").Request) !@import("../domain/collision.zig").Trace {
     const engine: *abi.Gateway = @ptrCast(@alignCast(raw));
     var result: c.trace_t = undefined;
     _ = engine.call(c.G_TRACE, .{ &result, &request.start, &request.mins, &request.maxs, &request.end, @as(isize, request.slot), @as(isize, @as(i32, @bitCast(request.mask))) });
-    return .{ .fraction = result.fraction, .end = result.endpos, .normal = result.plane.normal, .start_solid = result.startsolid != 0 };
+    return .{ .fraction = result.fraction, .end = result.endpos, .normal = result.plane.normal, .start_solid = result.startsolid != 0, .all_solid = result.allsolid != 0, .entity = @intCast(result.entityNum), .slick = result.surfaceFlags & c.SURF_SLICK != 0, .ladder = result.surfaceFlags & c.SURF_LADDER != 0 };
+}
+
+fn contents(raw: *anyopaque, point: @import("../domain/components.zig").Vec3, skip: u16) !u32 {
+    const engine: *abi.Gateway = @ptrCast(@alignCast(raw));
+    return @bitCast(@as(i32, @intCast(engine.call(c.G_POINT_CONTENTS, .{ &point, @as(isize, skip) }))));
+}
+pub fn usercmd(index: u16, out: *c.usercmd_t) void {
+    _ = gateway.call(c.G_GET_USERCMD, .{ @as(isize, index), out });
+}
+pub fn link(entity: *abi.EntityProjection) void {
+    _ = gateway.call(c.G_LINKENTITY, .{entity});
+}
+pub fn unlink(entity: *abi.EntityProjection) void {
+    _ = gateway.call(c.G_UNLINKENTITY, .{entity});
 }

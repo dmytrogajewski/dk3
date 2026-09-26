@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,36 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/shockwave.zig");
 pub const id = c.DK_W_SHOCKWAVE;
-pub const spec: profiles.Spec = .{
-    .splash_hazard = true,
-    .ammo_class = "ammo_shocksphere", // shockwave
-    .ammo_pack = 1,
-    .projectile = .{ .direct_scale = 3, .splash_scale = 0.75, .splash_radius = 300 },
-    .visual = .{ .projectile_model = "models/e1/we_3dshock.dkm", .impact_sprite = "models/e1/we_shockexp.sp2", .blast_sound = "e1/we_shockwaveexp.wav", .color = .{ 1, 1, 1 }, .glow = false },
-    .world_model = "models/e1/a_shokwv.dkm",
-    .animation = .{
-        .view_model = "models/e1/w_shockwave.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ "amba", null, null },
-        .raise_ms = 400,
-        .drop_ms = 350,
-    },
-    .audio = .{
-        .fire = "e1/we_shockwaveshoota.wav",
-        .ready = "e1/we_shockwaveready.wav",
-        .away = "e1/we_shockwaveaway.wav",
-        .hum = "e1/we_shockwaveamba.wav",
-    },
-    .projectile_muzzle = true,
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -62,7 +42,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_shockwave", .label = "Shockwave", .episode = 1, .interval = 2850 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     const pending = server.controller(@This(), shot.owner, shot.start, .arming, 3000);

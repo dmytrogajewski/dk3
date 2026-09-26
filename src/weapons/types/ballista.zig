@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,34 +10,18 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/ballista.zig");
 pub const id = c.DK_W_BALLISTA;
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
 pub const splash_occlusion = false;
-pub const spec: profiles.Spec = .{
-    .ammo_class = "ammo_ballista", // ballista
-    .projectile = .{ .splash_scale = 0.5, .splash_radius = 128 },
-    .visual = .{ .projectile_model = "models/e3/we_balprj.dkm" },
-    .world_model = "models/e3/a_bal.dkm",
-    .animation = .{
-        .view_model = "models/e3/w_bal.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ "amba", null, null },
-        .raise_ms = 300,
-        .drop_ms = 300,
-    },
-    .audio = .{
-        .fire = "e3/we_ballistafirea.wav",
-        .ready = "e3/we_ballistaready.wav",
-        .away = "e3/we_ballistaaway.wav",
-    },
-    .projectile_muzzle = true,
-};
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -55,7 +38,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_ballista", .label = "Ballista", .episode = 3, .interval = 2050 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     server.schedule(@This(), shot, 150);

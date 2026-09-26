@@ -6,6 +6,7 @@ pub const c = @cImport({
     @cInclude("q_shared.h");
     @cInclude("g_public.h");
     @cInclude("cg_public.h");
+    @cInclude("tr_types.h");
     @cInclude("ui_public.h");
     @cInclude("bg_public.h");
 });

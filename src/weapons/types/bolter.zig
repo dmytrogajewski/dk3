@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,36 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/bolter.zig");
 pub const id = c.DK_W_BOLTER;
-pub const spec: profiles.Spec = .{
-    .companion_episode = 3,
-    .ammo_class = "ammo_bolts", // bolter
-    .visual = .{ .projectile_model = "models/e3/we_bolt.dkm" },
-    .world_model = "models/e3/a_bolter.dkm",
-    .animation = .{
-        .view_model = "models/e3/w_bolter.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoot",
-        .idle = .{ "amba", "ambb", null },
-        .raise_ms = 400,
-        .drop_ms = 300,
-    },
-    .audio = .{
-        .fire = "e3/we_bolterfire.wav",
-        .ready = "e3/we_bolterready.wav",
-        .away = "e3/we_bolteraway.wav",
-    },
-    .projectile_muzzle = true,
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    var result = shot_rules.standard(controller);
-    result.sequence = (controller.ps.dk3WeaponSequence ^ 1) & 1;
-    result.cost = if (result.sequence == 1 and controller.ps.ammo[id] > 0) 0 else 1;
-    return result;
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -64,7 +44,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_bolter", .label = "Bolter", .episode = 3, .interval = 600 };
+pub const identity = description.identity;
 
 pub fn fire(shot: server.Fire) void {
     _ = server.spawn(@This(), shot);

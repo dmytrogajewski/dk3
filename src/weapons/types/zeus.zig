@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const c = @import("../abi.zig").c;
-const profiles = @import("../profiles.zig");
 const impact = @import("../impact.zig");
 const shot_rules = @import("../shot.zig");
 const d = @import("../definition.zig");
@@ -11,33 +10,17 @@ const basicAudio = d.basicAudio;
 const v = @import("../vector.zig");
 const server = @import("../server/combat.zig");
 
+const description = @import("../descriptions/zeus.zig");
 pub const id = c.DK_W_ZEUS;
-pub const spec: profiles.Spec = .{
-    .ammo_class = "ammo_zeus", // zeus
-    .ammo_pack = 1,
-    .companion_pickup = false,
-    .visual = .{ .color = .{ 0.2, 0.65, 1 } },
-    .world_model = "models/e2/a_zeus.dkm",
-    .animation = .{
-        .view_model = "models/e2/w_zeuseye.dkm",
-        .ready = "ready",
-        .away = "away",
-        .fire = "shoota",
-        .idle = .{ null, null, null },
-        .raise_ms = 750,
-        .drop_ms = 500,
-    },
-    .audio = .{
-        .fire = "e2/we_zeusshoot.wav",
-        .ready = "e2/we_zeusready.wav",
-        .away = "e2/we_zeusaway.wav",
-    },
-};
+comptime {
+    if (id != description.id) @compileError("weapon transport ID mismatch");
+}
+pub const spec = description.spec;
 pub fn predictionShot(controller: anytype) shot_rules.Shot {
-    return shot_rules.standard(controller);
+    return description.predictionShot(controller);
 }
 pub fn update(controller: anytype) void {
-    controller.automatic(@This());
+    description.update(controller);
 }
 
 pub fn blastSound(_: c_int) [*c]const u8 {
@@ -54,7 +37,7 @@ pub fn audioCue(_: AudioContext) d.AudioCue {
     return basicAudio(spec);
 }
 
-pub const identity = .{ .classname = "weapon_zeus", .label = "Eye of Zeus", .episode = 2, .interval = 8000 };
+pub const identity = description.identity;
 pub const controller_limit = 20;
 fn eligible(owner: *server.Entity, target: *server.Entity) bool {
     if (!server.hostile(owner, target)) return false;

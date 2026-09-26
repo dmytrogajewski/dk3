@@ -2570,3 +2570,35 @@ under `zig-out/reports/runtime-zig-217`; assets and saves remain private. No nor
 installation was updated. Continue stages 1–2 with actual player movement, shared
 weapon backend extraction and ECS persistence mappings before world/client/UI
 migration and implemented-scope acceptance.
+
+
+## runtime-zig — sequence 218 (active implementation)
+
+Continues the accepted full native rewrite. This sequence does not close the task
+or authorize production cutover. Normal launcher/profile/assets/saves are unchanged.
+
+Implemented: shared player movement and prediction with public ABI projections;
+all 28 pure weapon descriptions/input policies and shared supplied-data parsing;
+ECS weapon state and shot event delivery; native BSP/brush rendering; matching
+source-identity checks; binary movers with grouped trajectories, delays/dwell and
+transactional player pushing; use/proximity/rider activation; target/delay/killtarget
+routing and basic once/multiple/relay/counter triggers. GPL movement provenance is
+retained. The C differential baseline is test-only. Native combat dispatch, actors,
+trains/secrets, scripts/cinematics, restore/travel and full presentation/UI remain
+implementation work, not failed acceptance claims.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Native shared movement vs bundled baseline | Passed | Six 240-command runs compare origins/velocities within 0.05 and exact eye height on flat ground and in shallow/deep water. Includes diagonal walking, crouch, jump, swimming and gravity; other geometry/ladders remain unrun. |
+| Shared weapon input policies | Passed | All 28 policies exercised without legacy engine globals; dedicated assertions for burst continuation, ten-shot reload, charged release and spin-up. No native damage/presentation claim. |
+| Native e1m3b connection/prediction | Passed | `zig-out/reports/runtime-zig-218/movement218.log`; matched identity in userinfo, supplied weapon table read and client/server movement active. Standing/crouching captures inspected. |
+| Delayed door repeated activation | Passed | `movers218.log`: id 255 remains opening after second activation, progresses from z=0 through z=27.5 and reaches authored z=122. This uses explicit diagnostic activation, not an authored puzzle replay. |
+| Group rollback, crushing and rider transport | Unrun | Implementation connected; blocked/rider scenarios required. |
+| Trigger/target/delay/killtarget progression | Unrun | Implementation connected; authored scenario replay required. |
+| Mixed native build rejection | Unrun | Server and client rejection paths implemented; matching-build connect passed, intentional mismatch still required. |
+| Native complete movement/weapon/actor/UI/save parity | Unrun | Significant implementation remains. |
+
+Local diagnostics and captures stay ignored. Reusable isolated client runner:
+`dkq3/tools/runtime_player_probe.py`; no original or converted assets are committed.
+Existing-runtime and replacement module builds passed during connected development;
+the aggregate suite passed 159 Zig tests and 49 Python tests. Full runtime acceptance remains pending.
