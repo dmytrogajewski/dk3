@@ -15,6 +15,10 @@ pub const flashlight = @import("descriptions/flashlight.zig");
 pub const discus = @import("descriptions/discus.zig");
 pub const sunflare = @import("descriptions/sunflare.zig");
 pub const stavros = @import("descriptions/stavros.zig");
+pub const zeus = @import("descriptions/zeus.zig");
+pub const wyndrax = @import("descriptions/wyndrax.zig");
+pub const nightmare = @import("descriptions/nightmare.zig");
+pub const metamaser = @import("descriptions/metamaser.zig");
 pub fn flightScale(id: u5, flags: i32) f32 {
     inline for (weapons) |W| if (id == W.id) {
         if (@hasDecl(W, "flightScale")) return W.flightScale(flags);
@@ -292,4 +296,78 @@ test "Stavros growth preserves staged acceleration and multiplayer fragment supp
     const scale = meteor.scale;
     try std.testing.expectEqual(velocity, meteor.tick(1000, velocity, &angles));
     try std.testing.expectEqual(scale, meteor.scale);
+}
+
+test "Zeus graph never revisits a target and attenuates damage by consumed zaps" {
+    const std = @import("std");
+    var chain: zeus.Chain = .{ .owner = 99, .damage = 300, .range = 1500, .ammo_cost = 1, .ready_ms = 1750, .expires_ms = 7250 };
+    try std.testing.expect(chain.reserve(1));
+    try std.testing.expect(!chain.reserve(1));
+    for (2..21) |identity| try std.testing.expect(chain.reserve(@intCast(identity)));
+    try std.testing.expect(!chain.reserve(21));
+    for (0..20) |index| {
+        const expected: f32 = if (index > 15) 75 else if (index > 10) 150 else if (index > 5) 225 else 300;
+        try std.testing.expectEqual(expected, chain.zap());
+    }
+    try std.testing.expectEqual(@as(u8, 0), chain.active);
+    try std.testing.expectEqual(@as(u8, 20), chain.zaps);
+    try std.testing.expect(!chain.reserve(1));
+    try std.testing.expectEqual(@as(u32, 875), zeus.releaseDelay(2));
+}
+
+test "Wisp retains four distinct targets, preserves the close orbit and ends its fade" {
+    const std = @import("std");
+    const Random = struct {
+        pub fn next(_: *@This()) f32 {
+            return 0.5;
+        }
+    };
+    var random: Random = .{};
+    var wisp: wyndrax.BallisticState = .{};
+    for (1..5) |id| try std.testing.expect(wisp.include(@intCast(id)));
+    wisp.targets[0] = 0;
+    try std.testing.expect(!wisp.include(4)); // A hole must not duplicate a later target.
+    try std.testing.expect(wisp.include(5));
+    try std.testing.expect(!wisp.include(6));
+    try std.testing.expectEqual(@as(f32, -150), wisp.steer(.{ 1, 0, 0 }, 63, &random)[0]);
+    try std.testing.expectEqual(@as(f32, 0), wisp.steer(.{ 1, 0, 0 }, 64, &random)[0]);
+    try std.testing.expectEqual(@as(f32, 150), wisp.steer(.{ 1, 0, 0 }, 100, &random)[0]);
+    for (0..18) |_| try std.testing.expect(!wisp.fade());
+    try std.testing.expect(wisp.fade());
+}
+
+test "Nightmare bounds the marked list and derives search and strike time from supplied frames" {
+    const std = @import("std");
+    var ritual: nightmare.Ritual = .{ .owner = 1, .damage = 300, .range = 2000, .born_ms = 0, .next_ms = 3200, .phase_ms = 0 };
+    for (2..12) |id| try std.testing.expect(ritual.mark(@intCast(id)));
+    try std.testing.expect(!ritual.mark(12));
+    try std.testing.expect(!ritual.mark(2));
+    try std.testing.expectEqual(@as(i64, 3200), nightmare.searchDelay(1));
+    try std.testing.expectEqual(@as(i64, 1700), nightmare.searchDelay(2));
+    ritual.advance(.reaping, 1000, nightmare.strike_ms);
+    try std.testing.expectEqual(@as(i64, 5200), ritual.next_ms);
+}
+
+test "Metamaser locks, charges and destruction bands retain class limits" {
+    const std = @import("std");
+    var cube: metamaser.BallisticState = .{ .charges = 6, .end_ms = 19000 };
+    cube.settle(800);
+    try std.testing.expectEqual(@as(i64, 3800), cube.arm_ms);
+    for (1..13) |id| try std.testing.expect(cube.include(@intCast(id), 1000));
+    try std.testing.expect(!cube.include(13, 1000));
+    for (1..5) |id| try std.testing.expect(cube.lock(@intCast(id), 1100, 0.5));
+    try std.testing.expect(!cube.lock(5, 1100, 0.5));
+    try std.testing.expectEqual(@as(i64, 1850), cube.acquired[0].until_ms);
+    cube.forget(1);
+    try std.testing.expect(cube.lock(5, 1100, 0.5));
+    cube.die(5000);
+    try std.testing.expectEqual(@as(i64, 10000), cube.end_ms);
+    cube.die(6000);
+    try std.testing.expectEqual(@as(i64, 10000), cube.end_ms);
+    try std.testing.expectEqual(@as(f32, 0), metamaser.ringDamage(40, 1000, 180, 0, false));
+    const full = metamaser.ringDamage(40, 1000, 200, 0, false);
+    try std.testing.expect(full > 0);
+    try std.testing.expectEqual(full * 0.5, metamaser.ringDamage(40, 1000, 200, 0, true));
+    try std.testing.expectEqual(@as(f32, 0), metamaser.ringDamage(40, 1000, 200, 64, false));
+    for (entries) |entry| try std.testing.expect(entry.spec.combat != .pending);
 }

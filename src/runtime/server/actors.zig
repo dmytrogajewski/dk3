@@ -133,6 +133,10 @@ pub const Actors = struct {
                 body.maxs[2] = @min(body.maxs[2], 0);
             }
             const policy = catalog.entries[actor.definition];
+            if (!dead and @import("nightmare.zig").frozen(world, entity)) {
+                try self.publish(world, entity, projections, now);
+                continue;
+            }
             if (!dead and policy.kind == .mishima_guard) try @import("hostiles.zig").guard(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now);
             if (!dead and policy.kind == .civilian) {
                 if (hurt.revision != actor.receipt) {

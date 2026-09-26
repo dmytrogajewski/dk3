@@ -222,6 +222,10 @@ fn probeMotion() !void {
 fn consoleCommand() isize {
     var buffer: [128]u8 = undefined;
     const command = engine.argv(0, &buffer);
+    if (std.mem.eql(u8, command, "dk3_runtime_observe")) {
+        @import("server/observation.zig").report(&world.?, clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
+        return 1;
+    }
     if (saveCommand(command) catch |err| {
         saveFeedback(err);
         return 1;

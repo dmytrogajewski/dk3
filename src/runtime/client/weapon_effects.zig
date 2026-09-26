@@ -36,5 +36,9 @@ pub fn draw(entity: c.entityState_t, now: i32, ref: *const c.refdef_t, client: i
         }
     } else if (entity.weapon == catalog.sunflare.id) {
         try @import("sunflare.zig").draw(entity, now, ref);
+    } else if (entity.weapon == catalog.zeus.id) {
+        try @import("zeus.zig").draw(entity, now, ref, client);
+    } else if (entity.weapon == catalog.nightmare.id) {
+        try @import("nightmare.zig").draw(entity, now, ref, client);
     } else try @import("area_effects.zig").draw(entity, now);
 }

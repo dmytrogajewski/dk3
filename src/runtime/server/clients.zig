@@ -88,6 +88,7 @@ pub const Clients = struct {
         engine.usercmd(@intCast(index), &input);
         input.serverTime = @intCast(std.math.clamp(@as(i64, input.serverTime), now - 1000, now + 200));
         const player = try world.get(entity, data.Player);
+        bridge.holdView(player, (try world.get(entity, data.Transform)).angles, input);
         const command = bridge.command(input, &player.delta_angles);
         const character = (try world.get(entity, data.Character)).*;
         const ailments = (try world.get(entity, data.Ailments)).*;

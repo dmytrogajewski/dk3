@@ -13,6 +13,19 @@ fn deadline(value: *?i64, delta: i64) !void {
 }
 pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)], delta: i64) !void {
     switch (id) {
+        .nightmare => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.phase_ms, delta);
+            try shift(&value.next_ms, delta);
+        },
+        .meta_ring => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.next_ms, delta);
+        },
+        .meta_laser => {
+            try shift(&value.next_ms, delta);
+            try shift(&value.expires_ms, delta);
+        },
         .lifetime => try shift(&value.expires_ms, delta),
         .player => try shift(&value.command_ms, delta),
         .weapons => {
@@ -72,6 +85,15 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try deadline(&value.end_ms, delta);
         },
         .flashlight => try shift(&value.expires_ms, delta),
+        .zeus => {
+            try shift(&value.ready_ms, delta);
+            try shift(&value.expires_ms, delta);
+            try deadline(&value.closed_ms, delta);
+        },
+        .zeus_bolt => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.next_ms, delta);
+        },
         .ailments => {
             if (value.poison) |*poison| {
                 try shift(&poison.until_ms, delta);

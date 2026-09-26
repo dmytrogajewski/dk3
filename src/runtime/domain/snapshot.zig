@@ -233,15 +233,19 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Binding) catch null) |binding| {
             if (binding.slot >= occupied.len or occupied[binding.slot] or (binding.slot > 0 and binding.slot < 64)) return error.InvalidSavedBinding;
             occupied[binding.slot] = true;
-            if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null and (world.get(entity, data.Shockwave) catch null) == null and (world.get(entity, data.Nova) catch null) == null and (world.get(entity, data.Flashlight) catch null) == null) try require(world, entity, .{data.Body});
+            if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null and (world.get(entity, data.Shockwave) catch null) == null and (world.get(entity, data.Nova) catch null) == null and (world.get(entity, data.Flashlight) catch null) == null and (world.get(entity, data.Zeus) catch null) == null and (world.get(entity, data.ZeusBolt) catch null) == null and (world.get(entity, data.Nightmare) catch null) == null and (world.get(entity, data.MetaRing) catch null) == null and (world.get(entity, data.MetaLaser) catch null) == null) try require(world, entity, .{data.Body});
         }
         if (world.get(entity, data.Body) catch null) |body| {
             if (body.mass <= 0 or body.mass > 100000) return error.InvalidSavedMass;
             for (body.mins, body.maxs) |low, high| if (low > high or @abs(low) > 8192 or @abs(high) > 8192) return error.InvalidSavedBounds;
             if (body.motion_owner) |owner_id| {
                 const owner = world.find(owner_id) orelse return error.InvalidSavedMotionOwner;
-                const projectile = world.get(owner, data.Projectile) catch return error.InvalidSavedMotionOwner;
-                if (projectile.flight != .ballista or projectile.flight.ballista.victim != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
+                if (world.get(owner, data.Nightmare) catch null) |ritual| {
+                    if (ritual.victim != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
+                } else {
+                    const projectile = world.get(owner, data.Projectile) catch return error.InvalidSavedMotionOwner;
+                    if (projectile.flight != .ballista or projectile.flight.ballista.victim != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
+                }
             }
         }
         if ((world.get(entity, data.Exit) catch null) != null) {
@@ -310,6 +314,36 @@ pub fn validate(snapshot: *Loaded) !void {
                 for (meteor.scale) |axis| if (axis <= 0 or axis > 2) return error.InvalidSavedProjectile;
                 if (!meteor.fragment) try require(world, entity, .{data.Random});
             }
+            if (projectile.flight == .wyndrax) {
+                const wisp = projectile.flight.wyndrax;
+                if (wisp.next_ms < 0 or wisp.sound_ms < 0 or wisp.sine_ms < 0 or wisp.sine >= 12 or wisp.personality < 0 or wisp.personality > 1 or wisp.alpha <= 0 or wisp.alpha > 1) return error.InvalidSavedProjectile;
+                for (wisp.scale) |axis| if (axis <= 0 or axis > 4) return error.InvalidSavedProjectile;
+                try require(world, entity, .{data.Random});
+                if (wisp.enemy) |id| if (world.find(id)) |target| try require(world, target, .{ data.Health, data.Body, data.Binding });
+                for (wisp.targets, 0..) |id, index| if (id != 0) {
+                    if (id == projectile.owner or std.mem.indexOfScalar(u32, wisp.targets[0..index], id) != null) return error.InvalidSavedProjectile;
+                    if (world.find(id)) |target| try require(world, target, .{ data.Health, data.Binding });
+                };
+            }
+            if (projectile.flight == .metamaser) {
+                const cube = projectile.flight.metamaser;
+                if (cube.next_ms < 0 or cube.arm_ms < 0 or cube.beep_ms < 0 or cube.pause_ms < 0 or cube.burst_ms < 0 or cube.end_ms < 0 or cube.end_ms > 3605000 or cube.charges < 0 or cube.charges > 120 or cube.bursts > 21 or cube.range <= 0 or cube.range > 8192) return error.InvalidSavedProjectile;
+                try require(world, entity, .{ data.Random, data.Body, data.Health, data.Hurt });
+                for (cube.targets, 0..) |track, i| if (track.target != 0) {
+                    if (track.until_ms < 0) return error.InvalidSavedProjectile;
+                    for (cube.targets[0..i]) |previous| if (previous.target == track.target) return error.InvalidSavedProjectile;
+                    if (world.find(track.target)) |target| try require(world, target, .{ data.Health, data.Binding });
+                };
+                for (cube.acquired, 0..) |track, i| if (track.target != 0) {
+                    if (track.until_ms < 0 or track.damage_ms < 0 or track.sound_ms < 0) return error.InvalidSavedProjectile;
+                    for (cube.acquired[0..i]) |previous| if (previous.target == track.target) return error.InvalidSavedProjectile;
+                    var retained = false;
+                    for (cube.targets) |target| if (target.target == track.target) {
+                        retained = true;
+                    };
+                    if (!retained) return error.InvalidSavedProjectile;
+                };
+            }
         }
         if (world.get(entity, data.Melee) catch null) |melee| {
             const plan = melee.plan() catch return error.InvalidSavedMelee;
@@ -321,7 +355,7 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.WeaponLaunch) catch null) |launch| {
             const class = @import("weapon_catalog").find(launch.weapon) orelse return error.InvalidSavedLaunch;
             const policy = @import("weapon_catalog").combatFor(launch.weapon, launch.sequence);
-            if ((policy != .projectile and policy != .shockwave and policy != .ballista and policy != .discus and policy != .sunflare) or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
+            if ((policy != .projectile and policy != .shockwave and policy != .ballista and policy != .discus and policy != .sunflare and policy != .wyndrax and policy != .metamaser) or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
             const owner = world.find(launch.owner) orelse return error.InvalidSavedLaunch;
             try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
         }
@@ -358,6 +392,65 @@ pub fn validate(snapshot: *Loaded) !void {
             if (light.strength < 0 or light.strength > 1 or (try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedLight;
             const owner = world.find(light.owner) orelse return error.InvalidSavedLight;
             try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+        }
+        if (world.get(entity, data.Nightmare) catch null) |ritual| {
+            if (ritual.count > @import("weapon_catalog").nightmare.maximum_targets or ritual.cursor > ritual.count or ritual.damage < 0 or ritual.damage > 1000000 or ritual.range <= 0 or ritual.range > 8192 or ritual.previous_view_height < -24 or ritual.previous_view_height > 64 or ritual.next_ms < ritual.phase_ms) return error.InvalidSavedNightmare;
+            try require(world, entity, .{data.Binding});
+            if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedNightmare;
+            const owner = world.find(ritual.owner) orelse return error.InvalidSavedNightmare;
+            try require(world, owner, .{ data.Player, data.Weapons, data.Binding, data.Health });
+            for (ritual.targets[0..ritual.count], 0..) |id, index| {
+                if (id == 0 or std.mem.indexOfScalar(u32, ritual.targets[0..index], id) != null) return error.InvalidSavedNightmare;
+                if (world.find(id)) |target| try require(world, target, .{ data.Health, data.Body, data.Binding });
+            }
+            if ((ritual.phase == .appearing or ritual.phase == .reaping) != (ritual.victim != null)) return error.InvalidSavedNightmare;
+            if (ritual.victim) |id| {
+                if (ritual.cursor == 0 or ritual.targets[ritual.cursor - 1] != id) return error.InvalidSavedNightmare;
+                const target = world.find(id) orelse return error.InvalidSavedNightmare;
+                try require(world, target, .{ data.Body, data.Velocity, data.Health, data.Binding });
+                if ((try world.get(target, data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedNightmare;
+                if (world.get(target, data.Player) catch null) |victim_player| if (victim_player.mode != .frozen and victim_player.mode != .dead) return error.InvalidSavedNightmare;
+            }
+        }
+        inline for (.{ data.MetaRing, data.MetaLaser }) |T| if (world.get(entity, T) catch null) |effect| {
+            if (effect.damage < 0 or effect.damage > 1000000 or effect.cube == 0) return error.InvalidSavedMetaEffect;
+            try require(world, entity, .{data.Binding});
+            if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedMetaEffect;
+            if (T == data.MetaRing) {
+                if (effect.next_ms < effect.born_ms) return error.InvalidSavedMetaEffect;
+            } else {
+                try require(world, entity, .{data.Random});
+                // Final burst lasers may expire before their staggered first shot.
+                if (effect.next_ms -| effect.expires_ms > 400) return error.InvalidSavedMetaEffect;
+            }
+            if (world.find(effect.cube)) |cube| {
+                const projectile = world.get(cube, data.Projectile) catch return error.InvalidSavedMetaEffect;
+                if (projectile.flight != .metamaser or projectile.owner != effect.owner) return error.InvalidSavedMetaEffect;
+            }
+        };
+        if (world.get(entity, data.Zeus) catch null) |chain| {
+            if (chain.count > @import("weapon_catalog").zeus.maximum_targets or chain.active > chain.count or chain.zaps > chain.count or @as(u16, chain.active) + chain.zaps > chain.count or chain.damage < 0 or chain.damage > 1000000 or chain.range <= 0 or chain.range > 8192 or chain.ammo_cost <= 0 or chain.ammo_cost > 32767) return error.InvalidSavedZeus;
+            if ((chain.phase == .finished) != (chain.closed_ms != null) or (chain.phase == .pending and chain.count != 0) or (chain.phase == .finished and chain.active != 0)) return error.InvalidSavedZeus;
+            for (chain.targets[0..chain.count], 0..) |id, i| {
+                if (id == 0 or id == chain.owner) return error.InvalidSavedZeus;
+                for (chain.targets[0..i]) |previous| if (previous == id) return error.InvalidSavedZeus;
+            }
+            const owner = world.find(chain.owner) orelse return error.InvalidSavedZeus;
+            try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+            try require(world, entity, .{ data.Random, data.Binding });
+            if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedZeus;
+        }
+        if (world.get(entity, data.ZeusBolt) catch null) |bolt| {
+            const parent = world.find(bolt.chain) orelse return error.InvalidSavedZeusBolt;
+            const chain = world.get(parent, data.Zeus) catch return error.InvalidSavedZeusBolt;
+            // Check bounds before invoking the class's bounded target-set operations.
+            if (chain.count > @import("weapon_catalog").zeus.maximum_targets or chain.owner != bolt.owner or !chain.contains(bolt.target)) return error.InvalidSavedZeusBolt;
+            const source = world.find(bolt.source) orelse return error.InvalidSavedZeusBolt;
+            const target = world.find(bolt.target) orelse return error.InvalidSavedZeusBolt;
+            try require(world, source, .{ data.Health, data.Binding });
+            try require(world, target, .{ data.Health, data.Binding });
+            try require(world, entity, .{data.Binding});
+            if (bolt.next_ms < bolt.born_ms or (try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedZeusBolt;
         }
         if (world.get(entity, data.Pickup) catch null) |pickup| {
             try require(world, entity, .{ data.Binding, data.Body, data.ItemMotion, data.MapObject });
@@ -415,7 +508,7 @@ test "campaign saves own flat archives and validate nested worlds before admissi
 
 test "portable native snapshots own strings and preserve IDs before rebasing" {
     const allocator = std.testing.allocator;
-    var world = data.World.init(allocator, 32);
+    var world = data.World.init(allocator, 64);
     defer world.deinit();
     const player = try world.create(7, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{}, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{ .boost_until = .{ 0, 1300, 0, 0, 0 } }, data.Ailments{}, data.Keys{} });
     var random: data.Random = .{ .state = 92817 };
@@ -447,6 +540,20 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = try world.create(59, .{ data.Transform{}, data.Binding{ .slot = 76 }, data.Velocity{}, data.Random{ .state = 23 }, data.Projectile{ .owner = 7, .weapon = 10, .damage = 4, .born_ms = 500, .stepped_ms = 1000, .flight = .{ .sunflare = .{ .phase = .burning, .burn_ms = 400, .next_ms = 800, .flames = 7, .floating = true } } }, data.Lifetime{ .expires_ms = 10900 } });
     _ = try world.create(60, .{ data.Transform{}, data.Binding{ .slot = 77 }, data.Velocity{}, data.Random{ .state = 25 }, data.Projectile{ .owner = 7, .weapon = 17, .damage = 100, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .stavros = .{ .next_ms = 200, .scale = @splat(0.3), .maximum_speed = 525 } } }, data.Lifetime{ .expires_ms = 12900 } });
     _ = try world.create(61, .{ data.Transform{}, data.Binding{ .slot = 78 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 17, .damage = 50, .born_ms = 900, .stepped_ms = 1000, .bounces = 1, .flight = .{ .stavros = .{ .fragment = true, .radius = 100, .scale = .{ 0.4, 0.5, 0.6 } } } }, data.Lifetime{ .expires_ms = 6900 } });
+    var chain: data.Zeus = .{ .owner = 7, .damage = 300, .range = 1500, .ammo_cost = 1, .ready_ms = 800, .expires_ms = 6300, .phase = .active };
+    _ = chain.reserve(47);
+    _ = try world.create(62, .{ data.Transform{}, data.Binding{ .slot = 79 }, data.Random{ .state = 26 }, chain });
+    _ = try world.create(63, .{ data.Transform{}, data.Binding{ .slot = 80 }, data.ZeusBolt{ .owner = 7, .chain = 62, .source = 7, .target = 47, .born_ms = 800, .next_ms = 1100, .phase = .zapping } });
+    _ = try world.create(64, .{ data.Transform{}, data.Binding{ .slot = 81 }, data.Random{ .state = 27 }, data.Zeus{ .owner = 7, .damage = 300, .range = 1500, .ammo_cost = 1, .ready_ms = 1800, .expires_ms = 7300 } });
+    _ = try world.create(65, .{ data.Transform{}, data.Binding{ .slot = 82 }, data.Velocity{}, data.Random{ .state = 28 }, data.Projectile{ .owner = 7, .weapon = 19, .damage = 3, .born_ms = 700, .stepped_ms = 1000, .lifetime_ms = 5000, .flight = .{ .wyndrax = .{ .enemy = 47, .targets = .{ 47, 0, 0, 0 }, .next_ms = 400, .sine_ms = 450, .sound_ms = 500, .sine = 4, .personality = 0.75 } } }, data.Lifetime{ .expires_ms = 7800 } });
+    _ = try world.create(66, .{ data.Transform{}, data.Binding{ .slot = 83 }, data.Nightmare{ .owner = 7, .damage = 300, .range = 2000, .born_ms = 100, .phase_ms = 700, .next_ms = 4900, .phase = .reaping, .targets = .{ 47, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .count = 1, .cursor = 1, .victim = 47 } });
+    (try world.get(world.find(47).?, data.Body)).motion_owner = 66;
+    var cube: @import("weapon_catalog").metamaser.BallisticState = .{ .phase = .tracking, .settled = true, .next_ms = 4000, .end_ms = 19000, .charges = 5 };
+    _ = cube.include(7, 3500);
+    _ = cube.lock(7, 3800, 0.5);
+    _ = try world.create(67, .{ data.Transform{}, data.Binding{ .slot = 84 }, data.Velocity{}, data.Body{}, data.Health{ .current = 300, .maximum = 300 }, data.Hurt{}, data.Random{ .state = 29 }, data.Projectile{ .owner = 7, .weapon = 26, .damage = 40, .born_ms = -3000, .stepped_ms = 1000, .lifetime_ms = 19000, .flight = .{ .metamaser = cube } }, data.Lifetime{ .expires_ms = 16000 } });
+    _ = try world.create(68, .{ data.Transform{}, data.Binding{ .slot = 85 }, data.MetaRing{ .owner = 7, .cube = 67, .damage = 40, .born_ms = 900, .next_ms = 1050 } });
+    _ = try world.create(69, .{ data.Transform{}, data.Binding{ .slot = 86 }, data.Random{ .state = 30 }, data.MetaLaser{ .owner = 7, .cube = 67, .damage = 40, .next_ms = 1100, .expires_ms = 5900 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -497,6 +604,30 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expect(saved_fragment.flight.stavros.fragment);
     try std.testing.expectEqual(@as(u8, 1), saved_fragment.bounces);
     try std.testing.expectEqual([3]f32{ 0.4, 0.5, 0.6 }, saved_fragment.flight.stavros.scale);
+    const saved_chain = (try loaded.world.get(loaded.world.find(62).?, data.Zeus)).*;
+    try std.testing.expect(saved_chain.contains(47));
+    try std.testing.expectEqual(@as(u8, 1), saved_chain.active);
+    try std.testing.expectEqual(@as(u8, 0), saved_chain.zaps);
+    const saved_bolt = (try loaded.world.get(loaded.world.find(63).?, data.ZeusBolt)).*;
+    try std.testing.expect(saved_bolt.phase == .zapping);
+    try std.testing.expectEqual(@as(i64, 9100), saved_bolt.next_ms);
+    try std.testing.expectEqual(@as(u32, 62), saved_bolt.chain);
+    try std.testing.expectEqual(@as(i64, 9800), (try loaded.world.get(loaded.world.find(64).?, data.Zeus)).ready_ms);
+    const saved_wisp = (try loaded.world.get(loaded.world.find(65).?, data.Projectile)).*;
+    try std.testing.expectEqual(@as(i64, 8700), saved_wisp.born_ms);
+    try std.testing.expectEqual(@as(i64, 400), saved_wisp.flight.wyndrax.next_ms);
+    try std.testing.expectEqual(@as(i64, 450), saved_wisp.flight.wyndrax.sine_ms);
+    try std.testing.expectEqual(@as(?u32, 47), saved_wisp.flight.wyndrax.enemy);
+    try std.testing.expectEqual([4]u32{ 47, 0, 0, 0 }, saved_wisp.flight.wyndrax.targets);
+    const saved_ritual = (try loaded.world.get(loaded.world.find(66).?, data.Nightmare)).*;
+    try std.testing.expectEqual(@as(i64, 12900), saved_ritual.next_ms);
+    try std.testing.expectEqual(@as(?u32, 47), saved_ritual.victim);
+    try std.testing.expectEqual(@as(?u32, 66), (try loaded.world.get(loaded.world.find(47).?, data.Body)).motion_owner);
+    const saved_cube = (try loaded.world.get(loaded.world.find(67).?, data.Projectile)).flight.metamaser;
+    try std.testing.expectEqual(@as(i64, 4550), saved_cube.acquired[0].until_ms);
+    try std.testing.expectEqual(@as(i32, 5), saved_cube.charges);
+    try std.testing.expectEqual(@as(i64, 9050), (try loaded.world.get(loaded.world.find(68).?, data.MetaRing)).next_ms);
+    try std.testing.expectEqual(@as(i64, 9100), (try loaded.world.get(loaded.world.find(69).?, data.MetaLaser)).next_ms);
     const melee = (try loaded.world.get(loaded.world.find(45).?, data.Melee)).*;
     try std.testing.expectEqual(@as(?i64, 8700), (try loaded.world.get(loaded.world.find(7).?, data.Weapons)).last_fire_ms);
     const poison = (try loaded.world.get(loaded.world.find(7).?, data.Ailments)).poison.?;

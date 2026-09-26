@@ -83,6 +83,7 @@ fn draw(now: i32) !void {
     if (latest > snapshot_number) {
         if (engine.gateway.call(c.CG_GETSNAPSHOT, .{ @as(isize, latest), &snapshot }) == 0) return;
         snapshot_number = latest;
+        if (!have_snapshot) engine.print("dk3 zig client: first snapshot applied\n");
         have_snapshot = true;
         const sequence_number: u32 = @bitCast(snapshot.ps.eventSequence);
         for (0..c.MAX_PS_EVENTS) |i| {
@@ -101,6 +102,7 @@ fn draw(now: i32) !void {
                     weapon_view.init();
                     if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
                     selected_weapon = snapshot.ps.weapon;
+                    engine.print("dk3 zig client: restoration applied\n");
                 }
                 if (@import("client/commands.zig").selectedWeapon(snapshot.ps.dk3Inventory)) |id| selected_weapon = id;
             }
@@ -134,6 +136,7 @@ fn draw(now: i32) !void {
     while (number <= current) : (number += 1) {
         var input: c.usercmd_t = undefined;
         if (engine.gateway.call(c.CG_GETUSERCMD, .{ @as(isize, number), &input }) == 0 or input.serverTime <= player.command_ms or input.serverTime > now) continue;
+        bridge.holdView(player, transform.angles, input);
         const command = bridge.command(input, &player.delta_angles);
         var motion: @import("domain/slide.zig").State = .{ .position = transform.position, .velocity = velocity.linear };
         if (ailments.mask & 128 != 0) motion.velocity = @splat(0);
@@ -169,12 +172,19 @@ fn draw(now: i32) !void {
     var weapon_end_ms: ?i64 = null;
     for (snapshot.entities[0..@intCast(snapshot.numEntities)]) |entity| {
         if (entity.eType == c.ET_DK3_EFFECT) {
+            if (entity.weapon == @import("weapon_catalog").metamaser.id) {
+                try @import("client/metamaser.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
+                continue;
+            }
             try @import("client/weapon_effects.zig").draw(entity, now, &ref, client_number);
             if (entity.weapon == @import("weapon_catalog").novabeam.id and entity.otherEntityNum == client_number and entity.weapon == loadout.weapon and entity.frame == 3) weapon_end_ms = entity.time2;
+            if (entity.weapon == @import("weapon_catalog").zeus.id and entity.otherEntityNum == client_number and entity.weapon == loadout.weapon and entity.frame == 100) weapon_end_ms = entity.time2;
             continue;
         }
         if (entity.eType == c.ET_MISSILE and try @import("client/projectiles.zig").sprite(entity, now, &ref)) continue;
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").stavros.id) try @import("client/stavros.zig").draw(entity, now, &ref);
+        if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").wyndrax.id) try @import("client/wyndrax.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
+        if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").metamaser.id) try @import("client/metamaser.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
         var handle: c.qhandle_t = 0;
         if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
             handle = inline_models[@intCast(entity.modelindex)];

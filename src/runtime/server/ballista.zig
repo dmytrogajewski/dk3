@@ -14,10 +14,10 @@ const c = abi.c;
 pub fn detach(world: *data.World, target: ecs.Entity) !void {
     const body = try world.get(target, data.Body);
     const owner_id = body.motion_owner orelse return;
-    body.motion_owner = null;
     const owner = world.find(owner_id) orelse return;
     const projectile = world.get(owner, data.Projectile) catch return;
     if (projectile.flight == .ballista and projectile.flight.ballista.victim == try world.persistentId(target)) {
+        body.motion_owner = null;
         projectile.flight.ballista.victim = null;
         projectile.flight.ballista.releases +|= 1;
     }

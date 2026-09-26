@@ -77,13 +77,15 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         .charge => try @import("c4.zig").launch(world, slots, projections, owner, shot, table, now),
         .trident => try @import("trident.zig").launch(world, slots, projections, owner, shot, table, now),
         .stavros => try @import("stavros.zig").launch(world, slots, projections, owner, shot, table, now),
+        .zeus => try @import("zeus.zig").launch(world, slots, projections, owner, shot, table, now),
+        .nightmare => try @import("nightmare.zig").launch(world, slots, projections, owner, shot, table, now),
         .novabeam => try @import("novabeam.zig").launch(world, slots, projections, owner, shot, table, now),
         .flashlight => try @import("flashlight.zig").refresh(world, slots, projections, owner, now),
         .hammer => {
             try @import("hammer.zig").launch(world, owner, shot, table, now);
             return;
         },
-        .projectile, .shockwave, .ballista, .discus, .sunflare => {
+        .projectile, .shockwave, .ballista, .discus, .sunflare, .wyndrax, .metamaser => {
             if (entry.spec.projectile.action_delay_ms > 0) {
                 const factor = catalog.transitions.attackFactor((try world.get(owner, data.Character)).attribute(.attack, now));
                 try @import("weapon_launches.zig").queue(world, owner, shot, now, @intFromFloat(@as(f32, @floatFromInt(entry.spec.projectile.action_delay_ms)) / factor));

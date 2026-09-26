@@ -612,3 +612,29 @@ fragments, authored worker kill and fragment expiry. Captures confirm the meteor
 model and fragments; full smoke, portal, light/audio and visual parity remain open.
 The shared campaign travel regression passes after personal-action cleanup changes.
 The aggregate batch result and remaining effect diagnostics are recorded in the run log.
+
+## runtime-zig-242 — Zeus chains
+
+Zeus owns its delayed strike, paid hit/free single-player miss, branching target
+selection, damage falloff and closing phase. Typed native chains and bolts retain
+references and clocks through saves. Focused live diagnostics exercise pending and
+active saves, two worker kills, ammunition and closure. Water, maximum target count,
+multiplayer and full sound/effect comparison remain open.
+
+## runtime-zig-243 — remaining weapon controllers and campaign priority
+
+Wyndrax owns its homing oscillator, retained targets, pulses and fade. Nightmare owns
+its casting, marking, victim control, reaping and release. Metamaser owns its thrown
+cube, arming, retained/acquired targets, charges, damage response and destruction
+rings/lasers. Supplied tuning remains authoritative: Metamaser has 30 charges and
+300 health. All 28 class policies are now connected; this is dispatch coverage, not
+complete weapon acceptance. Native saves retain controller identities and rebased
+state. Nightmare freezes both authority and prediction without stealing another
+controller's body ownership.
+
+The diagnostic driver now observes processed input, readiness, actual firing and
+both server/client restoration. Its ordinary-input mode rejects fixture mutations.
+Assertions are required, failures invalidate the scenario, and reports hash the
+actual executable/modules/assets. The current outcome matrix is
+[native-acceptance.md](native-acceptance.md). Connected opening progression now takes
+priority: full intro, arrival, opening hostiles, bridge scripts and authored exits.

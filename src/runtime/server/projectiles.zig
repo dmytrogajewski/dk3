@@ -23,6 +23,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     const transform = (try world.get(entity, data.Transform)).*;
     const velocity = (try world.get(entity, data.Velocity)).linear;
     const projectile = (try world.get(entity, data.Projectile)).*;
+    if (projectile.flight == .metamaser) return @import("metamaser.zig").publish(world, entity, projections, now);
     if (projectile.flight == .sunflare and projectile.flight.sunflare.phase != .flight) return @import("sunflare.zig").publish(world, entity, projections);
     const projection = &projections[binding.slot];
     projection.state.number = binding.slot;
@@ -43,6 +44,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.time2 = if (world.get(entity, data.Lifetime) catch null) |lifetime| @intCast(lifetime.expires_ms) else 0;
     projection.state.modelindex = binding.model;
     projection.state.frame = if (projectile.flight == .discus and projectile.flight.discus.pickup_only) 1 else 0;
+    if (projectile.flight == .wyndrax) @import("wyndrax.zig").project(world, projectile.flight.wyndrax, &projection.state);
     projection.state.pos = @import("../engine/trajectory.zig").linear(transform.position, velocity, now);
     projection.state.apos = @import("../engine/trajectory.zig").stationary(transform.angles);
     projection.shared.currentOrigin = transform.position;
@@ -138,6 +140,8 @@ fn stepIon(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
 }
 
 pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, shot: weapons.Fired, table: *const weapons.Table, now: i64) !void {
+    if (shot.weapon == catalog.wyndrax.id) return @import("wyndrax.zig").launch(world, slots, projections, owner, shot, table, now);
+    if (shot.weapon == catalog.metamaser.id) return @import("metamaser.zig").launch(world, slots, projections, owner, shot, table, now);
     _ = try spawn(world, slots, projections, owner, shot, table, now);
 }
 pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, shot: weapons.Fired, table: *const weapons.Table, now: i64) !ecs.Entity {

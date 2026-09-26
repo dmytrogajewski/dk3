@@ -4,6 +4,10 @@ const c = @import("abi.zig").c;
 const move = @import("../domain/player_move.zig");
 const data = @import("../domain/components.zig");
 pub const version = "dk3-zig-" ++ @import("runtime_build").identity;
+pub fn holdView(player: *data.Player, angles: [3]f32, input: c.usercmd_t) void {
+    if (player.mode != .frozen) return;
+    for (angles, 0..) |angle, i| player.delta_angles[i] = @as(i32, @intFromFloat(angle * (65536.0 / 360.0))) -% input.angles[i];
+}
 pub fn command(input: c.usercmd_t, delta: *[3]i32) move.Command {
     var angles: [3]f32 = undefined;
     for (&angles, 0..) |*angle, i| {

@@ -512,7 +512,7 @@ def melee_scenario(issue, capture, log, process):
     return {"kills": results, "saved_action": selected, "scope": "normal Silverclaw/Daikatana attacks against authored civilians, kill experience and persistent corpse rewards, two-strike save continuation without replay; collision-checked diagnostic placement/equipment, full arc/defense/visual parity remains open"}
 
 
-def status_weapons_scenario(issue, capture, log, process):
+def status_weapons_scenario(issue, capture, log, process, driver):
     def aim(identity, radius, flat=False):
         cursor = len(log.read_text(errors="replace"))
         issue(f"dk3_runtime_face_target {identity} {radius}", 0.04)
@@ -585,16 +585,24 @@ def status_weapons_scenario(issue, capture, log, process):
     issue("dk3_runtime_equip 11", 1.2)
     issue("weapon 11", 1.2)
     aim(166, 256, flat=True)
-    before = len(log.read_text(errors="replace"))
-    issue("+attack", 0.03)
-    issue("-attack", 0.05)
-    issue("save venom_launch", 0.05)
-    issue("load venom_launch", 0.15)
-    issue("dk3_runtime_projectiles", 0.15)
-    issue("dk3_runtime_projectiles", 0.2)
-    capture("venom-flight-restored")
-    if "weapon=11 stuck=0" not in log.read_text(errors="replace")[before:]:
-        raise RuntimeError("saved Venomous launch did not release a projectile")
+    driver.ready(11)
+    driver.fire()
+    saved = driver.save("venom_launch")
+    if not re.search(rb'"owner":\d+,"weapon":11,"sequence":\d+,"charge":\d+,"execute_ms":', saved.read_bytes()):
+        raise RuntimeError("Venom launch fixture did not save a pending release")
+    before = len(driver.text())
+    driver.load("venom_launch")
+    deadline = time.monotonic() + 5
+    released = False
+    while time.monotonic() < deadline:
+        state = driver.diagnostics("dk3_runtime_projectiles", "projectile states complete")
+        evidence = driver.text()[before:]
+        released = "weapon=11 stuck=0" in state or ("target=166 blood=30" in evidence and "impact: weapon=11 kind=flesh" in evidence)
+        if released:
+            break
+    if not released:
+        raise RuntimeError("saved Venomous launch produced neither flight nor confirmed contact")
+    capture("venom-release-restored")
     issue("dk3_look 0 50", 0.7)
     before = len(log.read_text(errors="replace"))
     issue("+attack", 0.03)
@@ -629,6 +637,58 @@ def status_weapons_scenario(issue, capture, log, process):
     if "missing weapon animation" in text or "could not find sounds/" in text.lower():
         raise RuntimeError("missing status-weapon media")
     return {"scope": "Gas Hands kill, Venomous bite/poison death, saved delayed launch and restored pool contact, Kineticore freeze/save and flight; ordinary attack input with diagnostic equipment/placement, complete water/trail/reference acceptance open"}
+
+
+def zeus_scenario(issue, capture, log, process, home):
+    def diagnostic():
+        cursor = len(log.read_text(errors="replace"))
+        issue("dk3_runtime_beams", 0.03)
+        wait(process, log, lambda text: "beam states complete" in text[cursor:], 3)
+        return log.read_text(errors="replace")[cursor:]
+
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 10000")
+    issue("dk3_runtime_equip 14", 0.8)
+    issue("weapon 14", 0.8)
+    cursor = len(log.read_text(errors="replace"))
+    issue("dk3_runtime_face_target 9 128", 0.03)
+    wait(process, log, lambda text: "target=9" in text[cursor:], 3)
+    player = list(map(float, re.findall(r"fixture player=([\d.,-]+)", log.read_text(errors="replace")[cursor:])[-1].split(',')))
+    dx, dy, dz = 288 - player[0], -152 - player[1], -64 - player[2] - 22
+    issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}", 0.03)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.03)
+    pending = diagnostic()
+    if "phase=pending" not in pending or "weapon=14 ammo=5" not in pending:
+        raise RuntimeError("Zeus consumed ammunition before target selection")
+    issue("save zeus_pending", 0.03)
+    issue("load zeus_pending", 0.03)
+    wait(process, log, lambda text: "dk3 zig zeus: strike" in text[cursor:], 5)
+    issue("save zeus_chain", 0.03)
+    saved = home / "state/dk3/saves/zeus_chain.sav"
+    wait(process, log, lambda _: saved.exists(), 3)
+    if b'zeus_bolt' not in saved.read_bytes():
+        raise RuntimeError("active Zeus bolts were omitted from the native save")
+    issue("load zeus_chain", 0.03)
+    capture("zeus-active-restored")
+    wait(process, log, lambda text: "zeus: closed" in text[cursor:], 6)
+    text = log.read_text(errors="replace")[cursor:]
+    for target in (9, 10):
+        if not re.search(rf"target={target} .*killed=1", text):
+            raise RuntimeError(f"Zeus chain failed to kill authored worker {target}")
+    state = diagnostic()
+    if "weapon=14 ammo=4" not in state:
+        raise RuntimeError("Zeus chain charged more than one round")
+    capture("zeus-closed")
+    issue("-attack", 5.5)
+    issue("+attack", 0.03)
+    issue("-attack", 2.2)
+    state = diagnostic()
+    if "weapon=14 ammo=4" not in state:
+        raise RuntimeError("single-player Zeus miss incorrectly consumed ammunition")
+    capture("zeus-no-target")
+    return {"scope": "Zeus saved pending strike and active chain, two authored worker kills, one ammo charge, closure and single-player miss; diagnostic equipment and placement"}
 
 
 def meteors_scenario(issue, capture, log, process, home):
@@ -1473,14 +1533,18 @@ def travel_scenario(issue, capture, log, home, process):
 
 
 def run(args):
+    if not __debug__:
+        raise RuntimeError("Native probes require Python assertions enabled")
     args.report.mkdir(parents=True, exist_ok=True)
+    from runtime_input import record_identity
+    identity = record_identity(args.engine, args.prefix, args.report)
     log = args.report / "client.log"
     inputs = []
     with tempfile.TemporaryDirectory(prefix="dk3-runtime-client-") as temporary:
         home = Path(temporary)
         stage_client_modules(args.prefix, home)
         command = [str(args.guard), "--headless", "--screen", "960x540",
-                   "--timeout", "90s", "--mem", "8G", "--", str(args.engine / "bin/dk3")]
+                   "--timeout", "180s" if args.scenario == "controllers" else "90s", "--mem", "8G", "--", str(args.engine / "bin/dk3")]
         settings = client_settings(args.engine, home, args.renderer, args.workers)
         for name, value in settings.items():
             command += ["+set", name, value]
@@ -1502,7 +1566,12 @@ def run(args):
 
             try:
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
-                if args.scenario == "navigation":
+                if args.scenario == "controllers":
+                    from runtime_input import NativeInput
+                    from runtime_weapon_completion_probe import scenario
+                    wait(process, log, lambda text: "dk3 zig client: first snapshot applied" in text)
+                    result = scenario(NativeInput(process, pipe, log, home, inputs, diagnostic=True), args.report)
+                elif args.scenario == "navigation":
                     result = navigation_scenario(issue, capture, log)
                 elif args.scenario == "travel":
                     result = travel_scenario(issue, capture, log, home, process)
@@ -1530,6 +1599,8 @@ def run(args):
                     result = shockwave_scenario(issue, capture, log, process)
                 elif args.scenario == "linked-projectiles":
                     result = linked_projectiles_scenario(issue, capture, log, process, home)
+                elif args.scenario == "zeus":
+                    result = zeus_scenario(issue, capture, log, process, home)
                 elif args.scenario == "meteors":
                     result = meteors_scenario(issue, capture, log, process, home)
                 elif args.scenario == "returning-fire":
@@ -1541,7 +1612,8 @@ def run(args):
                 elif args.scenario == "area-weapons":
                     result = area_weapons_scenario(issue, capture, log, process)
                 elif args.scenario == "status-weapons":
-                    result = status_weapons_scenario(issue, capture, log, process)
+                    from runtime_input import NativeInput
+                    result = status_weapons_scenario(issue, capture, log, process, NativeInput(process, pipe, log, home, inputs, diagnostic=True))
                 elif args.scenario == "save":
                     result = save_scenario(issue, capture, log, home)
                 elif args.scenario == "effects":
@@ -1555,7 +1627,7 @@ def run(args):
                 issue("quit", 0)
                 if process.wait(timeout=15) != 0:
                     raise RuntimeError(f"engine shutdown failed: {log}")
-                (args.report / "result.json").write_text(json.dumps({**result, "workers": args.workers}, indent=2) + "\n")
+                (args.report / "result.json").write_text(json.dumps({**result, "workers": args.workers, "identity": identity}, indent=2) + "\n")
             finally:
                 (args.report / "inputs.json").write_text(json.dumps({"launch": command, "inputs": inputs}, indent=2) + "\n")
                 if process.poll() is None:
@@ -1571,7 +1643,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "meteors", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "meteors", "zeus", "controllers", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -1597,6 +1669,8 @@ def main():
         "beams": ("e1m3b", "runtime-zig-239/beams"),
         "returning-fire": ("e1m3b", "runtime-zig-240/returning-fire"),
         "meteors": ("e1m3b", "runtime-zig-241/meteors"),
+        "zeus": ("e1m2a", "runtime-zig-242/zeus"),
+        "controllers": ("e1m2a", "runtime-zig-243/controllers"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

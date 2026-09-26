@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""Normal-input synchronization. Mutating fixtures require an explicit diagnostic driver."""
+import json
+from pathlib import Path
+import re
+import time
+
+from runtime_probe import send, wait
+
+
+class NativeInput:
+    def __init__(self, process, pipe, log, home, inputs, *, diagnostic=False):
+        if not __debug__:
+            raise RuntimeError("Native acceptance requires Python assertions enabled")
+        self.process, self.pipe, self.log, self.home = process, pipe, log, home
+        self.inputs, self.diagnostic, self.serial = inputs, diagnostic, 0
+
+    def text(self):
+        return self.log.read_text(errors="replace")
+
+    def issue(self, command):
+        verb = command.split()[0]
+        allowed = {"weapon", "save", "load", "dk3_look", "viewpos", "screenshotJPEG",
+                   "dk3_runtime_observe", "dk3_runtime_actors", "dk3_runtime_world",
+                   "dk3_runtime_projectiles", "dk3_runtime_beams", "quit"}
+        buttons = {sign + name for sign in ("+", "-") for name in
+                   ("forward", "back", "moveleft", "moveright", "moveup", "movedown", "attack", "use")}
+        if not self.diagnostic and (verb not in allowed | buttons or ";" in command or "\n" in command):
+            raise ValueError(f"Command is outside ordinary campaign input: {command}")
+        self.inputs.append({"command": command, "synchronization": "observed state"})
+        send(self.pipe, command)
+
+    def observe(self):
+        self.serial += 1
+        marker = f"dk3 observe {self.serial}: "
+        before = len(self.text())
+        self.issue(f"dk3_runtime_observe {self.serial}")
+        text = wait(self.process, self.log, lambda value: marker in value[before:], 5)[before:]
+        line = next(line.split(marker, 1)[1] for line in text.splitlines() if marker in line)
+        result = {}
+        for key, value in re.findall(r"(\w+)=([^ ]+)", line):
+            result[key] = tuple(map(float, value.split(","))) if key in ("pos", "angles") else value if key == "mode" else int(value)
+        self.inputs.append({"observed": result})
+        return result
+
+    def until(self, predicate, *, seconds=10, description="expected native state"):
+        deadline = time.monotonic() + seconds
+        last = None
+        while time.monotonic() < deadline:
+            last = self.observe()
+            if last["processed"] and predicate(last):
+                return last
+        raise TimeoutError(f"{description}: last observation {last}")
+
+    def ready(self, weapon=None):
+        return self.until(lambda s: s["ready"] and (weapon is None or s["weapon"] == weapon), description="weapon ready")
+
+    def select(self, weapon):
+        self.issue(f"weapon {weapon}")
+        return self.ready(weapon)
+
+    def aim(self, yaw, pitch):
+        self.issue(f"dk3_look {yaw} {pitch}")
+        def close(a, b):
+            return abs((a - b + 180) % 360 - 180) < 0.03
+        return self.until(lambda s: close(s["angles"][0], pitch) and close(s["angles"][1], yaw), description="processed view angles")
+
+    def fire(self):
+        previous = self.ready()
+        self.issue("+attack")
+        try:
+            return self.until(lambda s: s["event"] != previous["event"] and s["fire"] != previous["fire"], description="actual fire event")
+        finally:
+            self.issue("-attack")
+            self.until(lambda s: not s["buttons"] & 1, description="processed attack release")
+
+    def elapsed(self, milliseconds):
+        start = self.observe()["cmd"]
+        return self.until(lambda s: s["cmd"] >= start + milliseconds,
+                          seconds=milliseconds / 1000 + 5, description="processed command time")
+
+    def diagnostics(self, command, marker):
+        before = len(self.text())
+        self.issue(command)
+        return wait(self.process, self.log, lambda text: marker in text[before:], 5)[before:]
+
+    def save(self, slot):
+        before = len(self.text())
+        self.issue(f"save {slot}")
+        wait(self.process, self.log, lambda text: "dk3 zig: world saved" in text[before:], 10)
+        path = self.home / f"state/dk3/saves/{slot}.sav"
+        if not path.exists() or not path.read_bytes().startswith(b"DK3SAVE"):
+            raise RuntimeError(f"Save completion did not produce a native save: {slot}")
+        return path
+
+    def load(self, slot):
+        before = len(self.text())
+        self.issue(f"load {slot}")
+        wait(self.process, self.log, lambda text: "saved world restored" in text[before:] and
+             "dk3 zig client: restoration applied" in text[before:], 15)
+        return self.until(lambda _: True, description="restored input processing")
+
+
+def record_identity(engine, prefix, report):
+    """Hash the actual executable, modules, shaders and admitted local packages."""
+    import hashlib
+    files = [engine / "bin/dk3"]
+    files += sorted((prefix / "lib/dk3").glob("*.so"))
+    files += sorted((prefix / "share/dk3/scripts").glob("*.shader"))
+    files += sorted((engine / "share/dk3").glob("*.pk3"))
+    # Renderers can be built in or adjacent to the engine executable.
+    files += sorted((engine / "bin").glob("*renderer*.so"))
+    records = {str(path): hashlib.file_digest(path.open("rb"), "sha256").hexdigest() for path in files}
+    digest = hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()
+    (report / "identity.json").write_text(json.dumps({"sha256": digest, "files": records}, indent=2) + "\n")
+    return digest

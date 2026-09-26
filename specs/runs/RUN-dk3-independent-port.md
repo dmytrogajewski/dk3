@@ -3058,4 +3058,50 @@ launch origins for the portal and scale for meteor/glow effects.
 | Meteor and fragment persistence | Passed, limited | `runtime-zig-241/meteors-first/`: saved growing primary, blast with six fragments, saved/restored live fragments, authored worker 383 kill, fragment second-contact explosions and expiry. Diagnostic equipment and collision-checked placement. Captures show the correct meteor model and fragment models. Full smoke/portal/light/audio parity remains open. |
 | Sunflare appearance diagnosis | Open | Same run captures near/distant burning fields. Source PNGs retain alpha, renderer image diagnostics show RGBA images at expected dimensions and explicit shaders. Additive correction alone does not eliminate bright effect boundaries. Distant capture shows individual flames; close-range presentation needs further repair/comparison. |
 | Shared travel regression | Passed, limited | `travel-regression/`: the existing native campaign departure/revisit/full-save scenario passes after personal-action cancellation and carried-victim changes. It does not qualify every active-weapon travel permutation. |
-| Applicable broad checks | Passed | `/tmp/dk3-runtime-241-suite.log`: 218 Zig + 44 Python checks. Growth acceleration, multiplayer fragment suppression, main/fragment native round trips included. Four combat controllers remain; full actor, campaign, UI, compatibility and multiplayer scope stays open. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-241-suite.log`: 220 Zig + 44 Python checks. Growth acceleration, multiplayer fragment suppression, main/fragment native round trips included. Four combat controllers remain; full actor, campaign, UI, compatibility and multiplayer scope stays open. |
+
+## runtime-zig — sequence 242 (Zeus chain lifecycle)
+
+Zeus delayed strike, branch/zap/fade, ammo charge, closing phase and native snapshots
+are connected. Gold was reviewed privately for behavior; implementation is independent.
+The native nearest-two branch selection corrects Gold's nearest/previous-minimum
+selection, and horizontal cone comparison avoids its signed-angle asymmetry.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Modules and contracts | Passed | `/tmp/dk3-runtime-242-contract-build.log`: three modules, 83 focused checks. |
+| Zeus lifecycle | Passed, limited | `runtime-zig-242/zeus-first/`: pending/active saves, two workers killed, one ammo charge, closure, free single-player miss. Diagnostic placement/equipment. Blue bolt/flare capture inspected; full presentation, water and multiplayer open. |
+| Identity | Recorded | `runtime-zig-242/identity.json`, also summarized in the current acceptance matrix. |
+
+## runtime-zig — sequence 243 (Wyndrax, Nightmare and Metamaser)
+
+The three controllers finish class dispatch coverage (28 policies); they do not close
+all weapon interactions. Typed state and references, snapshots, concrete server
+controllers and client projections are connected. No legacy gameplay backend is used.
+Private Gold review covered acquisition, motion, timing, body control and destruction.
+Intentional bounded corrections: Nightmare marks at most ten targets and does not
+steal an already controlled body; Metamaser relative attack/sound clocks avoid Gold's
+double addition of absolute time, charges cannot underflow, and rings retain their
+origin after the parent disappears rather than referencing a removed cube.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated modules/contracts | Passed | `/tmp/dk3-runtime-243-integrated-build.log`: three modules, 86 focused checks. Snapshot round trips include Wisp links, frozen Nightmare victim and Meta rings/lasers. |
+| First controller scenario | Failed; superseded | `controllers-first/` failed the two-target setup assertion. Nightmare traced visibility from feet; reference traces both endpoints with observer view offset. Local eye-height correction made. Failure was retained and never counted as success. |
+| Corrected targeting run | Invalid setup; superseded | `controllers-sight/` passed the Nightmare portion then stopped at a mistaken six-charge Metamaser assertion. Supplied data gives 30. Only the diagnostic expectation changed. |
+| Consolidated controller replay | Passed, limited | `controllers-integrated/`: saved Wisp target links/damage/fading; saved Nightmare casting/reaping, both workers killed and control released; saved Metamaser arming/tracking/destruction and expiry. Identity `821eb42549316cb8e2dfb45134911c56ed76b372ecaa118127f815eb4b21302f`. Diagnostic equipment/placement/health, no campaign acceptance. Reaper and cube captures inspected. |
+| Aggregate checks | Passed after formatting repair | `/tmp/dk3-runtime-243-aggregate.log`: 224 Zig and 47 Python checks pass; initial formatting failure corrected and `zig fmt --check build.zig build.zig.zon build src` passes. Assertions enabled; all named test roots explicitly executed. |
+| Remaining interactions/presentation | Open | Wisp environmental arcs/trail; Nightmare marked-actor/pain/blood effects; full cube presentation/target overlap, water/multiplayer and reference playback comparison. Shared body/input ownership and pitched-muzzle regressions remain tracked. |
+
+The new driver requires actual connection, input processing, readiness, fire event,
+save completion and client-applied restoration. Ordinary-input mode rejects fixture
+commands. Every new probe records exact executable, modules and asset hashes.
+Full intro and connected opening campaign remain unrun; the complete port remains
+the outcome, with current state in `docs/native-acceptance.md`.
+
+Venom/status regression: `runtime-zig-243/status-regression/` fails because a
+restored shot strikes the guard between fixed projectile observations. The saved
+launch now must contain an actual pending release and the driver waits for restored
+flight or confirmed Venom flesh contact. `status-events/` passes Gas Hands kill,
+Venom bite/poison death, pending release restoration, saved pool owner-contact and
+Kineticore freeze/restoration. This is a repaired driver, with no gameplay adjustment.

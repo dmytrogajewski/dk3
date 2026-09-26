@@ -10,10 +10,17 @@ const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
     if (std.mem.eql(u8, name, "dk3_runtime_beams")) {
+        if (player) |owner| {
+            const loadout = (try world.get(owner, data.Weapons)).*;
+            var output: [96]u8 = undefined;
+            engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig beam owner: weapon={d} ammo={d}\n", .{ loadout.weapon, loadout.ammo[@intCast(loadout.weapon)] }));
+        }
         for (slots.occupants) |occupant| if (occupant) |entity| {
             var output: [200]u8 = undefined;
             if (world.get(entity, data.Nova) catch null) |beam| engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig nova state: id={d} phase={s} remaining={d:.3} next={d} expires={d}\n", .{ try world.persistentId(entity), @tagName(beam.phase), beam.remaining_damage, beam.next_ms - now, beam.expires_ms - now }));
             if (world.get(entity, data.Flashlight) catch null) |light| engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig flashlight state: id={d} strength={d:.3} expires={d}\n", .{ try world.persistentId(entity), light.strength, light.expires_ms - now }));
+            if (world.get(entity, data.Zeus) catch null) |chain| engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig zeus state: id={d} phase={s} targets={d} active={d} zaps={d} ready={d}\n", .{ try world.persistentId(entity), @tagName(chain.phase), chain.count, chain.active, chain.zaps, chain.ready_ms - now }));
+            if (world.get(entity, data.Nightmare) catch null) |ritual| engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig nightmare state: id={d} phase={s} targets={d} cursor={d} victim={d} next={d}\n", .{ try world.persistentId(entity), @tagName(ritual.phase), ritual.count, ritual.cursor, ritual.victim orelse 0, ritual.next_ms - now }));
         };
         engine.print("dk3 zig beam states complete\n");
         return true;
@@ -83,6 +90,14 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
             if (projectile.flight == .stavros) {
                 const meteor = projectile.flight.stavros;
                 engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig stavros state: id={d} fragment={d} scale={d:.3} next={d}\n", .{ try world.persistentId(entity), @intFromBool(meteor.fragment), meteor.scale[0], meteor.next_ms }));
+            }
+            if (projectile.flight == .wyndrax) {
+                const wisp = projectile.flight.wyndrax;
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig wyndrax state: id={d} phase={s} enemy={d} targets={d},{d},{d},{d} alpha={d:.3}\n", .{ try world.persistentId(entity), @tagName(wisp.phase), wisp.enemy orelse 0, wisp.targets[0], wisp.targets[1], wisp.targets[2], wisp.targets[3], wisp.alpha }));
+            }
+            if (projectile.flight == .metamaser) {
+                const cube = projectile.flight.metamaser;
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig metamaser state: id={d} phase={s} health={d} charges={d} locks={d},{d},{d},{d} bursts={d} end={d}\n", .{ try world.persistentId(entity), @tagName(cube.phase), (try world.get(entity, data.Health)).current, cube.charges, cube.acquired[0].target, cube.acquired[1].target, cube.acquired[2].target, cube.acquired[3].target, cube.bursts, cube.end_ms - (now - projectile.born_ms) }));
             }
         }
         engine.print("dk3 zig projectile states complete\n");
