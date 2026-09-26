@@ -42,6 +42,7 @@ typedef struct {
     int moverAngular;
     int moverPaused;
     int moverInitialized;
+    int assemblyVersion;
     int moverArrival;
     int forceMove;
     vec3_t rotationDelta;

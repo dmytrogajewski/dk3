@@ -156,6 +156,7 @@ const dkSaveMember_t dk_entityMembers[] = {
     {"dk_moverpaused", DK_SAVE_INT, offsetof(gentity_t, dk.moverPaused), 1, qfalse},
     {"dk_moverarrival", DK_SAVE_INT, offsetof(gentity_t, dk.moverArrival), 1, qfalse},
     {"dk_moverinitialized", DK_SAVE_INT, offsetof(gentity_t, dk.moverInitialized), 1, qfalse},
+    {"dk_assemblyversion", DK_SAVE_INT, offsetof(gentity_t, dk.assemblyVersion), 1, qfalse, qtrue},
     {"dk_forcemove", DK_SAVE_INT, offsetof(gentity_t, dk.forceMove), 1, qfalse},
     {"dk_rotationdelta", DK_SAVE_FLOAT, offsetof(gentity_t, dk.rotationDelta), 3, qfalse},
     {"dk_rotationrate", DK_SAVE_FLOAT, offsetof(gentity_t, dk.rotationRate), 3, qfalse},

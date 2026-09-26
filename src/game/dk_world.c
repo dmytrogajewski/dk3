@@ -410,7 +410,10 @@ static void ScriptUse(gentity_t *ent, gentity_t *other, gentity_t *activator) {
     ent->dk.nextUse = level.time + (int)((ent->wait > 0 ? ent->wait : 2) * 1000);
     ++ent->dk.uses;
     ent->think = ScriptThink;
-    ent->nextthink = level.time + (ent->dk.delay > 0 ? ent->dk.delay : 1);
+    if (ent->dk.cineScript && ent->dk.delay <= 0) {
+        ent->nextthink = 0;
+        ScriptThink(ent);
+    } else ent->nextthink = level.time + (ent->dk.delay > 0 ? ent->dk.delay : 1);
 }
 
 static void ScriptTouch(gentity_t *ent, gentity_t *other, trace_t *trace) {

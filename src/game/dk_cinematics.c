@@ -239,6 +239,16 @@ qboolean DK_StartCinematic(const char *name, gentity_t *trigger, gentity_t *acti
     triggerId = trigger ? trigger->dk.id : 0;
     activatorId = activator ? activator->dk.id : 0;
     lastTime = level.time; active = 1;
+    /* Gold freezes and makes the gameplay player nonsolid before playback. */
+    if (g_entities[0].client) {
+        gentity_t *player = &g_entities[0];
+        player->client->ps.dk3CameraActive = 1;
+        player->client->ps.pm_type = PM_FREEZE;
+        player->client->ps.eFlags |= EF_NODRAW;
+        VectorClear(player->client->ps.velocity);
+        player->r.contents = 0;
+        trap_LinkEntity(player);
+    }
     return qtrue;
 }
 
@@ -398,7 +408,12 @@ void DK_StopCinematic(qboolean completed) {
     for (i = 0; i < level.num_entities; ++i) {
         gentity_t *entity = &g_entities[i];
         if (!entity->inuse) continue;
-        if (entity->client) { entity->client->ps.dk3CameraActive = 0; entity->client->ps.eFlags &= ~EF_NODRAW; }
+        if (entity->client) {
+            entity->client->ps.dk3CameraActive = 0;
+            entity->client->ps.eFlags &= ~EF_NODRAW;
+            entity->r.contents = entity->health > 0 ? CONTENTS_BODY : CONTENTS_CORPSE;
+            trap_LinkEntity(entity);
+        }
         if (entity->dk.cinematicControlled) {
             entity->dk.cinematicControlled = 0;
             entity->dk.moveActive = entity->dk.turnActive = 0;

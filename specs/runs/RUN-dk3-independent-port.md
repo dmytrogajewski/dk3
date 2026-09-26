@@ -2432,3 +2432,62 @@ multiplayer server updates remain outside this focused acceptance.
 
 Owner follow-up confirms the reported issues now work correctly in their own
 play session and authorizes committing and publishing all pending project code.
+
+## superfly-cinematic-215 — First conversation and rescue trigger parity
+
+The owner clarified that Hiro dies after the **first** conversation with Superfly
+on the e1m3b torture rack. Reproduced with a copy of the owner's save2: walking
+past the rack spawns gameplay Superfly at world origin, then he falls below the
+world and companion-death handling kills Hiro. The first-death baseline records
+Superfly at z -400 immediately after crossing and below -131000 before failure.
+No damage cheat or noclip was used. Localized `setviewpos` positions shorten the
+route; ordinary forward input crosses the encounter/spawn volumes.
+
+Private Gold reference review:
+
+- `dlls/world/Sidekick.cpp`, trigger_superfly_spawn/use: nonsolid, use-only marker;
+  spawn at the marker's upper world-space brush corner, not the activator.
+- `dlls/world/DOOR.CPP`, train_find/train_next and hierarchy handling: child offsets
+  derive from the train's authored origin and follow initial/teleport placement.
+- `dlls/world/cin_playback.cpp`, QueueTriggerBrushUse and SpawnHiroActor: cinematic
+  uses resolve unique IDs; the gameplay player becomes nonsolid and frozen.
+
+Independent repairs make companion spawn markers script-only, restore those
+callbacks/contents in existing saves, and use the authored world-space position.
+Train initial placement and teleport corners now translate descendant attachments.
+An optional `dk_assemblyversion` field allows conservative repair of identifiable
+old, stationary initial placements without reinterpreting arbitrary saved motion.
+Script uses resolve unique IDs as well as target names, retaining target-name
+broadcasts without calling a doubly named recipient twice.
+
+Zero-delay cinematic triggers begin immediately; player trigger processing stops
+as soon as playback starts. Hiro becomes nonsolid during playback and manual use
+is suppressed. Previously the adjacent rack-return trigger could activate while
+the conversation was running, bringing its second prop into the scene too soon.
+The rack-return trigger remains available after playback ends.
+No private source implementation or assets were imported.
+
+Implementation initially unverified; integrated scenario results:
+
+| Scenario | State | Evidence |
+|---|---|---|
+| Existing owner save, first conversation | Passed | Original save2 loads without the new optional field. Attachment repaired to (-1980,456,88); three cinematic captures/snapshots show one cine_superfly, no initial superdeco and the replacement prop still at its waiting position. |
+| First conversation then crossing spawn marker | Passed | Ordinary movement crosses the volume; no gameplay companion appears; Hiro remains at 93 health after 30 seconds. Baseline reproduced the fatal out-of-world spawn. |
+| Later keycard rescue | Passed | Key pickup and normal trigger crossing run the rescue cinematic. Unique-ID uses reach killdeco2/spawnsuper; exactly one living Superfly remains, and Hiro retains 93 health after another 30 seconds. |
+| Post-conversation rack return and save/reload | Passed | Returning through the adjacent trigger moves the single prop from z88 to z28 after playback. Rack crossing remains nonfatal. Rescued save reload retains one living gameplay Superfly, no rack prop/cinematic actor, and living Hiro after 30 seconds. |
+| Regression fixtures and broad checks | Passed | Attachment initial/teleport placement, nested children, conservative idempotent old-save repair, unique-ID-only uses and target-name broadcasts. `make test` passes all 48 Python checks; Zig checks pass with the existing unavailable-systemd-scope skip. |
+| Normal dk3 installation | Passed | Updated immutable local generation; all 58 profile files hashed unchanged and appearance overlay retained. Actual dk3 launcher smoke verifies the updated executable and direct e1m3b owner-save restore in an isolated profile. |
+
+Local evidence: `zig-out/reports/superfly-cinematic-215/`; isolated saves/captures
+under `/tmp/dk3-superfly-cinematic-215/`. Owner save bytes remain unchanged.
+This focused repair does not establish full cinematic animation parity or a
+complete campaign traversal.
+
+ReleaseSafe build and independent development install pass. Initial broad checks
+were blocked by sandbox read-only compiler-cache access in six native fixtures;
+the approved unrestricted retry passes. No code repair or repeated broad suite
+was needed after that environment correction.
+
+Normal installation generation:
+`7884920588b8e6a5716f15925e58a6b70edb37af25d8194add44b186e371c690`.
+Existing running processes need a restart to use these modules.

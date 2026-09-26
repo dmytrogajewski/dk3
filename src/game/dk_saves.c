@@ -478,6 +478,7 @@ static void RestoreCallbacks(gentity_t *ent) {
     else if (ent->s.eType == ET_DK3_ITEM) DK_RestoreItem(ent);
     DK_RestoreMover(ent);
     DK_RestoreWorldCallbacks(ent);
+    DK_RestoreCompanionEntity(ent);
     DK_RestoreMedia(ent);
     DK_RestoreInteraction(ent);
 }
@@ -520,6 +521,7 @@ static void ApplySnapshot(gentity_t *player) {
     player->client->pers.maxHealth = player->client->ps.stats[STAT_MAX_HEALTH];
     SetClientViewAngle(player, stagedPlayer.viewangles);
     trap_LocateGameData(g_entities, level.num_entities, sizeof(gentity_t), &level.clients[0].ps, sizeof(gclient_t));
+    DK_RepairSavedAttachments(baseline, originalCount);
     for (i = 0; i < entityCount; ++i) if (staged[identities[i].slot].r.linked) trap_LinkEntity(&g_entities[identities[i].slot]);
     DK_SaveOpen(&reader, buffer, snapshotLength);
     while (DK_SaveNextRecord(&reader, kind, &id)) {

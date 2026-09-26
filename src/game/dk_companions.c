@@ -105,23 +105,28 @@ static gentity_t *Companion(int identity) {
 static gentity_t *Spawn(gentity_t *point, const char *name) {
     int identity = !strcmp(name, "mikiko") ? 0 : 1;
     gentity_t *actor = Companion(identity);
+    vec3_t origin;
     if (actor) return actor;
+    /* Gold spawn brushes use their upper world-space corner. They are
+       script-only markers, not a request to spawn at the activator. */
+    if (point->r.bmodel) VectorAdd(point->r.currentOrigin, point->r.maxs, origin);
+    else VectorCopy(point->r.currentOrigin, origin);
     actor = G_Spawn(); actor->classname = G_NewString(name); actor->dk.uniqueid = G_NewString(identity ? "superfly" : "mikiko");
-    VectorCopy(point->s.origin, actor->s.origin); VectorCopy(point->s.angles, actor->s.angles);
+    VectorCopy(origin, actor->s.origin); VectorCopy(point->s.angles, actor->s.angles);
     if (!DK_SpawnActor(actor)) { G_FreeEntity(actor); G_Printf("dk3: companion definition %s is missing\n", name); return NULL; }
     {
         trace_t trace, path;
         vec3_t candidate;
         int attempt;
         for (attempt = 0; attempt < 17; ++attempt) {
-            VectorCopy(point->s.origin, candidate);
+            VectorCopy(origin, candidate);
             if (attempt) {
                 float angle = ((attempt - 1) % 8) * M_PI / 4;
                 float radius = attempt <= 8 ? 64 : 112;
                 candidate[0] += radius * cos(angle); candidate[1] += radius * sin(angle); candidate[2] += 8;
             }
             trap_Trace(&trace, candidate, actor->r.mins, actor->r.maxs, candidate, actor->s.number, MASK_PLAYERSOLID);
-            trap_Trace(&path, point->s.origin, NULL, NULL, candidate, actor->s.number, MASK_SOLID);
+            trap_Trace(&path, origin, NULL, NULL, candidate, actor->s.number, MASK_SOLID);
             if (!trace.startsolid && !trace.allsolid && path.fraction == 1) break;
         }
         if (attempt == 17) { G_Printf("dk3: companion %s start %u has no free spawn space\n", name, point->dk.id); G_FreeEntity(actor); return NULL; }
@@ -180,7 +185,7 @@ static void Trigger(gentity_t *ent, gentity_t *other, gentity_t *activator) {
     if (!activator || !activator->client || activator->health <= 0 || level.time < ent->dk.nextUse) return;
     if (ent->dk.uses && !(ent->spawnflags & 4)) return;
     if (strstr(ent->classname, "_spawn")) {
-        gentity_t *point = ent->target ? G_Find(NULL, FOFS(targetname), ent->target) : activator;
+        gentity_t *point = ent->target ? G_Find(NULL, FOFS(targetname), ent->target) : ent;
         if (point) Spawn(point, strstr(ent->classname, "mikiko") ? "mikiko" : "superfly");
     } else for (i = 0; i < 2; ++i) {
         gentity_t *actor = Companion(i);
@@ -233,6 +238,15 @@ static void Trigger(gentity_t *ent, gentity_t *other, gentity_t *activator) {
     G_UseTargets(ent, activator);
 }
 
+void DK_RestoreCompanionEntity(gentity_t *ent) {
+    if (!strcmp(ent->classname, "trigger_superfly_spawn") || !strcmp(ent->classname, "trigger_mikiko_spawn")) {
+        ent->touch = NULL;
+        ent->use = Trigger;
+        ent->r.contents = 0;
+        ent->r.svFlags |= SVF_NOCLIENT;
+    }
+}
+
 static void Touch(gentity_t *ent, gentity_t *other, trace_t *trace) { (void)trace; Trigger(ent, other, other); }
 
 qboolean DK_SpawnCompanionEntity(gentity_t *ent) {
@@ -253,7 +267,8 @@ qboolean DK_SpawnCompanionEntity(gentity_t *ent) {
     ent->use = Trigger;
     if (ent->model) {
         trap_SetBrushModel(ent, ent->model); ent->touch = Touch;
-        ent->r.contents = CONTENTS_TRIGGER; ent->r.svFlags |= SVF_NOCLIENT; trap_LinkEntity(ent);
+        ent->r.contents = CONTENTS_TRIGGER; ent->r.svFlags |= SVF_NOCLIENT;
+        DK_RestoreCompanionEntity(ent); trap_LinkEntity(ent);
     }
     return qtrue;
 }

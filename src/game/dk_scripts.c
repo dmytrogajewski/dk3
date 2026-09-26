@@ -88,7 +88,9 @@ void DK_FireNamed(const char *name, gentity_t *source, gentity_t *activator) {
     if (!name || !*name) return;
     for (i = 0; i < level.num_entities; ++i) {
         gentity_t *ent = &g_entities[i];
-        if (!ent->inuse || !ent->use || !ent->targetname || Q_stricmp(ent->targetname, name)) continue;
+        if (!ent->inuse || !ent->use ||
+            !((ent->targetname && !Q_stricmp(ent->targetname, name)) ||
+              (ent->dk.uniqueid && !Q_stricmp(ent->dk.uniqueid, name)))) continue;
         ++matched;
         if (trap_Cvar_VariableIntegerValue("developer"))
             G_Printf("dk3 target %s: %u (%s) -> %u (%s) name %s activator %u time %d\n", scriptMap,

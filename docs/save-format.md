@@ -120,3 +120,10 @@ hold/reap/release and both pending and active Metamaser restoration. The active 
 must damage after loading, not merely have a damage record before saving. Full
 weapon/controller phase and cross-episode coverage remains open. See
 [sequence 200](../specs/runs/RUN-dk3-independent-port.md#weapons-gold-review--sequence-200).
+
+Sequence 215 adds optional entity integer `dk_assemblyversion` (absent means 0).
+New trains write 1. Loading an older save repairs child positions only when an
+initialized, paused, stationary train still matches the freshly initialized map
+and a child exactly matches the old unshifted initial placement. Arbitrary saved
+mid-motion or scripted poses are retained. Existing companion spawn markers also
+restore their use-only callbacks and nonsolid contents.

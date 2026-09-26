@@ -58,6 +58,30 @@ class GameplayContractsTest(unittest.TestCase):
             result = run_guarded([output], REPO_ROOT)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_mover_attachment_teleports(self):
+        with tempfile.TemporaryDirectory(prefix='dk3-attachments-') as temporary:
+            output = str(Path(temporary) / 'attachments')
+            command = [os.environ.get('ZIG', 'zig'), 'cc', '-std=gnu99', '-O1',
+                       '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
+                       '-DDK3_GAME', '-Iengine/ioquake3/code/game', '-Isrc/game', '-Isrc/shared',
+                       'dkq3/tools/tests/fixtures/mover_attachments.c', '-lm', '-o', output]
+            result = run_guarded(command, REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = run_guarded([output], REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_named_script_targets(self):
+        with tempfile.TemporaryDirectory(prefix='dk3-targets-') as temporary:
+            output = str(Path(temporary) / 'targets')
+            command = [os.environ.get('ZIG', 'zig'), 'cc', '-std=gnu99', '-O1',
+                       '-ffunction-sections', '-fdata-sections', '-Wl,--gc-sections',
+                       '-DDK3_GAME', '-Iengine/ioquake3/code/game', '-Isrc/game', '-Isrc/shared',
+                       'dkq3/tools/tests/fixtures/named_script_targets.c', '-lm', '-o', output]
+            result = run_guarded(command, REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = run_guarded([output], REPO_ROOT)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_weapon_sequences(self):
         with tempfile.TemporaryDirectory(prefix='dk3-weapons-') as temporary:
             output = str(Path(temporary) / 'sequences')

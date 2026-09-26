@@ -147,6 +147,7 @@ qboolean DK_ClientCommand(gentity_t *player, const char *command) {
     if (!Q_stricmp(command, "use")) {
         if (player->health <= 0 || player->client->sess.sessionTeam == TEAM_SPECTATOR) return qtrue;
         if (DK_StopMonitor(player, qfalse)) return qtrue;
+        if (player->client->ps.dk3CameraActive) return qtrue;
         trace_t trace;
         vec3_t start, end, forward;
         VectorCopy(player->client->ps.origin, start); start[2] += player->client->ps.viewheight;

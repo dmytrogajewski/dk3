@@ -35,7 +35,13 @@ their saved map. The owner’s e1m3a triangular passage, mouse-only loading, cor
 save rejection, previous-save recovery and visited-world preservation pass. Normal
 `dk3` uses the updated build; its saves/settings remain unchanged.
 
-Updated 2026-09-26, through **crouch-load, sequence 214**.
+Sequence 215 repairs the first Superfly encounter against Gold: script-only
+companion spawning, authored spawn position, train attachment placement,
+cinematic trigger isolation and unique-ID script uses. Existing save2, the first
+conversation/rack crossing, keycard rescue and companion save/reload pass.
+Normal `dk3` uses the repaired build; saves/settings remain unchanged.
+
+Updated 2026-09-26, through **superfly-cinematic, sequence 215**.
 
 **dk3 is a playable development build, not a completed Daikatana port.** Independent
 native systems exist across the game, but implementation and successful focused

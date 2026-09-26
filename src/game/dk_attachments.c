@@ -135,6 +135,70 @@ void DK_MoveAssembly(gentity_t *root) {
         if (parts[i].entity->inuse && parts[i].entity->dk.id == parts[i].id) G_RunThink(parts[i].entity);
 }
 
+/* Initial placement and authored teleport corners move the whole hierarchy,
+   without sweeping riders through the intervening world. */
+static qboolean Descendant(gentity_t *entity, gentity_t *root) {
+    int depth;
+    for (depth = 0; entity && entity->dk.parentId && depth < MAX_GENTITIES; ++depth) {
+        entity = DK_FindEntity(entity->dk.parentId);
+        if (entity == root) return qtrue;
+    }
+    return qfalse;
+}
+
+static void TranslateAttachment(gentity_t *entity, const vec3_t delta) {
+    VectorAdd(entity->r.currentOrigin, delta, entity->r.currentOrigin);
+    VectorAdd(entity->s.pos.trBase, delta, entity->s.pos.trBase);
+    VectorAdd(entity->s.origin, delta, entity->s.origin);
+    if (!entity->dk.moverAngular) {
+        VectorAdd(entity->pos1, delta, entity->pos1);
+        VectorAdd(entity->pos2, delta, entity->pos2);
+    }
+    if (entity->dk.moverKind == 4) VectorAdd(entity->dk.secretEnd, delta, entity->dk.secretEnd);
+    trap_LinkEntity(entity);
+}
+
+void DK_TeleportAssembly(gentity_t *root, const vec3_t destination) {
+    vec3_t delta;
+    int i;
+    VectorSubtract(destination, root->r.currentOrigin, delta);
+    for (i = MAX_CLIENTS; i < level.num_entities; ++i)
+        if (g_entities[i].inuse && Descendant(&g_entities[i], root)) TranslateAttachment(&g_entities[i], delta);
+    G_SetOrigin(root, (float *)destination);
+    trap_LinkEntity(root);
+}
+
+void DK_RepairSavedAttachments(const gentity_t *baseline, int count) {
+    int i, j, k;
+    for (i = MAX_CLIENTS; i < level.num_entities; ++i) {
+        gentity_t *root = &g_entities[i];
+        const gentity_t *original = NULL;
+        vec3_t delta;
+        if (!root->inuse || root->dk.moverKind != 3 || root->dk.assemblyVersion) continue;
+        root->dk.assemblyVersion = 1;
+        if (!root->dk.moverInitialized || root->s.pos.trType != TR_STATIONARY || !root->dk.moverPaused) continue;
+        for (j = MAX_CLIENTS; j < count; ++j)
+            if (baseline[j].inuse && baseline[j].dk.id == root->dk.id) { original = &baseline[j]; break; }
+        if (!original || !original->dk.moverInitialized || original->dk.destinationId != root->dk.destinationId ||
+            DistanceSquared(original->r.currentOrigin, root->r.currentOrigin) > 0.01f) continue;
+        VectorSubtract(original->r.currentOrigin, original->pos1, delta);
+        if (VectorLengthSquared(delta) < 0.01f) continue;
+        /* Repair only the identifiable old initial-placement defect. Do not
+           reinterpret arbitrary saved mid-motion or scripted attachment poses. */
+        for (j = MAX_CLIENTS; j < level.num_entities; ++j) {
+            gentity_t *child = &g_entities[j];
+            vec3_t expected;
+            if (!child->inuse || !Descendant(child, root)) continue;
+            for (k = MAX_CLIENTS; k < count; ++k) if (baseline[k].inuse && baseline[k].dk.id == child->dk.id) break;
+            if (k == count) continue;
+            VectorSubtract(baseline[k].r.currentOrigin, delta, expected);
+            if (DistanceSquared(child->r.currentOrigin, expected) > 0.01f) continue;
+            TranslateAttachment(child, delta);
+            G_Printf("dk3: repaired saved initial attachment %u on train %u\n", child->dk.id, root->dk.id);
+        }
+    }
+}
+
 void DK_SetupAttachments(void) {
     int i, depth;
     for (i = MAX_CLIENTS; i < level.num_entities; ++i) {

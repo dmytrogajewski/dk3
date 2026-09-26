@@ -217,7 +217,7 @@ static void TrainLeave(gentity_t *ent) {
             duration = fabs(previous->dk.rotationDelta[i]) * 1000 / fabs(previous->dk.rotationRate[i]);
     if (duration < 1) duration = 1;
     if (previous && (previous->spawnflags & 32)) {
-        G_SetOrigin(ent, corner->s.origin); trap_LinkEntity(ent);
+        DK_TeleportAssembly(ent, corner->s.origin);
         ent->dk.moverArrival = 1; ent->think = TrainThink; ent->nextthink = level.time + 1;
         return;
     }
@@ -241,7 +241,7 @@ static void TrainInit(gentity_t *ent) {
     gentity_t *first = ent->target ? G_Find(NULL, FOFS(targetname), ent->target) : NULL;
     if (!ent->target) { ent->dk.moverInitialized = ent->dk.moverPaused = 1; return; }
     if (!first) { G_Printf("dk3: train %u has no start corner\n", ent->dk.id); return; }
-    G_SetOrigin(ent, first->s.origin); trap_LinkEntity(ent);
+    DK_TeleportAssembly(ent, first->s.origin);
     ent->dk.destinationId = first->dk.id;
     ent->target = first->target;
     ent->dk.moverInitialized = 1;
@@ -379,7 +379,7 @@ qboolean DK_SpawnMover(gentity_t *ent) {
     } else if (plat) {
         if (!G_SpawnFloat("height", "0", &distance)) distance = ent->r.maxs[2] - ent->r.mins[2] - lip;
         ent->pos1[2] -= distance;
-    } else if (!strcmp(name, "func_train")) ent->dk.moverKind = 3;
+    } else if (!strcmp(name, "func_train")) { ent->dk.moverKind = 3; ent->dk.assemblyVersion = 1; }
     else if (!strcmp(name, "func_rotate")) {
         ent->dk.moverKind = 2;
         VectorClear(ent->movedir);

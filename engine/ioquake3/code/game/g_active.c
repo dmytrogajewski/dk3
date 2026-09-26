@@ -257,6 +257,10 @@ void	G_TouchTriggers( gentity_t *ent ) {
 		return;
 	}
 
+#ifdef DK3_GAME
+    if (ent->client->ps.dk3CameraActive) return;
+#endif
+
 	// dead clients don't activate triggers!
 	if ( ent->client->ps.stats[STAT_HEALTH] <= 0 ) {
 		return;
@@ -272,6 +276,10 @@ void	G_TouchTriggers( gentity_t *ent ) {
 	VectorAdd( ent->client->ps.origin, ent->r.maxs, maxs );
 
 	for ( i=0 ; i<num ; i++ ) {
+#ifdef DK3_GAME
+        /* A touch can start a cinematic: stop before adjacent triggers fire. */
+        if (ent->client->ps.dk3CameraActive) break;
+#endif
 		hit = &g_entities[touch[i]];
 
 		if ( !hit->touch && !ent->touch ) {
