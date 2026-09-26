@@ -293,6 +293,17 @@ pub fn validate(snapshot: *Loaded) !void {
                     if ((try world.get(victim, data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedProjectile;
                 }
             }
+            if (projectile.flight == .discus) {
+                const disc = projectile.flight.discus;
+                if (disc.next_ms < 0 or disc.drop_ms < 0 or disc.clear > 3 or disc.base_speed <= 0 or disc.base_speed > 100000 or disc.speed < 0 or disc.speed > 100000 or (disc.dropped and !disc.pickup_only)) return error.InvalidSavedProjectile;
+                try require(world, entity, .{data.Random});
+                if (disc.target) |id| if (world.find(id)) |target| try require(world, target, .{data.Health});
+            }
+            if (projectile.flight == .sunflare) {
+                const flame = projectile.flight.sunflare;
+                if (flame.next_ms < 0 or flame.burn_ms < 0 or flame.flames > 9 or ((flame.phase == .burning or flame.phase == .cooling) and flame.flames < 5)) return error.InvalidSavedProjectile;
+                try require(world, entity, .{data.Random});
+            }
         }
         if (world.get(entity, data.Melee) catch null) |melee| {
             const plan = melee.plan() catch return error.InvalidSavedMelee;
@@ -304,7 +315,7 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.WeaponLaunch) catch null) |launch| {
             const class = @import("weapon_catalog").find(launch.weapon) orelse return error.InvalidSavedLaunch;
             const policy = @import("weapon_catalog").combatFor(launch.weapon, launch.sequence);
-            if ((policy != .projectile and policy != .shockwave and policy != .ballista) or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
+            if ((policy != .projectile and policy != .shockwave and policy != .ballista and policy != .discus and policy != .sunflare) or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
             const owner = world.find(launch.owner) orelse return error.InvalidSavedLaunch;
             try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
         }
@@ -426,6 +437,8 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = nova.advance(800, 100);
     _ = try world.create(56, .{ data.Transform{}, data.Binding{ .slot = 73 }, nova });
     _ = try world.create(57, .{ data.Transform{}, data.Binding{ .slot = 74 }, data.Flashlight{ .owner = 7, .expires_ms = 1150, .strength = 0.75 } });
+    _ = try world.create(58, .{ data.Transform{}, data.Binding{ .slot = 75 }, data.Velocity{}, data.Random{ .state = 17 }, data.Projectile{ .owner = 7, .weapon = 9, .damage = 35, .born_ms = 500, .stepped_ms = 1000, .flight = .{ .discus = .{ .target = 7, .reflected = true, .next_ms = 600, .speed = 750 } } }, data.Lifetime{ .expires_ms = 60500 } });
+    _ = try world.create(59, .{ data.Transform{}, data.Binding{ .slot = 76 }, data.Velocity{}, data.Random{ .state = 23 }, data.Projectile{ .owner = 7, .weapon = 10, .damage = 4, .born_ms = 500, .stepped_ms = 1000, .flight = .{ .sunflare = .{ .phase = .burning, .burn_ms = 400, .next_ms = 800, .flames = 7, .floating = true } } }, data.Lifetime{ .expires_ms = 10900 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -463,6 +476,14 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expectEqual(@as(i64, 8900), saved_nova.next_ms);
     try std.testing.expectEqual(@as(i64, 10700), saved_nova.expires_ms);
     try std.testing.expectEqual(@as(i64, 9150), (try loaded.world.get(loaded.world.find(57).?, data.Flashlight)).expires_ms);
+    const saved_disc = (try loaded.world.get(loaded.world.find(58).?, data.Projectile)).*;
+    try std.testing.expectEqual(@as(i64, 8500), saved_disc.born_ms);
+    try std.testing.expectEqual(@as(i64, 600), saved_disc.flight.discus.next_ms);
+    try std.testing.expectEqual(@as(?u32, 7), saved_disc.flight.discus.target);
+    const saved_flare = (try loaded.world.get(loaded.world.find(59).?, data.Projectile)).flight.sunflare;
+    try std.testing.expect(saved_flare.floating and saved_flare.phase == .burning);
+    try std.testing.expectEqual(@as(i64, 800), saved_flare.next_ms);
+    try std.testing.expectEqual(@as(i64, 18900), (try loaded.world.get(loaded.world.find(59).?, data.Lifetime)).expires_ms);
     const melee = (try loaded.world.get(loaded.world.find(45).?, data.Melee)).*;
     try std.testing.expectEqual(@as(?i64, 8700), (try loaded.world.get(loaded.world.find(7).?, data.Weapons)).last_fire_ms);
     const poison = (try loaded.world.get(loaded.world.find(7).?, data.Ailments)).poison.?;

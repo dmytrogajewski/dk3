@@ -580,3 +580,20 @@ pending and active Novabeam, an authored worker kill, closing/expiry, held flash
 consumption, restoration and release. Inspected captures show the orange beam and
 surface illumination. Full audio/effect parity, second renderer, action cancellation
 through travel, multiplayer and the refreshed aggregate suite remain open.
+
+## runtime-zig-240 — returning Discus and Sunflare fields
+
+Discus owns its two melee swings, animation release, seeking, water slowdown,
+reflection, return and recoverable dropped state. Sunflare owns its thrown pot,
+impact damage, flame count/radius, timed burning/cooling and buoyancy. Dedicated
+server controllers resolve collision and inventory transfer; saved flight state
+retains target IDs, damage cursors, random streams and relative clocks. The shared
+projectile launcher now applies pitch adjustment before calculating the muzzle.
+
+Twenty-three combat policies are connected. The live scenario demonstrates saved
+melee/release/flight, Discus contact and catch, and a restored Sunflare field killing
+an authored worker before cooling and expiry. Captures exposed Sunflare's incorrect
+blend mode; Gold's additive flag binding is repaired and the second-renderer replay
+is running. Complete trail/smoke/audio, liquid/drop cases, travel/motion regressions,
+multiplayer and refreshed broad checks remain open. Both controllers use a bounded
+60-second airborne cleanup, an independent limit rather than a claimed Gold deadline.

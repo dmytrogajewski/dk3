@@ -12,6 +12,8 @@ pub const trident = @import("descriptions/trident.zig");
 pub const ballista = @import("descriptions/ballista.zig");
 pub const novabeam = @import("descriptions/novabeam.zig");
 pub const flashlight = @import("descriptions/flashlight.zig");
+pub const discus = @import("descriptions/discus.zig");
+pub const sunflare = @import("descriptions/sunflare.zig");
 pub fn flightScale(id: u5, flags: i32) f32 {
     inline for (weapons) |W| if (id == W.id) {
         if (@hasDecl(W, "flightScale")) return W.flightScale(flags);
@@ -230,4 +232,41 @@ test "Venomous owns alternate muzzles and bite poison; Kineticore ages and recov
     var venom = try flightState(11);
     frame.wet = true;
     try std.testing.expect((try flightMotion(11, &venom, frame)).remove);
+}
+
+test "Discus steering clocks preserve return, drop and melee contracts" {
+    const std = @import("std");
+    var disc: discus.BallisticState = .{};
+    try std.testing.expect(!disc.tick(99, true));
+    try std.testing.expect(disc.tick(100, true));
+    try std.testing.expectEqual(@as(f32, 750), disc.speed);
+    try std.testing.expect(!disc.tick(100, true));
+    try std.testing.expect(disc.tick(200, false));
+    try std.testing.expectEqual(@as(f32, 937.5), disc.speed);
+    disc.home(.{ 0, 10, 0 }, true);
+    try std.testing.expectEqual([3]f32{ 0, 1, 0 }, disc.forward);
+    try std.testing.expect(disc.mustDrop(5000));
+    disc.drop(7, 5000);
+    try std.testing.expect(disc.pickup_only and disc.dropped and disc.target == 7);
+    try std.testing.expectEqual(@as(i64, 10000), disc.drop_ms);
+    try std.testing.expect(combatFor(9, 128) == .melee);
+    try std.testing.expectEqualStrings("shootd", attackAnimation(9, 129, 0).pose);
+    try std.testing.expectEqual(@as(u16, 250), (try meleePlan(9, 128, 0)).delays_ms[0]);
+    try std.testing.expectEqual([3]f32{ 10, 30, 15 }, discus.meleeOrigin(.{ 10, 20, 30 }, .{ 0, 10, 10 }, true));
+}
+
+test "Sunflare flame count owns damage radius and water equilibrium" {
+    const std = @import("std");
+    var flame: sunflare.BallisticState = .{};
+    flame.ignite(500);
+    try std.testing.expect(flame.phase == .settling);
+    try std.testing.expectEqual(@as(f32, 12), flame.damage(4));
+    flame.burn(600, 0.999);
+    try std.testing.expectEqual(@as(u8, 9), flame.flames);
+    try std.testing.expectEqual(@as(f32, 150), flame.radius());
+    try std.testing.expectEqual(@as(f32, 18.75), flame.damage(4));
+    const equilibrium = sunflare.buoyancy(.{ 0, 0, 0 }, 1.85 / 2.0, 1, 0.02);
+    try std.testing.expectApproxEqAbs(@as(f32, 0), equilibrium[2], 0.0001);
+    try std.testing.expect(sunflare.buoyancy(.{ 0, 0, 0 }, 1, 1, 0.02)[2] > 0);
+    try std.testing.expect(sunflare.buoyancy(.{ 0, 0, 0 }, 0, 1, 0.02)[2] < 0);
 }

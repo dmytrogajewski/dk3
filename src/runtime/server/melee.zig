@@ -18,10 +18,10 @@ pub fn launch(world: *data.World, owner: ecs.Entity, shot: weapons.Fired, table:
 fn trace(start: v.Vec3, end: v.Vec3, radius: f32, slot: u16) !@import("../domain/collision.zig").Trace {
     return engine.collisionService().trace(.{ .start = start, .end = end, .mins = @splat(-radius), .maxs = @splat(radius), .slot = slot, .mask = c.MASK_SHOT });
 }
-fn arc(pose: data.Transform, plan: catalog.melee.Plan, index: u8, range: f32, slot: u16, ducked: bool) !@import("../domain/collision.zig").Trace {
+fn arc(pose: data.Transform, plan: catalog.melee.Plan, index: u8, range: f32, muzzle: v.Vec3, slot: u16, ducked: bool) !@import("../domain/collision.zig").Trace {
     const basis = v.basis(pose.angles);
     const up = v.cross(basis.right, basis.forward);
-    const origin = v.add(pose.position, .{ 0, 0, if (ducked) plan.crouching_height else plan.height });
+    const origin = v.add(v.add(pose.position, if (plan.world_muzzle) muzzle else @as(v.Vec3, @splat(0))), .{ 0, 0, if (ducked) plan.crouching_height else plan.height });
     if (v.length(plan.from[index]) < 0.01) {
         const goal = v.add(origin, v.scale(basis.forward, plan.range orelse range));
         if (plan.body_trace) return engine.collisionService().trace(.{ .start = origin, .end = goal, .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, if (ducked) @as(f32, 4) else 32 }, .slot = slot, .mask = c.MASK_SHOT });
@@ -70,7 +70,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const pose = (try world.get(owner, data.Transform)).*;
         const ducked = (try world.get(owner, data.Player)).ducked;
         while (try action.due(now)) {
-            const hit = try arc(pose, plan, action.next_hit, if (table.entries[action.weapon].range > 0) table.entries[action.weapon].range else plan.fallback_range, binding.slot, ducked);
+            const hit = try arc(pose, plan, action.next_hit, if (table.entries[action.weapon].range > 0) table.entries[action.weapon].range else plan.fallback_range, table.entries[action.weapon].muzzle, binding.slot, ducked);
             if (plan.sound_on_strike and action.next_hit == 0) if (catalog.fireSound(action.weapon, action.sequence, try world.persistentId(entity))) |sound| try @import("events.zig").sound(world, slots, projections, sound, pose.position, binding.slot, c.CHAN_WEAPON, now);
             if (hit.fraction < 1 and hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |target| {
                 const target_pose = (try world.get(target, data.Transform)).*;

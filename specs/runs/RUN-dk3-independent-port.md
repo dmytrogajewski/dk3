@@ -3027,3 +3027,18 @@ consulted privately; no private implementation/assets imported.
 | Beam and light persistence | Passed, limited | `runtime-zig-239/beams-first/`: ordinary attacks after diagnostic equipment/placement; saved pending/active Nova restores its identity and remaining damage, kills worker 383, closes and expires. Held flashlight spends battery, restores active state and expires after release. |
 | Rendered presentation | Passed, limited | Active restored Nova and flashlight on/off captures inspected: orange beam, transparent muzzle/end flare and changed surface illumination are visible. Full material/audio parity and second renderer remain open. |
 | Broader integration | Unrun | Arrival/disconnect cancellation, multiplayer and refreshed aggregate checks remain pending the connected weapon batch. Twenty-one combat policies are connected; seven remain. |
+
+## runtime-zig — sequence 240 (returning Discus and burning fields)
+
+Discus/Sunflare state belongs to the class-owned ballistic union; server controllers
+consume it through collision, inventory and effect mechanisms. Save admission and
+round trips cover target IDs, dropped/return state, flame phases, random state and
+relative clocks. Gold's midpoint animation callback, return/catch rules, flame damage,
+buoyancy and sprite blending were reviewed privately.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated modules/contracts | Passed after repair | Initial builds exposed a comptime float division and collision-slot signedness/statement boundaries. `/tmp/dk3-runtime-240-visual-build.log`: three modules, 81 focused checks pass. Pure checks cover steering/drop/melee, flame damage and buoyancy equilibrium; native round trips cover return/active fire. |
+| Returning weapon and fire | Passed, limited | `runtime-zig-240/returning-first/`: normal attacks, saved melee/release/flight, worker melee kill, authored guard hit and catch, saved Sunflare release/active field, worker kill, cooling and expiry. Diagnostic equipment, placement and guard health 35. |
+| Rendered fire repair | Failed appearance; repaired, replay running | Inspected active-fire frame shows rectangular sprite boundaries. Gold `SPR_ALPHACHANNEL` means SRC_ALPHA/ONE; changed both flame and glow to that binding. `/tmp/dk3-runtime-240-additive-build.log` passes. `returning-additive-opengl2/` replay running. Flight capture precedes the visible disc and does not qualify its full appearance. |
+| Remaining integration | Unrun | Discus water/drop/other-player catches, Sunflare liquid motion, complete smoke/trail/audio, shared launch and travel regressions, multiplayer and refreshed aggregate suite. Twenty-three combat policies are connected; five remain. Airborne cleanup is independently bounded at 60 seconds. |

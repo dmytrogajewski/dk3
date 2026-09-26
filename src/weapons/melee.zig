@@ -11,6 +11,8 @@ pub const Plan = struct {
     fallback_range: f32 = 64,
     range: ?f32 = null,
     body_trace: bool = false,
+    /// Some authored strikes add the supplied muzzle in world coordinates.
+    world_muzzle: bool = false,
     inertial: bool = false,
     scale_timing: bool = false,
     sound_on_strike: bool = false,

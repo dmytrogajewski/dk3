@@ -34,5 +34,7 @@ pub fn draw(entity: c.entityState_t, now: i32, ref: *const c.refdef_t, client: i
             const brightness = W.brightness(distance, strength);
             _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &position, engine.floatArg(W.radius(distance, strength)), engine.floatArg(brightness), engine.floatArg(brightness), engine.floatArg(brightness) });
         }
+    } else if (entity.weapon == catalog.sunflare.id) {
+        try @import("sunflare.zig").draw(entity, now, ref);
     } else try @import("area_effects.zig").draw(entity, now);
 }

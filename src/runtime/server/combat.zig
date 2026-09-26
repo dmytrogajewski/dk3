@@ -82,7 +82,7 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try @import("hammer.zig").launch(world, owner, shot, table, now);
             return;
         },
-        .projectile, .shockwave, .ballista => {
+        .projectile, .shockwave, .ballista, .discus, .sunflare => {
             if (entry.spec.projectile.action_delay_ms > 0) {
                 const factor = catalog.transitions.attackFactor((try world.get(owner, data.Character)).attribute(.attack, now));
                 try @import("weapon_launches.zig").queue(world, owner, shot, now, @intFromFloat(@as(f32, @floatFromInt(entry.spec.projectile.action_delay_ms)) / factor));

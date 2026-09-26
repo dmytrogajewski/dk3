@@ -162,7 +162,11 @@ pub const Context = struct {
         };
     }
     pub fn discusMelee(self: *Context) bool {
-        const hit = self.contact(100, self.player.view_height, false) orelse return false;
+        const start = catalog.discus.meleeOrigin(self.motion.position, self.table.entries[catalog.discus.id].muzzle, self.player.ducked);
+        const hit = self.service.trace(.{ .start = start, .end = v.add(start, v.scale(v.basis(self.command.angles).forward, 100)), .mins = @splat(0), .maxs = @splat(0), .slot = self.slot, .mask = self.shot_mask }) catch |err| {
+            self.failure = err;
+            return false;
+        };
         return hit.fraction < 1;
     }
     pub fn venomBite(self: *Context) bool {

@@ -23,6 +23,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     const transform = (try world.get(entity, data.Transform)).*;
     const velocity = (try world.get(entity, data.Velocity)).linear;
     const projectile = (try world.get(entity, data.Projectile)).*;
+    if (projectile.flight == .sunflare and projectile.flight.sunflare.phase != .flight) return @import("sunflare.zig").publish(world, entity, projections);
     const projection = &projections[binding.slot];
     projection.state.number = binding.slot;
     projection.state.eType = c.ET_MISSILE;
@@ -36,6 +37,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     }
     projection.state.time2 = if (world.get(entity, data.Lifetime) catch null) |lifetime| @intCast(lifetime.expires_ms) else 0;
     projection.state.modelindex = binding.model;
+    projection.state.frame = if (projectile.flight == .discus and projectile.flight.discus.pickup_only) 1 else 0;
     projection.state.pos = @import("../engine/trajectory.zig").linear(transform.position, velocity, now);
     projection.state.apos = @import("../engine/trajectory.zig").stationary(transform.angles);
     projection.shared.currentOrigin = transform.position;
@@ -137,9 +139,9 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     const attack: u8 = if (world.get(owner, data.Character) catch null) |character| @intCast(character.attribute(.attack, now)) else 0;
     const launch_pose = catalog.flightLaunch(shot.weapon, tuning, shot.sequence, attack);
     const eye = rules.eye(shot.position, shot.view_height);
-    const start = (try engine.collisionService().trace(.{ .start = eye, .end = rules.muzzle(eye, shot.angles, launch_pose.muzzle), .mins = spec.projectile.mins, .maxs = spec.projectile.maxs, .slot = owner_slot, .mask = c.MASK_SHOT })).end;
     var angles = shot.angles;
-    angles[0] += launch_pose.pitch;
+    if (launch_pose.pitch != 0) angles[0] = std.math.clamp(angles[0] + launch_pose.pitch, -89, 89);
+    const start = (try engine.collisionService().trace(.{ .start = eye, .end = rules.muzzle(eye, angles, launch_pose.muzzle), .mins = spec.projectile.mins, .maxs = spec.projectile.maxs, .slot = owner_slot, .mask = c.MASK_SHOT })).end;
     const forward = v.basis(angles).forward;
     const target = (try trace(eye, v.add(eye, v.scale(forward, spec.projectile.aim_range)), owner_slot, 0, c.MASK_SHOT)).end;
     const speed = (if (tuning.speed > 0) tuning.speed else 400) * (1 + 0.3 * @as(f32, @floatFromInt(attack)));
@@ -157,10 +159,20 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         projectile.flight.ballista.velocity = initial.velocity;
         projectile.flight.ballista.previous_position = start;
     }
+    if (projectile.flight == .discus) {
+        projectile.flight.discus.forward = v.normalize(initial.velocity);
+        projectile.flight.discus.base_speed = tuning.speed;
+        projectile.flight.discus.speed = tuning.speed;
+    }
     const model = try @import("resources.zig").model(spec.visual.projectile_model);
+    if (projectile.flight == .sunflare) {
+        var random: data.Random = .{ .state = @truncate(@as(u64, @bitCast(now)) ^ owner_id) };
+        for (&projectile.flight.sunflare.angular_velocity) |*axis| axis.* = 90 + 60 * random.next();
+    }
     angles[2] = launch_pose.roll;
     const entity = try world.create(null, .{ data.Transform{ .position = start, .angles = angles }, data.Velocity{ .linear = initial.velocity }, projectile, data.Lifetime{ .expires_ms = now + lifetime } });
     errdefer world.destroy(entity) catch unreachable;
+    if (projectile.flight == .discus or projectile.flight == .sunflare) try world.put(entity, data.Random{ .state = (try world.persistentId(entity)) ^ 0x824639fb });
     const slot = try slots.acquire(entity, null);
     errdefer slots.release(slot, entity) catch unreachable;
     try world.put(entity, data.Binding{ .slot = slot, .model = model });

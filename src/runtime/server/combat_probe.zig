@@ -72,6 +72,14 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
                 const bolt = projectile.flight.ballista;
                 engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig ballista state: id={d} victim={d} releases={d} release={d} next={d}\n", .{ try world.persistentId(entity), bolt.victim orelse 0, bolt.releases, bolt.release_ms - (now - projectile.born_ms), bolt.next_ms }));
             }
+            if (projectile.flight == .discus) {
+                const disc = projectile.flight.discus;
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig discus state: id={d} target={d} reflected={d} dropped={d} pickup={d} next={d}\n", .{ try world.persistentId(entity), disc.target orelse 0, @intFromBool(disc.reflected), @intFromBool(disc.dropped), @intFromBool(disc.pickup_only), disc.next_ms }));
+            }
+            if (projectile.flight == .sunflare) {
+                const flame = projectile.flight.sunflare;
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig sunflare state: id={d} phase={s} flames={d} floating={d} next={d}\n", .{ try world.persistentId(entity), @tagName(flame.phase), flame.flames, @intFromBool(flame.floating), flame.next_ms }));
+            }
         }
         engine.print("dk3 zig projectile states complete\n");
         return true;
