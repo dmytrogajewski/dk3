@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 8;
 pub const spec: profiles.Spec = .{
+    .campaign_equipment = true,
     .companion_pickup = false, // sword
     .world_model = "models/global/a_daikatana.dkm",
     .audio = .{ .ready = "global/we_swordwhoosha.wav", .away = "global/we_swordwhooshc.wav" },

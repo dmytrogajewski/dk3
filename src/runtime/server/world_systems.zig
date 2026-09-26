@@ -26,6 +26,7 @@ pub const State = struct {
         try @import("brushes.zig").spawn(world, slots, projections);
         try binary.spawn(world, slots, projections);
         try @import("targets.zig").spawn(world);
+        try @import("campaign.zig").spawn(world);
         try @import("world_actions.zig").spawn(allocator, world, projections);
         try trains.spawn(world, slots, projections, now);
         try special.spawn(world, slots, projections, now);

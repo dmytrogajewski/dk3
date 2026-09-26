@@ -14,7 +14,13 @@ pub fn mapName(buffer: []u8) []const u8 {
     _ = engine.gateway.call(c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "mapname"), buffer.ptr, @as(isize, @intCast(buffer.len)) });
     return std.mem.sliceTo(buffer, 0);
 }
-pub fn save(world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, systems: *const @import("world_systems.zig").State, slot: []const u8, now: i64) !void {
+pub fn capture(allocator: std.mem.Allocator, bytes: []u8, world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, now: i64, visited: []const format.Archive, journey: ?@import("../domain/travel.zig").Journey) ![]const u8 {
+    const player = clients.entities[0] orelse return error.NoPlayerToSave;
+    var map: [64]u8 = undefined;
+    const header: format.Header = .{ .at_ms = now, .player_id = try world.persistentId(player), .episode = clients.episode, .next_id = world.next_id, .resources = try @import("resources.zig").capture(allocator), .pending = targets.pending, .journey = journey };
+    return format.captureCampaign(allocator, bytes, world, mapName(&map), @intCast(std.math.clamp(engine.integer("g_spSkill"), 1, 5)), header, visited);
+}
+pub fn save(world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, systems: *const @import("world_systems.zig").State, slot: []const u8, now: i64, visited: []const format.Archive) !void {
     if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return error.SaveRequiresSinglePlayer;
     const player = clients.entities[0] orelse return error.NoPlayerToSave;
     if ((try world.get(player, data.Health)).current <= 0) return error.CannotSaveDeadPlayer;
@@ -23,8 +29,7 @@ pub fn save(world: *data.World, clients: *const @import("clients.zig").Clients, 
     const allocator = arena.allocator();
     const bytes = try allocator.alloc(u8, format.maximum);
     var map: [64]u8 = undefined;
-    const header: format.Header = .{ .at_ms = now, .player_id = try world.persistentId(player), .episode = clients.episode, .next_id = world.next_id, .resources = try @import("resources.zig").capture(allocator), .pending = targets.pending };
-    const saved = try format.capture(allocator, bytes, world, mapName(&map), @intCast(std.math.clamp(engine.integer("g_spSkill"), 1, 5)), header);
+    const saved = try capture(allocator, bytes, world, clients, targets, now, visited, null);
     // This also catches semantic schema omissions before replacing a prior save.
     var admitted = try format.decode(allocator, saved);
     defer admitted.deinit(allocator);

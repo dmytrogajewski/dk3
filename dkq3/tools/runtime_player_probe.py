@@ -498,6 +498,76 @@ def laser_scenario(issue, capture, log):
             "scope": "ordinary Glock fire breaks authored supply box; timed target chain removes controls; enabled hurt field damages, disabled field stays harmless at both approaches before and after native save/load; diagnostic placement/equipment/health, beam/audio presentation unqualified"}
 
 
+def travel_scenario(issue, capture, log, home, process):
+    # Exercise a changed authored world, then visit/revisit through its real exits.
+    laser_scenario(issue, capture, log)
+    issue("dk3_runtime_probe_health 333")
+    issue("dk3_runtime_equip 21")
+
+    def health():
+        issue("dk3_runtime_inventory")
+        return int(re.findall(r"zig inventory .*health=(-?\d+)", log.read_text(errors="replace"))[-1])
+
+    def leave(identity, destination):
+        issue("dk3_runtime_world")
+        matches = re.findall(rf"zig exit: id={identity} map={destination} .*center=([\d.,-]+)", log.read_text(errors="replace"))
+        if not matches:
+            raise RuntimeError(f"missing authored exit {identity} to {destination}")
+        center = list(map(float, matches[-1].split(',')))
+        # Clear any arrival latch before making ordinary touch contact.
+        issue(f"dk3_runtime_place {center[0] + 400} {center[1]} {center[2]}", 0.1)
+        before = len(log.read_text(errors="replace"))
+        issue("dk3_runtime_place " + ' '.join(map(str, center)), 0.05)
+        wait(process, log, lambda text: "traveler entered authored landing" in text[before:])
+        time.sleep(0.7)
+        segment = log.read_text(errors="replace")[before:]
+        maps = re.findall(r"^Server: ([^\n]+)", segment, re.M)
+        if maps != [destination]:
+            raise RuntimeError(f"authored exit started unexpected maps: {maps}")
+        departed = re.findall(r"campaign departure .*health=(\d+)", segment)
+        arrived = re.findall(r"traveler entered authored landing health=(\d+) weapon=(\d+)", segment)
+        if not departed or not arrived or departed[-1] != arrived[-1][0] or arrived[-1][1] != "21":
+            raise RuntimeError(f"travel lost incoming health or equipment: {departed}, {arrived}")
+        issue("viewpos")
+        return int(arrived[-1][0])
+
+    leave(127, "e1m3a")
+    capture("arrival-e1m3a")
+    issue("set cl_paused 1")
+    issue("dk3_runtime_probe_health 333")
+    issue("save visited_lasers")
+    save = home / "state/dk3/saves/visited_lasers.sav"
+    if not save.exists() or b"visited_level" not in save.read_bytes():
+        raise RuntimeError("campaign save omitted the visited laser world")
+    issue("dk3_runtime_probe_health 222")
+    issue("set cl_paused 0")
+    leave(131, "e1m3b")
+    issue("dk3_runtime_world")
+    text = log.read_text(errors="replace")
+    if not re.search(r"destructible: id=125 health=-?\d+ broken=1", text[text.rfind("saved world restored"):]):
+        raise RuntimeError("revisit lost world changes or replaced the incoming traveler")
+    capture("revisited-laser-world")
+    before = len(log.read_text(errors="replace"))
+    issue("devmap e1m3a", 0.05)  # Discard live campaign state before loading its archive.
+    wait(process, log, lambda text: "player entered isolated movement runtime" in text[before:])
+    for path in save.parent.glob("dk3-*"):
+        if path.is_file():
+            path.unlink()  # Only this fixture's temporary internal transfer files.
+    issue("set cl_paused 1")
+    issue("load visited_lasers", 0.4)
+    if health() != 333:
+        raise RuntimeError("campaign save did not restore its player")
+    issue("set cl_paused 0")
+    leave(131, "e1m3b")
+    before = len(log.read_text(errors="replace"))
+    issue("dk3_runtime_world")
+    text = log.read_text(errors="replace")[before:]
+    if not re.search(r"destructible: id=125 health=-?\d+ broken=1", text):
+        raise RuntimeError("saved visited-world archive was not restored independently")
+    capture("saved-archive-revisited")
+    return {"scope": "authored e1m3b/e1m3a exit touch, named arrival, incoming inventory/health, changed visited-world restoration and complete native campaign save after discarding internal transfer files; diagnostic placement/equipment, not authored route traversal or companion/cinematic acceptance"}
+
+
 def run(args):
     args.report.mkdir(parents=True, exist_ok=True)
     log = args.report / "client.log"
@@ -530,6 +600,8 @@ def run(args):
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
                 if args.scenario == "navigation":
                     result = navigation_scenario(issue, capture, log)
+                elif args.scenario == "travel":
+                    result = travel_scenario(issue, capture, log, home, process)
                 elif args.scenario == "laser":
                     result = laser_scenario(issue, capture, log)
                 elif args.scenario == "lift":
@@ -571,7 +643,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "save", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -590,6 +662,7 @@ def main():
         "guard": ("e1m3b", "runtime-zig-226/guard"),
         "navigation": ("e1m3b", "runtime-zig-227/navigation"),
         "laser": ("e1m3b", "runtime-zig-227/laser"),
+        "travel": ("e1m3b", "runtime-zig-231/travel"),
     }
     expected_map, report_name = defaults[args.scenario]
     if args.map is None:

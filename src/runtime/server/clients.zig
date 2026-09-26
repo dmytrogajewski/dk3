@@ -12,27 +12,10 @@ pub const Clients = struct {
     weapon_table: weapons.Table = .{},
     entities: [c.MAX_CLIENTS]?ecs.Entity = @splat(null),
     episode: u8 = 1,
-    pub fn begin(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, index: usize, now: i64) !void {
+    pub fn begin(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, index: usize, now: i64, journey: ?@import("../domain/travel.zig").Journey) !void {
         if (index >= self.entities.len) return error.InvalidClient;
         try self.disconnect(world, slots, projections, index);
-        var spawn: ?data.Transform = null;
-        var priority: u8 = 0;
-        var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.Transform }), 0, 0);
-        {
-            defer query.deinit();
-            while (query.next()) |view| {
-                for (view.read(data.MapObject), view.read(data.Transform)) |object, transform| {
-                    const candidate: u8 = if (std.mem.eql(u8, object.classname, "info_player_start")) 2 else if (std.mem.eql(u8, object.classname, "info_player_deathmatch")) 1 else 0;
-                    if (candidate > priority) {
-                        spawn = transform;
-                        priority = candidate;
-                    }
-                }
-                if (priority == 2) break;
-            }
-        }
-        var transform = spawn orelse return error.MissingPlayerSpawn;
-        transform.position[2] += 9;
+        const transform = try arrivalPose(world, journey, @intCast(index));
         const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Hurt{}, data.Keys{}, data.Character{}, data.Ailments{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
         errdefer world.destroy(entity) catch unreachable;
         _ = try slots.acquire(entity, @intCast(index));
@@ -50,6 +33,40 @@ pub const Clients = struct {
         states[index].stats[c.STAT_MAX_HEALTH] = 100;
         try self.publish(world, projections, states, index);
         engine.print("dk3 zig: player entered isolated movement runtime\n");
+    }
+    pub fn arrivalPose(world: *data.World, journey: ?@import("../domain/travel.zig").Journey, index: u16) !data.Transform {
+        const spawn = try @import("spawns.zig").select(world, if (journey) |value| value.spawn else "");
+        var transform = spawn.pose;
+        transform.position[2] += 9;
+        if (journey) |value| if (value.kind == .submap) {
+            transform.angles = value.angles;
+            if (spawn.flags & 1 == 0) {
+                const position = @import("../domain/vector.zig").add(transform.position, value.offset);
+                const clear = try engine.collisionService().trace(.{ .start = position, .end = position, .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .slot = index, .mask = c.MASK_PLAYERSOLID });
+                if (!clear.start_solid and !clear.all_solid) transform.position = position else engine.print("dk3 travel: obstructed exit offset; using authored landing\n");
+            }
+        };
+        return transform;
+    }
+    pub fn arrive(self: *Clients, world: *data.World, projections: []abi.EntityProjection, states: []c.playerState_t, arrival: @import("campaign.zig").Arrival, now: i64) !void {
+        const entity = self.entities[0] orelse return error.MissingTraveler;
+        const pose = try arrivalPose(world, arrival.journey, 0);
+        try arrival.traveler.apply(world, entity);
+        (try world.get(entity, data.Transform)).* = pose;
+        (try world.get(entity, data.Velocity)).* = .{};
+        (try world.get(entity, data.Hurt)).* = .{};
+        (try world.get(entity, data.Body)).* = .{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID };
+        const player = try world.get(entity, data.Player);
+        player.* = .{ .command_ms = now, .respawned = true };
+        var input: c.usercmd_t = undefined;
+        engine.usercmd(0, &input);
+        for (pose.angles, 0..) |angle, i| player.delta_angles[i] = @as(i32, @intFromFloat(@mod(angle, 360) * (65536.0 / 360.0))) -% input.angles[i];
+        self.episode = arrival.traveler.episode;
+        try self.publish(world, projections, states, 0);
+        try @import("campaign.zig").disarmArrival(world, projections, entity);
+        engine.send(0, "dk3_restored");
+        var text: [128]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: traveler entered authored landing health={d} weapon={d}\n", .{ (try world.get(entity, data.Health)).current, (try world.get(entity, data.Weapons)).weapon }));
     }
     pub fn disconnect(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, index: usize) !void {
         if (index >= self.entities.len) return error.InvalidClient;

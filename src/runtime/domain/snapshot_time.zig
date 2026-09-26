@@ -59,6 +59,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.at_ms, delta);
         },
         .hazard => try active(&value.ready_ms, delta),
+        .exit => try active(&value.ready_ms, delta),
         .target_sequence => {
             try shift(&value.started_ms, delta);
             try active(&value.ready_ms, delta);

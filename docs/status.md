@@ -19,8 +19,12 @@ settings, conflict-aware rebinding, difficulty start and pause/resume. The mouse
 keyboard scenario passes after repairing signed native ABI mouse arguments.
 Sequence 230 connects native staged save restoration and persistent mouse save-slot
 selection. Mid-lift load, previous-save recovery, corruption rejection and direct
-main-menu saved-map loading pass focused scenarios. Schema-5 migration, visited-world
-travel, multiplayer screens and complete menu parity remain open.
+main-menu saved-map loading pass focused scenarios. Sequence 231 connects authored
+touch exits, named arrivals, incoming player state and visited-map archives. An
+e1m3b/e1m3a round trip and a full save recover the destroyed laser control without
+replacing the incoming player's health/equipment. Diagnostic positioning was used.
+Schema-5 migration, companion/cinematic exits, multiplayer screens and complete menu
+parity remain open.
 See [runtime progress](runtime-zig.md).
 
 The preserved installed game and saves are untouched. The results below describe

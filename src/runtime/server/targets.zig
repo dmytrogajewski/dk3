@@ -14,6 +14,7 @@ const Trigger = data.Trigger;
 pub const Router = struct {
     pending: @import("../domain/target_actions.zig").Queue = @splat(null),
     depth: usize = 0,
+    travel: ?@import("../domain/travel.zig").Request = null,
     pub fn activate(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {
         return self.activateFrom(world, slots, projections, entity, null, activator, now);
     }
@@ -23,6 +24,15 @@ pub const Router = struct {
         defer self.depth -= 1;
         const object = (try world.get(entity, data.MapObject)).*;
         if (!@import("keys.zig").allows(world, object, activator)) return;
+        if (world.get(entity, data.Exit) catch null) |exit| {
+            if (now < exit.ready_ms or self.travel != null) return;
+            const player = world.find(activator) orelse return;
+            const state = world.get(player, data.Player) catch return;
+            if (state.mode != .normal or (try world.get(player, data.Health)).current <= 0) return;
+            exit.ready_ms = now + 1000;
+            self.travel = .{ .exit = try world.persistentId(entity), .player = activator };
+            return;
+        }
         if (std.mem.eql(u8, object.classname, "trigger_changetarget")) {
             const next = prop.text(object, "newtarget") orelse return error.MissingNewTarget;
             const matches = try named(world, object.target);

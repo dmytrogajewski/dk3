@@ -392,3 +392,31 @@ checksum rejection, real mouse input and main-menu restoration. Native saves do 
 yet translate the independent runtime's schema-5 records or contain visited worlds;
 original saves and the preserved installation remain untouched. Full mid-action,
 campaign and compatibility acceptance remains open.
+
+## runtime-zig-231 — authored travel and visited worlds
+
+Implemented with focused scenario evidence. Typed exit latches
+route ordinary touch/target activation to one departure request at the frame barrier.
+Pure travel rules distinguish submap, chapter and episode boundaries. Authored target
+names choose arrival starts; compatible submap landings use the exit offset, with
+collision fallback to the authored start. An overlapping arrival exit remains latched
+until the player leaves its volume. Health, equipment, ammunition, keys, character
+progress and rebased protection deadlines transfer independently of the old map pose.
+Episode changes reset keys/loadout through class-owned starting/campaign equipment.
+
+An atomic transfer file includes the outgoing world and flat visited-world records.
+Returning restores the prior map while applying the incoming traveler at its landing.
+Full saves contain those archives; nested checksums, structural state, duplicate map
+identities, recursion and capacity are validated before live publication. Chapter and
+episode transitions discard prior submap archives, matching the Gold transition type.
+There is no loose external archive index that can disagree with a saved campaign.
+Earlier native schema-1 records reconstruct absent exit latches from authored objects.
+Companion-gated, cinematic and ending exits report their missing native service;
+their requirements are not bypassed. Schema-5 migration remains separate work.
+
+The guarded e1m3b → e1m3a → e1m3b touch-exit scenario preserves the destroyed laser
+control and the incoming player's selected Glock and health (333 outbound, 222 on
+return). Loading a full campaign save after discarding temporary transfer files
+restores its visited laser world and incoming health 333. Captures were inspected.
+Diagnostic positioning/equipment and a paused save fixture were used; this is not
+full authored route, offset/blocker, companion or cinematic acceptance.

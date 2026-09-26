@@ -78,6 +78,7 @@ pub const Spec = struct {
     droppable: bool = true,
     companion_pickup: bool = true,
     start_episode: u8 = 0,
+    campaign_equipment: bool = false,
     companion_episode: u8 = 0,
     splash_hazard: bool = false,
     bot_charge_ms: c_int = 0,

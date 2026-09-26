@@ -9,6 +9,9 @@ pub const schema = 1;
 pub const maximum = 64 * 1024 * 1024;
 pub const model_limit = 512;
 pub const sound_limit = 1024;
+pub const archive_limit = 128;
+pub const world_limit = 8 * 1024 * 1024;
+pub const Archive = struct { map: []const u8, bytes: []const u8 };
 pub const Resources = struct { models: []const []const u8 = &.{}, sounds: []const []const u8 = &.{} };
 pub const Header = struct {
     at_ms: i64,
@@ -17,6 +20,7 @@ pub const Header = struct {
     episode: u8,
     resources: Resources = .{},
     pending: @import("target_actions.zig").Queue = @splat(null),
+    journey: ?@import("travel.zig").Journey = null,
 };
 pub const Loaded = struct {
     arena: *std.heap.ArenaAllocator,
@@ -24,6 +28,7 @@ pub const Loaded = struct {
     header: Header,
     map: []const u8,
     skill: u8,
+    visited: []const Archive = &.{},
     pub fn deinit(self: *Loaded, allocator: std.mem.Allocator) void {
         self.world.deinit();
         self.arena.deinit();
@@ -59,6 +64,9 @@ fn json(writer: *stream.Writer, allocator: std.mem.Allocator, name: []const u8, 
     try writer.raw(.{ .name = name, .kind = .bytes, .count = bytes.len, .data = bytes });
 }
 pub fn capture(allocator: std.mem.Allocator, storage: []u8, world: *data.World, map: []const u8, skill: u8, header: Header) ![]const u8 {
+    return captureCampaign(allocator, storage, world, map, skill, header, &.{});
+}
+pub fn captureCampaign(allocator: std.mem.Allocator, storage: []u8, world: *data.World, map: []const u8, skill: u8, header: Header, visited: []const Archive) ![]const u8 {
     if (!validName(map) or skill < 1 or skill > 5 or world.query_depth != 0) return error.InvalidSnapshotContext;
     var writer = try stream.Writer.init(storage);
     try writer.record("campaign", 0);
@@ -85,6 +93,13 @@ pub fn capture(allocator: std.mem.Allocator, storage: []u8, world: *data.World, 
             try json(&writer, allocator, field.name, value.*);
         };
     }
+    if (visited.len > archive_limit) return error.ArchiveCapacity;
+    for (visited, 1..) |archive, id| {
+        if (!validName(archive.map) or std.mem.eql(u8, archive.map, map) or archive.bytes.len > world_limit) return error.InvalidArchive;
+        try writer.record("visited_level", @intCast(id));
+        try writer.raw(.{ .name = "map", .kind = .text, .count = archive.map.len, .data = archive.map });
+        try writer.raw(.{ .name = "snapshot", .kind = .bytes, .count = archive.bytes.len, .data = archive.bytes });
+    }
     return writer.finish();
 }
 fn parse(comptime T: type, allocator: std.mem.Allocator, field: stream.Field) !T {
@@ -94,6 +109,9 @@ fn parse(comptime T: type, allocator: std.mem.Allocator, field: stream.Field) !T
     return result;
 }
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Loaded {
+    return decodeWorld(allocator, bytes, true);
+}
+fn decodeWorld(allocator: std.mem.Allocator, bytes: []const u8, allow_visited: bool) anyerror!Loaded {
     if (bytes.len > maximum) return error.SnapshotCapacity;
     var reader = try stream.Reader.init(bytes);
     const campaign = (try reader.nextRecord()) orelse return error.MissingCampaign;
@@ -123,7 +141,22 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Loaded {
     if (version == null or version.? != schema) return error.UnsupportedSnapshotSchema;
     var world = data.World.init(allocator, 1024);
     errdefer world.deinit();
+    var archives: std.ArrayList(Archive) = .empty;
     while (try reader.nextRecord()) |record| {
+        if (std.mem.eql(u8, record.name, "visited_level")) {
+            if (!allow_visited or archives.items.len >= archive_limit or record.id != archives.items.len + 1) return error.InvalidArchive;
+            const name_field = (try reader.nextField()) orelse return error.InvalidArchive;
+            const content = (try reader.nextField()) orelse return error.InvalidArchive;
+            if (!std.mem.eql(u8, name_field.name, "map") or name_field.kind != .text or !validName(name_field.data) or !std.mem.eql(u8, content.name, "snapshot") or content.kind != .bytes or content.data.len > world_limit or try reader.nextField() != null) return error.InvalidArchive;
+            if (std.mem.eql(u8, name_field.data, map orelse return error.InvalidSaveMap)) return error.InvalidArchive;
+            for (archives.items) |prior| if (std.mem.eql(u8, prior.map, name_field.data)) return error.DuplicateArchive;
+            var nested = try decodeWorld(allocator, content.data, false);
+            defer nested.deinit(allocator);
+            if (nested.header.journey != null or !std.mem.eql(u8, nested.map, name_field.data)) return error.InvalidArchive;
+            try archives.append(strings, .{ .map = try strings.dupe(u8, name_field.data), .bytes = try strings.dupe(u8, content.data) });
+            continue;
+        }
+        if (archives.items.len != 0) return error.InvalidSnapshotRecord;
         if (!std.mem.eql(u8, record.name, "native_entity") or record.id == 0) return error.InvalidSnapshotRecord;
         const entity = try world.create(record.id, .{});
         while (try reader.nextField()) |field| {
@@ -139,7 +172,7 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Loaded {
     const state = header orelse return error.MissingSnapshotState;
     if (state.next_id < world.next_id or state.next_id == std.math.maxInt(u32)) return error.InvalidNextIdentity;
     world.next_id = state.next_id;
-    var result: Loaded = .{ .arena = arena, .world = world, .header = state, .map = map orelse return error.InvalidSaveMap, .skill = skill orelse return error.InvalidSaveSkill };
+    var result: Loaded = .{ .arena = arena, .world = world, .header = state, .map = map orelse return error.InvalidSaveMap, .skill = skill orelse return error.InvalidSaveSkill, .visited = archives.items };
     try validate(&result);
     return result;
 }
@@ -177,6 +210,11 @@ fn require(world: *data.World, entity: ecs.Entity, comptime types: anytype) !voi
 pub fn validate(snapshot: *Loaded) !void {
     const world = &snapshot.world;
     if (snapshot.header.episode < 1 or snapshot.header.episode > 4 or snapshot.header.at_ms < 0) return error.InvalidCampaignState;
+    if (snapshot.header.journey) |journey| {
+        if (!validName(journey.destination) or std.mem.eql(u8, snapshot.map, journey.destination) or journey.spawn.len >= 64 or @import("travel.zig").kind(snapshot.map, journey.destination) != journey.kind) return error.InvalidJourney;
+        for (journey.spawn) |char| if (char < 32 or char == '"' or char == '\\') return error.InvalidJourney;
+        for (journey.offset) |axis| if (@abs(axis) > 8192) return error.InvalidJourney;
+    }
     if (snapshot.header.resources.models.len >= model_limit or snapshot.header.resources.sounds.len >= sound_limit) return error.InvalidResources;
     inline for (.{ snapshot.header.resources.models, snapshot.header.resources.sounds }) |names| for (names, 0..) |name, i| {
         if (name.len == 0 or name.len >= 64 or std.mem.indexOf(u8, name, "..") != null or name[0] == '/') return error.InvalidResources;
@@ -197,6 +235,10 @@ pub fn validate(snapshot: *Loaded) !void {
             if ((world.get(entity, data.Projectile) catch null) == null) try require(world, entity, .{data.Body});
         }
         if (world.get(entity, data.Body) catch null) |body| for (body.mins, body.maxs) |low, high| if (low > high or @abs(low) > 8192 or @abs(high) > 8192) return error.InvalidSavedBounds;
+        if ((world.get(entity, data.Exit) catch null) != null) {
+            try require(world, entity, .{ data.MapObject, data.Binding, data.Body });
+            if (!std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "trigger_changelevel")) return error.InvalidSavedExit;
+        }
         if (world.get(entity, data.Health) catch null) |health| if (health.current < -1000000 or health.current > 1000000 or health.maximum < 1 or health.maximum > 1000000 or health.armor < 0 or health.armor > 1000000) return error.InvalidSavedHealth;
         if (world.get(entity, data.Mover) catch null) |mover| if (mover.motion.duration_ms <= 0 or mover.speed <= 0) return error.InvalidSavedMover;
         if (world.get(entity, data.Train) catch null) |train| if (train.position.duration_ms <= 0 or train.angles.duration_ms <= 0 or train.speed <= 0) return error.InvalidSavedTrain;
@@ -240,6 +282,31 @@ pub fn validate(snapshot: *Loaded) !void {
         }
     };
     if (players != 1) return error.InvalidSavedPlayer;
+}
+
+test "campaign saves own flat archives and validate nested worlds before admission" {
+    const memory = std.testing.allocator;
+    var world = data.World.init(memory, 16);
+    defer world.deinit();
+    _ = try world.create(7, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{}, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    const header: Header = .{ .at_ms = 1000, .episode = 1, .player_id = 7, .next_id = world.next_id };
+    var child_buffer: [32768]u8 = undefined;
+    var parent_buffer: [65536]u8 = undefined;
+    var outer_buffer: [98304]u8 = undefined;
+    const child = try capture(memory, &child_buffer, &world, "e1m3a", 3, header);
+    const parent = try captureCampaign(memory, &parent_buffer, &world, "e1m3b", 3, header, &.{.{ .map = "e1m3a", .bytes = child }});
+    var loaded = try decode(memory, parent);
+    defer loaded.deinit(memory);
+    const outer = try captureCampaign(memory, &outer_buffer, &world, "e1m4a", 3, header, &.{.{ .map = "e1m3b", .bytes = parent }});
+    try std.testing.expectError(error.InvalidArchive, decode(memory, outer));
+    child_buffer[child.len - 1] ^= 1;
+    const corrupt = try captureCampaign(memory, &parent_buffer, &world, "e1m3b", 3, header, &.{.{ .map = "e1m3a", .bytes = child }});
+    try std.testing.expectError(error.Checksum, decode(memory, corrupt));
+    try std.testing.expectEqual(@as(usize, 1), loaded.visited.len);
+    try std.testing.expectEqualStrings("e1m3a", loaded.visited[0].map);
+    var retained = try decode(memory, loaded.visited[0].bytes);
+    defer retained.deinit(memory);
+    try std.testing.expectEqual(@as(i32, 100), (try retained.world.get(retained.world.find(7).?, data.Health)).current);
 }
 
 test "portable native snapshots own strings and preserve IDs before rebasing" {

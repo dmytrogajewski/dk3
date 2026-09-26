@@ -2864,3 +2864,18 @@ to the Load/Save button; full native validation precedes main-menu map startup.
 | Laser shutdown across save/load | Passed | `runtime-zig-230/laser-save-complete/`: ordinary shots break the box, the sequence completes, both approaches are harmless, full native save/load restores the broken control and the field remains harmless on both approaches. Restored capture inspected. `/tmp/dk3-runtime-230-train-build.log` verifies the final admission/projection repair. |
 | Applicable broad checks | Passed | `/tmp/dk3-runtime-230-suite.log`: 198 Zig and 44 Python tests, once after the integrated repair. |
 | Full persistence acceptance | Unrun | Independent schema-5 translation, authored travel/visited maps, companions/scripts and complete mid-action matrix remain open. |
+
+## runtime-zig — sequence 231 (authored travel and visited-world archives)
+
+Implemented with focused verification below. Exit latches, typed departure intent, named
+arrival selection, collision-checked offsets, independent traveler state and flat
+visited snapshots now form one native campaign lifecycle. Full saves own their
+visited worlds. Gold was consulted for transition classification, target selection,
+offset/NO_OFFSET behavior and episode inventory reset; no private code was imported.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Connected build and domain contracts | Passed | `/tmp/dk3-runtime-231-integrated-build.log`: three native modules, 54 runtime + 9 catalog checks. Includes deterministic named/fallback spawn choice, travel timer/inventory rules and nested archive validation/ownership. |
+| First authored exit contact | Passed; fixture assertion repaired | `runtime-zig-231/travel/` and `travel-state/`: e1m3b exit 127 starts only e1m3a and enters its named landing. New diagnostics establish health 333 at departure and arrival; a live guard subsequently deals 11 damage. Fixed-health checks now compare at the transition boundary, with the save checkpoint paused. |
+| Changed-world round trip and save recovery | Passed, limited | `runtime-zig-231/travel-paused-save/`: normal touch of authored exits 127/131 traverses e1m3b/e1m3a, named positions match, Glock and actual incoming health transfer (333, 222, 333). Returning preserves broken control 125. Full save after deleting this temporary profile's internal transfer files restores the visited world. Arrival/return/recovered captures inspected. Diagnostic positioning/equipment; complete route/offset/blocker and companion/cinematic acceptance remains open. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-231-suite.log`: 201 Zig and 44 Python tests after the integrated scenario repair. |

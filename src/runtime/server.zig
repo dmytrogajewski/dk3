@@ -20,11 +20,16 @@ var slots: @import("engine/slots.zig").Slots = .{};
 var restored_arena: ?*std.heap.ArenaAllocator = null;
 var restore_pending: ?@import("domain/snapshot.zig").Loaded = null;
 const persistence = @import("server/persistence.zig");
+const campaign_module = @import("server/campaign.zig");
+var campaign: campaign_module.State = .{};
+var restoring_visit = false;
 
 export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
+    campaign.deinit();
+    restoring_visit = false;
     if (restore_pending) |*saved| saved.deinit(std.heap.c_allocator);
     restore_pending = null;
     systems.deinit();
@@ -89,15 +94,34 @@ fn init(now: i64) !void {
             if (!std.mem.eql(u8, loaded.map, persistence.mapName(&name))) return error.SaveMapMismatch;
             try persistence.admit(&loaded, &systems);
             restore_pending = loaded;
+        } else if (engine.integer("dk3_travel_pending") == 1) {
+            _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_travel_pending"), @as([*:0]const u8, "0") });
+            var transfer = try persistence.prepare("dk3-travel-internal", false);
+            defer transfer.deinit(std.heap.c_allocator);
+            var name: [64]u8 = undefined;
+            var prepared = try campaign_module.prepare(&transfer, persistence.mapName(&name), now, &clients.weapon_table);
+            errdefer {
+                prepared.state.deinit();
+                if (prepared.world) |*saved| saved.deinit(std.heap.c_allocator);
+            }
+            if (prepared.world) |*saved| try persistence.admit(saved, &systems);
+            campaign = prepared.state;
+            restore_pending = prepared.world;
+            restoring_visit = true;
         }
     }
     var text: [160]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: isolated bootstrap, {d} map entities, {d} workers; gameplay not qualified\n", .{ world.?.count(), jobs }));
 }
 /// Ownership transfers only after all admission/rebasing checks have succeeded.
-fn restore(loaded: *@import("domain/snapshot.zig").Loaded) !void {
+fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
+    // Earlier native schema-1 snapshots predate exit latches. Reconstruct their
+    // default from authored metadata without replacing an already saved latch.
+    try campaign_module.spawn(&loaded.world);
     try persistence.admit(loaded, &systems);
     try loaded.rebase(clock.now_ms);
+    var staged_campaign = if (!visit) try campaign_module.State.fromArchives(loaded.visited) else null;
+    errdefer if (staged_campaign) |*state| state.deinit();
     for (&projection) |*entity| if (entity.shared.linked != 0) engine.unlink(entity);
     world.?.deinit();
     if (restored_arena) |strings| {
@@ -113,6 +137,10 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded) !void {
     @import("server/resources.zig").restore(header.resources) catch |err| runtimeFailure(err);
     targets = .{ .pending = header.pending };
     persistence.project(&world.?, &slots, &projection, &clients, &players, &systems, header, clock.now_ms) catch |err| runtimeFailure(err);
+    if (staged_campaign) |state| {
+        campaign.deinit();
+        campaign = state;
+    }
     engine.send(0, "dk3_restored");
     engine.print("dk3 zig: saved world restored\n");
 }
@@ -125,7 +153,7 @@ fn saveCommand(command: []const u8) !bool {
     const slot = engine.argv(1, &argument);
     if (!@import("domain/snapshot.zig").validName(slot) or std.mem.startsWith(u8, slot, "dk3-")) return error.InvalidSaveSlot;
     if (saving) {
-        try persistence.save(&world.?, &clients, &targets, &systems, slot, clock.now_ms);
+        try persistence.save(&world.?, &clients, &targets, &systems, slot, clock.now_ms, campaign.visited);
         engine.print("dk3 zig: world saved\n");
     } else {
         const extra = engine.argv(2, &option);
@@ -136,7 +164,7 @@ fn saveCommand(command: []const u8) !bool {
         defer if (owned) loaded.deinit(std.heap.c_allocator);
         var name: [64]u8 = undefined;
         if (std.mem.eql(u8, loaded.map, persistence.mapName(&name))) {
-            try restore(&loaded);
+            try restore(&loaded, false);
             owned = false;
         } else {
             // Decode completely before scheduling a different BSP. The engine's
@@ -145,6 +173,7 @@ fn saveCommand(command: []const u8) !bool {
             defer std.heap.c_allocator.free(bytes);
             try @import("engine/save_storage.zig").write("dk3-resume-internal", bytes, false);
             _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_resume"), @as([*:0]const u8, "1") });
+            _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_travel_pending"), @as([*:0]const u8, "0") });
             var text: [160]u8 = undefined;
             const next = try std.fmt.bufPrintZ(&text, "set g_spSkill {d}\nmap {s}\n", .{ loaded.skill, loaded.map });
             _ = engine.gateway.call(c.G_SEND_CONSOLE_COMMAND, .{ @as(isize, c.EXEC_APPEND), next.ptr });
@@ -360,14 +389,19 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             return 0;
         },
         c.GAME_CLIENT_BEGIN => {
-            clients.begin(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err);
+            clients.begin(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms, if (arg0 == 0 and campaign.arrival != null) campaign.arrival.?.journey else null) catch |err| runtimeFailure(err);
             if (arg0 == 0) if (restore_pending) |value| {
                 var saved = value;
                 restore_pending = null;
-                restore(&saved) catch |err| {
+                restore(&saved, restoring_visit) catch |err| {
                     saved.deinit(std.heap.c_allocator);
                     runtimeFailure(err);
                 };
+            };
+            if (arg0 == 0) if (campaign.arrival) |arrival| {
+                clients.arrive(&world.?, &projection, &players, arrival, clock.now_ms) catch |err| runtimeFailure(err);
+                campaign.arrival = null;
+                restoring_visit = false;
             };
         },
         c.GAME_CLIENT_THINK => clients.think(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err),
@@ -377,10 +411,18 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 engine.fatal("Native runtime: invalid engine frame time");
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
+                if (campaign.departing) return 0;
                 systems.step(&world.?, &slots, &projection, &targets, clock.now_ms, elapsed, &clients.weapon_table) catch |err| runtimeFailure(err);
                 for (clients.entities, 0..) |entity, index| if (entity != null) {
                     clients.publish(&world.?, &projection, &players, index) catch |err| runtimeFailure(err);
                 };
+                if (targets.travel) |request| {
+                    targets.travel = null;
+                    campaign_module.depart(&campaign, &world.?, &clients, &targets, &systems, &projection, request, clock.now_ms) catch |err| {
+                        var message: [160]u8 = undefined;
+                        engine.print(std.fmt.bufPrintZ(&message, "dk3 travel: exit {d} refused: {s}\n", .{ request.exit, @errorName(err) }) catch unreachable);
+                    };
+                }
             }
         },
         c.GAME_CONSOLE_COMMAND => return consoleCommand(),
