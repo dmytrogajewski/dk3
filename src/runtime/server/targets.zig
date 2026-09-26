@@ -11,9 +11,8 @@ const prop = @import("properties.zig");
 const movers = @import("movers.zig");
 const c = abi.c;
 const Trigger = data.Trigger;
-const Action = struct { source: u32, activator: u32, due_ms: i64 };
 pub const Router = struct {
-    pending: [256]?Action = @splat(null),
+    pending: @import("../domain/target_actions.zig").Queue = @splat(null),
     depth: usize = 0,
     pub fn activate(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {
         return self.activateFrom(world, slots, projections, entity, null, activator, now);

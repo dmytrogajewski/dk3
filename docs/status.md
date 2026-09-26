@@ -17,7 +17,10 @@ The three currently implemented combat weapons pass presentation transitions and
 inspected captures. Sequence 229 connects native menu navigation, supplied artwork,
 settings, conflict-aware rebinding, difficulty start and pause/resume. The mouse and
 keyboard scenario passes after repairing signed native ABI mouse arguments.
-Save restoration, multiplayer screens and complete menu parity remain open.
+Sequence 230 connects native staged save restoration and persistent mouse save-slot
+selection. Mid-lift load, previous-save recovery, corruption rejection and direct
+main-menu saved-map loading pass focused scenarios. Schema-5 migration, visited-world
+travel, multiplayer screens and complete menu parity remain open.
 See [runtime progress](runtime-zig.md).
 
 The preserved installed game and saves are untouched. The results below describe

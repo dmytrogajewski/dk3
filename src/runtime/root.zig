@@ -10,6 +10,8 @@ pub const map = @import("server/map.zig");
 test {
     _ = @import("domain/font.zig");
     _ = @import("domain/menu.zig");
+    _ = @import("domain/snapshot.zig");
+    _ = @import("domain/snapshot_time.zig");
     _ = @import("domain/navigation.zig");
     _ = @import("domain/world_actions.zig");
     _ = @import("actor_catalog").mishima;

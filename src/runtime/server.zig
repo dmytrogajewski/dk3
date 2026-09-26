@@ -17,16 +17,26 @@ var projection: [c.MAX_GENTITIES]abi.EntityProjection = undefined;
 var players: [c.MAX_CLIENTS]c.playerState_t = undefined;
 var clock: @import("domain/time.zig").Clock = .{ .now_ms = 0 };
 var slots: @import("engine/slots.zig").Slots = .{};
+var restored_arena: ?*std.heap.ArenaAllocator = null;
+var restore_pending: ?@import("domain/snapshot.zig").Loaded = null;
+const persistence = @import("server/persistence.zig");
 
 export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
+    if (restore_pending) |*saved| saved.deinit(std.heap.c_allocator);
+    restore_pending = null;
     systems.deinit();
     if (pool) |workers| workers.destroy();
     pool = null;
     if (world) |*value| value.deinit();
     world = null;
+    if (restored_arena) |strings| {
+        strings.deinit();
+        std.heap.c_allocator.destroy(strings);
+    }
+    restored_arena = null;
     if (arena) |*value| value.deinit();
     arena = null;
 }
@@ -71,9 +81,82 @@ fn init(now: i64) !void {
     }
     if (engine.integer("dk3_runtime_probe") == 2) {
         try systems.spawn(arena.?.allocator(), &world.?, &slots, &projection, now, clients.episode);
+        if (engine.integer("dk3_resume") == 1) {
+            _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_resume"), @as([*:0]const u8, "0") });
+            var loaded = try persistence.prepare("dk3-resume-internal", false);
+            errdefer loaded.deinit(std.heap.c_allocator);
+            var name: [64]u8 = undefined;
+            if (!std.mem.eql(u8, loaded.map, persistence.mapName(&name))) return error.SaveMapMismatch;
+            try persistence.admit(&loaded, &systems);
+            restore_pending = loaded;
+        }
     }
     var text: [160]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: isolated bootstrap, {d} map entities, {d} workers; gameplay not qualified\n", .{ world.?.count(), jobs }));
+}
+/// Ownership transfers only after all admission/rebasing checks have succeeded.
+fn restore(loaded: *@import("domain/snapshot.zig").Loaded) !void {
+    try persistence.admit(loaded, &systems);
+    try loaded.rebase(clock.now_ms);
+    for (&projection) |*entity| if (entity.shared.linked != 0) engine.unlink(entity);
+    world.?.deinit();
+    if (restored_arena) |strings| {
+        strings.deinit();
+        std.heap.c_allocator.destroy(strings);
+    }
+    world = loaded.world;
+    restored_arena = loaded.arena;
+    const header = loaded.header;
+    loaded.* = undefined;
+    // Remaining work publishes admitted state; unexpected invariant failures are
+    // runtime errors, never a partially successful load reported to the player.
+    @import("server/resources.zig").restore(header.resources) catch |err| runtimeFailure(err);
+    targets = .{ .pending = header.pending };
+    persistence.project(&world.?, &slots, &projection, &clients, &players, &systems, header, clock.now_ms) catch |err| runtimeFailure(err);
+    engine.send(0, "dk3_restored");
+    engine.print("dk3 zig: saved world restored\n");
+}
+fn saveCommand(command: []const u8) !bool {
+    const saving = std.mem.eql(u8, command, "save");
+    if (!saving and !std.mem.eql(u8, command, "load")) return false;
+    if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return error.SaveRequiresSinglePlayer;
+    var argument: [64]u8 = undefined;
+    var option: [32]u8 = undefined;
+    const slot = engine.argv(1, &argument);
+    if (!@import("domain/snapshot.zig").validName(slot) or std.mem.startsWith(u8, slot, "dk3-")) return error.InvalidSaveSlot;
+    if (saving) {
+        try persistence.save(&world.?, &clients, &targets, &systems, slot, clock.now_ms);
+        engine.print("dk3 zig: world saved\n");
+    } else {
+        const extra = engine.argv(2, &option);
+        const previous = std.mem.eql(u8, extra, "previous");
+        if (extra.len != 0 and !previous) return error.InvalidSaveOption;
+        var loaded = try persistence.prepare(slot, previous);
+        var owned = true;
+        defer if (owned) loaded.deinit(std.heap.c_allocator);
+        var name: [64]u8 = undefined;
+        if (std.mem.eql(u8, loaded.map, persistence.mapName(&name))) {
+            try restore(&loaded);
+            owned = false;
+        } else {
+            // Decode completely before scheduling a different BSP. The engine's
+            // existing atomic save service owns the internal transfer file.
+            const bytes = try @import("engine/save_storage.zig").read(std.heap.c_allocator, slot, previous);
+            defer std.heap.c_allocator.free(bytes);
+            try @import("engine/save_storage.zig").write("dk3-resume-internal", bytes, false);
+            _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_resume"), @as([*:0]const u8, "1") });
+            var text: [160]u8 = undefined;
+            const next = try std.fmt.bufPrintZ(&text, "set g_spSkill {d}\nmap {s}\n", .{ loaded.skill, loaded.map });
+            _ = engine.gateway.call(c.G_SEND_CONSOLE_COMMAND, .{ @as(isize, c.EXEC_APPEND), next.ptr });
+        }
+    }
+    return true;
+}
+fn saveFeedback(err: anyerror) void {
+    var buffer: [160]u8 = undefined;
+    const message = std.fmt.bufPrintZ(&buffer, "Save/load refused: {s}\n", .{@errorName(err)}) catch unreachable;
+    engine.print(message);
+    _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "com_errorMessage"), message.ptr });
 }
 fn probeMotion() !void {
     const movement = @import("server/motion.zig");
@@ -105,6 +188,10 @@ fn probeMotion() !void {
 fn consoleCommand() isize {
     var buffer: [128]u8 = undefined;
     const command = engine.argv(0, &buffer);
+    if (saveCommand(command) catch |err| {
+        saveFeedback(err);
+        return 1;
+    }) return 1;
     if (engine.integer("dk3_runtime_probe") == 2) {
         if (std.mem.eql(u8, command, "dk3_runtime_chase")) {
             if (clients.entities[0]) |player| @import("server/navigation_probe.zig").chase(&world.?, player, clock.now_ms) catch |err| {
@@ -272,7 +359,17 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             if (!std.mem.eql(u8, identity, @import("engine/player_state.zig").version)) return @intCast(@intFromPtr(@as([*:0]const u8, "Zig runtime build mismatch. Install matching server, client and UI modules.")));
             return 0;
         },
-        c.GAME_CLIENT_BEGIN => clients.begin(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err),
+        c.GAME_CLIENT_BEGIN => {
+            clients.begin(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err);
+            if (arg0 == 0) if (restore_pending) |value| {
+                var saved = value;
+                restore_pending = null;
+                restore(&saved) catch |err| {
+                    saved.deinit(std.heap.c_allocator);
+                    runtimeFailure(err);
+                };
+            };
+        },
         c.GAME_CLIENT_THINK => clients.think(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err),
         c.GAME_CLIENT_DISCONNECT => clients.disconnect(&world.?, &slots, &projection, @intCast(arg0)) catch |err| runtimeFailure(err),
         c.GAME_RUN_FRAME => {
@@ -291,6 +388,10 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             if (arg0 < 0 or arg0 >= c.MAX_CLIENTS) return 0;
             var command_buffer: [64]u8 = undefined;
             const client_command = engine.argv(0, &command_buffer);
+            if (arg0 == 0 and (saveCommand(client_command) catch |err| {
+                saveFeedback(err);
+                return 0;
+            })) return 0;
             if (std.mem.eql(u8, client_command, "attribute")) {
                 var argument: [64]u8 = undefined;
                 const attribute = @import("domain/character.zig").attributeNamed(engine.argv(1, &argument)) orelse return 0;

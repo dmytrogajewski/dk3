@@ -8,12 +8,20 @@ const binary = @import("movers.zig");
 const trains = @import("trains.zig");
 const special = @import("special_movers.zig");
 pub const State = struct {
+    inline_models: u16 = 1,
     actors: @import("actors.zig").Actors = .{},
     navigation: @import("../engine/navigation.zig").Navigation = .{},
     pub fn deinit(self: *State) void {
         self.navigation.deinit();
     }
     pub fn spawn(self: *State, allocator: @import("std").mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8) !void {
+        {
+            var query = world.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
+            defer query.deinit();
+            while (query.next()) |view| for (view.read(data.MapObject)) |object| if (object.model.len > 1 and object.model[0] == '*') {
+                self.inline_models = @max(self.inline_models, 1 + try @import("std").fmt.parseInt(u16, object.model[1..], 10));
+            };
+        }
         try @import("spawn_filter.zig").apply(world);
         try @import("brushes.zig").spawn(world, slots, projections);
         try binary.spawn(world, slots, projections);

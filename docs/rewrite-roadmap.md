@@ -8,6 +8,10 @@ module root, enforces pure-layer boundaries and connects initial combat to autho
 civilian movement, death and witness panic. Main must not receive rewrite commits
 without an explicit merge/release request.
 
+Sequence 230 connects native save/load, staged validation and direct saved-map menu
+loading. Focused save/input scenarios pass; schema-5 migration, visited-world travel,
+remaining combat/actors, scripts/cinematics and multiplayer remain implementation work.
+
 Sequence 217 begins the accepted [native Zig replacement runtime](runtime-zig.md):
 archetype ECS, parallel systems, separate native modules and an isolated installation.
 Sequences 218–221 connect native movement, shared weapon controllers, binary movers,

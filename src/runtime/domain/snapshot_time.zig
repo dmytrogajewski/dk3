@@ -1,0 +1,79 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//! Explicit native save timestamp mapping. Durations never shift with the clock.
+const std = @import("std");
+const data = @import("components.zig");
+fn shift(value: *i64, delta: i64) !void {
+    value.* = try std.math.add(i64, value.*, delta);
+}
+fn active(value: *i64, delta: i64) !void {
+    if (value.* != 0) try shift(value, delta);
+}
+fn deadline(value: *?i64, delta: i64) !void {
+    if (value.*) |*at| try shift(at, delta);
+}
+pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)], delta: i64) !void {
+    switch (id) {
+        .lifetime => try shift(&value.expires_ms, delta),
+        .player => try shift(&value.command_ms, delta),
+        .weapons => try active(&value.gas_until_ms, delta),
+        .mover => {
+            try shift(&value.motion.start_ms, delta);
+            try deadline(&value.return_at.at_ms, delta);
+        },
+        .trigger => try active(&value.ready_ms, delta),
+        .train => {
+            try shift(&value.position.start_ms, delta);
+            try shift(&value.angles.start_ms, delta);
+            try deadline(&value.action.at_ms, delta);
+        },
+        .rotation => try shift(&value.started_ms, delta),
+        .secret => {
+            try shift(&value.motion.start_ms, delta);
+            try deadline(&value.action.at_ms, delta);
+        },
+        .pickup => try deadline(&value.respawn_ms, delta),
+        .item_motion => try shift(&value.started_ms, delta),
+        .character => {
+            for (&value.boost_until) |*at| try active(at, delta);
+            try active(&value.invincible_until, delta);
+            try active(&value.invisible_until, delta);
+            try active(&value.environment_until, delta);
+        },
+        .projectile => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.stepped_ms, delta);
+        },
+        .actor => {
+            try shift(&value.changed_ms, delta);
+            try active(&value.panic_until, delta);
+            try shift(&value.threat_seen_ms, delta);
+            if (value.witness_ms != -1) try shift(&value.witness_ms, delta);
+            try active(&value.escape_until, delta);
+            try active(&value.jump_ready_ms, delta);
+            try shift(&value.guard.started_ms, delta);
+            try active(&value.guard.ready_ms, delta);
+            // Routing caches are derived from the current collision/nav world.
+            value.route = .{};
+        },
+        .hurt => if (value.at_ms != -1) {
+            try shift(&value.at_ms, delta);
+        },
+        .hazard => try active(&value.ready_ms, delta),
+        .target_sequence => {
+            try shift(&value.started_ms, delta);
+            try active(&value.ready_ms, delta);
+        },
+        .transform, .velocity, .body, .health, .random, .binding, .map_object, .attachment, .gravity, .motion, .inventory, .keys, .ailments, .sound_event, .destructible, .wall => {},
+    }
+}
+test "save time rebasing preserves deadlines, inactive sentinels and durations" {
+    var train: data.Train = .{ .position = .{ .start_ms = 1200, .duration_ms = 900 }, .action = .{ .at_ms = 2200 } };
+    try rebase(.train, &train, 10000);
+    try std.testing.expectEqual(@as(i64, 11200), train.position.start_ms);
+    try std.testing.expectEqual(@as(i32, 900), train.position.duration_ms);
+    try std.testing.expectEqual(@as(?i64, 12200), train.action.at_ms);
+    var character: data.Character = .{ .boost_until = .{ 0, 100, 0, 0, 0 } };
+    try rebase(.character, &character, 10000);
+    try std.testing.expectEqual(@as(i64, 0), character.boost_until[0]);
+    try std.testing.expectEqual(@as(i64, 10100), character.boost_until[1]);
+}

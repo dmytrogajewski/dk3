@@ -371,5 +371,24 @@ input and restores simulation. Native C-int VM arguments decode their low signed
 
 The guarded UI scenario uses XTest input, an isolated X display and temporary profile;
 it exercises mouse settings, keyboard category selection, conflict cancel/replace,
-difficulty start and pause/resume. Save/load and multiplayer screens still require
+difficulty start and pause/resume. At that checkpoint save/load and multiplayer screens still required
 their native runtime services; loading a campaign is not script/cinematic acceptance.
+
+## runtime-zig-230 — native persistence and save selection
+
+Native schema 1 uses the portable named-record envelope with explicit typed component
+values, persistent identities, resource names and scheduled target actions. It never
+stores chunk rows, pointers or engine memory. Decoding owns all strings in an isolated
+world and checks structure, numeric bounds, component requirements, player identity,
+transport slots, actor classes and loaded-map model availability before publication.
+Every timestamp-bearing component has an explicit rebase mapping; durations retain
+their values. Engine storage supplies atomic replacement and previous-save recovery.
+
+Save/load commands and menu actions share this service. Save rows retain selection
+when the pointer moves to the Load button. The menu validates a selected save before
+starting its recorded map directly, avoiding an intermediate first-level startup.
+Focused evidence covers a moving lift, player health/inventory, previous recovery,
+checksum rejection, real mouse input and main-menu restoration. Native saves do not
+yet translate the independent runtime's schema-5 records or contain visited worlds;
+original saves and the preserved installation remain untouched. Full mid-action,
+campaign and compatibility acceptance remains open.

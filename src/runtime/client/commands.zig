@@ -2,6 +2,11 @@
 const std = @import("std");
 const engine = @import("../engine/client.zig");
 const c = @import("../engine/abi.zig").c;
+pub fn restored() bool {
+    var buffer: [128]u8 = @splat(0);
+    _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 0), &buffer, @as(isize, buffer.len) });
+    return std.mem.eql(u8, std.mem.sliceTo(&buffer, 0), "dk3_restored");
+}
 /// Server-forced acquisition/expiry selection. Malformed or unowned IDs are ignored.
 pub fn selectedWeapon(inventory: i32) ?i32 {
     var buffer: [128]u8 = @splat(0);

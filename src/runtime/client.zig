@@ -72,7 +72,7 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     snapshot_number = server_message - 1;
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "viewpos")});
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "use")});
-    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev", "attribute", "inventory", "invnext", "invprev", "attribute_next", "attribute_increase" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
+    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev", "attribute", "inventory", "invnext", "invprev", "attribute_next", "attribute_increase", "save", "load" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
     engine.print("dk3 zig: shared movement prediction initialized\n");
 }
 fn draw(now: i32) !void {
@@ -95,6 +95,12 @@ fn draw(now: i32) !void {
         while (command_sequence < snapshot.serverCommandSequence) {
             command_sequence += 1;
             if (engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)}) != 0) {
+                if (@import("client/commands.zig").restored()) {
+                    @import("client/models.zig").reset();
+                    @import("client/events.zig").reset();
+                    weapon_view.init();
+                    selected_weapon = snapshot.ps.weapon;
+                }
                 if (@import("client/commands.zig").selectedWeapon(snapshot.ps.dk3Inventory)) |id| selected_weapon = id;
             }
         }

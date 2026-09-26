@@ -68,7 +68,7 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     }
     if (entry.spec.audio.fire) |sound| try @import("events.zig").sound(world, slots, projections, sound, eye, slot, c.CHAN_WEAPON, now);
 }
-fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
+pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     const binding = (try world.get(entity, data.Binding)).*;
     const transform = (try world.get(entity, data.Transform)).*;
     const velocity = (try world.get(entity, data.Velocity)).linear;

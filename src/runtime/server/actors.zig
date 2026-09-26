@@ -76,7 +76,7 @@ pub const Actors = struct {
             try self.publish(world, entity, projections, now);
         }
     }
-    fn publish(self: *const Actors, world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
+    pub fn publish(self: *const Actors, world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
         const actor = (try world.get(entity, data.Actor)).*;
         const definition = self.table.definitions[actor.definition];
         const pose = (try world.get(entity, data.Transform)).*;

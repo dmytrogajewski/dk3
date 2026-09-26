@@ -12,6 +12,7 @@ pub const entries = [_]Entry{
     .{ .label = "Use", .command = "use" },                       .{ .label = "Inventory", .command = "inventory" },
     .{ .label = "Next inventory item", .command = "invnext" },   .{ .label = "Previous inventory item", .command = "invprev" },
     .{ .label = "Next attribute", .command = "attribute_next" }, .{ .label = "Increase attribute", .command = "attribute_increase" },
+    .{ .label = "Quicksave", .command = "save quick" },          .{ .label = "Quickload", .command = "load quick" },
 };
 pub const Capture = struct {
     action: ?usize = null,

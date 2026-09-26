@@ -7,7 +7,7 @@ const domain = @import("../domain/menu.zig");
 const settings = @import("settings.zig");
 const controls = @import("controls.zig");
 const art_module = @import("art.zig");
-const Action = union(enum) { difficulty: usize, setting: usize, bind: usize, invert_mouse, video_apply, input_apply, config_save, config_load, back, quit, options };
+const Action = union(enum) { difficulty: usize, setting: usize, bind: usize, save_pick: usize, save_commit, invert_mouse, video_apply, input_apply, config_save, config_load, back, quit, options };
 const Widget = struct { rect: domain.Rect, action: Action };
 pub const Menu = struct {
     active: bool = false,
@@ -26,6 +26,7 @@ pub const Menu = struct {
     count: usize = 0,
     control_page: usize = 0,
     feedback: [256]u8 = @splat(0),
+    saves: @import("saves.zig").Browser = .{},
     pub fn init(self: *Menu) !void {
         self.* = .{};
         try self.art.init();
@@ -78,6 +79,7 @@ pub const Menu = struct {
         self.capture = .{};
         self.count = 0;
         self.message("");
+        if (page == 2 or page == 3) self.saves.refresh(page == 3) catch self.message("Could not read save slots.");
     }
     fn add(self: *Menu, rect: domain.Rect, label: []const u8, action: Action) void {
         std.debug.assert(self.count < self.widgets.len);
@@ -118,7 +120,22 @@ pub const Menu = struct {
                 self.button(330, 390, 125, "Extra Options", .options);
             },
             1 => self.art.text(self.layout, 90, 160, "Multiplayer migration is in progress.", true),
-            2, 3 => self.art.text(self.layout, 90, 160, "Save restoration is not available yet.", true),
+            2, 3 => {
+                const writing = self.page == 3;
+                self.art.text(self.layout, 90, 110, if (writing) "Save Game" else "Load Game", true);
+                for (self.saves.first..@min(self.saves.first + 8, self.saves.count)) |i| {
+                    var buffer: [64]u8 = undefined;
+                    const label = try std.fmt.bufPrint(&buffer, "{s}{s}", .{ if (self.saves.choice.selected == i) "> " else "  ", self.saves.name(i) });
+                    self.button(90, 140 + @as(f32, @floatFromInt(i - self.saves.first)) * 27, 180, label, .{ .save_pick = i });
+                }
+                if (self.saves.count == 0) self.art.text(self.layout, 90, 150, "No saved games.", false);
+                if (self.saves.selected()) |slot| {
+                    self.art.text(self.layout, 285, 145, "Selected:", false);
+                    self.art.text(self.layout, 285, 177, slot, true);
+                }
+                self.button(300, 335, 120, if (writing) "Save game" else "Load game", .save_commit);
+                self.art.text(self.layout, 90, 388, "Page Up / Down: more slots", false);
+            },
             4 => try self.group(.sound),
             5 => try self.group(.video),
             6 => try self.group(.mouse),
@@ -214,6 +231,11 @@ pub const Menu = struct {
             self.navigation_focus = !self.navigation_focus;
             return;
         }
+        if ((self.page == 2 or self.page == 3) and (code == c.K_PGDN or code == c.K_PGUP)) {
+            self.saves.page(if (code == c.K_PGDN) 1 else -1);
+            self.panel.selected = 0;
+            return;
+        }
         if (self.page == 7 and (code == c.K_PGDN or code == c.K_PGUP)) {
             const pages = (controls.entries.len + 7) / 8;
             self.control_page = if (code == c.K_PGDN) (self.control_page + 1) % pages else (self.control_page + pages - 1) % pages;
@@ -249,6 +271,23 @@ pub const Menu = struct {
             .setting => |index| settings.entries[index].change(direction),
             .bind => |index| {
                 self.capture = .{ .action = index };
+            },
+            .save_pick => |index| self.saves.choice.selected = index,
+            .save_commit => {
+                const slot = self.saves.selected() orelse {
+                    self.message("Select a save slot first.");
+                    return;
+                };
+                if (self.page == 2) self.saves.validate() catch |err| {
+                    var message_buffer: [192]u8 = undefined;
+                    self.message(try std.fmt.bufPrint(&message_buffer, "Cannot load save: {s}", .{@errorName(err)}));
+                    return;
+                };
+                var command: [96]u8 = undefined;
+                const verb = if (self.page == 3) "save" else if (engine.inGame()) "load" else "dk3_loadmenu";
+                const text = try std.fmt.bufPrintZ(&command, "{s} {s}\n", .{ verb, slot });
+                self.close();
+                engine.execute(text);
             },
             .invert_mouse => engine.setNumber("m_pitch", if (engine.number("m_pitch") < 0) 0.022 else -0.022),
             .video_apply => {

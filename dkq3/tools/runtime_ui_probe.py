@@ -5,6 +5,7 @@ import argparse
 import ctypes
 import ctypes.util
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -44,6 +45,9 @@ class Input:
         self.x.XFree.argtypes = [pointer]
         self.x.XSetInputFocus.argtypes = [pointer, ctypes.c_ulong, ctypes.c_int, ctypes.c_ulong]
         self.x.XRaiseWindow.argtypes = [pointer, ctypes.c_ulong]
+        self.focus()
+
+    def focus(self, center=True):
         root = self.x.XDefaultRootWindow(self.display)
         root_out, parent = ctypes.c_ulong(), ctypes.c_ulong()
         children, count = ctypes.POINTER(ctypes.c_ulong)(), ctypes.c_uint()
@@ -67,7 +71,8 @@ class Input:
             raise RuntimeError("native engine window not found on guarded display")
         self.x.XRaiseWindow(self.display, window)
         self.x.XSetInputFocus(self.display, window, 2, 0)
-        self.t.XTestFakeMotionEvent(self.display, -1, 480, 270, 0)
+        if center:
+            self.t.XTestFakeMotionEvent(self.display, -1, 480, 270, 0)
         self.x.XFlush(self.display)
         time.sleep(0.3)
 
@@ -82,6 +87,16 @@ class Input:
         self.t.XTestFakeKeyEvent(self.display, code, 0, 0)
         self.x.XFlush(self.display)
         time.sleep(0.3)
+
+    def align_menu(self):
+        # The UI owns a relative cursor; renderer recreation resets that cursor
+        # independently of X's absolute pointer. Sweep beyond its bounds, then
+        # land at the letterboxed origin so both coordinate spaces agree.
+        self.records.append({"align_menu": "bottom-right then letterbox origin"})
+        for x, y in ((959, 539), (120, 0)):
+            self.t.XTestFakeMotionEvent(self.display, -1, x, y, 0)
+            self.x.XFlush(self.display)
+            time.sleep(0.2)
 
     def click(self, x, y):
         self.records.append({"click_virtual": [x, y]})
@@ -98,6 +113,101 @@ class Input:
 
     def close(self):
         self.x.XCloseDisplay(self.display)
+
+
+def saves_scenario(driver, issue, capture, process, log, home):
+    issue("devmap e1m3a", 0.1)
+    wait(process, log, lambda text: "player entered isolated movement runtime" in text)
+    driver.focus()
+    issue("dk3_runtime_place 818.916 -479.481 -823.875", 0.4)
+    issue("dk3_runtime_probe_health 100")
+    driver.key("Escape")
+    driver.align_menu()
+    driver.click(530, 156)  # Save category.
+    driver.click(155, 175)  # Save1, below quick.
+    capture("save-slot-selected")
+    driver.click(330, 343)
+    save = home / "state/dk3/saves/save1.sav"
+    wait(process, log, lambda _: save.exists())
+    issue("dk3_runtime_damage 30")
+    corrupted = bytearray(save.read_bytes())
+    corrupted[-1] ^= 1
+    (save.parent / "bad.sav").write_bytes(corrupted)
+    driver.key("Escape")
+    driver.align_menu()
+    driver.click(530, 128)  # Load category, sorted bad then save1.
+    driver.click(330, 343)  # Corruption must leave menu and current game intact.
+    capture("corrupt-save-refused")
+    driver.click(155, 175)
+    capture("load-slot-selected")
+    driver.click(330, 343)
+    wait(process, log, lambda text: "saved world restored" in text)
+    issue("dk3_runtime_inventory")
+    health = re.findall(r"zig inventory .*health=(-?\d+)", log.read_text(errors="replace"))
+    if not health or health[-1] != "100":
+        raise RuntimeError("mouse-selected save failed to restore health")
+    capture("mouse-load-restored")
+    issue("disconnect", 0.8)
+    driver.focus(center=False)
+    driver.align_menu()
+    driver.click(530, 128)
+    driver.click(155, 175)
+    capture("main-menu-save-selected")
+    before = len(log.read_text(errors="replace"))
+    driver.click(330, 343)
+    wait(process, log, lambda text: "saved world restored" in text[before:])
+    text = log.read_text(errors="replace")[before:]
+    maps = re.findall(r"^Server: ([^\n]+)", text, re.M)
+    if maps != ["e1m3a"]:
+        raise RuntimeError(f"menu load started unexpected maps: {maps}")
+    issue("dk3_runtime_inventory")
+    if re.findall(r"zig inventory .*health=(-?\d+)", log.read_text(errors="replace"))[-1] != "100":
+        raise RuntimeError("main-menu load lost saved player state")
+    capture("direct-map-restored")
+    return {"maps_started_by_load": maps,
+            "scope": "XTest select save1 then click Save/Load; corrupt slot rejection; in-game restoration and direct main-menu saved-map restoration without a marsh detour; native schema only"}
+
+
+def menu_scenario(driver, issue, capture, process, log):
+    capture("new-game")
+    driver.click(530, 323)
+    capture("options")
+    driver.click(210, 190)
+    issue("cg_shinyWeapons")
+    if '"cg_shinyWeapons" is:"2' not in log.read_text(errors="replace"):
+        raise RuntimeError("mouse setting click did not change weapon shine")
+    capture("options-enhanced")
+    driver.key("Tab")
+    driver.key("Up")
+    driver.key("Up")
+    driver.key("Return")
+    issue('bind k "+back"')
+    driver.click(200, 143)
+    driver.key("k")
+    capture("binding-conflict")
+    driver.key("Escape")
+    issue("bind k")
+    if '"k" = "+back"' not in log.read_text(errors="replace"):
+        raise RuntimeError("cancelling key conflict changed its old binding")
+    driver.click(200, 143)
+    driver.key("k")
+    driver.key("Return")
+    issue("bind k")
+    if '"k" = "+forward"' not in log.read_text(errors="replace"):
+        raise RuntimeError("confirmed key conflict did not rebind forward")
+    capture("binding-replaced")
+    driver.click(530, 72)
+    driver.click(123, 349)
+    wait(process, log, lambda text: "player entered isolated movement runtime" in text)
+    issue("g_spSkill")
+    if '"g_spSkill" is:"1' not in log.read_text(errors="replace"):
+        raise RuntimeError("Ronin selection did not start at easy difficulty")
+    capture("campaign-start")
+    driver.key("Escape")
+    capture("paused")
+    driver.key("Escape")
+    capture("resumed")
+    return {"scope": "native menu artwork, XTest mouse/keyboard settings, binding conflict cancel/replace, difficulty start and pause/resume; saves, multiplayer and full UI parity remain open"}
 
 
 def run(args):
@@ -131,49 +241,12 @@ def run(args):
                 wait(process, log, lambda text: "native menus initialized" in text and pipe.exists())
                 time.sleep(1)
                 driver = Input(inputs)
-                capture("new-game")
-                driver.click(530, 323)  # Options plate.
-                capture("options")
-                driver.click(210, 190)  # Shiny weapons: Original -> Enhanced.
-                issue("cg_shinyWeapons")
-                if '"cg_shinyWeapons" is:"2' not in log.read_text(errors="replace"):
-                    raise RuntimeError("mouse setting click did not change weapon shine")
-                capture("options-enhanced")
-                driver.key("Tab")
-                driver.key("Up")
-                driver.key("Up")
-                driver.key("Return")  # Keyboard plate via keyboard navigation.
-                issue('bind k "+back"')
-                driver.click(200, 143)
-                driver.key("k")
-                capture("binding-conflict")
-                driver.key("Escape")
-                issue("bind k")
-                if '"k" = "+back"' not in log.read_text(errors="replace"):
-                    raise RuntimeError("cancelling key conflict changed its old binding")
-                driver.click(200, 143)
-                driver.key("k")
-                driver.key("Return")
-                issue("bind k")
-                if '"k" = "+forward"' not in log.read_text(errors="replace"):
-                    raise RuntimeError("confirmed key conflict did not rebind forward")
-                capture("binding-replaced")
-                driver.click(530, 72)
-                driver.click(123, 349)
-                wait(process, log, lambda text: "player entered isolated movement runtime" in text)
-                issue("g_spSkill")
-                if '"g_spSkill" is:"1' not in log.read_text(errors="replace"):
-                    raise RuntimeError("Ronin selection did not start at easy difficulty")
-                capture("campaign-start")
-                driver.key("Escape")
-                capture("paused")
-                driver.key("Escape")
-                capture("resumed")
+                result = (saves_scenario(driver, issue, capture, process, log, home) if args.scenario == "saves"
+                          else menu_scenario(driver, issue, capture, process, log))
                 issue("quit", 0)
                 if process.wait(timeout=15) != 0:
                     raise RuntimeError("native menu shutdown failed")
-                (args.report / "result.json").write_text(json.dumps({"renderer": args.renderer,
-                    "scope": "native menu artwork, XTest mouse/keyboard settings, binding conflict cancel/replace, difficulty start and pause/resume; saves, multiplayer and full UI parity remain open"}, indent=2) + "\n")
+                (args.report / "result.json").write_text(json.dumps({"renderer": args.renderer, **result}, indent=2) + "\n")
             finally:
                 (args.report / "inputs.json").write_text(json.dumps({"launch": command, "inputs": inputs}, indent=2) + "\n")
                 if driver:
@@ -190,6 +263,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=Path("zig-out/reports/runtime-zig-229/ui"))
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
+    parser.add_argument("--scenario", choices=("menus", "saves"), default="menus")
     parser.add_argument("--under-guard", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     for name in ("engine", "prefix", "guard", "report"):

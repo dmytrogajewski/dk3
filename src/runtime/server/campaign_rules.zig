@@ -21,10 +21,13 @@ pub fn repairHazards(world: *data.World, projections: []abi.EntityProjection) !v
     for (fields.ids[0..fields.count]) |id| {
         const entity = world.find(id) orelse continue;
         const hazard = world.get(entity, data.Hazard) catch continue;
-        if (!hazard.enabled) continue;
+        // A target sequence may toggle the field off before removing the final
+        // control. It still needs its collision and future toggles disabled.
+        const body = try world.get(entity, data.Body);
+        if (!hazard.enabled and !hazard.toggleable and body.contents == 0) continue;
         hazard.enabled = false;
         hazard.toggleable = false;
-        (try world.get(entity, data.Body)).contents = 0;
+        body.contents = 0;
         const slot = (try world.get(entity, data.Binding)).slot;
         projections[slot].shared.contents = 0;
         engine.link(&projections[slot]);

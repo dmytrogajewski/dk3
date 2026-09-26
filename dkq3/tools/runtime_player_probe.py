@@ -269,6 +269,62 @@ def presentation_scenario(issue, capture, log):
     return {"scope": "three native view weapons, finite attacks/idle, Glock reload, shine and inventory; captures require visual inspection, all-weapon presentation remains open"}
 
 
+def save_scenario(issue, capture, log, home):
+    def inventory():
+        issue("dk3_runtime_inventory")
+        values = re.findall(r"zig inventory .*health=(-?\d+) armor=(\d+)", log.read_text(errors="replace"))
+        if not values:
+            raise RuntimeError("missing saved-player diagnostics")
+        return list(map(int, values[-1]))
+
+    def position():
+        issue("viewpos", 0.05)
+        values = re.findall(r"zig viewpos: ([^,]+),", log.read_text(errors="replace"))
+        return list(map(float, values[-1].split()))
+
+    def saved(slot):
+        path = home / f"state/dk3/saves/{slot}.sav"
+        if not path.exists():
+            raise RuntimeError(f"native save not written: {log}")
+        return path
+
+    issue("dk3_runtime_place 818.916 -479.481 -823.875", 0.5)
+    issue("dk3_runtime_probe_health 100")
+    issue("dk3_runtime_equip 21")
+    issue("dk3_runtime_activate 3", 0.7)
+    issue("save native_lift", 0.1)
+    saved("native_lift")
+    initial = position()
+    capture("lift-saved")
+    issue("dk3_runtime_damage 40", 2)
+    moved = position()
+    if inventory()[0] != 60 or math.dist(initial, moved) < 50:
+        raise RuntimeError("save fixture failed to change health and lift position")
+    issue("load native_lift", 0.1)
+    restored = position()
+    if inventory()[0] != 100 or math.dist(initial, restored) > 32:
+        raise RuntimeError(f"mid-lift state not restored: {initial}, {restored}")
+    capture("lift-restored")
+    issue("save quick")
+    issue("dk3_runtime_damage 40")
+    issue("save quick")
+    saved("quick")
+    issue("load quick previous")
+    if inventory()[0] != 100:
+        raise RuntimeError("previous native save was not recovered")
+    damaged = bytearray(saved("quick").read_bytes())
+    damaged[-1] ^= 1
+    (home / "state/dk3/saves/damaged.sav").write_bytes(damaged)
+    before = len(log.read_text(errors="replace"))
+    issue("load damaged")
+    if inventory()[0] != 100 or "Save/load refused: Checksum" not in log.read_text(errors="replace")[before:]:
+        raise RuntimeError("corrupt save changed the live world or lacked a checksum diagnostic")
+    issue("dk3_runtime_trains")
+    capture("corruption-refused")
+    return {"saved_position": initial, "moved_position": moved, "restored_position": restored,
+            "scope": "native mid-lift world/player restoration, atomic previous-save recovery and corruption rejection; diagnostic placement/activation/damage; original schema-5 migration, other mid-action states and menu load remain open"}
+
+
 def civilians_scenario(issue, capture, log):
     def actors():
         issue("dk3_runtime_actors", 0.05)
@@ -425,8 +481,21 @@ def laser_scenario(issue, capture, log):
     after = log.read_text(errors="replace")[cutoff:]
     if "hazard hit: id=110" in after:
         raise RuntimeError("disabled lasers still caused damage from the reverse approach")
+    issue("save laser_off")
+    issue("dk3_runtime_damage 40")
+    cutoff = len(log.read_text(errors="replace"))
+    issue("load laser_off")
+    issue("dk3_runtime_world")
+    after = log.read_text(errors="replace")[cutoff:]
+    if "saved world restored" not in after or not re.search(r"destructible: id=125 health=-?\d+ broken=1", after):
+        raise RuntimeError("save did not restore the broken laser control")
+    for y in (center[1] + 72, center[1], center[1] - 72, center[1]):
+        issue(f"dk3_runtime_place {center[0]} {y} {center[2]}", 0.6)
+    if "hazard hit: id=110" in log.read_text(errors="replace")[cutoff:]:
+        raise RuntimeError("loading a save reactivated the disabled lasers")
+    capture("laser-shutdown-restored")
     return {"hazard_center": center, "box": 125,
-            "scope": "ordinary Glock fire breaks authored supply box; timed target chain removes controls; enabled hurt field damages, disabled field stays harmless at both approaches; diagnostic placement/equipment/health, beam/audio presentation unqualified"}
+            "scope": "ordinary Glock fire breaks authored supply box; timed target chain removes controls; enabled hurt field damages, disabled field stays harmless at both approaches before and after native save/load; diagnostic placement/equipment/health, beam/audio presentation unqualified"}
 
 
 def run(args):
@@ -473,6 +542,8 @@ def run(args):
                     result = combat_scenario(issue, capture, log)
                 elif args.scenario == "presentation":
                     result = presentation_scenario(issue, capture, log)
+                elif args.scenario == "save":
+                    result = save_scenario(issue, capture, log, home)
                 elif args.scenario == "effects":
                     result = effects_scenario(issue, capture, log)
                 elif args.scenario == "inventory":
@@ -500,7 +571,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "save", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -514,6 +585,7 @@ def main():
         "effects": ("e4m4b", "runtime-zig-222/effects"),
         "combat": ("e1m3b", "runtime-zig-224/combat"),
         "presentation": ("e1m3b", "runtime-zig-228/presentation"),
+        "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),
         "navigation": ("e1m3b", "runtime-zig-227/navigation"),

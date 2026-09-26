@@ -4,6 +4,10 @@ const std = @import("std");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
 const c = abi.c;
+comptime {
+    const snapshot = @import("../domain/snapshot.zig");
+    if (snapshot.model_limit != c.MAX_MODELS or snapshot.sound_limit != c.MAX_SOUNDS) @compileError("native save resource limits must match transport limits");
+}
 fn Registry(comptime limit: usize, comptime base: i32) type {
     return struct {
         names: [limit][c.MAX_QPATH]u8 = @splat(@splat(0)),
@@ -27,6 +31,19 @@ var sounds: Registry(c.MAX_SOUNDS, c.CS_SOUNDS) = .{};
 pub fn reset() void {
     models = .{};
     sounds = .{};
+}
+pub fn capture(allocator: std.mem.Allocator) !@import("../domain/snapshot.zig").Resources {
+    const model_names = try allocator.alloc([]const u8, models.count - 1);
+    errdefer allocator.free(model_names);
+    const sound_names = try allocator.alloc([]const u8, sounds.count - 1);
+    for (model_names, 1..) |*name, i| name.* = std.mem.sliceTo(&models.names[i], 0);
+    for (sound_names, 1..) |*name, i| name.* = std.mem.sliceTo(&sounds.names[i], 0);
+    return .{ .models = model_names, .sounds = sound_names };
+}
+pub fn restore(saved: @import("../domain/snapshot.zig").Resources) !void {
+    reset();
+    for (saved.models) |name| _ = try model(name);
+    for (saved.sounds) |name| _ = try sound(name);
 }
 pub fn model(path: []const u8) !u16 {
     return models.add(path);

@@ -2844,3 +2844,23 @@ explicitly unavailable while their native services are unfinished.
 | Complete UI and campaign acceptance | Unrun | Save/load, multiplayer, remaining settings/panels, full opening cinematic and matched reference menu/audio comparison remain open. |
 | OpenGL2 input/rendering | Passed, limited | `runtime-zig-229/ui-opengl2/`: the same XTest sequence passes; options capture inspected. |
 | Applicable broad checks | Passed | `/tmp/dk3-runtime-229-suite.log`: 196 Zig and 44 Python tests after the input repair. |
+
+## runtime-zig — sequence 230 (native persistence and save menus)
+
+Implemented staged native schema-1 capture/restoration with owned decoded strings,
+semantic validation, explicit timestamp rebasing, stable identities/resource bindings,
+pending target actions and projection rebuilding. The engine retains ownership of
+atomic writes and previous-save recovery. Mouse slot selection persists when moving
+to the Load/Save button; full native validation precedes main-menu map startup.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated native build and policies | Passed after repair | `/tmp/dk3-runtime-230-final-build.log`: three native modules, 51 runtime + 9 catalog tests. Repaired Zig 0.16 type reflection, integer coercions and transport resource limits; duplicate-slot rejection leaves the live world unchanged. |
+| Moving lift and previous recovery | Passed | `runtime-zig-230/save/`: saved at z=-632.939, moved to -244.875 while losing 40 health, restored to -633.250 with health 100; lift continues. Previous quicksave recovers health; damaged checksum is refused without replacing the running world. Diagnostic placement/activation/damage; other action phases remain open. |
+| Save menu fixture alignment | Failed fixtures; repaired | `ui-saves/`, `ui-saves-focused/`, `ui-saves-aligned/`: renderer/map recreation loses X focus and resets relative UI cursor independently of the X pointer. Fixture reacquires the window and calibrates the active menu cursor against its bounds. Logs/captures retained. |
+| Mouse selection and direct main-menu load | Passed | `runtime-zig-230/ui-saves-calibrated/`: XTest selects Save1 then clicks Save, rejects corrupted bad slot, selects Save1 then clicks Load; health 100 restored. After disconnect, Load starts only e1m3a and restores health, without loading marsh first. Selection, corruption feedback and direct restored frame inspected. |
+| Laser shutdown ordering | Failed; repaired | `runtime-zig-230/laser-save/`: authored sequence already toggled hurt off before removing controls; correction skipped clearing collision/toggleability. Now permanent shutdown applies regardless of the field's prior enabled state. |
+| Invisible train restoration | Failed; repaired | `laser-save-repaired/` and `laser-save-model/`: full-world load refused authored model-less train 21. Admission/projection now preserve invisible attachment carriers; save runs projection admission before replacing a prior slot. |
+| Laser shutdown across save/load | Passed | `runtime-zig-230/laser-save-complete/`: ordinary shots break the box, the sequence completes, both approaches are harmless, full native save/load restores the broken control and the field remains harmless on both approaches. Restored capture inspected. `/tmp/dk3-runtime-230-train-build.log` verifies the final admission/projection repair. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-230-suite.log`: 198 Zig and 44 Python tests, once after the integrated repair. |
+| Full persistence acceptance | Unrun | Independent schema-5 translation, authored travel/visited maps, companions/scripts and complete mid-action matrix remain open. |
