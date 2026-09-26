@@ -3,6 +3,9 @@ pub const Vec3 = [3]f32;
 pub fn add(a: Vec3, b: Vec3) Vec3 {
     return .{ a[0] + b[0], a[1] + b[1], a[2] + b[2] };
 }
+pub fn subtract(a: Vec3, b: Vec3) Vec3 {
+    return .{ a[0] - b[0], a[1] - b[1], a[2] - b[2] };
+}
 pub fn scale(a: Vec3, factor: f32) Vec3 {
     return .{ a[0] * factor, a[1] * factor, a[2] * factor };
 }

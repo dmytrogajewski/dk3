@@ -16,6 +16,10 @@ pub const Body = struct { mins: Vec3 = .{ -16, -16, -24 }, maxs: Vec3 = .{ 16, 1
 pub const Health = @import("items.zig").Health;
 pub const Actor = @import("actors.zig").State;
 pub const Hurt = @import("damage.zig").Receipt;
+pub const Hazard = @import("world_actions.zig").Hazard;
+pub const Destructible = @import("world_actions.zig").Destructible;
+pub const Wall = @import("world_actions.zig").Wall;
+pub const TargetSequence = @import("world_actions.zig").Sequence;
 pub const Projectile = @import("combat.zig").Projectile;
 pub const SoundEvent = struct { sound: u16, subject: u16, channel: u8 };
 pub const Character = @import("character.zig").State;
@@ -37,7 +41,7 @@ pub const Gravity = struct { acceleration: f32 = 800 };
 pub const Motion = struct { destination: Vec3 = @splat(0), velocity: Vec3 = @splat(0) };
 pub const Lifetime = struct { expires_ms: i64 };
 pub const Attachment = struct { parent_id: u32, offset: Vec3 };
-pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21, character = 22, ailments = 23, sound_event = 24, projectile = 25, actor = 26, hurt = 27 };
+pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21, character = 22, ailments = 23, sound_event = 24, projectile = 25, actor = 26, hurt = 27, hazard = 28, destructible = 29, wall = 30, target_sequence = 31 };
 pub const Component = union(ComponentId) {
     transform: Transform,
     velocity: Velocity,
@@ -67,6 +71,10 @@ pub const Component = union(ComponentId) {
     projectile: Projectile,
     actor: Actor,
     hurt: Hurt,
+    hazard: Hazard,
+    destructible: Destructible,
+    wall: Wall,
+    target_sequence: TargetSequence,
 };
 pub const types = blk: {
     const fields = std.meta.fields(Component);

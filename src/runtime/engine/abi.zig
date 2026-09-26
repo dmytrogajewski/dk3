@@ -9,6 +9,8 @@ pub const c = @cImport({
     @cInclude("tr_types.h");
     @cInclude("ui_public.h");
     @cInclude("bg_public.h");
+    @cInclude("botlib.h");
+    @cInclude("be_aas.h");
 });
 pub const Syscall = *const fn (isize, ...) callconv(.c) isize;
 pub const Gateway = struct {

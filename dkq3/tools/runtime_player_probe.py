@@ -325,6 +325,79 @@ def guard_scenario(issue, capture, log):
             "scope": "e1m3b authored guard retaliation, eight-round firing cycle, reload and player damage; diagnostic placement/equipment/1000 health, navigation/cover/pain and full actor parity unqualified"}
 
 
+def navigation_scenario(issue, capture, log):
+    issue("developer 1")
+    issue("dk3_runtime_chase 166", 0.2)
+    text = log.read_text(errors="replace")
+    fixtures = re.findall(r"navigation fixture: actor=166 start=([\d.,-]+) goal=([\d.,-]+) travel=(\d+) occluded=1", text)
+    if not fixtures:
+        raise RuntimeError("no occluded reachable pursuit fixture")
+    start = list(map(float, fixtures[-1][0].split(',')))
+    goal = list(map(float, fixtures[-1][1].split(',')))
+    issue(f"dk3_look {math.degrees(math.atan2(start[1] - goal[1], start[0] - goal[0]))} 0")
+    capture("pursuit-start")
+    deadline = time.monotonic() + 9
+    samples = []
+    while time.monotonic() < deadline:
+        issue("dk3_runtime_actors", 0.3)
+        text = log.read_text(errors="replace")
+        states = re.findall(r"zig actor: id=166 state=(\w+) health=(-?\d+) pos=([\d.,-]+)", text)
+        if states:
+            samples.append(states[-1])
+        if "guard: id=166 fired" in text:
+            break
+    capture("pursuit-arrival")
+    displacement = max((math.dist(start, list(map(float, sample[2].split(',')))) for sample in samples), default=0)
+    if displacement < 24 or "guard: id=166 fired" not in text:
+        raise RuntimeError(f"guard failed to navigate from occlusion into a firing position: {displacement=} {samples=}")
+    return {"fixture": fixtures[-1], "samples": samples, "displacement": displacement,
+            "scope": "e1m3b guard physically pursues a seeded last-seen goal around occlusion and resumes normal fire; diagnostic player placement, sight memory and health; full navigation matrix open"}
+
+
+def laser_scenario(issue, capture, log):
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 1000")
+    issue("dk3_runtime_world")
+    text = log.read_text(errors="replace")
+    fields = re.findall(r"hazard: id=110 name=laser_dam enabled=(\d) center=([\d.,-]+)", text)
+    if not fields or fields[-1][0] != '0':
+        raise RuntimeError("laser damage field must start disabled")
+    center = list(map(float, fields[-1][1].split(',')))
+    issue("dk3_runtime_activate 110 player")
+    issue("dk3_runtime_place " + ' '.join(map(str, center)), 0.6)
+    if "hazard hit: id=110" not in log.read_text(errors="replace"):
+        raise RuntimeError("enabled damage field did not hurt the player")
+    issue("dk3_runtime_face_target 125", 0.2)
+    text = log.read_text(errors="replace")
+    placements = re.findall(r"fixture player=([\d.,-]+) target=125", text)
+    boxes = re.findall(r"destructible: id=125 .*center=([\d.,-]+)", text)
+    if not placements or not boxes:
+        raise RuntimeError("no clear firing position near the supply box")
+    player = list(map(float, placements[-1].split(',')))
+    box = list(map(float, boxes[-1].split(',')))
+    dx, dy, dz = box[0] - player[0], box[1] - player[1], box[2] + 8 - (player[2] + 22)
+    issue("dk3_runtime_equip 21")
+    issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}")
+    capture("laser-box-intact")
+    for _ in range(3):
+        issue("+attack", 0.15)
+        issue("-attack", 0.8)
+    issue("dk3_runtime_world", 4.5)
+    issue("dk3_runtime_world")
+    text = log.read_text(errors="replace")
+    if not re.search(r"destructible: id=125 health=-?\d+ broken=1", text) or "disabled e1m3b laser damage with removed controls" not in text:
+        raise RuntimeError("shooting supply box did not finish laser shutdown")
+    cutoff = len(text)
+    for y in (center[1] - 72, center[1], center[1] + 72, center[1]):
+        issue(f"dk3_runtime_place {center[0]} {y} {center[2]}", 0.6)
+    capture("lasers-disabled")
+    after = log.read_text(errors="replace")[cutoff:]
+    if "hazard hit: id=110" in after:
+        raise RuntimeError("disabled lasers still caused damage from the reverse approach")
+    return {"hazard_center": center, "box": 125,
+            "scope": "ordinary Glock fire breaks authored supply box; timed target chain removes controls; enabled hurt field damages, disabled field stays harmless at both approaches; diagnostic placement/equipment/health, beam/audio presentation unqualified"}
+
+
 def run(args):
     args.report.mkdir(parents=True, exist_ok=True)
     log = args.report / "client.log"
@@ -364,7 +437,11 @@ def run(args):
 
             try:
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
-                if args.scenario == "lift":
+                if args.scenario == "navigation":
+                    result = navigation_scenario(issue, capture, log)
+                elif args.scenario == "laser":
+                    result = laser_scenario(issue, capture, log)
+                elif args.scenario == "lift":
                     result = lift_scenario(issue, capture, log)
                 elif args.scenario == "guard":
                     result = guard_scenario(issue, capture, log)
@@ -399,7 +476,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "civilians", "guard"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -414,6 +491,8 @@ def main():
         "combat": ("e1m3b", "runtime-zig-224/combat"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),
+        "navigation": ("e1m3b", "runtime-zig-227/navigation"),
+        "laser": ("e1m3b", "runtime-zig-227/laser"),
     }
     expected_map, report_name = defaults[args.scenario]
     if args.map is None:

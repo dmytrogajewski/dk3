@@ -24,6 +24,15 @@ pub const Router = struct {
         defer self.depth -= 1;
         const object = (try world.get(entity, data.MapObject)).*;
         if (!@import("keys.zig").allows(world, object, activator)) return;
+        if (std.mem.eql(u8, object.classname, "trigger_changetarget")) {
+            const next = prop.text(object, "newtarget") orelse return error.MissingNewTarget;
+            const matches = try named(world, object.target);
+            for (matches.ids[0..matches.count]) |id| if (world.find(id)) |target| {
+                (try world.get(target, data.MapObject)).target = next;
+            };
+            return;
+        }
+        if (try @import("world_actions.zig").activate(world, slots, projections, self, entity, activator, now)) return;
         if (world.get(entity, data.Mover)) |_| return movers.use(world, slots, projections, entity, activator, now) else |_| {}
         if ((world.get(entity, data.Secret) catch null) != null or (world.get(entity, data.Rotation) catch null) != null) {
             if (try @import("special_movers.zig").use(world, slots, projections, entity, activator, now)) try self.fire(world, slots, projections, entity, activator, now);

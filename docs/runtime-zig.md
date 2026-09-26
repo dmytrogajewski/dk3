@@ -107,7 +107,7 @@ online services and asset tools. Upstream movement remains a test-only different
 reference. Engine save-envelope validation stays engine infrastructure; native save
 restoration remains open. Git history preserves retired independent implementations.
 
-Development uses `zig build game test-runtime --prefix zig-out/replacement`, followed
+Development uses `zig build game test-runtime --prefix zig-out/native-dev`, followed
 by affected isolated native scenarios. Broad checks cover surviving components once
 per integrated batch. Do not add legacy parity adapters or require old-runtime builds.
 Keep original installations and saves untouched. Removing old tests does not certify
@@ -326,3 +326,20 @@ Named Zig imports do not automatically include their module's tests. The runtime
 check target now explicitly runs the actor catalog tests alongside the runtime root;
 46 runtime/catalog checks pass. This prevents a class-policy test from merely
 compiling without executing.
+
+
+## runtime-zig-227 — navigation and world action ownership
+
+Implemented, with focused pursuit/witness/laser scenarios passing: the engine navigation adapter
+owns botlib setup, map checksum/mode selection, frame updates and entity projections.
+Domain navigation owns route progress/cache policy; actor locomotion consumes those
+values and collision services without moving through blockers or unsupported ground.
+Guard perception retains the last seen position and expires lost threats.
+
+World actions now have typed ECS state for destructible controls, toggle walls, hurt
+volumes and ordered target events. Their authoritative state drives collision and
+presentation together. Campaign-specific corrections remain explicit in
+`server/campaign_rules.zig`; the e1m3b disabled laser circuit cannot retain damage.
+New scenarios are tracked in sequence 227 of the run log. Remaining weapons, actors,
+air/water navigation, scripts/cinematics, saves/travel, presentation/UI and multiplayer
+integration still require implementation and acceptance.

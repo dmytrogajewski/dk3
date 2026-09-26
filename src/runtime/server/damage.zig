@@ -3,6 +3,9 @@ const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const rules = @import("../domain/damage.zig");
 pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, options: rules.Options) !rules.Result {
+    if (world.get(entity, data.Destructible)) |state| {
+        if (state.hidden or state.broken or !state.shootable) return .{};
+    } else |_| {}
     const health = world.get(entity, data.Health) catch return .{};
     const character: ?data.Character = if (world.get(entity, data.Character)) |value| value.* else |_| null;
     const result = rules.apply(health, character, amount, now, options);

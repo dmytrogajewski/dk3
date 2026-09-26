@@ -41,7 +41,7 @@ fn runtimeModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.
         .{ .name = "actor_catalog", .path = "src/actors/catalog.zig" },
     }) |dependency| module.addImport(dependency.name, b.createModule(.{ .root_source_file = b.path(dependency.path), .target = target, .optimize = optimize }));
     module.addCMacro("DK3_GAME", "1");
-    for ([_][]const u8{ "qcommon", "game", "cgame", "ui", "renderercommon" }) |directory|
+    for ([_][]const u8{ "qcommon", "game", "cgame", "ui", "renderercommon", "botlib" }) |directory|
         module.addIncludePath(b.path(b.fmt("engine/ioquake3/code/{s}", .{directory})));
     return module;
 }

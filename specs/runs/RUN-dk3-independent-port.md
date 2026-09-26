@@ -2781,3 +2781,29 @@ records player damage and source identity. No private runtime or assets were imp
 Development remains on `rewrite/native-zig-runtime`; main still points to restoration
 `e3966c4`. Both native scenario families use guarded software rendering and temporary
 profiles; the preserved installation and saves remain unchanged.
+
+
+## runtime-zig — sequence 227 (ground navigation and authored world actions)
+
+Implemented with focused verification below. Added an owning-thread botlib/AAS
+adapter with strict mode/difficulty asset selection and map checksum validation.
+Pure route state owns refresh/progress tracking; shared ground locomotion owns
+collision, safe-floor checks and supported jump travel. Civilian escape goals are
+bounded and reachable; guards pursue last-seen positions without wall tracking.
+Added typed destructible, wall, hazard and target-sequence components. Destructible
+controls use ordinary weapon damage; ordered authored events dispatch target actions,
+including changing train targets. Hurt toggles obey Gold's ALLOW_TOGGLE/START_DISABLED
+semantics. The working port's narrowly scoped e1m3b laser shutdown correction is
+retained: removed laser controls permanently disable their shared damage volume.
+No private implementation or assets were imported.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| First AAS startup | Failed; repaired | `runtime-zig-227/civilians/`: botlib rejected AAS because the adapter omitted `sv_mapChecksum`; copied the engine's loaded-map checksum before setup/load. |
+| Integrated build and focused policies | Passed | `/tmp/dk3-runtime-227-integrated-final.log`: all three modules and 47 runtime + 2 actor tests. Fixed component-registry compile-time quota and explicit slot coercion. |
+| Worker witness with navigation | Passed | `runtime-zig-227/civilians-repaired/`: authored worker death provokes healthy witness escape; AAS map checksum/startup now passes. |
+| Occluded guard pursuit | Passed, limited | `runtime-zig-227/navigation-repaired/`: fixture seeds a reachable occluded last-seen goal; guard physically moves 32.5 units around the corner and resumes normal firing. First probe required 64 units after the guard already gained visibility; fixed the unsupported assertion. This short route does not qualify long/dynamic/jump traversal. Capture inspected. |
+| Supply box and laser shutdown | Passed | `runtime-zig-227/laser-firing/`: ordinary Glock shots deal 18+18 to authored box 125, ordered 17-event timeline removes all controls, enabled field deals 100 damage and disabled field causes no hits at both approaches. Diagnostic placement/equipment/health. Captures inspected; full audiovisual parity remains open. |
+| Laser fixture repairs | Failed fixtures, repaired | `laser/` and `laser-repaired/`: initial standing search began above low ceilings; expanded vertical search. `laser-diagnostic/`: box takes one shot and retains 7 health; recorded separate normal press/release shots for the complete kill. These failures and collision diagnostics remain recorded. |
+| Aggregate checks | Passed | `/tmp/dk3-runtime-227-suite.log`: 187 Zig and 44 Python checks across native runtime, weapons, online and guard; run once after scenario repair. |
+| Full navigation and world presentation | Unrun | Dynamic route availability, authored air/water graphs, cover/yielding, debris, beam effects and full world-action parity remain open. |

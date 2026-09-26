@@ -22,18 +22,28 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
         var argument: [32]u8 = undefined;
         const id = try std.fmt.parseInt(u32, engine.argv(1, &argument), 10);
         const target = world.find(id) orelse return error.MissingTarget;
-        const target_position = (try world.get(target, data.Transform)).position;
-        const target_body = (try world.get(target, data.Body)).*;
         const owner_slot = (try world.get(owner, data.Binding)).slot;
         const target_slot = (try world.get(target, data.Binding)).slot;
-        for ([_]f32{ 96, 64, 160 }) |radius| for (0..8) |direction| {
+        const brush = projections[target_slot].shared.bmodel != 0;
+        const target_position = if (brush) v.scale(v.add(projections[target_slot].shared.absmin, projections[target_slot].shared.absmax), 0.5) else (try world.get(target, data.Transform)).position;
+        const target_body = (try world.get(target, data.Body)).*;
+        var reports: usize = 0;
+        const heights: []const f32 = if (brush) &.{ 56, 0, -64, -128, -192 } else &.{target_body.mins[2] + 56};
+        for (heights) |height| for ([_]f32{ 96, 64, 160, 256 }) |radius| for (0..8) |direction| {
             const angle = @as(f32, @floatFromInt(direction)) * (std.math.pi / 4.0);
-            const candidate = v.add(target_position, .{ @cos(angle) * radius, @sin(angle) * radius, target_body.mins[2] + 24 + 32 });
+            const candidate = v.add(target_position, .{ @cos(angle) * radius, @sin(angle) * radius, height });
             const floor = try engine.collisionService().trace(.{ .start = candidate, .end = v.add(candidate, .{ 0, 0, -96 }), .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .slot = owner_slot, .mask = c.MASK_PLAYERSOLID });
             if (floor.start_solid or floor.all_solid or floor.fraction == 1 or floor.normal[2] < 0.7) continue;
             const eye = v.add(floor.end, .{ 0, 0, 22 });
             const aim = try engine.collisionService().trace(.{ .start = eye, .end = v.add(target_position, .{ 0, 0, 8 }), .mins = @splat(0), .maxs = @splat(0), .slot = owner_slot, .mask = c.MASK_SHOT });
-            if (aim.fraction < 1 and aim.entity != target_slot) continue;
+            if (aim.fraction < 1 and aim.entity != target_slot) {
+                if (brush and reports < 24) {
+                    reports += 1;
+                    var output: [200]u8 = undefined;
+                    engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig fixture blocked: at={d:.2},{d:.2},{d:.2} hit={d} fraction={d:.3} target_slot={d}\n", .{ floor.end[0], floor.end[1], floor.end[2], if (aim.entity < slots.occupants.len) (if (slots.occupants[aim.entity]) |blocker| try world.persistentId(blocker) else 0) else 0, aim.fraction, target_slot }));
+                }
+                continue;
+            }
             (try world.get(owner, data.Transform)).position = floor.end;
             (try world.get(owner, data.Velocity)).linear = @splat(0);
             (try world.get(owner, data.Player)).ground_entity = floor.entity;

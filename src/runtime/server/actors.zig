@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Civilian lifecycle and perception; navigation and hostile attack policies remain separate work.
+//! Actor lifecycle and perception. Class combat and shared locomotion are separate systems.
 const std = @import("std");
 const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
@@ -110,7 +110,7 @@ pub const Actors = struct {
         const hit = try engine.collisionService().trace(.{ .start = from, .end = to, .mins = @splat(0), .maxs = @splat(0), .slot = skip, .mask = c.MASK_SOLID });
         return hit.fraction == 1 or hit.entity == target;
     }
-    pub fn step(self: *Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *@import("targets.zig").Router, now: i64, elapsed: u32) !void {
+    pub fn step(self: *Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *@import("targets.zig").Router, navigation: @import("../domain/navigation.zig").Service, now: i64, elapsed: u32) !void {
         const occupants = slots.occupants;
         for (occupants) |occupant| {
             const entity = occupant orelse continue;
@@ -155,34 +155,12 @@ pub const Actors = struct {
                     actor.changed_ms = now;
                 }
             }
-            var motion: @import("../domain/slide.zig").State = .{ .position = pose.position, .velocity = (try world.get(entity, data.Velocity)).linear };
-            var remaining = elapsed;
-            while (remaining > 0) {
-                const milliseconds = @min(remaining, 50);
-                remaining -= milliseconds;
-                const ground = try engine.collisionService().trace(.{ .start = motion.position, .end = v.add(motion.position, .{ 0, 0, -0.25 }), .mins = body.mins, .maxs = body.maxs, .slot = binding.slot, .mask = body.collision_mask });
-                const grounded = !ground.start_solid and ground.fraction < 1 and ground.normal[2] >= 0.7;
-                actor.ground_entity = if (grounded) ground.entity else c.ENTITYNUM_NONE;
-                body.grounded = grounded;
-                if (grounded) {
-                    motion.velocity[0] = 0;
-                    motion.velocity[1] = 0;
-                    if (motion.velocity[2] < 0) motion.velocity[2] = 0;
-                    if (actor.mode == .flee or actor.mode == .chase) {
-                        const threat = if (world.find(actor.threat)) |source| (try world.get(source, data.Transform)).position else actor.threat_position;
-                        const horizontal = if (actor.mode == .flee) rules.fleeVelocity(motion.position, threat, self.table.definitions[actor.definition].speed) else rules.fleeVelocity(actor.threat_position, motion.position, self.table.definitions[actor.definition].speed);
-                        motion.velocity[0] = horizontal[0];
-                        motion.velocity[1] = horizontal[1];
-                        pose.angles[1] = std.math.atan2(horizontal[1], horizontal[0]) * (180.0 / std.math.pi);
-                    }
-                }
-                var movement: @import("../domain/slide.zig").Context = .{ .service = engine.collisionService(), .mins = body.mins, .maxs = body.maxs, .slot = binding.slot, .mask = body.collision_mask, .delta = @as(f32, @floatFromInt(milliseconds)) * 0.001, .gravity = 800, .ground = if (grounded) ground.normal else null };
-                if (actor.mode == .dead) _ = try movement.move(&motion) else try movement.step(&motion);
-            }
-            pose.position = motion.position;
+            var velocity = (try world.get(entity, data.Velocity)).*;
+            const threat = if (world.find(actor.threat)) |source| (try world.get(source, data.Transform)).position else actor.threat_position;
+            try @import("actor_motion.zig").step(&actor, &pose, &body, &velocity, navigation, threat, self.table.definitions[actor.definition].speed, binding.slot, now, elapsed);
             (try world.get(entity, data.Actor)).* = actor;
             (try world.get(entity, data.Transform)).* = pose;
-            (try world.get(entity, data.Velocity)).linear = motion.velocity;
+            (try world.get(entity, data.Velocity)).* = velocity;
             (try world.get(entity, data.Body)).* = body;
             try self.publish(world, entity, projections, now);
             if (dead and !actor.death_dispatched) {

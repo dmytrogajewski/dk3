@@ -7,8 +7,11 @@ Glock/Disruptor trace damage and Ion projectiles are connected. Four civilian cl
 have authored metadata, animation, movement, death and witness panic; the e1m2a
 worker scenario has passed with diagnostic positioning/equipment. Sequence 226 connects Mishima guard perception, retaliation, pistol/reload cycles
 and player damage, with an authored guard scenario passing. Most weapon combat,
-remaining actors/navigation, scripts/cinematics, save restore/travel, full presentation
-and multiplayer integration remain open. See [runtime progress](runtime-zig.md).
+remaining actors, full navigation, scripts/cinematics, save restore/travel, full presentation
+and multiplayer integration remain open. Sequence 227 connects AAS pursuit/escape and authored
+destructible controls, event sequences, wall toggles and hurt volumes. Focused
+worker, occluded guard pursuit and laser shutdown scenarios pass; full navigation
+and world presentation remain open. See [runtime progress](runtime-zig.md).
 
 The preserved installed game and saves are untouched. The results below describe
 historical runtime versions and do not establish acceptance of the new runtime.

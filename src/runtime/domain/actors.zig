@@ -12,10 +12,14 @@ pub const State = struct {
     panic_until: i64 = 0,
     threat: u32 = 0,
     threat_position: v.Vec3 = @splat(0),
+    threat_seen_ms: i64 = 0,
     witness_ms: i64 = -1,
     receipt: u32 = 0,
     death_dispatched: bool = false,
     ground_entity: u16 = 2047,
+    route: @import("navigation.zig").State = .{},
+    escape_until: i64 = 0,
+    jump_ready_ms: i64 = 0,
     pub fn panic(self: *State, source: u32, point: v.Vec3, now: i64) void {
         if (self.mode == .dead) return;
         if (self.mode != .flee) self.changed_ms = now;

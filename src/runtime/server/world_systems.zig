@@ -9,16 +9,22 @@ const trains = @import("trains.zig");
 const special = @import("special_movers.zig");
 pub const State = struct {
     actors: @import("actors.zig").Actors = .{},
+    navigation: @import("../engine/navigation.zig").Navigation = .{},
+    pub fn deinit(self: *State) void {
+        self.navigation.deinit();
+    }
     pub fn spawn(self: *State, allocator: @import("std").mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8) !void {
         try @import("spawn_filter.zig").apply(world);
         try @import("brushes.zig").spawn(world, slots, projections);
         try binary.spawn(world, slots, projections);
         try @import("targets.zig").spawn(world);
+        try @import("world_actions.zig").spawn(allocator, world, projections);
         try trains.spawn(world, slots, projections, now);
         try special.spawn(world, slots, projections, now);
         try @import("items.zig").spawn(world, slots, projections, now, episode);
         try self.actors.spawn(allocator, world, slots, projections, now);
         try @import("attachments.zig").spawn(world);
+        try self.navigation.init(allocator, now);
     }
     pub fn step(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, targets: *Router, now: i64, elapsed: u32, table: *const @import("../domain/weapons.zig").Table) !void {
         try @import("events.zig").expire(world, slots, projections, now);
@@ -51,8 +57,11 @@ pub const State = struct {
             }
         }
         try @import("combat.zig").step(world, slots, projections, now);
-        try self.actors.step(world, slots, projections, targets, now, elapsed);
+        try self.navigation.frame(now);
+        self.navigation.sync(projections);
+        try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);
         try @import("items.zig").step(world, slots, projections, targets, table, now, elapsed);
         try targets.step(world, slots, projections, now);
+        try @import("world_actions.zig").step(world, slots, projections, targets, now);
     }
 };

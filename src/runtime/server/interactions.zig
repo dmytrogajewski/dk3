@@ -38,22 +38,28 @@ pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         const projection = &projections[binding.slot];
         const trigger = world.get(entity, data.Trigger) catch null;
         const mover = world.get(entity, data.Mover) catch null;
+        const sequence = if (world.get(entity, data.TargetSequence)) |state| state.* else |_| null;
         const button_touch = std.mem.eql(u8, object.classname, "func_button") and object.flags & 1 != 0;
-        if (trigger != null) {
+        if (sequence) |state| {
+            if (!state.touch or state.active) continue;
+        } else if (trigger != null) {
             if (trigger.?.counter or object.flags & 1 != 0 or projection.shared.contents & c.CONTENTS_TRIGGER == 0) continue;
         } else if (mover) |motion| {
             if (!button_touch and (motion.group != try world.persistentId(entity) or object.targetname.len != 0 or (!motion.platform and object.flags & 16 == 0))) continue;
             if (try prop.number(object, "health", 0) > 0) continue;
         } else continue;
-        for (occupants[0..Slots.clients]) |client| {
+        for (occupants) |client| {
             const actor = client orelse continue;
             if (!world.alive(entity) or !world.alive(actor)) break;
-            const player = (world.get(actor, data.Player) catch continue).*;
-            if (player.mode != .normal or (try world.get(actor, data.Health)).current <= 0) continue;
+            const player = if (world.get(actor, data.Player)) |value| value.* else |_| null;
+            if (player) |state| {
+                if (state.mode != .normal) continue;
+            } else if (sequence == null or !sequence.?.actor_allowed or (world.get(actor, data.Actor) catch null) == null) continue;
+            if ((try world.get(actor, data.Health)).current <= 0) continue;
             const body = &projections[(try world.get(actor, data.Binding)).slot];
-            const padding: f32 = if (trigger != null or button_touch) 1 else 48;
+            const padding: f32 = if (trigger != null or sequence != null or button_touch) 1 else 48;
             if (!overlap(body, projection, padding)) continue;
-            if (mover) |motion| if (motion.platform and player.ground_entity != binding.slot) continue;
+            if (mover) |motion| if (motion.platform and (player == null or player.?.ground_entity != binding.slot)) continue;
             try router.activate(world, slots, projections, entity, try world.persistentId(actor), now);
             // Structural target actions invalidate component addresses. Revisit next frame.
             break;

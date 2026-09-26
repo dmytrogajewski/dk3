@@ -32,7 +32,11 @@ pub fn model(path: []const u8) !u16 {
     return models.add(path);
 }
 pub fn sound(path: []const u8) !u16 {
-    return sounds.add(path);
+    if (path.len >= c.MAX_QPATH) return error.InvalidResourcePath;
+    var normalized: [c.MAX_QPATH]u8 = undefined;
+    for (path, 0..) |char, i| normalized[i] = if (char == '\\') '/' else std.ascii.toLower(char);
+    const name = normalized[0..path.len];
+    return sounds.add(if (std.mem.startsWith(u8, name, "sounds/")) name[7..] else name);
 }
 pub fn floorBounds(path: []const u8) !?@import("../domain/md3.zig").Bounds {
     if (!std.mem.endsWith(u8, path, ".dkm")) return null;

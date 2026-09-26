@@ -8,10 +8,11 @@ pub const Error = error{ OutOfMemory, Capacity, StaleEntity, DuplicateId, Missin
 
 pub fn World(comptime Components: anytype) type {
     comptime {
+        @setEvalBranchQuota(10000);
         if (Components.len == 0 or Components.len > 64) @compileError("component registry must contain 1..64 types");
         for (Components, 0..) |T, i| {
             if (@sizeOf(T) == 0 or @alignOf(T) > 64) @compileError("components must have storage and alignment <= 64");
-            for (Components, 0..) |Previous, j| if (j < i and T == Previous) @compileError("duplicate component registration");
+            for (0..i) |j| if (T == Components[j]) @compileError("duplicate component registration");
         }
     }
     return struct {

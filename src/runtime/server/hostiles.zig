@@ -26,6 +26,8 @@ pub fn guard(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         actor.receipt = receipt.revision;
         if (world.find(receipt.source)) |attacker| if (alivePlayer(world, attacker)) {
             actor.threat = receipt.source;
+            actor.threat_position = (try world.get(attacker, data.Transform)).position;
+            actor.threat_seen_ms = now;
         };
     }
     if (world.find(actor.threat)) |enemy| {
@@ -50,6 +52,7 @@ pub fn guard(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             if (sight.fraction < 1 and sight.entity != target_slot) continue;
             actor.threat = try world.persistentId(candidate);
             actor.threat_position = position;
+            actor.threat_seen_ms = now;
             nearest = distance;
         }
     }
@@ -59,22 +62,31 @@ pub fn guard(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     if (world.find(actor.threat)) |enemy| {
         const target = (try world.get(enemy, data.Transform)).position;
         const delta = v.add(target, v.scale(pose.position, -1));
-        pose.angles[1] = std.math.atan2(delta[1], delta[0]) * (180.0 / std.math.pi);
+        const target_slot = (try world.get(enemy, data.Binding)).slot;
+        const sight = try trace(eye, v.add(target, .{ 0, 0, 16 }), slot, c.MASK_SOLID);
+        if (sight.fraction == 1 or sight.entity == target_slot) {
+            actor.threat_position = target;
+            actor.threat_seen_ms = now;
+        }
+        const remembered = v.subtract(actor.threat_position, pose.position);
+        pose.angles[1] = std.math.atan2(remembered[1], remembered[0]) * (180.0 / std.math.pi);
         const axes = v.basis(pose.angles);
         start = v.add(pose.position, v.add(v.scale(axes.right, definition.offset[0]), v.add(v.scale(axes.forward, definition.offset[1]), .{ 0, 0, definition.offset[2] })));
         start = (try trace(eye, start, slot, c.MASK_SHOT)).end;
         aim = v.add(target, .{ 0, 0, 8 });
         const hit = try trace(start, aim, slot, c.MASK_SHOT);
-        const target_slot = (try world.get(enemy, data.Binding)).slot;
         const visible = hit.fraction == 1 or hit.entity == target_slot;
-        if (visible) actor.threat_position = target;
+        if (visible) {
+            actor.threat_position = target;
+            actor.threat_seen_ms = now;
+        } else if (now - actor.threat_seen_ms >= 10000) actor.threat = 0;
         clear = visible and v.length(delta) <= definition.range;
     }
     const event = actor.guard.tick(now, clear, definition.guardTiming());
     const mode: rules.Mode = switch (actor.guard.phase) {
         .firing => .attack,
         .reloading => .reload,
-        .ready, .recovering => if (actor.threat != 0 and !clear) .chase else .idle,
+        .ready, .recovering => if (actor.threat != 0 and !clear and @import("../domain/navigation.zig").horizontalDistance(pose.position, actor.threat_position) > 20) .chase else .idle,
     };
     if (mode != actor.mode) actor.changed_ms = now;
     actor.mode = mode;

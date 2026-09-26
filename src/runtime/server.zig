@@ -22,6 +22,7 @@ export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
+    systems.deinit();
     if (pool) |workers| workers.destroy();
     pool = null;
     if (world) |*value| value.deinit();
@@ -105,6 +106,17 @@ fn consoleCommand() isize {
     var buffer: [128]u8 = undefined;
     const command = engine.argv(0, &buffer);
     if (engine.integer("dk3_runtime_probe") == 2) {
+        if (std.mem.eql(u8, command, "dk3_runtime_chase")) {
+            if (clients.entities[0]) |player| @import("server/navigation_probe.zig").chase(&world.?, player, clock.now_ms) catch |err| {
+                var message: [128]u8 = undefined;
+                engine.print(std.fmt.bufPrintZ(&message, "dk3 zig navigation fixture failed: {s}\n", .{@errorName(err)}) catch unreachable);
+            };
+            return 1;
+        }
+        if (std.mem.eql(u8, command, "dk3_runtime_world")) {
+            @import("server/world_probe.zig").diagnostics(&world.?, &slots, &projection) catch |err| runtimeFailure(err);
+            return 1;
+        }
         if (std.mem.eql(u8, command, "dk3_runtime_actors")) {
             @import("server/actors.zig").diagnostics(&world.?, &slots) catch |err| runtimeFailure(err);
             return 1;
