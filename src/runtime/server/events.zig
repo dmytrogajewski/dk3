@@ -51,7 +51,7 @@ pub fn impact(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     projection.state.eType = c.ET_EVENTS + c.EV_DK3_IMPACT;
     projection.state.weapon = value.weapon;
     projection.state.eventParm = @intFromEnum(value.kind);
-    projection.state.frame = @intFromBool(value.charged);
+    projection.state.frame = @as(i32, @intFromBool(value.charged)) | (@as(i32, @intFromBool(value.detonation)) << 1);
     projection.state.origin2 = value.normal;
     projection.state.time = @intCast(now);
     projection.state.time2 = @bitCast(try world.persistentId(entity));

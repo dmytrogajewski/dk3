@@ -140,6 +140,7 @@ pub const Context = struct {
         };
         const policy = catalog.find(@intCast(self.ps.weapon)).?.spec.combat;
         if (policy == .pellets and policy.pellets.recoil != 0) self.motion.velocity = v.add(self.motion.velocity, v.scale(v.basis(self.command.angles).forward, -policy.pellets.recoil));
+        if (policy == .projectile) self.motion.velocity = v.add(self.motion.velocity, v.scale(v.basis(self.command.angles).forward, -catalog.find(@intCast(self.ps.weapon)).?.spec.projectile.recoil));
     }
     pub fn inventoryTick(self: *Context) void {
         if (!self.single_player or self.ps.dk3Inventory & (@as(i32, 1) << 7) == 0) return;

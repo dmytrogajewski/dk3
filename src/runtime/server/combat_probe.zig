@@ -8,7 +8,19 @@ const engine = @import("../engine/server.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
-pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table) !bool {
+pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_projectiles")) {
+        for (slots.occupants) |occupant| {
+            const entity = occupant orelse continue;
+            const projectile = world.get(entity, data.Projectile) catch continue;
+            const lifetime = world.get(entity, data.Lifetime) catch null;
+            const velocity = (try world.get(entity, data.Velocity)).linear;
+            var output: [240]u8 = undefined;
+            engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig projectile state: id={d} weapon={d} stuck={d} resting={d} age={d} remaining={d} velocity={d:.2},{d:.2},{d:.2}\n", .{ try world.persistentId(entity), projectile.weapon, @intFromBool(projectile.stuck), @intFromBool(projectile.resting), now - projectile.born_ms, if (lifetime) |value| value.expires_ms - now else 0, velocity[0], velocity[1], velocity[2] }));
+        }
+        engine.print("dk3 zig projectile states complete\n");
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_probe_health")) {
         const owner = player orelse return error.MissingPlayer;
         var argument: [16]u8 = undefined;

@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Shared presentation values. Concrete weapons select their response to contact.
 pub const Kind = enum(u8) { world, flesh, water, metal, wood };
-pub const Context = struct { kind: Kind, serial: u32, charged: bool = false };
+pub const Context = struct { kind: Kind, serial: u32, charged: bool = false, detonation: bool = false };
 pub const Style = enum { none, bullet, pellets, disruptor };
 pub const Cue = struct {
+    sprite: ?[:0]const u8 = null,
+    sprite_scale: f32 = 1,
+    sprite_rate: u8 = 20,
     sound: ?[:0]const u8 = null,
     mark: ?[:0]const u8 = null,
     radius: f32 = 4,
@@ -13,6 +16,9 @@ pub const Cue = struct {
     light_radius: f32 = 0,
     light_ms: u16 = 120,
 };
+pub fn explosion(visual: @import("profiles.zig").Visual, context: Context) Cue {
+    return .{ .sprite = visual.impact_sprite, .sprite_scale = 2, .sound = visual.blast_sound, .mark = if (context.kind == .flesh or context.kind == .water) null else "models/global/we_scorch.sp2/0@mark", .radius = 16, .particles = 12, .color = visual.color, .light_radius = 240, .light_ms = 300 };
+}
 pub fn standard(style: Style, context: Context) Cue {
     var cue: Cue = switch (style) {
         .none => .{},

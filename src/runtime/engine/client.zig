@@ -89,3 +89,8 @@ fn contents(raw: *anyopaque, point: @import("../domain/vector.zig").Vec3, skip: 
 pub fn floatArg(value: f32) isize {
     return @as(i32, @bitCast(value));
 }
+pub fn registerSound(name: []const u8) !c.sfxHandle_t {
+    var buffer: [c.MAX_QPATH + 8]u8 = undefined;
+    const path = try std.fmt.bufPrintZ(&buffer, "sounds/{s}", .{name});
+    return @intCast(gateway.call(c.CG_S_REGISTERSOUND, .{ path.ptr, @as(isize, 0) }));
+}

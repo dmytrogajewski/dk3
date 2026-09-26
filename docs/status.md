@@ -27,7 +27,10 @@ Sequence 232 adds Shotcycler/Slugger pellet damage, Ripgun traces, saved spread 
 shared recoil and native impact sound/decal/particle/light presentation. Focused normal
 attacks pass for five ranged weapons; Ion flesh hits choose explosion sounds and
 world hits choose spark sounds. Six weapon combat policies are now implemented,
-including Disruptor; the remaining 22 still need native combat. Schema-5 migration,
+including Disruptor. Sequence 233 adds Bolter, Sidewinder and Cordite flight/contact
+policies, explosion sprites and projectile saves. Focused checks pass on both
+renderers; Cordite detonates on an authored guard before its fuse expires. Nine
+combat policies are connected; the remaining 19 still need native combat. Schema-5 migration,
 companion/cinematic exits, multiplayer screens and complete menu parity remain open.
 See [runtime progress](runtime-zig.md).
 

@@ -418,7 +418,8 @@ The guarded e1m3b → e1m3a → e1m3b touch-exit scenario preserves the destroye
 control and the incoming player's selected Glock and health (333 outbound, 222 on
 return). Loading a full campaign save after discarding temporary transfer files
 restores its visited laser world and incoming health 333. Captures were inspected.
-Diagnostic positioning/equipment and a paused save fixture were used; this is not
+Diagnostic positioning/equipment were used; the fixture's console pause requests
+were rejected by the read-only engine cvar (corrected in sequence 233). This is not
 full authored route, offset/blocker, companion or cinematic acceptance.
 
 ## runtime-zig-232 — pellets, rotary fire and impact presentation
@@ -441,3 +442,27 @@ events. Snapshot validation rejects imported transient events and invalid body m
 Shotcycler retains one burst pose and finish cue; Ripgun loops firing and spins down
 on release. Six combat policies are connected; the remaining 22, projectile trails,
 full impact art/audio parity and complete all-weapon acceptance remain open.
+
+## runtime-zig-233 — projectile policies and sprite presentation
+
+Implemented with focused projectile/save, actor-contact and rendered evidence.
+Bolter, Sidewinder
+and Cordite use class-owned launch, flight, water and contact functions through typed
+pure contracts. The server owns collision, lifetimes, radius visibility, damage and
+projection; fire-intent resolution and weapon damage are separate modules. Sidewinder
+recoil is shared with prediction. Flight state is a tagged union of class-owned state,
+with native save validation checking its weapon contract and lifetime component.
+
+Bolter damages living/destructible targets, embeds in static world geometry and
+expires after sticking; brush contacts remove it. Sidewinder launches its paired
+offsets, accelerates once after 400 units, and uses reduced launch speed underwater.
+Cordite starts gravity after its initial flight, bounces off scenery and explodes on
+actors or at its fuse deadline. Water damping is independent of simulation step size.
+Gold's Cordite delay, damping and Bolter brush behavior were consulted directly.
+
+The client consumes validated converted sprite dimensions/origins for animated,
+additive explosion quads, plus projectile scale, class-owned loop audio, light and
+stuck-bolt fade. Cosmetic media are owned by the client; restoring server projections
+does not register class loop sounds. Nine weapon combat policies are connected;
+remaining combat, trails, complete material/fade parity and campaign acceptance stay
+open. Focused evidence and diagnostic-input limits are recorded in the run log.

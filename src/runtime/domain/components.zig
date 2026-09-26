@@ -23,7 +23,7 @@ pub const TargetSequence = @import("world_actions.zig").Sequence;
 pub const Exit = @import("travel.zig").Exit;
 pub const Projectile = @import("combat.zig").Projectile;
 pub const SoundEvent = struct { sound: u16, subject: u16, channel: u8 };
-pub const ImpactEvent = struct { weapon: u5, kind: @import("weapon_catalog").impact_rules.Kind, normal: Vec3, charged: bool = false };
+pub const ImpactEvent = struct { weapon: u5, kind: @import("weapon_catalog").impact_rules.Kind, normal: Vec3, charged: bool = false, detonation: bool = false };
 pub const Character = @import("character.zig").State;
 pub const Ailments = @import("character.zig").Ailments;
 pub const Keys = @import("items.zig").Keys;

@@ -112,7 +112,7 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
             continue;
         }
         if ((world.get(entity, data.Projectile) catch null) != null) {
-            try @import("combat.zig").publish(world, entity, projections, now);
+            try @import("projectiles.zig").publish(world, entity, projections, now);
             continue;
         }
         const object = (try world.get(entity, data.MapObject)).*;

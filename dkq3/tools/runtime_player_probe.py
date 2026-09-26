@@ -317,6 +317,108 @@ def impacts_scenario(issue, capture, log):
     return {"scope": "Ion authored flesh/world sound selection, clipped world marks, Shotcycler burst and Ripgun spin-down; diagnostic placement/equipment, captures require inspection, physical audio/full weapon parity open"}
 
 
+def ballistics_scenario(issue, capture, log, process):
+    def impact_frame(name, weapon, after):
+        wait(process, log, lambda text: f"impact: weapon={weapon}" in text[after:] and
+             (weapon != 27 or "sound=global/e_explode1.wav" in text[after:]), 8)
+        capture(name)
+
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 500")
+    results = []
+    for weapon in (16, 5):
+        issue("dk3_runtime_clear_targets")
+        issue(f"dk3_runtime_equip {weapon}", 0.8)
+        issue(f"weapon {weapon}", 0.6)
+        issue("dk3_runtime_target")
+        before = len(log.read_text(errors="replace"))
+        issue("+attack", 0.15)
+        if weapon == 5:
+            impact_frame(f"ballistics-{weapon}-fire", weapon, before)
+        else:
+            capture(f"ballistics-{weapon}-fire")
+        issue("+attack", 3.85)
+        issue("-attack", 0.4)
+        issue("dk3_runtime_targets")
+        text = log.read_text(errors="replace")[before:]
+        health = re.findall(r"zig combat: target=(\d+) health=(-?\d+)", text)
+        if not health or int(health[-1][1]) > 0 or "killed=1" not in text:
+            raise RuntimeError(f"projectile weapon {weapon} did not kill its target: {log}")
+        results.append({"weapon": weapon, "health": int(health[-1][1])})
+        capture(f"ballistics-{weapon}")
+    issue("dk3_runtime_clear_targets")
+    issue("dk3_runtime_equip 16", 0.8)
+    issue("weapon 16", 0.6)
+    issue("dk3_look 0 65")
+    issue("+attack", 0.05)
+    issue("-attack", 0.3)
+    before = len(log.read_text(errors="replace"))
+    issue("dk3_runtime_projectiles")
+    text = log.read_text(errors="replace")[before:]
+    bolts = re.findall(r"projectile state: id=(\d+) weapon=16 stuck=1", text)
+    if not bolts:
+        raise RuntimeError("Bolter did not stick in the static floor")
+    issue("save stuck_bolt", 0.2)
+    issue("load stuck_bolt", 0.3)
+    before = len(log.read_text(errors="replace"))
+    issue("dk3_runtime_projectiles")
+    if f"projectile state: id={bolts[-1]} weapon=16 stuck=1" not in log.read_text(errors="replace")[before:]:
+        raise RuntimeError("native save lost the stuck bolt")
+    capture("bolter-restored")
+    issue("dk3_runtime_equip 27", 0.8)
+    issue("weapon 27", 0.6)
+    issue("dk3_runtime_probe_health 500")
+    issue("dk3_look 0 45")
+    issue("+attack", 0.05)
+    issue("-attack", 0.3)
+    issue("save grenade_fuse", 0.2)
+    before = len(log.read_text(errors="replace"))
+    issue("load grenade_fuse", 0.3)
+    issue("dk3_runtime_projectiles")
+    impact_frame("cordite-detonation", 27, before)
+    issue("viewpos", 0.5)
+    issue("dk3_runtime_projectiles")
+    text = log.read_text(errors="replace")[before:]
+    if "saved world restored" not in text or not re.search(r"projectile: weapon=27 exploded age=3\d\d\d bounces=[1-9]", text):
+        raise RuntimeError("Cordite did not resume its saved bouncing/fuse state and explode")
+    capture("cordite-restored-detonation")
+    text = log.read_text(errors="replace")
+    if "missing weapon animation" in text or "could not find sounds/" in text.lower():
+        raise RuntimeError("missing ballistic weapon media")
+    return {"attacks": results, "scope": "Bolter/Sidewinder normal fire damage, Bolter world stick and save restoration, Cordite bounce/fuse restoration and blast dispatch; diagnostic targets/equipment, full flight/water/actor/visual parity remains open"}
+
+
+def grenade_contact_scenario(issue, capture, log):
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 500")
+    issue("dk3_runtime_equip 27", 0.6)
+    issue("weapon 27", 0.6)
+    issue("dk3_runtime_face_target 166", 0.2)
+    placement = re.findall(r"zig combat: fixture player=([\d.,-]+) target=166", log.read_text(errors="replace"))
+    if not placement:
+        raise RuntimeError("no clear standing point near guard 166")
+    player = list(map(float, placement[-1].split(',')))
+    before = len(log.read_text(errors="replace"))
+    for _ in range(40):
+        issue("dk3_runtime_actors", 0.05)
+        samples = re.findall(r"zig actor: id=166 state=\w+ health=(-?\d+) pos=([\d.,-]+)", log.read_text(errors="replace"))
+        if not samples or int(samples[-1][0]) <= 0:
+            break
+        target = list(map(float, samples[-1][1].split(',')))
+        dx, dy, dz = target[0] - player[0], target[1] - player[1], target[2] + 8 - (player[2] + 22)
+        issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}", 0.05)
+        issue("+attack", 0.1)
+    issue("-attack", 0.3)
+    text = log.read_text(errors="replace")[before:]
+    ages = re.findall(r"projectile: weapon=27 exploded age=(\d+)", text)
+    if not any(int(age) < 1000 for age in ages) or "impact: weapon=27 kind=flesh" not in text:
+        raise RuntimeError("Cordite did not detonate on the authored actor before its fuse")
+    if not re.search(r"combat: target=166 blood=[1-9]", text):
+        raise RuntimeError("Cordite actor contact did not damage the guard")
+    capture("cordite-actor-contact")
+    return {"explosion_ages_ms": list(map(int, ages)), "scope": "normal Cordite attacks detonate on an authored guard and apply blast damage before fuse expiry; diagnostic positioning/equipment, complete actor/campaign parity open"}
+
+
 def save_scenario(issue, capture, log, home):
     def inventory():
         issue("dk3_runtime_inventory")
@@ -552,10 +654,6 @@ def travel_scenario(issue, capture, log, home, process):
     issue("dk3_runtime_probe_health 333")
     issue("dk3_runtime_equip 21")
 
-    def health():
-        issue("dk3_runtime_inventory")
-        return int(re.findall(r"zig inventory .*health=(-?\d+)", log.read_text(errors="replace"))[-1])
-
     def leave(identity, destination):
         issue("dk3_runtime_world")
         matches = re.findall(rf"zig exit: id={identity} map={destination} .*center=([\d.,-]+)", log.read_text(errors="replace"))
@@ -581,14 +679,13 @@ def travel_scenario(issue, capture, log, home, process):
 
     leave(127, "e1m3a")
     capture("arrival-e1m3a")
-    issue("set cl_paused 1")
     issue("dk3_runtime_probe_health 333")
     issue("save visited_lasers")
     save = home / "state/dk3/saves/visited_lasers.sav"
     if not save.exists() or b"visited_level" not in save.read_bytes():
         raise RuntimeError("campaign save omitted the visited laser world")
+    saved_health = int(re.search(r"^health (-?\d+)$", save.with_suffix(".info").read_text(), re.M)[1])
     issue("dk3_runtime_probe_health 222")
-    issue("set cl_paused 0")
     leave(131, "e1m3b")
     issue("dk3_runtime_world")
     text = log.read_text(errors="replace")
@@ -601,11 +698,11 @@ def travel_scenario(issue, capture, log, home, process):
     for path in save.parent.glob("dk3-*"):
         if path.is_file():
             path.unlink()  # Only this fixture's temporary internal transfer files.
-    issue("set cl_paused 1")
+    before = len(log.read_text(errors="replace"))
     issue("load visited_lasers", 0.4)
-    if health() != 333:
+    restored = re.findall(r"saved world restored health=(-?\d+)", log.read_text(errors="replace")[before:])
+    if not restored or int(restored[-1]) != saved_health:
         raise RuntimeError("campaign save did not restore its player")
-    issue("set cl_paused 0")
     leave(131, "e1m3b")
     before = len(log.read_text(errors="replace"))
     issue("dk3_runtime_world")
@@ -664,6 +761,10 @@ def run(args):
                     result = presentation_scenario(issue, capture, log)
                 elif args.scenario == "impacts":
                     result = impacts_scenario(issue, capture, log)
+                elif args.scenario == "ballistics":
+                    result = ballistics_scenario(issue, capture, log, process)
+                elif args.scenario == "grenade-contact":
+                    result = grenade_contact_scenario(issue, capture, log)
                 elif args.scenario == "save":
                     result = save_scenario(issue, capture, log, home)
                 elif args.scenario == "effects":
@@ -693,7 +794,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -708,6 +809,8 @@ def main():
         "combat": ("e1m3b", "runtime-zig-224/combat"),
         "presentation": ("e1m3b", "runtime-zig-228/presentation"),
         "impacts": ("e1m2a", "runtime-zig-232/impacts"),
+        "ballistics": ("e1m3b", "runtime-zig-233/ballistics"),
+        "grenade-contact": ("e1m3b", "runtime-zig-233/grenade-contact"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

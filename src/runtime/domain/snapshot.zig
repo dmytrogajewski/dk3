@@ -261,8 +261,10 @@ pub fn validate(snapshot: *Loaded) !void {
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
         }
         if (world.get(entity, data.Projectile) catch null) |projectile| {
-            if (projectile.weapon != 2 or projectile.damage < 0 or projectile.damage > 1000000) return error.InvalidSavedProjectile;
+            const flight = @import("weapon_catalog").flightState(projectile.weapon) catch return error.InvalidSavedProjectile;
+            if (std.meta.activeTag(projectile.flight) != std.meta.activeTag(flight) or projectile.damage < 0 or projectile.damage > 1000000) return error.InvalidSavedProjectile;
             try require(world, entity, .{ data.Binding, data.Velocity });
+            if (flight != .ion) try require(world, entity, .{data.Lifetime});
         }
         if (world.get(entity, data.Pickup) catch null) |pickup| {
             try require(world, entity, .{ data.Binding, data.Body, data.ItemMotion, data.MapObject });
@@ -322,6 +324,7 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = random.next();
     try world.put(player, random);
     _ = try world.create(43, .{ data.Transform{}, data.ImpactEvent{ .weapon = 4, .kind = .world, .normal = .{ 0, 0, 1 } }, data.Lifetime{ .expires_ms = 1200 } });
+    _ = try world.create(44, .{ data.Transform{}, data.Binding{ .slot = 65 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 5, .damage = 50, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .sidewinder = .{ .accelerated = true } } }, data.Lifetime{ .expires_ms = 5000 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -335,6 +338,8 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expectEqual(random.next(), (try loaded.world.get(loaded.world.find(7).?, data.Random)).next());
     try std.testing.expectEqualStrings("next", (try loaded.world.get(loaded.world.find(42).?, data.Train)).next_target);
     try loaded.rebase(9000);
+    try std.testing.expect((try loaded.world.get(loaded.world.find(44).?, data.Projectile)).flight.sidewinder.accelerated);
+    try std.testing.expectEqual(@as(i64, 13000), (try loaded.world.get(loaded.world.find(44).?, data.Lifetime)).expires_ms);
     try std.testing.expectEqual(@as(?i64, 10000), (try loaded.world.get(loaded.world.find(42).?, data.Train)).action.at_ms);
     try std.testing.expectEqual(@as(i64, 9300), (try loaded.world.get(loaded.world.find(7).?, data.Character)).boost_until[1]);
     try std.testing.expectEqual(@as(i64, 1300), (try world.get(world.find(7).?, data.Character)).boost_until[1]);

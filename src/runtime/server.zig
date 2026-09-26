@@ -142,7 +142,8 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
         campaign = state;
     }
     engine.send(0, "dk3_restored");
-    engine.print("dk3 zig: saved world restored\n");
+    var restored_message: [96]u8 = undefined;
+    engine.print(try std.fmt.bufPrintZ(&restored_message, "dk3 zig: saved world restored health={d}\n", .{(try world.?.get(world.?.find(header.player_id).?, component.Health)).current}));
 }
 fn saveCommand(command: []const u8) !bool {
     const saving = std.mem.eql(u8, command, "save");
@@ -237,7 +238,7 @@ fn consoleCommand() isize {
             @import("server/actors.zig").diagnostics(&world.?, &slots) catch |err| runtimeFailure(err);
             return 1;
         }
-        if (@import("server/combat_probe.zig").command(command, &world.?, &slots, &projection, clients.entities[0], &clients.weapon_table) catch |err| blk: {
+        if (@import("server/combat_probe.zig").command(command, &world.?, &slots, &projection, clients.entities[0], &clients.weapon_table, clock.now_ms) catch |err| blk: {
             var message: [128]u8 = undefined;
             engine.print(std.fmt.bufPrintZ(&message, "dk3 zig combat probe failed: {s}\n", .{@errorName(err)}) catch unreachable);
             break :blk true;

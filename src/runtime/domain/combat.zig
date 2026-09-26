@@ -9,6 +9,11 @@ pub const Projectile = struct {
     born_ms: i64,
     stepped_ms: i64,
     bounces: u8 = 0,
+    flight: @import("weapon_catalog").ballistics.State = .ion,
+    launch_position: v.Vec3 = @splat(0),
+    wet: bool = false,
+    stuck: bool = false,
+    resting: bool = false,
 };
 pub fn eye(position: v.Vec3, height: f32) v.Vec3 {
     return v.add(position, .{ 0, 0, height });

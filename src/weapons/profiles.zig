@@ -39,6 +39,7 @@ pub const Audio = struct {
 };
 
 pub const Visual = struct {
+    projectile_scale: f32 = 1,
     projectile_model: [:0]const u8 = "",
     impact_sprite: [:0]const u8 = "models/global/we_expl.sp2",
     blast_sound: ?[:0]const u8 = null,
@@ -49,6 +50,12 @@ pub const Visual = struct {
 };
 
 pub const ProjectileSpawn = struct {
+    mins: [3]f32 = @splat(-1),
+    maxs: [3]f32 = @splat(1),
+    recoil: f32 = 0,
+    inertial: bool = false,
+    aim_range: f32 = 2000,
+    self_splash: f32 = 0.5,
     gravity: bool = false,
     water_collision: bool = false,
     loop_sound: ?[:0]const u8 = null,
@@ -71,6 +78,7 @@ pub const Muzzle = struct {
 
 pub const Combat = union(enum) {
     pending,
+    projectile,
     hitscan: struct { single_player_scale: f32 = 1, standing_height: ?f32 = null, crouching_height: ?f32 = null, inertial: bool = false },
     pellets: struct { count: u8, spread: f32, single_player_scale: f32 = 1, range: f32 = 4000, aim_reach: bool = false, max_victims: u8 = 12, inertial: bool = false, recoil: f32 = 0 },
     ion: struct { radius: f32, water_radius: f32, bounce_retention: f32, max_bounces: u8, cleanup_ms: i64 },

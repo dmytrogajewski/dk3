@@ -65,7 +65,7 @@ pub const State = struct {
                 try targets.fireNamed(world, slots, projections, name, entity, train.owner, now);
             }
         }
-        try @import("combat.zig").step(world, slots, projections, now);
+        try @import("projectiles.zig").step(world, slots, projections, now);
         try self.navigation.frame(now);
         self.navigation.sync(projections);
         try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);

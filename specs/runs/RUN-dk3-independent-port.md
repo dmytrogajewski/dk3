@@ -2876,7 +2876,7 @@ offset/NO_OFFSET behavior and episode inventory reset; no private code was impor
 | Scenario | State | Evidence / limit |
 |---|---|---|
 | Connected build and domain contracts | Passed | `/tmp/dk3-runtime-231-integrated-build.log`: three native modules, 54 runtime + 9 catalog checks. Includes deterministic named/fallback spawn choice, travel timer/inventory rules and nested archive validation/ownership. |
-| First authored exit contact | Passed; fixture assertion repaired | `runtime-zig-231/travel/` and `travel-state/`: e1m3b exit 127 starts only e1m3a and enters its named landing. New diagnostics establish health 333 at departure and arrival; a live guard subsequently deals 11 damage. Fixed-health checks now compare at the transition boundary, with the save checkpoint paused. |
+| First authored exit contact | Passed; fixture assertion repaired | `runtime-zig-231/travel/` and `travel-state/`: e1m3b exit 127 starts only e1m3a and enters its named landing. New diagnostics establish health 333 at departure and arrival; a live guard subsequently deals 11 damage. Fixed-health checks now compare at the transition boundary, without assuming health stays fixed during subsequent live combat. Sequence 233 corrects the earlier pause claim: the engine rejected those console requests. |
 | Changed-world round trip and save recovery | Passed, limited | `runtime-zig-231/travel-paused-save/`: normal touch of authored exits 127/131 traverses e1m3b/e1m3a, named positions match, Glock and actual incoming health transfer (333, 222, 333). Returning preserves broken control 125. Full save after deleting this temporary profile's internal transfer files restores the visited world. Arrival/return/recovered captures inspected. Diagnostic positioning/equipment; complete route/offset/blocker and companion/cinematic acceptance remains open. |
 | Applicable broad checks | Passed | `/tmp/dk3-runtime-231-suite.log`: 201 Zig and 44 Python tests after the integrated scenario repair. |
 
@@ -2897,3 +2897,24 @@ excludes transient events and retains RNG continuation. No legacy runtime was li
 | Repeated-hit decal fringe | Failed visually; repaired | Initial captures show accumulated translucent borders becoming a square patch under repeated stationary fire. Cosmetic marks now coalesce nearby same-surface hits and rotate deterministically. `impacts-decals/` passes and its settled Ripgun frame shows separate holes without the accumulated square. |
 | Final OpenGL2 decal replay | Passed, limited | `runtime-zig-232/impacts-decals-opengl2/`: same impact/animation assertions pass; settled Ripgun frame inspected with the coalesced/rotated marks. `/tmp/dk3-runtime-232-decals-build.log` records the final renderer build. |
 | Applicable broad checks | Passed | `/tmp/dk3-runtime-232-final-suite.log`: 204 Zig + 44 Python tests after the visual repair. The earlier aggregate is retained as pre-repair evidence. |
+
+## runtime-zig — sequence 233 (projectile classes and sprite presentation)
+
+Implemented with the focused scenario results below. Pure class functions
+own flight/launch/contact rules and tagged extra state. Server projectile lifecycle,
+weapon damage and fire-intent resolution have separate owners. Sprite metadata drives
+rectangular, correctly anchored additive explosions. Class projectile sounds resolve
+on the client rather than mutating server resources during save restoration.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated native build | Passed after repair | `/tmp/dk3-runtime-233-integrated-build.log`: three modules, 56 runtime + 12 catalog tests. Repaired a shadowed damage import and explicit attack-attribute narrowing. Tests cover water/acceleration state, step-independent Cordite damping, tagged projectile save state and rectangular sprite metadata. |
+| Initial fixture aim | Failed fixture; repaired | `runtime-zig-233/ballistics/`: forcing yaw zero faced a nearby wall and prevented target creation. Fixture retains the authored initial orientation for ranged attacks. |
+| Re-selecting diagnostic equipment | Failed fixture; repaired | `ballistics-aim/`: both projectile damage paths pass, but re-equipping an already-owned Bolter leaves the client's normal Sidewinder selection active. Fixture now also sends the normal weapon-selection command. |
+| Projectile damage and active saves | Passed, limited | `ballistics-selected/`: Bolter and Sidewinder kill diagnostic targets via ordinary attacks. Bolter embeds in the world and survives native save/load. Cordite resumes a saved fuse/bounce state and explodes at age 3000 ms after nine bounces. Bolter weapon capture inspected. Full water/actor/visual parity remains open. |
+| Final projectile/save replay | Passed, limited | `ballistics-opengl1/` and `ballistics-opengl2/`: normal fire, stuck-bolt save, grenade fuse save and detonation pass. `/tmp/dk3-runtime-233-final-build.log` verifies the client-owned audio integration and all 68 focused tests. Initial timed frames missed the brief explosions; capture now waits for their actual client impact event. Console pause requests were rejected by the engine and have been removed; the frames were captured live. |
+| Authored actor contact | Passed, limited | `grenade-contact/`: Cordite hits guard 166, applies blast damage and explodes at age 100 ms, before its fuse. Diagnostic placement/equipment and normal attack input. |
+| Shared projectile/impact regression | Passed, limited | `impacts/`: authored Ion flesh versus world sound selection, pellet decals and rotary animation still pass after the projectile lifecycle extraction. |
+| Explosion frames | Passed, limited | `explosions-opengl1/` and `explosions-opengl2/`: event-synchronized Sidewinder/Cordite frames inspected; additive explosion art/light render without an opaque background. The ineffective read-only pause requests were removed from the fixture. Exact Gold effect/trail parity remains open. |
+| Save-boundary diagnostic correction | Passed | `travel-boundaries/`: replay of the authored laser shutdown, e1m3b/e1m3a round trip and full visited-world save compares recorded save health at restoration, before live guard damage. No pause requests; incoming health 333/222/333 and the destroyed control survive. Final archive capture inspected. `/tmp/dk3-runtime-233-restore-log-build.log` records the diagnostic-only rebuild. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-233-suite.log`: 206 Zig + 44 Python tests, once after integrated scenarios and fixture repair. |

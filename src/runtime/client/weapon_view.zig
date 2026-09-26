@@ -139,9 +139,7 @@ pub const View = struct {
     }
 };
 fn sound(name: []const u8) !c.sfxHandle_t {
-    var buffer: [c.MAX_QPATH + 8]u8 = undefined;
-    const path = try std.fmt.bufPrintZ(&buffer, "sounds/{s}", .{name});
-    return @intCast(engine.gateway.call(c.CG_S_REGISTERSOUND, .{ path.ptr, @as(isize, 0) }));
+    return engine.registerSound(name);
 }
 fn muzzlePoint(parent: *const c.refEntity_t) !v.Vec3 {
     for ([_][:0]const u8{ "hr_muzzle", "fire" }) |name| {

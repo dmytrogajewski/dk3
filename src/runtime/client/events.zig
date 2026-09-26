@@ -17,13 +17,16 @@ fn sound(game: *const c.gameState_t, index: i32) !c.sfxHandle_t {
     const name = try engine.config(game, c.CS_SOUNDS + i);
     if (name.len == 0 or name.len >= c.MAX_QPATH) return error.InvalidSoundPath;
     if (!std.mem.eql(u8, name, std.mem.sliceTo(&names[i], 0))) {
-        var buffer: [c.MAX_QPATH + 8]u8 = undefined;
-        const path = try std.fmt.bufPrintZ(&buffer, "sounds/{s}", .{name});
-        sounds[i] = @intCast(engine.gateway.call(c.CG_S_REGISTERSOUND, .{ path.ptr, @as(isize, 0) }));
+        sounds[i] = try engine.registerSound(name);
         @memcpy(names[i][0..name.len], name);
         names[i][name.len] = 0;
     }
     return sounds[i];
+}
+pub fn loop(game: *const c.gameState_t, entity: c.entityState_t, origin: [3]f32) !void {
+    if (entity.loopSound == 0) return;
+    const handle = try sound(game, entity.loopSound);
+    if (handle != 0) _ = engine.gateway.call(c.CG_S_ADDLOOPINGSOUND, .{ @as(isize, entity.number), &origin, &entity.pos.trDelta, @as(isize, handle) });
 }
 pub fn consume(game: *const c.gameState_t, entities: []const c.entityState_t) !void {
     for (entities) |entity| {

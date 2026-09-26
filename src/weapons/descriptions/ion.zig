@@ -33,7 +33,7 @@ pub const identity = .{ .classname = "weapon_ionblaster", .label = "Ion blaster"
 pub fn impact(context: @import("../impact.zig").Context) @import("../impact.zig").Cue {
     const sparks = [_][:0]const u8{ "global/e_electronsprka.wav", "global/e_electronsprke.wav", "global/e_electronsprkg.wav", "global/e_electronsprkh.wav" };
     const explosions = [_][:0]const u8{ "e1/we_ionexplodea.wav", "e1/we_ionexplodea.wav", "e1/we_ionexplodeb.wav", "e1/we_ionexplodeb.wav", "e1/we_ionexplodec.wav" };
-    return .{ .sound = switch (context.kind) {
+    return .{ .sprite = if (context.kind == .flesh or context.kind == .water) spec.visual.impact_sprite else null, .sound = switch (context.kind) {
         .flesh => explosions[(context.serial *% 7) % explosions.len],
         .water => null,
         else => sparks[context.serial % sparks.len],
