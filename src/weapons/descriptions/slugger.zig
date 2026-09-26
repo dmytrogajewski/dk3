@@ -2,6 +2,9 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 23;
 pub const spec: profiles.Spec = .{
+    .combat = .{ .pellets = .{ .count = 12, .spread = 0.07 } },
+    .impact = .bullet,
+    .muzzle = .{ .model = "models/global/genflash.dkm", .scale = 2.3, .light_radius = 175, .shader = "dk3/fx/shotcycler-flash" },
     .ammo_class = "ammo_slugger", // slugger
     .world_model = "models/e4/a_slug.dkm",
     .animation = .{

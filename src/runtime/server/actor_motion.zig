@@ -70,7 +70,7 @@ pub fn step(actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocit
         remaining -= milliseconds;
         const delta = @as(f32, @floatFromInt(milliseconds)) * 0.001;
         const ground = try engine.collisionService().trace(.{ .start = motion.position, .end = v.add(motion.position, .{ 0, 0, -0.25 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
-        var grounded = !ground.start_solid and ground.fraction < 1 and ground.normal[2] >= 0.7;
+        var grounded = motion.velocity[2] <= 0 and !ground.start_solid and ground.fraction < 1 and ground.normal[2] >= 0.7;
         actor.ground_entity = if (grounded) ground.entity else c.ENTITYNUM_NONE;
         body.grounded = grounded;
         if (grounded) {

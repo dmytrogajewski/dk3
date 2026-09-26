@@ -2,6 +2,9 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 4;
 pub const spec: profiles.Spec = .{
+    .combat = .{ .pellets = .{ .count = 10, .spread = 0.09, .single_player_scale = 0.75, .aim_reach = true, .max_victims = 2, .inertial = true, .recoil = 140 } },
+    .impact = .pellets,
+    .muzzle = .{ .model = "models/global/genflash.dkm", .scale = 3, .light_radius = 175, .offset = -2, .shader = "dk3/fx/shotcycler-flash" },
     .ammo_class = "ammo_shells", // shotcycler
     .ammo_pack = 24,
     .world_model = "models/e1/a_shot.dkm",
@@ -12,6 +15,10 @@ pub const spec: profiles.Spec = .{
         .fire = "shoot",
         .idle = .{ "ambc", null, null },
         .rate = 22,
+        .hold_fire = true,
+        .fire_start_ms = -90,
+        .finish_ms = 1890,
+        .scale_fire_rate = false,
         .raise_ms = 350,
         .drop_ms = 350,
     },

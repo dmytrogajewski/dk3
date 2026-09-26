@@ -2,6 +2,14 @@
 //! Read-only concrete weapon descriptions, shared without linking legacy behavior.
 pub const weapons = .{ @import("descriptions/disruptor.zig"), @import("descriptions/ion.zig"), @import("descriptions/c4.zig"), @import("descriptions/shotcycler.zig"), @import("descriptions/sidewinder.zig"), @import("descriptions/shockwave.zig"), @import("descriptions/gas_hands.zig"), @import("descriptions/sword.zig"), @import("descriptions/discus.zig"), @import("descriptions/sunflare.zig"), @import("descriptions/venom.zig"), @import("descriptions/hammer.zig"), @import("descriptions/trident.zig"), @import("descriptions/zeus.zig"), @import("descriptions/silverclaw.zig"), @import("descriptions/bolter.zig"), @import("descriptions/stavros.zig"), @import("descriptions/ballista.zig"), @import("descriptions/wyndrax.zig"), @import("descriptions/nightmare.zig"), @import("descriptions/glock.zig"), @import("descriptions/ripgun.zig"), @import("descriptions/slugger.zig"), @import("descriptions/kineticore.zig"), @import("descriptions/novabeam.zig"), @import("descriptions/metamaser.zig"), @import("descriptions/cordite.zig"), @import("descriptions/flashlight.zig") };
 pub const Spec = @import("profiles.zig").Spec;
+pub const impact_rules = @import("impact.zig");
+pub fn impact(id: u5, context: impact_rules.Context) impact_rules.Cue {
+    inline for (weapons) |W| if (id == W.id) {
+        if (@hasDecl(W, "impact")) return W.impact(context);
+        return impact_rules.standard(W.spec.impact, context);
+    };
+    return .{};
+}
 pub const Entry = struct { id: u5, classname: [:0]const u8, label: [:0]const u8, episode: u8, interval: i32, spec: Spec };
 pub const entries = blk: {
     var result: [weapons.len]Entry = undefined;

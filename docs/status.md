@@ -23,8 +23,12 @@ main-menu saved-map loading pass focused scenarios. Sequence 231 connects author
 touch exits, named arrivals, incoming player state and visited-map archives. An
 e1m3b/e1m3a round trip and a full save recover the destroyed laser control without
 replacing the incoming player's health/equipment. Diagnostic positioning was used.
-Schema-5 migration, companion/cinematic exits, multiplayer screens and complete menu
-parity remain open.
+Sequence 232 adds Shotcycler/Slugger pellet damage, Ripgun traces, saved spread RNG,
+shared recoil and native impact sound/decal/particle/light presentation. Focused normal
+attacks pass for five ranged weapons; Ion flesh hits choose explosion sounds and
+world hits choose spark sounds. Six weapon combat policies are now implemented,
+including Disruptor; the remaining 22 still need native combat. Schema-5 migration,
+companion/cinematic exits, multiplayer screens and complete menu parity remain open.
 See [runtime progress](runtime-zig.md).
 
 The preserved installed game and saves are untouched. The results below describe

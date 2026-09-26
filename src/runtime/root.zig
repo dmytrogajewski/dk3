@@ -20,6 +20,7 @@ test {
     _ = @import("domain/actors.zig");
     _ = @import("domain/animation.zig");
     _ = @import("domain/combat.zig");
+    _ = @import("domain/pellets.zig");
     _ = @import("domain/damage.zig");
     _ = @import("weapon_catalog").character;
     _ = @import("domain/character.zig");

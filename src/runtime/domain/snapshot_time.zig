@@ -64,7 +64,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.started_ms, delta);
             try active(&value.ready_ms, delta);
         },
-        .transform, .velocity, .body, .health, .random, .binding, .map_object, .attachment, .gravity, .motion, .inventory, .keys, .ailments, .sound_event, .destructible, .wall => {},
+        .transform, .velocity, .body, .health, .random, .binding, .map_object, .attachment, .gravity, .motion, .inventory, .keys, .ailments, .sound_event, .impact_event, .destructible, .wall => {},
     }
 }
 test "save time rebasing preserves deadlines, inactive sentinels and durations" {

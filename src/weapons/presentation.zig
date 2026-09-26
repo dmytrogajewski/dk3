@@ -3,7 +3,7 @@
 const std = @import("std");
 const profiles = @import("profiles.zig");
 const controller = @import("weapon_state.zig");
-pub const Phase = enum { ready, away, fire, reload, idle };
+pub const Phase = enum { ready, away, fire, settle, reload, idle };
 pub const Cue = struct { pose: [:0]const u8, sound: ?[:0]const u8 = null, phase: Phase, rate: u16 = 20, loop: bool = false };
 pub const Input = struct { weapon: u5, state: i32, sequence: i32, reloading: bool, attack_factor: f32 = 1, now_ms: i64 };
 pub const State = struct {
@@ -33,16 +33,20 @@ pub const State = struct {
         var cue: ?Cue = null;
         if (input.reloading and (changed_weapon or self.phase != .reload)) {
             if (spec.animation.reload) |name| cue = .{ .pose = name, .sound = spec.audio.reload, .phase = .reload };
-        } else if (self.pending_fire and self.fire_weapon == input.weapon) {
+        } else if ((self.pending_fire and self.fire_weapon == input.weapon) or (spec.animation.fire_loop and input.state == controller.firing and (changed_weapon or self.phase != .fire))) {
             var pose = spec.animation.fire;
             if (input.sequence >= 0 and input.sequence < spec.animation.fire_variants.len) if (spec.animation.fire_variants[@intCast(input.sequence)]) |name| {
                 pose = name;
             };
-            cue = .{ .pose = pose, .phase = .fire, .rate = @intFromFloat(std.math.clamp(@as(f32, @floatFromInt(spec.animation.rate)) * input.attack_factor, 1, 240)) };
+            if (changed_weapon or self.phase != .fire or (!spec.animation.fire_loop and (!spec.animation.hold_fire or input.now_ms >= self.ended_ms))) {
+                cue = .{ .pose = pose, .phase = .fire, .rate = @intFromFloat(std.math.clamp(@as(f32, @floatFromInt(spec.animation.rate)) * (if (spec.animation.scale_fire_rate) input.attack_factor else 1), 1, 240)), .loop = spec.animation.fire_loop };
+            }
         } else if (changed_weapon or (changed_state and input.state == controller.raising)) {
             cue = .{ .pose = spec.animation.ready, .sound = spec.audio.ready, .phase = .ready };
         } else if (changed_state and input.state == controller.dropping) {
             cue = .{ .pose = spec.animation.away, .sound = spec.audio.away, .phase = .away };
+        } else if (input.state == controller.ready and self.phase == .fire and spec.animation.fire_end != null) {
+            cue = .{ .pose = spec.animation.fire_end.?, .phase = .settle };
         } else if (input.state == controller.ready and input.now_ms >= self.ended_ms and self.phase != .idle) {
             if (spec.animation.idle[0]) |name| cue = .{ .pose = name, .phase = .idle, .loop = true };
         }
@@ -73,4 +77,21 @@ test "predicted shots deduplicate server echoes and finite attacks give way to i
     input.state = controller.dropping;
     try std.testing.expectEqual(Phase.reload, state.update(spec, input).?.phase);
     try std.testing.expect(state.update(spec, input) == null);
+}
+
+test "burst shots retain their pose and rotary fire spins down after release" {
+    var view: State = .{};
+    var input: Input = .{ .weapon = 4, .state = controller.firing, .sequence = 0, .reloading = false, .now_ms = 100 };
+    const spec: profiles.Spec = .{ .animation = .{ .fire = "shoot", .hold_fire = true } };
+    view.noteFire(4, 1, 100);
+    try std.testing.expectEqual(Phase.fire, view.update(spec, input).?.phase);
+    view.ended_ms = 1900;
+    view.noteFire(4, 2, 370);
+    input.now_ms = 370;
+    try std.testing.expect(view.update(spec, input) == null);
+    const rotary: profiles.Spec = .{ .animation = .{ .fire = "shoota", .fire_loop = true, .fire_end = "spdn" } };
+    input.weapon = 22;
+    try std.testing.expect(view.update(rotary, input).?.loop);
+    input.state = controller.ready;
+    try std.testing.expectEqual(Phase.settle, view.update(rotary, input).?.phase);
 }

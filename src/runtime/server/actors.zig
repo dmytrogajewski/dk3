@@ -68,7 +68,7 @@ pub const Actors = struct {
             try world.put(entity, data.Hurt{});
             try world.put(entity, data.Health{ .current = @intFromFloat(health), .maximum = @intFromFloat(health) });
             try world.put(entity, data.Velocity{});
-            try world.put(entity, data.Body{ .mins = definition.mins, .maxs = definition.maxs, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID });
+            try world.put(entity, data.Body{ .mins = definition.mins, .maxs = definition.maxs, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID, .mass = definition.mass });
             const model = try @import("resources.zig").model(definition.model);
             const slot = try slots.acquire(entity, null);
             try world.put(entity, data.Binding{ .slot = slot, .model = model });

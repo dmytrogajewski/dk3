@@ -78,7 +78,7 @@ pub fn captureCampaign(allocator: std.mem.Allocator, storage: []u8, world: *data
     var ids: [ecs.max_entities]u32 = undefined;
     var count: usize = 0;
     {
-        var query = world.queryAccess(0, data.World.mask(.{data.SoundEvent}), 0);
+        var query = world.queryAccess(0, data.World.mask(.{ data.SoundEvent, data.ImpactEvent }), 0);
         defer query.deinit();
         while (query.next()) |view| for (view.entities()) |entity| {
             ids[count] = try world.persistentId(entity);
@@ -228,13 +228,17 @@ pub fn validate(snapshot: *Loaded) !void {
     var query = world.queryAccess(0, 0, 0);
     defer query.deinit();
     while (query.next()) |view| for (view.entities()) |entity| {
+        if ((world.get(entity, data.SoundEvent) catch null) != null or (world.get(entity, data.ImpactEvent) catch null) != null) return error.SavedTransientEvent;
         _ = try world.get(entity, data.Transform);
         if (world.get(entity, data.Binding) catch null) |binding| {
             if (binding.slot >= occupied.len or occupied[binding.slot] or (binding.slot > 0 and binding.slot < 64)) return error.InvalidSavedBinding;
             occupied[binding.slot] = true;
             if ((world.get(entity, data.Projectile) catch null) == null) try require(world, entity, .{data.Body});
         }
-        if (world.get(entity, data.Body) catch null) |body| for (body.mins, body.maxs) |low, high| if (low > high or @abs(low) > 8192 or @abs(high) > 8192) return error.InvalidSavedBounds;
+        if (world.get(entity, data.Body) catch null) |body| {
+            if (body.mass <= 0 or body.mass > 100000) return error.InvalidSavedMass;
+            for (body.mins, body.maxs) |low, high| if (low > high or @abs(low) > 8192 or @abs(high) > 8192) return error.InvalidSavedBounds;
+        }
         if ((world.get(entity, data.Exit) catch null) != null) {
             try require(world, entity, .{ data.MapObject, data.Binding, data.Body });
             if (!std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "trigger_changelevel")) return error.InvalidSavedExit;
@@ -314,7 +318,10 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     var world = data.World.init(allocator, 16);
     defer world.deinit();
     const player = try world.create(7, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{}, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{ .boost_until = .{ 0, 1300, 0, 0, 0 } }, data.Ailments{}, data.Keys{} });
-    _ = player;
+    var random: data.Random = .{ .state = 92817 };
+    _ = random.next();
+    try world.put(player, random);
+    _ = try world.create(43, .{ data.Transform{}, data.ImpactEvent{ .weapon = 4, .kind = .world, .normal = .{ 0, 0, 1 } }, data.Lifetime{ .expires_ms = 1200 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -324,6 +331,8 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     defer loaded.deinit(allocator);
     @memset(&bytes, 0);
     try std.testing.expectEqual(@as(u32, 100), loaded.world.next_id);
+    try std.testing.expect(loaded.world.find(43) == null);
+    try std.testing.expectEqual(random.next(), (try loaded.world.get(loaded.world.find(7).?, data.Random)).next());
     try std.testing.expectEqualStrings("next", (try loaded.world.get(loaded.world.find(42).?, data.Train)).next_target);
     try loaded.rebase(9000);
     try std.testing.expectEqual(@as(?i64, 10000), (try loaded.world.get(loaded.world.find(42).?, data.Train)).action.at_ms);

@@ -220,7 +220,7 @@ def effects_scenario(issue, capture, log):
 def combat_scenario(issue, capture, log):
     issue("developer 1")
     results = []
-    for weapon in (21, 2):
+    for weapon in (21, 2, 4, 22, 23):
         issue("dk3_runtime_clear_targets")
         issue(f"dk3_runtime_equip {weapon}")
         issue("dk3_runtime_target")
@@ -235,7 +235,11 @@ def combat_scenario(issue, capture, log):
             raise RuntimeError(f"weapon {weapon} did not kill target through normal attack input: {log}")
         results.append({"weapon": weapon, "target": int(health[-1][0]), "health": int(health[-1][1])})
         capture(f"combat-{weapon}")
-    return {"attacks": results, "scope": "normal fire input against diagnostic ECS targets; Glock hitscan and Ion projectile damage/death, not actor/campaign or visual parity acceptance"}
+    text = log.read_text(errors="replace")
+    for weapon in (4, 23):
+        if f"zig pellets: weapon={weapon}" not in text:
+            raise RuntimeError(f"weapon {weapon} did not dispatch its pellet policy")
+    return {"attacks": results, "scope": "normal fire input against diagnostic ECS targets; Glock/Ion/Shotcycler/Ripgun/Slugger damage and death; not actor/campaign or complete visual parity acceptance"}
 
 
 def presentation_scenario(issue, capture, log):
@@ -267,6 +271,50 @@ def presentation_scenario(issue, capture, log):
     if "missing weapon animation" in text or "could not find sounds/" in text.lower():
         raise RuntimeError("missing weapon presentation media")
     return {"scope": "three native view weapons, finite attacks/idle, Glock reload, shine and inventory; captures require visual inspection, all-weapon presentation remains open"}
+
+
+def impacts_scenario(issue, capture, log):
+    issue("developer 1")
+    issue("dk3_runtime_equip 2")
+    issue("dk3_runtime_face_target 10", 0.3)
+    placements = re.findall(r"zig combat: fixture player=([\d.,-]+) target=10", log.read_text(errors="replace"))
+    if not placements:
+        raise RuntimeError("no standing point near authored worker 10")
+    player = list(map(float, placements[-1].split(',')))
+    for _ in range(40):
+        issue("dk3_runtime_actors", 0.05)
+        samples = re.findall(r"zig actor: id=10 state=\w+ health=(-?\d+) pos=([\d.,-]+)", log.read_text(errors="replace"))
+        if not samples or int(samples[-1][0]) <= 0:
+            break
+        target = list(map(float, samples[-1][1].split(',')))
+        dx, dy, dz = target[0] - player[0], target[1] - player[1], target[2] + 8 - (player[2] + 22)
+        issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}", 0.05)
+        issue("+attack", 0.1)
+    issue("-attack", 0.2)
+    capture("ion-worker-impact")
+    issue("dk3_look 0 65")
+    issue("+attack", 0.6)
+    capture("ion-world-impact")
+    issue("-attack", 0.3)
+    for weapon, duration in ((4, 1.9), (22, 1.1), (23, 0.2)):
+        issue(f"dk3_runtime_equip {weapon}", 0.8)
+        issue("dk3_look 0 65")
+        issue("+attack", duration)
+        capture(f"impact-{weapon}-fire")
+        issue("-attack", 2.2)
+        capture(f"impact-{weapon}-settled")
+    text = log.read_text(errors="replace")
+    if not re.search(r"impact: weapon=2 kind=flesh sound=e1/we_ionexplode", text):
+        raise RuntimeError("Ion did not select a flesh explosion sound")
+    if not re.search(r"impact: weapon=2 kind=(?:world|metal|wood) sound=global/e_electronspr", text):
+        raise RuntimeError("Ion did not select a world spark sound")
+    if not re.search(r"impact: weapon=(?:4|22|23).*marks=[1-9]", text):
+        raise RuntimeError("weapon impacts did not project world decals")
+    if "weapon=22 phase=settle pose=spdn" not in text:
+        raise RuntimeError("Ripgun did not spin down after releasing fire")
+    if "missing weapon animation" in text or "could not find sounds/" in text.lower():
+        raise RuntimeError("missing weapon presentation media")
+    return {"scope": "Ion authored flesh/world sound selection, clipped world marks, Shotcycler burst and Ripgun spin-down; diagnostic placement/equipment, captures require inspection, physical audio/full weapon parity open"}
 
 
 def save_scenario(issue, capture, log, home):
@@ -614,6 +662,8 @@ def run(args):
                     result = combat_scenario(issue, capture, log)
                 elif args.scenario == "presentation":
                     result = presentation_scenario(issue, capture, log)
+                elif args.scenario == "impacts":
+                    result = impacts_scenario(issue, capture, log)
                 elif args.scenario == "save":
                     result = save_scenario(issue, capture, log, home)
                 elif args.scenario == "effects":
@@ -643,7 +693,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -657,6 +707,7 @@ def main():
         "effects": ("e4m4b", "runtime-zig-222/effects"),
         "combat": ("e1m3b", "runtime-zig-224/combat"),
         "presentation": ("e1m3b", "runtime-zig-228/presentation"),
+        "impacts": ("e1m2a", "runtime-zig-232/impacts"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

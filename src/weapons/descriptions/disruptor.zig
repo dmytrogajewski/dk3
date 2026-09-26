@@ -2,7 +2,8 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 1;
 pub const spec: profiles.Spec = .{
-    .combat = .{ .hitscan = .{ .single_player_scale = 0.5, .standing_height = 21, .crouching_height = -4 } },
+    .impact = .disruptor,
+    .combat = .{ .hitscan = .{ .single_player_scale = 0.5, .standing_height = 21, .crouching_height = -4, .inertial = true } },
     .equipped = false,
     .inventory_view_model = true,
     .start_episode = 1, // disruptor

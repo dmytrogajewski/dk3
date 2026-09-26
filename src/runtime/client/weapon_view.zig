@@ -39,6 +39,7 @@ pub const View = struct {
     looping: bool = false,
     shine: c.qhandle_t = 0,
     cloak: c.qhandle_t = 0,
+    finish_ms: ?i64 = null,
     pub fn deinit(self: *View) void {
         for (self.media) |media| {
             if (media.view) |model| std.heap.c_allocator.free(model.metadata);
@@ -76,7 +77,9 @@ pub const View = struct {
         if (self.state.update(spec, .{ .weapon = id, .state = loadout.weaponstate, .sequence = loadout.dk3WeaponSequence, .reloading = catalog.isReloading(&loadout), .attack_factor = catalog.transitions.attackFactor(character.attribute(.attack, now)), .now_ms = now })) |cue| {
             self.sequence = try media.view.?.sequence(cue.pose);
             self.sequence.fps = cue.rate;
-            self.started_ms = if (cue.phase == .fire) self.state.fire_ms else now;
+            self.started_ms = if (cue.phase == .fire) (if (self.state.fire_weapon == id and !spec.animation.fire_loop) self.state.fire_ms else now) + spec.animation.fire_start_ms else now;
+            if (cue.phase == .ready or cue.phase == .away) self.finish_ms = null;
+            if (cue.phase == .fire and spec.animation.finish_ms > 0) self.finish_ms = self.started_ms + spec.animation.finish_ms;
             self.looping = cue.loop;
             self.state.ended_ms = self.started_ms + self.sequence.duration();
             if (engine.integer("developer") != 0) {
@@ -85,6 +88,10 @@ pub const View = struct {
             }
             if (cue.sound) |name| _ = engine.gateway.call(c.CG_S_STARTLOCALSOUND, .{ @as(isize, try sound(name)), @as(isize, c.CHAN_WEAPON) });
         }
+        if (self.finish_ms) |at| if (now >= at) {
+            if (spec.audio.finish) |name| _ = engine.gateway.call(c.CG_S_STARTLOCALSOUND, .{ @as(isize, try sound(name)), @as(isize, c.CHAN_WEAPON) });
+            self.finish_ms = null;
+        };
         var rendered = std.mem.zeroes(c.refEntity_t);
         rendered.reType = c.RT_MODEL;
         rendered.hModel = media.view.?.handle;

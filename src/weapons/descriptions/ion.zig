@@ -30,6 +30,26 @@ pub const spec: profiles.Spec = .{
 };
 pub const identity = .{ .classname = "weapon_ionblaster", .label = "Ion blaster", .episode = 1, .interval = 500 };
 
+pub fn impact(context: @import("../impact.zig").Context) @import("../impact.zig").Cue {
+    const sparks = [_][:0]const u8{ "global/e_electronsprka.wav", "global/e_electronsprke.wav", "global/e_electronsprkg.wav", "global/e_electronsprkh.wav" };
+    const explosions = [_][:0]const u8{ "e1/we_ionexplodea.wav", "e1/we_ionexplodea.wav", "e1/we_ionexplodeb.wav", "e1/we_ionexplodeb.wav", "e1/we_ionexplodec.wav" };
+    return .{ .sound = switch (context.kind) {
+        .flesh => explosions[(context.serial *% 7) % explosions.len],
+        .water => null,
+        else => sparks[context.serial % sparks.len],
+    }, .particles = if (context.kind == .flesh) 12 else 8, .particle_shader = "dk3/particle/ion-sparkle", .color = .{ 0.1, 0.9, 0.1 }, .light_radius = 120 };
+}
+test "ion flesh impacts use explosions, world impacts sparks, water no metal sound" {
+    const std = @import("std");
+    for (0..20) |serial| {
+        const flesh = impact(.{ .kind = .flesh, .serial = @intCast(serial) });
+        const wall = impact(.{ .kind = .world, .serial = @intCast(serial) });
+        try std.testing.expect(std.mem.startsWith(u8, flesh.sound.?, "e1/we_ionexplode"));
+        try std.testing.expect(std.mem.startsWith(u8, wall.sound.?, "global/e_electronspr"));
+    }
+    try std.testing.expect(impact(.{ .kind = .water, .serial = 1 }).sound == null);
+}
+
 const shot_rules = @import("../shot.zig");
 const state = @import("../weapon_state.zig");
 const sword = @import("../sword_rules.zig");

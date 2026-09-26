@@ -2879,3 +2879,21 @@ offset/NO_OFFSET behavior and episode inventory reset; no private code was impor
 | First authored exit contact | Passed; fixture assertion repaired | `runtime-zig-231/travel/` and `travel-state/`: e1m3b exit 127 starts only e1m3a and enters its named landing. New diagnostics establish health 333 at departure and arrival; a live guard subsequently deals 11 damage. Fixed-health checks now compare at the transition boundary, with the save checkpoint paused. |
 | Changed-world round trip and save recovery | Passed, limited | `runtime-zig-231/travel-paused-save/`: normal touch of authored exits 127/131 traverses e1m3b/e1m3a, named positions match, Glock and actual incoming health transfer (333, 222, 333). Returning preserves broken control 125. Full save after deleting this temporary profile's internal transfer files restores the visited world. Arrival/return/recovered captures inspected. Diagnostic positioning/equipment; complete route/offset/blocker and companion/cinematic acceptance remains open. |
 | Applicable broad checks | Passed | `/tmp/dk3-runtime-231-suite.log`: 201 Zig and 44 Python tests after the integrated scenario repair. |
+
+## runtime-zig — sequence 232 (pellets, rotary fire and impact presentation)
+
+Connected three more native combat policies to shared input, authoritative damage,
+saved pellet RNG and class-owned presentation. Contact events distinguish actors from
+world/destructible materials, drive clipped decals and cosmetic particles/lights, and
+select Ion flesh explosions separately from world spark sounds. Native save validation
+excludes transient events and retains RNG continuation. No legacy runtime was linked.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated modules and domain policies | Passed after repair | `/tmp/dk3-runtime-232-final-build.log`: three modules, 55 runtime + 11 catalog tests. Repaired signed mark-fragment bounds at the public ABI. Includes burst/rotary transitions, pellet accounting and save RNG/transient-event behavior. |
+| Normal attacks and damage/death | Passed, limited | `runtime-zig-232/combat/`: normal fire input kills diagnostic ECS targets with Glock, Ion, Shotcycler, Ripgun and Slugger. Shotcycler capture inspected. Diagnostic targets/equipment; full weapon parity remains open. |
+| Flesh/material impacts and animation | Passed, limited | `runtime-zig-232/impacts/`: ordinary Ion shots hit authored worker 10 and choose explosion variants; floor hits choose electrical spark sounds. Shotcycler/Ripgun/Slugger project world decals; Ripgun loops and reaches spdn on release. Fire/settled captures inspected. Diagnostic placement/equipment; physical audio and complete reference comparison remain open. |
+| Initial OpenGL2 scenario | Passed, limited | `runtime-zig-232/impacts-opengl2/`: the same impact/animation assertions pass; settled Slugger capture inspected. |
+| Repeated-hit decal fringe | Failed visually; repaired | Initial captures show accumulated translucent borders becoming a square patch under repeated stationary fire. Cosmetic marks now coalesce nearby same-surface hits and rotate deterministically. `impacts-decals/` passes and its settled Ripgun frame shows separate holes without the accumulated square. |
+| Final OpenGL2 decal replay | Passed, limited | `runtime-zig-232/impacts-decals-opengl2/`: same impact/animation assertions pass; settled Ripgun frame inspected with the coalesced/rotated marks. `/tmp/dk3-runtime-232-decals-build.log` records the final renderer build. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-232-final-suite.log`: 204 Zig + 44 Python tests after the visual repair. The earlier aggregate is retained as pre-repair evidence. |

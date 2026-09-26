@@ -138,6 +138,8 @@ pub const Context = struct {
         self.events.append(.{ .fired = .{ .weapon = @intCast(self.ps.weapon), .sequence = self.ps.dk3WeaponSequence, .command_ms = self.command.time_ms, .position = self.motion.position, .angles = self.command.angles, .view_height = self.player.view_height, .ducked = self.player.ducked, .charge = self.ps.dk3Charge } }) catch |err| {
             self.failure = err;
         };
+        const policy = catalog.find(@intCast(self.ps.weapon)).?.spec.combat;
+        if (policy == .pellets and policy.pellets.recoil != 0) self.motion.velocity = v.add(self.motion.velocity, v.scale(v.basis(self.command.angles).forward, -policy.pellets.recoil));
     }
     pub fn inventoryTick(self: *Context) void {
         if (!self.single_player or self.ps.dk3Inventory & (@as(i32, 1) << 7) == 0) return;

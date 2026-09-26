@@ -72,7 +72,7 @@ fn trace(raw: *anyopaque, request: collision.Request) !collision.Trace {
         } else if (hit.startsolid != 0) result.startsolid = 1;
         if (result.allsolid != 0) break;
     }
-    return .{ .fraction = result.fraction, .end = result.endpos, .normal = result.plane.normal, .start_solid = result.startsolid != 0, .all_solid = result.allsolid != 0, .entity = @intCast(result.entityNum), .slick = result.surfaceFlags & c.SURF_SLICK != 0, .ladder = result.surfaceFlags & c.SURF_LADDER != 0 };
+    return .{ .fraction = result.fraction, .end = result.endpos, .normal = result.plane.normal, .start_solid = result.startsolid != 0, .all_solid = result.allsolid != 0, .entity = @intCast(result.entityNum), .slick = result.surfaceFlags & c.SURF_SLICK != 0, .ladder = result.surfaceFlags & c.SURF_LADDER != 0, .no_impact = result.surfaceFlags & c.SURF_NOIMPACT != 0, .material = if (result.surfaceFlags & c.SURF_DK_WOOD != 0) .wood else if (result.surfaceFlags & c.SURF_METALSTEPS != 0) .metal else .ordinary };
 }
 fn contents(raw: *anyopaque, point: @import("../domain/vector.zig").Vec3, skip: u16) !u32 {
     const engine: *abi.Gateway = @ptrCast(@alignCast(raw));

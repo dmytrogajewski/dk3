@@ -31,11 +31,32 @@ pub fn expire(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     const occupants = slots.occupants;
     for (occupants, 0..) |occupant, slot| {
         const entity = occupant orelse continue;
-        _ = world.get(entity, data.SoundEvent) catch continue;
+        if ((world.get(entity, data.SoundEvent) catch null) == null and (world.get(entity, data.ImpactEvent) catch null) == null) continue;
         const deadline = (try world.get(entity, data.Lifetime)).expires_ms;
         if (deadline > now) continue;
         engine.unlink(&projections[slot]);
         try slots.release(@intCast(slot), entity);
         try world.destroy(entity);
     }
+}
+pub fn impact(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, value: data.ImpactEvent, position: data.Vec3, now: i64) !void {
+    const entity = try world.create(null, .{ data.Transform{ .position = position }, value, data.Lifetime{ .expires_ms = now + 300 } });
+    errdefer world.destroy(entity) catch unreachable;
+    const slot = try slots.acquire(entity, null);
+    errdefer slots.release(slot, entity) catch unreachable;
+    try world.put(entity, data.Binding{ .slot = slot });
+    const projection = &projections[slot];
+    projection.* = std.mem.zeroes(abi.EntityProjection);
+    projection.state.number = slot;
+    projection.state.eType = c.ET_EVENTS + c.EV_DK3_IMPACT;
+    projection.state.weapon = value.weapon;
+    projection.state.eventParm = @intFromEnum(value.kind);
+    projection.state.frame = @intFromBool(value.charged);
+    projection.state.origin2 = value.normal;
+    projection.state.time = @intCast(now);
+    projection.state.time2 = @bitCast(try world.persistentId(entity));
+    projection.state.pos = @import("../engine/trajectory.zig").stationary(position);
+    projection.shared.currentOrigin = position;
+    projection.shared.ownerNum = c.ENTITYNUM_NONE;
+    engine.link(projection);
 }

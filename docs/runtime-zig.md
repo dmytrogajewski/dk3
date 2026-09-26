@@ -420,3 +420,24 @@ return). Loading a full campaign save after discarding temporary transfer files
 restores its visited laser world and incoming health 333. Captures were inspected.
 Diagnostic positioning/equipment and a paused save fixture were used; this is not
 full authored route, offset/blocker, companion or cinematic acceptance.
+
+## runtime-zig-232 — pellets, rotary fire and impact presentation
+
+Implemented with focused native combat and rendered evidence. Shotcycler and Slugger
+own their pellet geometry, victim limits, damage scaling and recoil policies; Ripgun
+uses its rapid trace controller. Persistent player RNG produces pellet spread and
+continues across native save/load. Shared movement prediction applies Shotcycler
+recoil. Living actors/players receive mass-scaled inertial hits; rising actors retain
+their impulse instead of reacquiring ground prematurely.
+
+Authoritative contact events carry weapon, material/flesh/water classification,
+normal and serial. Class-owned impact cues select sounds, decals, particles and light;
+Ion uses explosion sounds for flesh and electrical sparks for world contacts. The
+client clips decals through the engine collision adapter and owns bounded cosmetic
+pools, independent of gameplay state. Nearby repeated decals replace one another
+and rotate deterministically to prevent alpha fringes accumulating into opaque
+rectangles. Save capture excludes transient impact/sound
+events. Snapshot validation rejects imported transient events and invalid body mass.
+Shotcycler retains one burst pose and finish cue; Ripgun loops firing and spins down
+on release. Six combat policies are connected; the remaining 22, projectile trails,
+full impact art/audio parity and complete all-weapon acceptance remain open.

@@ -2,6 +2,9 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 22;
 pub const spec: profiles.Spec = .{
+    .combat = .{ .hitscan = .{} },
+    .impact = .bullet,
+    .muzzle = .{ .model = "models/global/genflash.dkm", .scale = 8, .light_radius = 175, .offset = -2, .shader = "dk3/fx/shotcycler-flash" },
     .ammo_class = "ammo_ripgun", // ripgun
     .world_model = "models/e4/a_ripgun.dkm",
     .animation = .{
@@ -9,6 +12,8 @@ pub const spec: profiles.Spec = .{
         .ready = "ready",
         .away = "away",
         .fire = "shoota",
+        .fire_loop = true,
+        .fire_end = "spdn",
         .idle = .{ "amba", null, null },
         .raise_ms = 350,
         .drop_ms = 250,

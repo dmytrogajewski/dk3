@@ -6,6 +6,7 @@ var seen: [c.MAX_GENTITIES]u32 = @splat(0);
 var names: [c.MAX_SOUNDS][c.MAX_QPATH]u8 = @splat(@splat(0));
 var sounds: [c.MAX_SOUNDS]c.sfxHandle_t = @splat(0);
 pub fn reset() void {
+    @import("impacts.zig").reset();
     @memset(&seen, 0);
     @memset(&sounds, 0);
     @memset(std.mem.asBytes(&names), 0);
@@ -26,6 +27,10 @@ fn sound(game: *const c.gameState_t, index: i32) !c.sfxHandle_t {
 }
 pub fn consume(game: *const c.gameState_t, entities: []const c.entityState_t) !void {
     for (entities) |entity| {
+        if (entity.eType == c.ET_EVENTS + c.EV_DK3_IMPACT) {
+            try @import("impacts.zig").consume(entity);
+            continue;
+        }
         if (entity.eType != c.ET_EVENTS + c.EV_GENERAL_SOUND) continue;
         if (entity.number < 0 or entity.number >= seen.len or entity.otherEntityNum < 0 or entity.otherEntityNum >= c.MAX_GENTITIES or entity.generic1 < 0 or entity.generic1 > c.CHAN_ANNOUNCER) return error.InvalidSoundEvent;
         const slot: usize = @intCast(entity.number);
