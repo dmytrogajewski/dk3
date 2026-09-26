@@ -2807,3 +2807,21 @@ No private implementation or assets were imported.
 | Laser fixture repairs | Failed fixtures, repaired | `laser/` and `laser-repaired/`: initial standing search began above low ceilings; expanded vertical search. `laser-diagnostic/`: box takes one shot and retains 7 health; recorded separate normal press/release shots for the complete kill. These failures and collision diagnostics remain recorded. |
 | Aggregate checks | Passed | `/tmp/dk3-runtime-227-suite.log`: 187 Zig and 44 Python checks across native runtime, weapons, online and guard; run once after scenario repair. |
 | Full navigation and world presentation | Unrun | Dynamic route availability, authored air/water graphs, cover/yielding, debris, beam effects and full world-action parity remain open. |
+
+## runtime-zig — sequence 228 (weapon presentation and HUD)
+
+Connected class-owned view-model poses/audio to deduplicated predicted/server shots,
+finite animation timing and Glock reload. The native client places model flashes at
+supplied tags, uses additive Glock/Ion shaders, and exposes off/original/enhanced shine.
+Shared client/UI drawing validates supplied glyph metrics; HUD and inventory consume
+replicated character, ammunition and key state. Weapon and item catalog tests are now
+explicit test roots alongside actor tests; named imports alone did not execute them.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated build | Passed after repair | Three native modules; 48 runtime + 2 actor + 4 weapon + 2 inventory + 1 item tests. Repaired duplicate module ownership and explicit compile-time float/integer coercions exposed by integration. |
+| Existing normal attacks | Passed | `runtime-zig-228/combat/`: Glock/Ion target damage and death still work with the native HUD/view models; captures inspected. |
+| View weapon transitions and supplied media | Passed | `runtime-zig-228/presentation/`: Disruptor/Glock/Ion fire and return to idle, Glock clip exhausts and enters its class-owned reload pose, returns to idle. Captures show additive Glock flash without an opaque rectangle, Ion flash, HUD, inventory and enhanced shine. Diagnostic equipment; not all-weapon or original-renderer parity acceptance. |
+| Complete presentation | Unrun | Other weapons, status feedback, multiplayer HUD, companions, all effects and physical audio remain open. |
+| OpenGL2 presentation | Passed, limited | `runtime-zig-228/presentation-opengl2/`: same transitions and supplied media checks; Glock firing capture inspected. Both renderer paths blend the flash without an opaque rectangle. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-228-suite.log`: 195 Zig and 44 Python tests, run once after integrated scenario repair. |

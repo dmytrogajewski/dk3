@@ -23,10 +23,13 @@ var snapshot_number: i32 = -1;
 var command_sequence: i32 = 0;
 var client_number: i32 = 0;
 var view_angles: v.Vec3 = @splat(0);
+var weapon_view: @import("client/weapon_view.zig").View = .{};
+var hud: @import("client/hud.zig").Hud = .{};
 export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
+    weapon_view.deinit();
     if (world) |*value| value.deinit();
     world = null;
     predicted = null;
@@ -59,6 +62,8 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     const table_bytes = try @import("engine/files.zig").read(.client, &engine.gateway, std.heap.c_allocator, "dk3/tables/weapons.cfg", 4 * 1024 * 1024);
     defer std.heap.c_allocator.free(table_bytes);
     weapon_table = try weapons.Table.parse(table_bytes);
+    weapon_view.init();
+    try hud.init();
     world = data.World.init(std.heap.c_allocator, 128);
     predicted = try world.?.create(null, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Health{}, data.Weapons{}, data.Character{}, data.Ailments{} });
     have_snapshot = false;
@@ -67,7 +72,7 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     snapshot_number = server_message - 1;
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "viewpos")});
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "use")});
-    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev", "attribute" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
+    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev", "attribute", "inventory", "invnext", "invprev", "attribute_next", "attribute_increase" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
     engine.print("dk3 zig: shared movement prediction initialized\n");
 }
 fn draw(now: i32) !void {
@@ -79,6 +84,14 @@ fn draw(now: i32) !void {
         if (engine.gateway.call(c.CG_GETSNAPSHOT, .{ @as(isize, latest), &snapshot }) == 0) return;
         snapshot_number = latest;
         have_snapshot = true;
+        const sequence_number: u32 = @bitCast(snapshot.ps.eventSequence);
+        for (0..c.MAX_PS_EVENTS) |i| {
+            const serial = sequence_number -% @as(u32, @intCast(c.MAX_PS_EVENTS - i));
+            const index = serial & (c.MAX_PS_EVENTS - 1);
+            if (snapshot.ps.events[index] != c.EV_FIRE_WEAPON) continue;
+            const id = snapshot.ps.eventParms[index];
+            if (id > 0 and id <= 28) weapon_view.fire(@intCast(id), serial, snapshot.ps.commandTime);
+        }
         while (command_sequence < snapshot.serverCommandSequence) {
             command_sequence += 1;
             if (engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)}) != 0) {
@@ -120,6 +133,10 @@ fn draw(now: i32) !void {
         var events: weapons.Events = .{};
         var weapon_context: weapons.Context = .{ .ps = loadout, .healthy = snapshot.ps.stats[c.STAT_HEALTH] > 0, .single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER, .table = &weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(client_number), .shot_mask = c.MASK_SHOT, .attack_boost = character.attribute(.attack, command.time_ms) };
         _ = try move.runWithHook(player, &motion, command, bridge.characterParameters(@intCast(client_number), character.*, ailments.*, command.time_ms), engine.collisionService(), weapon_context.hook());
+        for (events.values[0..events.count], 0..) |event, i| switch (event) {
+            .fired => |shot| weapon_view.fire(shot.weapon, loadout.event_sequence -% @as(u32, @intCast(events.count - i)), shot.command_ms),
+            .no_ammo => {},
+        };
         transform.position = motion.position;
         transform.angles = command.angles;
         velocity.linear = motion.velocity;
@@ -141,6 +158,7 @@ fn draw(now: i32) !void {
     ref.areamask = snapshot.areamask;
     ref.dk3Lightstyles = @splat(1);
     _ = engine.gateway.call(c.CG_R_CLEARSCENE, .{});
+    _ = engine.gateway.call(c.CG_S_CLEARLOOPINGSOUNDS, .{@as(isize, c.qfalse)});
     for (snapshot.entities[0..@intCast(snapshot.numEntities)]) |entity| {
         var handle: c.qhandle_t = 0;
         if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
@@ -165,7 +183,9 @@ fn draw(now: i32) !void {
         rendered.shaderRGBA = @splat(255);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
     }
+    if (player.mode == .normal and snapshot.ps.stats[c.STAT_HEALTH] > 0) try weapon_view.draw(loadout.*, character.*, &ref, client_number, now);
     _ = engine.gateway.call(c.CG_R_RENDERSCENE, .{&ref});
+    try hud.render(display, .{ .current = snapshot.ps.stats[c.STAT_HEALTH], .armor = snapshot.ps.stats[c.STAT_ARMOR] }, character.*, .{ .mask = @bitCast(snapshot.ps.dk3Keys), .quest = @bitCast(snapshot.ps.dk3Quest) }, loadout.*, &weapon_table, selected_weapon, now);
     _ = engine.gateway.call(c.CG_S_RESPATIALIZE, .{ @as(isize, client_number), &ref.vieworg, &ref.viewaxis, @as(isize, @intFromBool(player.water_level == 3)) });
 }
 fn console() isize {
@@ -173,6 +193,7 @@ fn console() isize {
     _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 0), &buffer, @as(isize, buffer.len) });
     const name = std.mem.sliceTo(&buffer, 0);
     if (world == null or !have_snapshot) return 0;
+    if (hud.command(name)) return 1;
     if (std.mem.eql(u8, name, "weapon")) {
         _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 1), &buffer, @as(isize, buffer.len) });
         const id = std.fmt.parseInt(u5, std.mem.sliceTo(&buffer, 0), 10) catch return 1;

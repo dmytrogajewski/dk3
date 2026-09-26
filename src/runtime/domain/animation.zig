@@ -5,6 +5,16 @@ pub const Sequence = struct {
     first: u16 = 0,
     last: u16 = 0,
     fps: u16 = 10,
+    pub fn duration(self: Sequence) i64 {
+        return @divTrunc(@as(i64, self.last - self.first + 1) * 1000, self.fps);
+    }
+    pub fn sample(self: Sequence, elapsed_ms: i64, looping: bool) struct { frame: u16, oldframe: u16, backlerp: f32 } {
+        const elapsed = @max(0, elapsed_ms);
+        const old = self.frame(elapsed, looping);
+        const step = @mod(elapsed * self.fps, 1000);
+        const next = if (old < self.last) old + 1 else if (looping) self.first else old;
+        return .{ .frame = next, .oldframe = old, .backlerp = 1 - @as(f32, @floatFromInt(step)) * 0.001 };
+    }
     pub fn frame(self: Sequence, elapsed_ms: i64, looping: bool) u16 {
         const count: u64 = self.last - self.first + 1;
         const elapsed: u64 = @intCast(@max(0, elapsed_ms));

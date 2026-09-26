@@ -343,3 +343,17 @@ presentation together. Campaign-specific corrections remain explicit in
 New scenarios are tracked in sequence 227 of the run log. Remaining weapons, actors,
 air/water navigation, scripts/cinematics, saves/travel, presentation/UI and multiplayer
 integration still require implementation and acceptance.
+
+## runtime-zig-228 — weapon presentation and HUD
+
+The client owns view-model media, interpolated finite poses, predicted/server fire
+deduplication, reload/ready/away cues, muzzle placement, additive flashes, hum and
+optional weapon shine. Pure presentation transitions consume class-owned animation
+and audio metadata. Glock reload detection is dispatched through the class contract.
+The game build installs its independent effect shader alongside the modules.
+
+Shared client/UI drawing uses validated supplied DKF metrics. The native HUD draws
+health, armor, ammunition, level, attribute boosts/points, weapon models and campaign
+inventory. Selection and attribute commands dispatch to the authoritative server.
+The three implemented combat weapons have focused animation and rendered evidence;
+remaining weapon-specific poses/effects, complete HUD states and menus remain open.

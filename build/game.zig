@@ -15,5 +15,6 @@ pub fn declare(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
         const install = b.addInstallFileWithDir(artifact.getEmittedBin(), .lib, b.fmt("dk3/{t}.so", .{product}));
         step.dependOn(&install.step);
     }
+    step.dependOn(&b.addInstallFile(b.path("src/runtime/client/dk3-projectile-weather.shader"), "share/dk3/scripts/dk3-projectile-weather.shader").step);
     b.getInstallStep().dependOn(step);
 }

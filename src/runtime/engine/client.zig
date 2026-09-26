@@ -34,6 +34,12 @@ pub fn integer(name: [:0]const u8) i32 {
     _ = gateway.call(c.CG_CVAR_VARIABLESTRINGBUFFER, .{ name.ptr, &buffer, @as(isize, buffer.len) });
     return std.fmt.parseInt(i32, std.mem.sliceTo(&buffer, 0), 10) catch 0;
 }
+pub fn number(name: [:0]const u8, fallback: f32) f32 {
+    var buffer: [64]u8 = @splat(0);
+    _ = gateway.call(c.CG_CVAR_VARIABLESTRINGBUFFER, .{ name.ptr, &buffer, @as(isize, buffer.len) });
+    const value = std.fmt.parseFloat(f32, std.mem.sliceTo(&buffer, 0)) catch return fallback;
+    return if (std.math.isFinite(value)) value else fallback;
+}
 pub fn collisionService() collision.Collision {
     return .{ .context = &gateway, .trace_fn = trace, .contents_fn = contents };
 }

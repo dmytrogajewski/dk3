@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Shared metadata also consumed by the legacy C presentation and item code.
+//! Shared metadata for native inventory, item rules and presentation.
 const std = @import("std");
 const Pair = struct { name: []const u8, value: []const u8 };
 fn count(comptime bytes: []const u8) usize {

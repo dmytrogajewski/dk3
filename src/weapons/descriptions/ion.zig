@@ -25,6 +25,7 @@ pub const spec: profiles.Spec = .{
         .away = "e1/we_ionaway.wav",
         .hum = "e1/we_ionamba.wav",
     },
+    .muzzle = .{ .model = "models/global/genflashg.dkm", .scale = 3, .alpha = 102, .offset = -2, .color = .{ 0, 1, 0 }, .shader = "dk3/fx/ion-flash" },
     .projectile_muzzle = true,
 };
 pub const identity = .{ .classname = "weapon_ionblaster", .label = "Ion blaster", .episode = 1, .interval = 500 };

@@ -22,7 +22,6 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }) });
     b.installArtifact(guard);
-    b.installFile("src/runtime/client/dk3-projectile-weather.shader", "share/dk3/scripts/dk3-projectile-weather.shader");
     if (engine.declare(b, target, optimize)) game.declare(b, target, optimize, rules_identity);
     const checks = b.step("test", "Run the existing published component checks");
     checks.dependOn(@import("build/runtime.zig").declareTests(b, optimize));

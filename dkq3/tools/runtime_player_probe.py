@@ -238,6 +238,37 @@ def combat_scenario(issue, capture, log):
     return {"attacks": results, "scope": "normal fire input against diagnostic ECS targets; Glock hitscan and Ion projectile damage/death, not actor/campaign or visual parity acceptance"}
 
 
+def presentation_scenario(issue, capture, log):
+    issue("developer 1")
+    issue("cg_shinyWeapons 0")
+    for weapon in (1, 21, 2):
+        issue(f"dk3_runtime_equip {weapon}", 1)
+        issue(f"weapon {weapon}", 1)
+        capture(f"weapon-{weapon}-idle")
+        issue("+attack", 0.02)
+        capture(f"weapon-{weapon}-fire")
+        issue("-attack", 1)
+    issue("weapon 21", 1)
+    issue("+attack", 5.9)
+    capture("glock-reload")
+    issue("-attack", 2)
+    capture("glock-idle-after-reload")
+    issue("cg_shinyWeapons 2")
+    capture("glock-shine")
+    issue("inventory")
+    capture("inventory")
+    text = log.read_text(errors="replace")
+    for weapon in (1, 21, 2):
+        for phase in ("fire", "idle"):
+            if f"zig view: weapon={weapon} phase={phase}" not in text:
+                raise RuntimeError(f"missing view transition {weapon}/{phase}")
+    if "zig view: weapon=21 phase=reload" not in text:
+        raise RuntimeError("Glock did not enter its class-owned reload animation")
+    if "missing weapon animation" in text or "could not find sounds/" in text.lower():
+        raise RuntimeError("missing weapon presentation media")
+    return {"scope": "three native view weapons, finite attacks/idle, Glock reload, shine and inventory; captures require visual inspection, all-weapon presentation remains open"}
+
+
 def civilians_scenario(issue, capture, log):
     def actors():
         issue("dk3_runtime_actors", 0.05)
@@ -407,6 +438,9 @@ def run(args):
         (home / "dk3").mkdir()
         for module in ("qagame", "cgame", "ui"):
             shutil.copy2(args.prefix / f"lib/dk3/{module}.so", home / f"dk3/{module}.so")
+        (home / "dk3/scripts").mkdir()
+        shutil.copy2(args.prefix / "share/dk3/scripts/dk3-projectile-weather.shader",
+                     home / "dk3/scripts/dk3-projectile-weather.shader")
         command = [str(args.guard), "--headless", "--screen", "960x540",
                    "--timeout", "90s", "--mem", "8G", "--", str(args.engine / "bin/dk3")]
         settings = {"net_enabled": "0", "fs_basepath": str(args.engine / "share"),
@@ -449,6 +483,8 @@ def run(args):
                     result = civilians_scenario(issue, capture, log)
                 elif args.scenario == "combat":
                     result = combat_scenario(issue, capture, log)
+                elif args.scenario == "presentation":
+                    result = presentation_scenario(issue, capture, log)
                 elif args.scenario == "effects":
                     result = effects_scenario(issue, capture, log)
                 elif args.scenario == "inventory":
@@ -476,7 +512,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -489,6 +525,7 @@ def main():
         "inventory": ("e1m6a", "runtime-zig-221/inventory"),
         "effects": ("e4m4b", "runtime-zig-222/effects"),
         "combat": ("e1m3b", "runtime-zig-224/combat"),
+        "presentation": ("e1m3b", "runtime-zig-228/presentation"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),
         "navigation": ("e1m3b", "runtime-zig-227/navigation"),

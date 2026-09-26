@@ -7,6 +7,8 @@ pub const Animation = struct {
     ready: [:0]const u8 = "",
     away: [:0]const u8 = "",
     fire: [:0]const u8 = "",
+    fire_variants: [4]?[:0]const u8 = @splat(null),
+    reload: ?[:0]const u8 = null,
     idle: [3]?[:0]const u8 = .{ null, null, null },
     alternate: ?[:0]const u8 = null,
     rate: u8 = 20,
@@ -50,6 +52,16 @@ pub const ProjectileSpawn = struct {
     action_delay_ms: u32 = 0,
     lifetime_ms: u32 = 0,
 };
+pub const Muzzle = struct {
+    model: [:0]const u8,
+    animation: [:0]const u8 = "stand",
+    shader: ?[:0]const u8 = null,
+    scale: f32 = 1,
+    alpha: u8 = 153,
+    offset: f32 = 0,
+    light_radius: f32 = 150,
+    color: [3]f32 = .{ 0.8, 0.4, 0.2 },
+};
 
 pub const Combat = union(enum) {
     pending,
@@ -77,6 +89,7 @@ pub const Spec = struct {
     equipped: bool = true,
     equipped_frame: c_int = 4,
     animation: Animation = .{},
+    muzzle: ?Muzzle = null,
     audio: Audio = .{},
     visual: Visual = .{},
     projectile: ProjectileSpawn = .{},

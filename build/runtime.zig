@@ -10,8 +10,10 @@ pub fn declareTests(b: *std.Build, optimize: std.builtin.OptimizeMode) *std.Buil
     root.linkSystemLibrary("m", .{});
     step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = root })).step);
     // Named module imports do not contribute their own tests to the runtime root.
-    const actors = b.createModule(.{ .root_source_file = b.path("src/actors/catalog.zig"), .target = b.graph.host, .optimize = optimize });
-    step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = actors })).step);
+    for ([_][]const u8{ "src/actors/catalog.zig", "src/weapons/catalog.zig", "src/weapons/inventory_rules.zig", "src/items/catalog.zig" }) |source| {
+        const catalog = b.createModule(.{ .root_source_file = b.path(source), .target = b.graph.host, .optimize = optimize });
+        step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = catalog })).step);
+    }
     const audit = b.addExecutable(.{ .name = "dk3-runtime-audit", .root_module = b.createModule(.{ .root_source_file = b.path("src/runtime/audit.zig"), .target = b.graph.host, .optimize = optimize }) });
     const audit_step = b.step("runtime-audit", "Build read-only save compatibility inspector");
     audit_step.dependOn(&b.addInstallArtifact(audit, .{}).step);

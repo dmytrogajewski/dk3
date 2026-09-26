@@ -86,7 +86,10 @@ pub const Clients = struct {
                 .fired => c.EV_FIRE_WEAPON,
                 .no_ammo => c.EV_NOAMMO,
             };
-            states[index].eventParms[sequence & (c.MAX_PS_EVENTS - 1)] = 0;
+            states[index].eventParms[sequence & (c.MAX_PS_EVENTS - 1)] = switch (event) {
+                .fired => |shot| shot.weapon,
+                .no_ammo => 0,
+            };
         }
         transform.position = motion.position;
         transform.angles = command.angles;

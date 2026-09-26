@@ -24,8 +24,13 @@ pub fn update(controller: anytype) void {
     };
 }
 pub fn isReloading(ps: anytype) bool {
-    return ps.weapon == 21 and @import("descriptions/glock.zig").isReloading(ps);
+    inline for (weapons) |W| if (ps.weapon == W.id) {
+        if (@hasDecl(W, "isReloading")) return W.isReloading(ps);
+        return false;
+    };
+    return false;
 }
+pub const presentation = @import("presentation.zig");
 
 pub const transitions = @import("controller.zig");
 pub const Shot = @import("shot.zig").Shot;
@@ -35,3 +40,12 @@ pub const values = @import("values.zig");
 pub const gas = @import("gas_rules.zig");
 
 pub const character = @import("character_rules.zig");
+test {
+    _ = presentation;
+    _ = transitions;
+    _ = gas;
+    _ = character;
+    _ = values;
+    _ = @import("sword_rules.zig");
+    inline for (weapons) |W| _ = W;
+}

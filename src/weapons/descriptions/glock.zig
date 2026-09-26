@@ -12,10 +12,12 @@ pub const spec: profiles.Spec = .{
         .ready = "ready",
         .away = "away",
         .fire = "shoota",
+        .reload = "reload",
         .idle = .{ "amba", "ambb", null },
         .raise_ms = 300,
         .drop_ms = 250,
     },
+    .muzzle = .{ .model = "models/global/we_mflash.dkm", .animation = "amba", .shader = "dk3/fx/glock-flash" },
     .audio = .{
         .fire = "e4/we_glockshootb.wav",
         .ready = "e4/we_glockready.wav",
