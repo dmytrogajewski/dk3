@@ -60,6 +60,11 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.next_ms, delta);
             try deadline(&value.quake_until_ms, delta);
         },
+        .shockwave => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.next_ms, delta);
+            for (value.rings[0..value.count]) |*ring| try shift(&ring.start_ms, delta);
+        },
         .ailments => {
             if (value.poison) |*poison| {
                 try shift(&poison.until_ms, delta);

@@ -37,6 +37,6 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const slot = (try world.get(owner, data.Binding)).slot;
         try world.destroy(entity);
         try @import("projectiles.zig").launch(world, slots, projections, owner, .{ .weapon = action.weapon, .sequence = action.sequence, .charge = action.charge, .position = pose.position, .angles = pose.angles, .view_height = player.view_height, .ducked = player.ducked, .command_ms = now }, table, now);
-        if (catalog.fireSound(action.weapon, action.sequence, @truncate(@as(u64, @bitCast(now))))) |sound| try @import("events.zig").sound(world, slots, projections, sound, pose.position, slot, abi.c.CHAN_WEAPON, now);
+        if (catalog.find(action.weapon).?.spec.projectile.sound_on_launch) if (catalog.fireSound(action.weapon, action.sequence, @truncate(@as(u64, @bitCast(now))))) |sound| try @import("events.zig").sound(world, slots, projections, sound, pose.position, slot, abi.c.CHAN_WEAPON, now);
     }
 }

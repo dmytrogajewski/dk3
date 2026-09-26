@@ -20,6 +20,9 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
             if (world.get(entity, data.Hammer) catch null) |hammer| {
                 engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig hammer state: id={d} charge={d} next={d} quake_remaining={d}\n", .{ try world.persistentId(entity), hammer.charge_ms, hammer.next_ms - now, if (hammer.quake_until_ms) |at| at - now else 0 }));
             }
+            if (world.get(entity, data.Shockwave) catch null) |wave| {
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig shockwave state: id={d} age={d} rings={d} next={d} inner={d:.2} outer={d:.2} position={d:.2},{d:.2},{d:.2}\n", .{ try world.persistentId(entity), now - wave.born_ms, wave.count, wave.next_ms - now, wave.rings[wave.count - 1].inner, wave.rings[wave.count - 1].outer, pose.position[0], pose.position[1], pose.position[2] }));
+            }
         };
         engine.print("dk3 zig area weapon states complete\n");
         return true;

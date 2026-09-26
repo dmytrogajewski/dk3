@@ -58,3 +58,6 @@ pub fn unlink(entity: *abi.EntityProjection) void {
 pub fn send(client: u16, command: [:0]const u8) void {
     _ = gateway.call(c.G_SEND_SERVER_COMMAND, .{ @as(isize, client), command.ptr });
 }
+pub fn inPvs(a: [3]f32, b: [3]f32) bool {
+    return gateway.call(c.G_IN_PVS, .{ &a, &b }) != 0;
+}

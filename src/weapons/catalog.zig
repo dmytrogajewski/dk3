@@ -7,6 +7,7 @@ pub const melee = @import("melee.zig");
 pub const affliction = @import("affliction.zig");
 pub const c4 = @import("descriptions/c4.zig");
 pub const hammer = @import("descriptions/hammer.zig");
+pub const shockwave = @import("descriptions/shockwave.zig");
 pub fn combatFor(id: u5, sequence: i32) @import("profiles.zig").Combat {
     inline for (weapons) |W| if (id == W.id) {
         if (@hasDecl(W, "combatFor")) return W.combatFor(sequence);

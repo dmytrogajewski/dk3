@@ -30,7 +30,7 @@ const Model = struct {
         return error.MissingWeaponAnimation;
     }
 };
-const Media = struct { view: ?Model = null, flash: ?Model = null, hum: c.sfxHandle_t = 0, flash_shader: c.qhandle_t = 0 };
+const Media = struct { view: ?Model = null, flash: ?Model = null, flash_sprite: ?u8 = null, hum: c.sfxHandle_t = 0, flash_shader: c.qhandle_t = 0 };
 pub const View = struct {
     media: [29]Media = @splat(.{}),
     state: catalog.presentation.State = .{},
@@ -74,7 +74,7 @@ pub const View = struct {
         if (media.view == null) {
             media.view = try Model.load(spec.animation.view_model);
             if (spec.muzzle) |muzzle| {
-                media.flash = try Model.load(muzzle.model);
+                if (muzzle.sprite) media.flash_sprite = try @import("sprites.zig").register(muzzle.model) else media.flash = try Model.load(muzzle.model);
                 if (muzzle.shader) |name| media.flash_shader = @intCast(engine.gateway.call(c.CG_R_REGISTERSHADER, .{name.ptr}));
             }
             if (spec.audio.hum) |name| media.hum = try sound(name);
@@ -155,22 +155,24 @@ pub const View = struct {
             const zero: v.Vec3 = @splat(0);
             _ = engine.gateway.call(c.CG_S_ADDLOOPINGSOUND, .{ @as(isize, client), &ref.vieworg, &zero, @as(isize, media.hum) });
         }
-        if (spec.muzzle) |muzzle| if (self.state.fire_weapon == id and now >= self.state.fire_ms and now - self.state.fire_ms <= 50) {
+        if (spec.muzzle) |muzzle| {
+            const flash_at = self.state.fire_ms + @as(i64, @intFromFloat(@as(f32, @floatFromInt(muzzle.delay_ms)) / catalog.transitions.attackFactor(character.attribute(.attack, now))));
+            if (self.state.fire_weapon != id or now < flash_at or now - flash_at > 50) return;
             var flash = std.mem.zeroes(c.refEntity_t);
             flash.reType = c.RT_MODEL;
             flash.renderfx = rendered.renderfx;
-            flash.hModel = media.flash.?.handle;
+            flash.hModel = if (media.flash) |model| model.handle else 0;
             flash.origin = v.add(try muzzlePoint(&rendered), v.scale(rendered.axis[0], muzzle.offset));
             flash.oldorigin = flash.origin;
             for (&flash.axis, rendered.axis) |*axis, source| axis.* = v.scale(source, muzzle.scale);
             flash.nonNormalizedAxes = c.qtrue;
-            flash.frame = (try media.flash.?.sequence(muzzle.animation)).frame(now - self.state.fire_ms, false);
+            flash.frame = if (media.flash) |model| (try model.sequence(muzzle.animation)).frame(now - flash_at, false) else 0;
             flash.oldframe = flash.frame;
             flash.customShader = media.flash_shader;
             flash.shaderRGBA = .{ 255, 255, 255, muzzle.alpha };
-            _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&flash});
+            if (media.flash_sprite) |sprite| @import("sprites.zig").draw(sprite, 0, flash.origin, muzzle.scale, true, ref) else _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&flash});
             _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &flash.origin, engine.floatArg(muzzle.light_radius), engine.floatArg(muzzle.color[0]), engine.floatArg(muzzle.color[1]), engine.floatArg(muzzle.color[2]) });
-        };
+        }
     }
 };
 fn sound(name: []const u8) !c.sfxHandle_t {

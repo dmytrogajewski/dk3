@@ -8,6 +8,7 @@ pub const State = union(enum) {
     cordite: @import("descriptions/cordite.zig").BallisticState,
     venom: @import("descriptions/venom.zig").BallisticState,
     kineticore: @import("descriptions/kineticore.zig").BallisticState,
+    shockwave: @import("descriptions/shockwave.zig").BallisticState,
 };
 pub const Launch = struct { muzzle: v.Vec, pitch: f32 = 0, roll: f32 = 0 };
 pub const Frame = struct { age_ms: i64, delta_ms: u32, distance: f32, wet: bool, was_wet: bool, velocity: v.Vec, speed: f32 = 0 };

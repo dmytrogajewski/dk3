@@ -2979,3 +2979,19 @@ and scale-image behavior were consulted privately; no implementation/assets impo
 | Mover attachment | Passed, limited | `attached-charge-first/`, e1m3a: C4 attaches to authored bigplat (parent 3), follows its ascent from z=-888.38 through -798.36, and resumes its attachment after save/load at -753.35. Remote detonation succeeds. Diagnostic placement and lift activation. |
 | Ring presentation | Implemented; appearance unverified | Reviewed Gold scale-image settings and changed the client to normal alpha, white modulation, 0.2→60 scale, controller-relative height and fixed 0.4 opacity. `/tmp/dk3-runtime-236-visual-build.log` passes. `area-gold-rings-opengl1/` and `area-early-ring-opengl1/` pass gameplay/save assertions; inspected frames demonstrate charge/release/jump but do not establish the rings’ complete expansion or visibility. |
 | Applicable broad checks | Passed after test repair | `/tmp/dk3-runtime-236-suite.log`: 212 Zig + 44 Python checks. Review added checked lifetime subtraction and malformed-charge coverage. `/tmp/dk3-runtime-236-final-suite.log` exposed the test expecting decode to reject a number already rejected at capture; corrected the expectation and added a bounded but overlong lifetime case. `/tmp/dk3-runtime-236-validated-suite.log`: 212 Zig + 44 Python checks pass. Full deployment-limit/fuse/liquid/material behavior, complete quake/impact art/audio, multiplayer and campaign acceptance remain open. |
+
+## runtime-zig — sequence 237 (Shockwave flight and expanding bands)
+
+Shockwave uses class-owned release, flight, damage-band and presentation rules with
+a dedicated server controller. Native saves retain the delayed shot, wet/ricochet
+orb state and active bands with their consumed radii. Restoring rebases absolute
+clocks while preserving relative flight timers. Snapshot projections carry band
+offsets to client-owned rotating ring sprites and camera shake. Gold flight,
+elasticity, wave damage and sprite behavior were reviewed privately.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated modules/contracts | Passed after repair | `/tmp/dk3-runtime-237-integrated-build.log` found stale imports shadowing class state names; removed. `/tmp/dk3-runtime-237-connected-build.log`: three modules and 75 focused tests pass. Tests cover six bands, water arming, damage attenuation and saved release/orb/band clocks. |
+| First connected run | Passed, limited | `runtime-zig-237/shockwave-first/`: normal fire after diagnostic equipment/placement, saved delayed shot kills authored worker 383; band identity/radii survive save/load, six rings expand and expire. A second saved orb ricochets six times before exploding. |
+| Second renderer | Passed, limited | `shockwave-opengl2/`: repeats all combat/save assertions, including an observed in-flight orb save. Both renderer captures inspected; translucent blue rings are visible without opaque backgrounds. Full trails, muzzle timing, liquid interaction, quake motion and audio parity remain unverified. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-237-suite.log`: 213 Zig + 44 Python checks pass. Seventeen combat policies are connected. The bounded 60-second orb cleanup is an independent runtime limit, not verified Gold flight behavior. Eleven combat policies and the broader accepted roadmap remain open. |

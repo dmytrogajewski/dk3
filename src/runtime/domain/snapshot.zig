@@ -233,7 +233,7 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Binding) catch null) |binding| {
             if (binding.slot >= occupied.len or occupied[binding.slot] or (binding.slot > 0 and binding.slot < 64)) return error.InvalidSavedBinding;
             occupied[binding.slot] = true;
-            if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null) try require(world, entity, .{data.Body});
+            if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null and (world.get(entity, data.Shockwave) catch null) == null) try require(world, entity, .{data.Body});
         }
         if (world.get(entity, data.Body) catch null) |body| {
             if (body.mass <= 0 or body.mass > 100000) return error.InvalidSavedMass;
@@ -267,6 +267,7 @@ pub fn validate(snapshot: *Loaded) !void {
             if (std.meta.activeTag(projectile.flight) != std.meta.activeTag(flight) or projectile.damage < 0 or projectile.damage > 1000000) return error.InvalidSavedProjectile;
             try require(world, entity, .{ data.Binding, data.Velocity });
             if (flight != .ion) try require(world, entity, .{data.Lifetime});
+            if (projectile.flight == .shockwave and (projectile.flight.shockwave.rings > 6 or projectile.flight.shockwave.next_ms < 0)) return error.InvalidSavedProjectile;
         }
         if (world.get(entity, data.Melee) catch null) |melee| {
             const plan = melee.plan() catch return error.InvalidSavedMelee;
@@ -277,7 +278,8 @@ pub fn validate(snapshot: *Loaded) !void {
         }
         if (world.get(entity, data.WeaponLaunch) catch null) |launch| {
             const class = @import("weapon_catalog").find(launch.weapon) orelse return error.InvalidSavedLaunch;
-            if (@import("weapon_catalog").combatFor(launch.weapon, launch.sequence) != .projectile or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
+            const policy = @import("weapon_catalog").combatFor(launch.weapon, launch.sequence);
+            if ((policy != .projectile and policy != .shockwave) or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
             const owner = world.find(launch.owner) orelse return error.InvalidSavedLaunch;
             try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
         }
@@ -295,6 +297,12 @@ pub fn validate(snapshot: *Loaded) !void {
                 const owner = world.find(hammer.owner) orelse return error.InvalidSavedHammer;
                 try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
             } else if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedHammer;
+        }
+        if (world.get(entity, data.Shockwave) catch null) |wave| {
+            if (wave.damage < 0 or wave.damage > 1000000 or wave.count < 1 or wave.count > wave.rings.len or wave.next_ms < wave.born_ms) return error.InvalidSavedWave;
+            try require(world, entity, .{ data.Binding, data.Random });
+            if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedWave;
+            for (wave.rings[0..wave.count]) |ring| if (ring.start_ms < wave.born_ms or ring.start_ms > snapshot.header.at_ms + 200 or ring.inner < -20 or ring.inner > 350 or ring.outer < 0 or ring.outer > 350) return error.InvalidSavedWave;
         }
         if (world.get(entity, data.Pickup) catch null) |pickup| {
             try require(world, entity, .{ data.Binding, data.Body, data.ItemMotion, data.MapObject });
@@ -367,6 +375,11 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = try world.create(47, .{ data.Transform{}, data.Binding{ .slot = 66 }, data.Velocity{}, data.Body{}, data.Health{ .current = 5, .maximum = 5 }, data.Random{ .state = 77 }, data.Charge{ .owner = 7, .damage = 100, .born_ms = 800, .stepped_ms = 1000, .next_ms = 1800, .expires_ms = 20000, .detonate_ms = 1200, .beep_ms = 900, .attached = true } });
     _ = try world.create(48, .{ data.Transform{}, data.Hammer{ .owner = 7, .damage = 100, .range = 128, .charge_ms = 1800, .next_ms = 1100 }, data.Random{ .state = 78 } });
     _ = try world.create(49, .{ data.Transform{}, data.Binding{ .slot = 67 }, data.Hammer{ .owner = 7, .damage = 100, .range = 128, .charge_ms = 1800, .next_ms = 1100, .quake_until_ms = 6100 }, data.Random{ .state = 79 } });
+    var wave = data.Shockwave.init(7, 150, 400);
+    _ = wave.advance(900);
+    _ = try world.create(50, .{ data.Transform{}, data.Binding{ .slot = 68 }, wave, data.Random{ .state = 80 } });
+    _ = try world.create(51, .{ data.Transform{}, data.WeaponLaunch{ .owner = 7, .weapon = 6, .sequence = 0, .charge = 0, .execute_ms = 1600 } });
+    _ = try world.create(52, .{ data.Transform{}, data.Binding{ .slot = 69 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 6, .damage = 150, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .shockwave = .{ .next_ms = 200, .last_ring = .{ 100, 200, 300 }, .rings = 1, .touched_water = true } } }, data.Lifetime{ .expires_ms = 5000 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -387,6 +400,14 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expect(charge.attached);
     try std.testing.expectEqual(@as(i64, 9100), (try loaded.world.get(loaded.world.find(48).?, data.Hammer)).next_ms);
     try std.testing.expectEqual(@as(?i64, 14100), (try loaded.world.get(loaded.world.find(49).?, data.Hammer)).quake_until_ms);
+    const saved_wave = (try loaded.world.get(loaded.world.find(50).?, data.Shockwave)).*;
+    try std.testing.expectEqual(@as(u8, 2), saved_wave.count);
+    try std.testing.expectEqual(@as(i64, 8400), saved_wave.born_ms);
+    try std.testing.expectEqual(@as(i64, 8900), saved_wave.rings[1].start_ms);
+    try std.testing.expectEqual(@as(i64, 8950), saved_wave.next_ms);
+    try std.testing.expectEqual(wave.rings[0].inner, saved_wave.rings[0].inner);
+    try std.testing.expectEqual(@as(i64, 9600), (try loaded.world.get(loaded.world.find(51).?, data.WeaponLaunch)).execute_ms);
+    try std.testing.expectEqual(@as(i64, 200), (try loaded.world.get(loaded.world.find(52).?, data.Projectile)).flight.shockwave.next_ms);
     const melee = (try loaded.world.get(loaded.world.find(45).?, data.Melee)).*;
     try std.testing.expectEqual(@as(?i64, 8700), (try loaded.world.get(loaded.world.find(7).?, data.Weapons)).last_fire_ms);
     const poison = (try loaded.world.get(loaded.world.find(7).?, data.Ailments)).poison.?;

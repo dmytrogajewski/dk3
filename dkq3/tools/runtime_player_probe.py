@@ -631,6 +631,77 @@ def status_weapons_scenario(issue, capture, log, process):
     return {"scope": "Gas Hands kill, Venomous bite/poison death, saved delayed launch and restored pool contact, Kineticore freeze/save and flight; ordinary attack input with diagnostic equipment/placement, complete water/trail/reference acceptance open"}
 
 
+def shockwave_scenario(issue, capture, log, process):
+    def diagnostic(command, marker):
+        cursor = len(log.read_text(errors="replace"))
+        issue(command, 0.03)
+        wait(process, log, lambda text: marker in text[cursor:], 3)
+        return log.read_text(errors="replace")[cursor:]
+
+    def aim(player, target):
+        dx, dy, dz = target[0] - player[0], target[1] - player[1], target[2] - player[2] - 22
+        issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy)))}", 0.03)
+
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 10000")
+    issue("dk3_runtime_equip 6", 0.8)
+    issue("weapon 6", 0.8)
+    placement = diagnostic("dk3_runtime_face_target 383 128", "target=383")
+    player = list(map(float, re.findall(r"fixture player=([\d.,-]+)", placement)[-1].split(',')))
+    actors = diagnostic("dk3_runtime_actors", "zig actor: id=383")
+    target = list(map(float, re.findall(r"zig actor: id=383 .*pos=([\d.,-]+)", actors)[-1].split(',')))
+    target[2] += 8
+    aim(player, target)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.03)
+    issue("save shock_release", 0.03)
+    issue("load shock_release", 0.08)
+    capture("shockwave-release-restored")
+    wait(process, log, lambda text: "shockwave: center=" in text[cursor:], 5)
+    text = log.read_text(errors="replace")[cursor:]
+    if not re.search(r"target=383 .*killed=1", text):
+        raise RuntimeError("saved Shockwave release did not hit the authored worker")
+    center = re.findall(r"shockwave: center=(\d+)", text)[-1]
+    initial = diagnostic("dk3_runtime_area_weapons", "area weapon states complete")
+    if f"shockwave state: id={center}" not in initial:
+        raise RuntimeError("Shockwave did not retain its expanding bands")
+    capture("shockwave-first-ring")
+    issue("save shock_bands", 0.03)
+    issue("load shock_bands", 0.08)
+    restored = diagnostic("dk3_runtime_area_weapons", "area weapon states complete")
+    state = re.findall(rf"shockwave state: id={center} age=(\d+) rings=(\d+) .*position=([\d.,-]+)", restored)
+    if not state:
+        raise RuntimeError("saved Shockwave bands did not resume")
+    issue(f"dk3_runtime_place {player[0]} {player[1]} {player[2]}", 0.03)
+    aim(player, list(map(float, state[-1][2].split(','))))
+    capture("shockwave-bands-restored")
+    wait(process, log, lambda text: f"shockwave: center={center} rings=6" in text, 5)
+    capture("shockwave-six-rings")
+    issue("dk3_runtime_inventory", 0.1)
+    issue("-attack", 3.4)
+    if f"shockwave state: id={center}" in diagnostic("dk3_runtime_area_weapons", "area weapon states complete"):
+        raise RuntimeError("Shockwave did not remove its completed controller")
+
+    issue("dk3_runtime_place -998.981 1491.019 -295.875", 0.1)
+    issue("dk3_look 135 -10", 0.1)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 1.58)
+    samples = diagnostic("dk3_runtime_projectiles", "projectile states complete")
+    flying = re.findall(r"projectile state: id=(\d+) weapon=6", samples)
+    if flying:
+        issue("save shock_orb", 0.03)
+        issue("load shock_orb", 0.08)
+        capture("shockwave-orb-restored")
+    wait(process, log, lambda text: "shockwave: center=" in text[cursor:], 10)
+    capture("shockwave-ricochet-blast")
+    text = log.read_text(errors="replace")
+    if "missing weapon animation" in text or "could not find sounds/" in text.lower():
+        raise RuntimeError("missing Shockwave media")
+    return {"scope": "saved delayed Shockwave release, authored direct kill, persistent six-band expansion and completion, restored waves, wall-flight detonation; ordinary attacks with diagnostic equipment/placement", "orb_save_observed": bool(flying)}
+
+
 def attached_charge_scenario(issue, capture, log, process):
     def charge_state():
         cursor = len(log.read_text(errors="replace"))
@@ -1166,6 +1237,8 @@ def run(args):
                     result = grenade_contact_scenario(issue, capture, log)
                 elif args.scenario == "melee":
                     result = melee_scenario(issue, capture, log, process)
+                elif args.scenario == "shockwave":
+                    result = shockwave_scenario(issue, capture, log, process)
                 elif args.scenario == "attached-charge":
                     result = attached_charge_scenario(issue, capture, log, process)
                 elif args.scenario == "area-weapons":
@@ -1201,7 +1274,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -1222,6 +1295,7 @@ def main():
         "status-weapons": ("e1m3b", "runtime-zig-235/status-weapons"),
         "area-weapons": ("e1m3b", "runtime-zig-236/area-weapons"),
         "attached-charge": ("e1m3a", "runtime-zig-236/attached-charge"),
+        "shockwave": ("e1m3b", "runtime-zig-237/shockwave"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

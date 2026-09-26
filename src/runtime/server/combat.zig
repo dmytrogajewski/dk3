@@ -79,13 +79,12 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try @import("hammer.zig").launch(world, owner, shot, table, now);
             return;
         },
-        .projectile => {
+        .projectile, .shockwave => {
             if (entry.spec.projectile.action_delay_ms > 0) {
                 const factor = catalog.transitions.attackFactor((try world.get(owner, data.Character)).attribute(.attack, now));
                 try @import("weapon_launches.zig").queue(world, owner, shot, now, @intFromFloat(@as(f32, @floatFromInt(entry.spec.projectile.action_delay_ms)) / factor));
-                return;
-            }
-            try @import("projectiles.zig").launch(world, slots, projections, owner, shot, table, now);
+                if (entry.spec.projectile.sound_on_launch) return;
+            } else try @import("projectiles.zig").launch(world, slots, projections, owner, shot, table, now);
         },
         .ion => |policy| {
             const start = (try trace(eye, rules.muzzle(eye, shot.angles, tuning.muzzle), slot, policy.radius, c.MASK_SHOT)).end;

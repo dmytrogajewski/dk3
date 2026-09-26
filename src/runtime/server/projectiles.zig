@@ -42,12 +42,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.shared.ownerNum = c.ENTITYNUM_NONE;
     engine.link(projection);
 }
-fn remove(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity) !void {
-    const slot = (try world.get(entity, data.Binding)).slot;
-    engine.unlink(&projections[slot]);
-    try slots.release(slot, entity);
-    try world.destroy(entity);
-}
+const remove = @import("weapon_entities.zig").remove;
 fn splash(world: *data.World, slots: *Slots, projectile: data.Projectile, position: v.Vec3, skip: u16, now: i64) !void {
     for (slots.occupants, 0..) |occupant, index| {
         const target = occupant orelse continue;
@@ -143,6 +138,11 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     const speed = (if (tuning.speed > 0) tuning.speed else 400) * (1 + 0.3 * @as(f32, @floatFromInt(attack)));
     var projectile: data.Projectile = .{ .owner = owner_id, .weapon = shot.weapon, .damage = tuning.damage, .born_ms = now, .stepped_ms = now, .flight = try catalog.flightState(shot.weapon), .launch_position = start, .speed = speed };
     projectile.wet = (try engine.collisionService().contents(start, owner_slot)) & c.MASK_WATER != 0;
+    if (projectile.flight == .shockwave) projectile.flight.shockwave.last_ring = start;
+    if (spec.projectile.recoil_on_launch) {
+        const velocity = try world.get(owner, data.Velocity);
+        velocity.linear = v.subtract(velocity.linear, v.scale(forward, spec.projectile.recoil));
+    }
     const initial = try catalog.flightMotion(shot.weapon, &projectile.flight, .{ .age_ms = 0, .delta_ms = 0, .distance = 0, .wet = projectile.wet, .was_wet = false, .velocity = v.scale(rules.aim(start, target, forward), speed), .speed = speed });
     const lifetime: i64 = if (spec.projectile.lifetime_ms != 0) spec.projectile.lifetime_ms else @intFromFloat(std.math.clamp((if (tuning.lifetime > 0) tuning.lifetime * 1000 else 5000) * spec.projectile.lifetime_scale, 1, 3600000));
     projectile.lifetime_ms = lifetime;

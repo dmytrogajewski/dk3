@@ -59,6 +59,8 @@ pub const ProjectileSpawn = struct {
     mins: [3]f32 = @splat(-1),
     maxs: [3]f32 = @splat(1),
     recoil: f32 = 0,
+    recoil_on_launch: bool = false,
+    sound_on_launch: bool = true,
     inertial: bool = false,
     aim_range: f32 = 2000,
     self_splash: f32 = 0.5,
@@ -78,6 +80,8 @@ pub const ProjectileSpawn = struct {
 };
 pub const Muzzle = struct {
     model: [:0]const u8,
+    sprite: bool = false,
+    delay_ms: u16 = 0,
     animation: [:0]const u8 = "stand",
     shader: ?[:0]const u8 = null,
     scale: f32 = 1,
@@ -93,6 +97,7 @@ pub const Combat = union(enum) {
     melee,
     charge,
     hammer,
+    shockwave,
     hitscan: struct { single_player_scale: f32 = 1, standing_height: ?f32 = null, crouching_height: ?f32 = null, inertial: bool = false },
     pellets: struct { count: u8, spread: f32, single_player_scale: f32 = 1, range: f32 = 4000, aim_reach: bool = false, max_victims: u8 = 12, inertial: bool = false, recoil: f32 = 0 },
     ion: struct { radius: f32, water_radius: f32, bounce_retention: f32, max_bounces: u8, cleanup_ms: i64 },

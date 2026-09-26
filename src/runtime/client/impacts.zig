@@ -8,7 +8,7 @@ const v = @import("../domain/vector.zig");
 const marks = @import("../engine/marks.zig");
 const Random = @import("../domain/components.zig").Random;
 const sprites = @import("sprites.zig");
-const Sprite = struct { media: ?u8 = null, origin: v.Vec3 = @splat(0), scale: f32 = 1, rate: u8 = 20, at: i64 = 0 };
+const Sprite = struct { media: ?u8 = null, origin: v.Vec3 = @splat(0), scale: f32 = 1, rate: u8 = 20, at: i64 = 0, normal: ?v.Vec3 = null, additive: bool = true, alpha: u8 = 255, fade: bool = false };
 const Mark = struct { polygon: marks.Polygon = .{}, shader: c.qhandle_t = 0, at: i64 = 0, origin: v.Vec3 = @splat(0), normal: v.Vec3 = @splat(0) };
 const Particle = struct { shader: c.qhandle_t = 0, origin: v.Vec3 = @splat(0), velocity: v.Vec3 = @splat(0), color: [3]f32 = @splat(1), at: i64 = 0, radius: f32 = 2 };
 const Light = struct { origin: v.Vec3 = @splat(0), color: [3]f32 = @splat(1), radius: f32 = 0, at: i64 = 0, duration: u16 = 1 };
@@ -41,14 +41,14 @@ pub fn consume(entity: c.entityState_t) !void {
     if (serial == 0 or seen[slot] == serial) return;
     seen[slot] = serial;
     const kind: catalog.impact_rules.Kind = @enumFromInt(entity.eventParm);
-    const cue = catalog.impact(@intCast(entity.weapon), .{ .kind = kind, .serial = serial, .charged = entity.frame & 1 != 0, .detonation = entity.frame & 2 != 0, .sequence = entity.generic1 });
+    const cue = catalog.impact(@intCast(entity.weapon), .{ .kind = kind, .serial = serial, .charged = entity.frame & 1 != 0, .detonation = entity.frame & 2 != 0, .sequence = entity.generic1, .trail = entity.frame & 4 != 0 });
     if (cue.sound) |name| {
         const sound = try engine.registerSound(name);
         if (sound != 0) _ = engine.gateway.call(c.CG_S_STARTSOUND, .{ &entity.pos.trBase, @as(isize, entity.number), @as(isize, c.CHAN_AUTO), @as(isize, sound) });
     }
     const normal = v.normalize(entity.origin2);
     if (cue.sprite) |name| {
-        animations[next_animation] = .{ .media = try sprites.register(name), .origin = v.add(entity.pos.trBase, v.scale(normal, 2)), .scale = cue.sprite_scale, .rate = cue.sprite_rate, .at = entity.time };
+        animations[next_animation] = .{ .media = try sprites.register(name), .origin = v.add(entity.pos.trBase, v.scale(normal, 2)), .scale = cue.sprite_scale, .rate = cue.sprite_rate, .at = entity.time, .normal = if (cue.oriented) normal else null, .additive = cue.additive, .alpha = cue.alpha, .fade = cue.fade };
         next_animation = (next_animation + 1) % animations.len;
     }
     var mark_count: usize = 0;
@@ -90,7 +90,17 @@ pub fn draw(now: i64, ref: *const c.refdef_t) void {
         const age = now - animation.at;
         if (age < 0) continue;
         const frame: usize = @intCast(@divTrunc(age * animation.rate, 1000));
-        sprites.draw(index, frame, animation.origin, animation.scale, true, ref);
+        const duration = @divTrunc(@as(i64, sprites.count(index)) * 1000, animation.rate);
+        if (age >= duration) continue;
+        const alpha: u8 = if (animation.fade) @intCast(@divTrunc((duration - age) * animation.alpha, duration)) else animation.alpha;
+        var right = v.scale(ref.viewaxis[1], -1);
+        var up = ref.viewaxis[2];
+        if (animation.normal) |normal| {
+            const perpendicular = v.cross(normal, .{ 0, 0, 1 });
+            right = if (v.length(perpendicular) > 0.01) v.normalize(perpendicular) else .{ 1, 0, 0 };
+            up = v.cross(right, normal);
+        }
+        sprites.drawPlane(index, frame, animation.origin, animation.scale, animation.additive, right, up, .{ 255, 255, 255, alpha });
     };
     for (&decals) |*mark| {
         const age = now - mark.at;

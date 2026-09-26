@@ -529,3 +529,19 @@ self damage, a visible guard kill, protection of an occluded worker and quake
 restoration. Both renderers pass the combat/save scenario; rendered/audio parity,
 all C4 deployment/lifetime/material cases, complete quake motion and multiplayer
 remain open. Evidence and repairs are recorded in the run log.
+
+## runtime-zig-237 — Shockwave flight and expanding bands
+
+Shockwave now owns its delayed release, water/ricochet rules, trail and impact cues,
+six expanding damage bands, and ground impulses. Its server controller resolves
+collision, damage and visibility; the client reconstructs rotating translucent
+rings from saved birth times and band offsets. Native saves retain the pending shot,
+orb state and consumed band radii, so restoring does not restart damage expansion.
+Muzzle sprites and oriented impact sprites use the shared converted-sprite renderer.
+
+Seventeen combat policies are connected. Both renderer scenarios pass delayed-shot
+restoration, an authored worker kill, active-band restoration and completion, and
+saved ricochet flight. Inspected captures show the blue rings without opaque sprite
+backgrounds. Full water, muzzle timing, quake motion, effect/audio parity and campaign
+acceptance remain open. The development orb has a bounded 60-second cleanup; this
+is not a claim that Gold uses that flight deadline. Evidence belongs to the run log.
