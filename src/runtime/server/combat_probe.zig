@@ -80,6 +80,10 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
                 const flame = projectile.flight.sunflare;
                 engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig sunflare state: id={d} phase={s} flames={d} floating={d} next={d}\n", .{ try world.persistentId(entity), @tagName(flame.phase), flame.flames, @intFromBool(flame.floating), flame.next_ms }));
             }
+            if (projectile.flight == .stavros) {
+                const meteor = projectile.flight.stavros;
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig stavros state: id={d} fragment={d} scale={d:.3} next={d}\n", .{ try world.persistentId(entity), @intFromBool(meteor.fragment), meteor.scale[0], meteor.next_ms }));
+            }
         }
         engine.print("dk3 zig projectile states complete\n");
         return true;

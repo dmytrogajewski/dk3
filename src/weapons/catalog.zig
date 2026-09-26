@@ -14,6 +14,7 @@ pub const novabeam = @import("descriptions/novabeam.zig");
 pub const flashlight = @import("descriptions/flashlight.zig");
 pub const discus = @import("descriptions/discus.zig");
 pub const sunflare = @import("descriptions/sunflare.zig");
+pub const stavros = @import("descriptions/stavros.zig");
 pub fn flightScale(id: u5, flags: i32) f32 {
     inline for (weapons) |W| if (id == W.id) {
         if (@hasDecl(W, "flightScale")) return W.flightScale(flags);
@@ -269,4 +270,26 @@ test "Sunflare flame count owns damage radius and water equilibrium" {
     try std.testing.expectApproxEqAbs(@as(f32, 0), equilibrium[2], 0.0001);
     try std.testing.expect(sunflare.buoyancy(.{ 0, 0, 0 }, 1, 1, 0.02)[2] > 0);
     try std.testing.expect(sunflare.buoyancy(.{ 0, 0, 0 }, 0, 1, 0.02)[2] < 0);
+}
+
+test "Stavros growth preserves staged acceleration and multiplayer fragment suppression" {
+    const std = @import("std");
+    var meteor: stavros.BallisticState = .{ .maximum_speed = 525, .angular_delta = .{ 10, 20, 30 } };
+    var angles: [3]f32 = @splat(0);
+    var velocity: [3]f32 = .{ 26.25, 0, 0 };
+    try std.testing.expectEqual(velocity, meteor.tick(99, velocity, &angles));
+    velocity = meteor.tick(100, velocity, &angles);
+    try std.testing.expectApproxEqAbs(@as(f32, 45.9375), velocity[0], 0.0001);
+    try std.testing.expectEqual([3]f32{ 10, 20, 30 }, angles);
+    try std.testing.expectEqual([3]f32{ -5, 5, 15 }, meteor.angular_delta);
+    try std.testing.expectEqual(velocity, meteor.tick(100, velocity, &angles));
+    for (2..9) |tick| velocity = meteor.tick(@intCast(tick * 100), velocity, &angles);
+    try std.testing.expectApproxEqAbs(@as(f32, 1), meteor.scale[0], 0.0001);
+    try std.testing.expect(velocity[0] > meteor.maximum_speed); // Gold accelerates without clamping the last multiplication.
+    try std.testing.expectEqual(@as(u8, 6), stavros.fragments(true, 0.99));
+    try std.testing.expectEqual(@as(u8, 0), stavros.fragments(false, 0.99));
+    meteor.fragment = true;
+    const scale = meteor.scale;
+    try std.testing.expectEqual(velocity, meteor.tick(1000, velocity, &angles));
+    try std.testing.expectEqual(scale, meteor.scale);
 }

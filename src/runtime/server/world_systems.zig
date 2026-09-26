@@ -75,6 +75,7 @@ pub const State = struct {
         try @import("flashlight.zig").step(world, slots, projections, now);
         try @import("discus.zig").step(world, slots, projections, table, now);
         try @import("sunflare.zig").step(world, slots, projections, now);
+        try @import("stavros.zig").step(world, slots, projections, now);
         try @import("weapon_launches.zig").step(world, slots, projections, table, now);
         try @import("melee.zig").step(world, slots, projections, table, now);
         try @import("ailments.zig").step(world, now);

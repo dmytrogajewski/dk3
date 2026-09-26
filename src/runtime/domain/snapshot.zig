@@ -304,6 +304,12 @@ pub fn validate(snapshot: *Loaded) !void {
                 if (flame.next_ms < 0 or flame.burn_ms < 0 or flame.flames > 9 or ((flame.phase == .burning or flame.phase == .cooling) and flame.flames < 5)) return error.InvalidSavedProjectile;
                 try require(world, entity, .{data.Random});
             }
+            if (projectile.flight == .stavros) {
+                const meteor = projectile.flight.stavros;
+                if (meteor.next_ms < 0 or meteor.radius <= 0 or meteor.radius > 8192 or meteor.maximum_speed <= 0 or meteor.maximum_speed > 100000) return error.InvalidSavedProjectile;
+                for (meteor.scale) |axis| if (axis <= 0 or axis > 2) return error.InvalidSavedProjectile;
+                if (!meteor.fragment) try require(world, entity, .{data.Random});
+            }
         }
         if (world.get(entity, data.Melee) catch null) |melee| {
             const plan = melee.plan() catch return error.InvalidSavedMelee;
@@ -439,6 +445,8 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = try world.create(57, .{ data.Transform{}, data.Binding{ .slot = 74 }, data.Flashlight{ .owner = 7, .expires_ms = 1150, .strength = 0.75 } });
     _ = try world.create(58, .{ data.Transform{}, data.Binding{ .slot = 75 }, data.Velocity{}, data.Random{ .state = 17 }, data.Projectile{ .owner = 7, .weapon = 9, .damage = 35, .born_ms = 500, .stepped_ms = 1000, .flight = .{ .discus = .{ .target = 7, .reflected = true, .next_ms = 600, .speed = 750 } } }, data.Lifetime{ .expires_ms = 60500 } });
     _ = try world.create(59, .{ data.Transform{}, data.Binding{ .slot = 76 }, data.Velocity{}, data.Random{ .state = 23 }, data.Projectile{ .owner = 7, .weapon = 10, .damage = 4, .born_ms = 500, .stepped_ms = 1000, .flight = .{ .sunflare = .{ .phase = .burning, .burn_ms = 400, .next_ms = 800, .flames = 7, .floating = true } } }, data.Lifetime{ .expires_ms = 10900 } });
+    _ = try world.create(60, .{ data.Transform{}, data.Binding{ .slot = 77 }, data.Velocity{}, data.Random{ .state = 25 }, data.Projectile{ .owner = 7, .weapon = 17, .damage = 100, .born_ms = 900, .stepped_ms = 1000, .flight = .{ .stavros = .{ .next_ms = 200, .scale = @splat(0.3), .maximum_speed = 525 } } }, data.Lifetime{ .expires_ms = 12900 } });
+    _ = try world.create(61, .{ data.Transform{}, data.Binding{ .slot = 78 }, data.Velocity{}, data.Projectile{ .owner = 7, .weapon = 17, .damage = 50, .born_ms = 900, .stepped_ms = 1000, .bounces = 1, .flight = .{ .stavros = .{ .fragment = true, .radius = 100, .scale = .{ 0.4, 0.5, 0.6 } } } }, data.Lifetime{ .expires_ms = 6900 } });
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -484,6 +492,11 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expect(saved_flare.floating and saved_flare.phase == .burning);
     try std.testing.expectEqual(@as(i64, 800), saved_flare.next_ms);
     try std.testing.expectEqual(@as(i64, 18900), (try loaded.world.get(loaded.world.find(59).?, data.Lifetime)).expires_ms);
+    try std.testing.expectEqual(@as(i64, 200), (try loaded.world.get(loaded.world.find(60).?, data.Projectile)).flight.stavros.next_ms);
+    const saved_fragment = (try loaded.world.get(loaded.world.find(61).?, data.Projectile)).*;
+    try std.testing.expect(saved_fragment.flight.stavros.fragment);
+    try std.testing.expectEqual(@as(u8, 1), saved_fragment.bounces);
+    try std.testing.expectEqual([3]f32{ 0.4, 0.5, 0.6 }, saved_fragment.flight.stavros.scale);
     const melee = (try loaded.world.get(loaded.world.find(45).?, data.Melee)).*;
     try std.testing.expectEqual(@as(?i64, 8700), (try loaded.world.get(loaded.world.find(7).?, data.Weapons)).last_fire_ms);
     const poison = (try loaded.world.get(loaded.world.find(7).?, data.Ailments)).poison.?;

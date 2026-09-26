@@ -594,6 +594,21 @@ Twenty-three combat policies are connected. The live scenario demonstrates saved
 melee/release/flight, Discus contact and catch, and a restored Sunflare field killing
 an authored worker before cooling and expiry. Captures exposed Sunflare's incorrect
 blend mode; Gold's additive flag binding is repaired and the second-renderer replay
-is running. Complete trail/smoke/audio, liquid/drop cases, travel/motion regressions,
+passes gameplay/save assertions. Bright effect boundaries remain visible; complete
+presentation acceptance is open. Complete trail/smoke/audio, liquid/drop cases, motion regressions,
 multiplayer and refreshed broad checks remain open. Both controllers use a bounded
 60-second airborne cleanup, an independent limit rather than a claimed Gold deadline.
+
+## runtime-zig-241 — growing meteors and fragments
+
+Stavros now uses its reviewed meteor model, displaced launch, staged growth and
+acceleration, main blast and single-player fragments. Fragments retain independent
+scale, spin, gravity, bounce and expiry. Client projections preserve launch origins
+and scale for the portal/glow presentation. Native saves retain growth, random state
+and individual fragment state. Twenty-four combat policies are connected.
+
+The live scenario passes growing-meteor restoration, primary explosion, restored
+fragments, authored worker kill and fragment expiry. Captures confirm the meteor
+model and fragments; full smoke, portal, light/audio and visual parity remain open.
+The shared campaign travel regression passes after personal-action cleanup changes.
+The aggregate batch result and remaining effect diagnostics are recorded in the run log.

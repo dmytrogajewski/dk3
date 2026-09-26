@@ -631,6 +631,57 @@ def status_weapons_scenario(issue, capture, log, process):
     return {"scope": "Gas Hands kill, Venomous bite/poison death, saved delayed launch and restored pool contact, Kineticore freeze/save and flight; ordinary attack input with diagnostic equipment/placement, complete water/trail/reference acceptance open"}
 
 
+def meteors_scenario(issue, capture, log, process, home):
+    def diagnostic(command, marker):
+        cursor = len(log.read_text(errors="replace"))
+        issue(command, 0.03)
+        wait(process, log, lambda text: marker in text[cursor:], 3)
+        return log.read_text(errors="replace")[cursor:]
+
+    def face(target, radius, point, pitch_adjust=0):
+        placement = diagnostic(f"dk3_runtime_face_target {target} {radius}", f"target={target}")
+        player = list(map(float, re.findall(r"fixture player=([\d.,-]+)", placement)[-1].split(',')))
+        dx, dy, dz = point[0] - player[0], point[1] - player[1], point[2] - player[2] - 22
+        issue(f"dk3_look {math.degrees(math.atan2(dy, dx))} {-math.degrees(math.atan2(dz, math.hypot(dx, dy))) + pitch_adjust}", 0.03)
+
+    issue("developer 1")
+    issue("dk3_runtime_probe_health 10000")
+    issue("dk3_runtime_equip 17", 0.8)
+    issue("weapon 17", 0.8)
+    face(383, 160, (-1180, 1310, -288))
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.12)
+    issue("save meteor_growing", 0.03)
+    issue("load meteor_growing", 0.03)
+    capture("meteor-growing-restored")
+    wait(process, log, lambda text: "stavros: exploded fragment=0" in text[cursor:], 6)
+    issue("save meteor_fragments", 0.03)
+    issue("load meteor_fragments", 0.03)
+    fragments = diagnostic("dk3_runtime_projectiles", "projectile states complete")
+    capture("meteor-fragments-restored")
+    wait(process, log, lambda text: bool(re.search(r"target=383 .*killed=1", text[cursor:])), 5)
+    issue("-attack", 6.2)
+    if "stavros state:" in diagnostic("dk3_runtime_projectiles", "projectile states complete"):
+        raise RuntimeError("meteor fragments did not expire")
+
+    issue("dk3_runtime_equip 10", 0.8)
+    issue("weapon 10", 0.8)
+    face(384, 128, (168, 1096, -160), 22.5)
+    cursor = len(log.read_text(errors="replace"))
+    issue("+attack", 0.03)
+    issue("-attack", 0.03)
+    wait(process, log, lambda text: "sunflare: burning" in text[cursor:], 5)
+    issue("imagelist", 0.03)
+    issue("shaderlist", 0.03)
+    issue("r_picmip", 0.03)
+    capture("sunflare-media-close")
+    issue("+back", 0.4)
+    issue("-back", 0.03)
+    capture("sunflare-media-distance")
+    return {"scope": "Stavros saved growth, primary blast, fragment save/expiry and worker kill; Sunflare close/distant material captures with renderer media diagnostics", "restored_fragment_observed": "fragment=1" in fragments}
+
+
 def returning_fire_scenario(issue, capture, log, process, home):
     def diagnostic(command, marker):
         cursor = len(log.read_text(errors="replace"))
@@ -1479,6 +1530,8 @@ def run(args):
                     result = shockwave_scenario(issue, capture, log, process)
                 elif args.scenario == "linked-projectiles":
                     result = linked_projectiles_scenario(issue, capture, log, process, home)
+                elif args.scenario == "meteors":
+                    result = meteors_scenario(issue, capture, log, process, home)
                 elif args.scenario == "returning-fire":
                     result = returning_fire_scenario(issue, capture, log, process, home)
                 elif args.scenario == "beams":
@@ -1518,7 +1571,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "meteors", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -1543,6 +1596,7 @@ def main():
         "linked-projectiles": ("e1m3b", "runtime-zig-238/linked-projectiles"),
         "beams": ("e1m3b", "runtime-zig-239/beams"),
         "returning-fire": ("e1m3b", "runtime-zig-240/returning-fire"),
+        "meteors": ("e1m3b", "runtime-zig-241/meteors"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

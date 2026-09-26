@@ -35,6 +35,11 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
         projection.state.generic1 |= @as(i32, @intFromBool(projectile.flight.trident.charged)) << 3;
         projection.state.generic1 |= @as(i32, @intFromBool(projectile.wet)) << 4;
     }
+    if (projectile.flight == .stavros) {
+        projection.state.generic1 |= @as(i32, @intFromBool(projectile.flight.stavros.fragment)) << 3;
+        projection.state.angles2 = projectile.flight.stavros.scale;
+        projection.state.origin2 = projectile.launch_position;
+    }
     projection.state.time2 = if (world.get(entity, data.Lifetime) catch null) |lifetime| @intCast(lifetime.expires_ms) else 0;
     projection.state.modelindex = binding.model;
     projection.state.frame = if (projectile.flight == .discus and projectile.flight.discus.pickup_only) 1 else 0;
@@ -44,6 +49,10 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     const spec = catalog.find(projectile.weapon).?.spec;
     projection.shared.mins = if (spec.combat == .ion) @splat(-spec.combat.ion.radius) else spec.projectile.mins;
     projection.shared.maxs = if (spec.combat == .ion) @splat(spec.combat.ion.radius) else spec.projectile.maxs;
+    if (projectile.flight == .stavros) {
+        projection.shared.mins = projectile.flight.stavros.mins();
+        projection.shared.maxs = projectile.flight.stavros.maxs();
+    }
     projection.shared.contents = 0;
     projection.shared.ownerNum = c.ENTITYNUM_NONE;
     engine.link(projection);

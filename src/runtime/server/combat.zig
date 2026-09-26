@@ -76,6 +76,7 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         .melee => try @import("melee.zig").launch(world, owner, shot, table, now),
         .charge => try @import("c4.zig").launch(world, slots, projections, owner, shot, table, now),
         .trident => try @import("trident.zig").launch(world, slots, projections, owner, shot, table, now),
+        .stavros => try @import("stavros.zig").launch(world, slots, projections, owner, shot, table, now),
         .novabeam => try @import("novabeam.zig").launch(world, slots, projections, owner, shot, table, now),
         .flashlight => try @import("flashlight.zig").refresh(world, slots, projections, owner, now),
         .hammer => {

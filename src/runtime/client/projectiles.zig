@@ -31,6 +31,10 @@ pub fn decorate(rendered: *c.refEntity_t, entity: c.entityState_t, now: i64) !vo
         rendered.nonNormalizedAxes = c.qtrue;
     }
     if (spec.visual.fade_stuck and entity.generic1 & 1 != 0 and entity.time2 > now) rendered.shaderRGBA[3] = @intCast(@min(255, @divTrunc((entity.time2 - now) * 255, 1000)));
+    if (entity.weapon == catalog.stavros.id) {
+        for (&rendered.axis, entity.angles2) |*axis, factor| axis.* = v.scale(axis.*, factor);
+        rendered.nonNormalizedAxes = c.qtrue;
+    }
     if (spec.visual.glow and entity.generic1 == 0) {
         const color = spec.visual.color;
         _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &rendered.origin, engine.floatArg(120), engine.floatArg(color[0]), engine.floatArg(color[1]), engine.floatArg(color[2]) });

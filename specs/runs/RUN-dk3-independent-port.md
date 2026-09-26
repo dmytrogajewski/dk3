@@ -3040,5 +3040,22 @@ buoyancy and sprite blending were reviewed privately.
 |---|---|---|
 | Integrated modules/contracts | Passed after repair | Initial builds exposed a comptime float division and collision-slot signedness/statement boundaries. `/tmp/dk3-runtime-240-visual-build.log`: three modules, 81 focused checks pass. Pure checks cover steering/drop/melee, flame damage and buoyancy equilibrium; native round trips cover return/active fire. |
 | Returning weapon and fire | Passed, limited | `runtime-zig-240/returning-first/`: normal attacks, saved melee/release/flight, worker melee kill, authored guard hit and catch, saved Sunflare release/active field, worker kill, cooling and expiry. Diagnostic equipment, placement and guard health 35. |
-| Rendered fire repair | Failed appearance; repaired, replay running | Inspected active-fire frame shows rectangular sprite boundaries. Gold `SPR_ALPHACHANNEL` means SRC_ALPHA/ONE; changed both flame and glow to that binding. `/tmp/dk3-runtime-240-additive-build.log` passes. `returning-additive-opengl2/` replay running. Flight capture precedes the visible disc and does not qualify its full appearance. |
+| Rendered fire repair | Gameplay replay passed; appearance still open | Inspected active-fire frame shows rectangular sprite boundaries. Gold `SPR_ALPHACHANNEL` means SRC_ALPHA/ONE; changed both flame and glow to that binding. `/tmp/dk3-runtime-240-additive-build.log` passes. `returning-additive-opengl2/` passes combat/save assertions, but its inspected frame still has bright effect boundaries. Flight capture precedes the visible disc and does not qualify its full appearance. |
 | Remaining integration | Unrun | Discus water/drop/other-player catches, Sunflare liquid motion, complete smoke/trail/audio, shared launch and travel regressions, multiplayer and refreshed aggregate suite. Twenty-three combat policies are connected; five remain. Airborne cleanup is independently bounded at 60 seconds. |
+
+## runtime-zig — sequence 241 (growing meteors and fragments)
+
+Stavros uses the reviewed meteor model, displaced initial spawn, growth/acceleration,
+spin, primary explosion and 4–6 single-player fragments. Fragments retain separate
+scale, gravity, first bounce and second-contact explosion. Gold main-blast owner
+exclusion, fragment damage/radius and finite lifetimes were reviewed privately.
+Native snapshots retain growth, RNG and fragment state; client projections retain
+launch origins for the portal and scale for meteor/glow effects.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated build | Passed | `/tmp/dk3-runtime-241-meteor-build.log` and `probe-build.log`: three modules compile. The latter adds read-only meteor diagnostics. |
+| Meteor and fragment persistence | Passed, limited | `runtime-zig-241/meteors-first/`: saved growing primary, blast with six fragments, saved/restored live fragments, authored worker 383 kill, fragment second-contact explosions and expiry. Diagnostic equipment and collision-checked placement. Captures show the correct meteor model and fragment models. Full smoke/portal/light/audio parity remains open. |
+| Sunflare appearance diagnosis | Open | Same run captures near/distant burning fields. Source PNGs retain alpha, renderer image diagnostics show RGBA images at expected dimensions and explicit shaders. Additive correction alone does not eliminate bright effect boundaries. Distant capture shows individual flames; close-range presentation needs further repair/comparison. |
+| Shared travel regression | Passed, limited | `travel-regression/`: the existing native campaign departure/revisit/full-save scenario passes after personal-action cancellation and carried-victim changes. It does not qualify every active-weapon travel permutation. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-241-suite.log`: 218 Zig + 44 Python checks. Growth acceleration, multiplayer fragment suppression, main/fragment native round trips included. Four combat controllers remain; full actor, campaign, UI, compatibility and multiplayer scope stays open. |
