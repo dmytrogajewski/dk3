@@ -14,7 +14,10 @@ worker, occluded guard pursuit and laser shutdown scenarios pass; full navigatio
 and world presentation remain open. Sequence 228 connects class-owned view-weapon
 animation/audio, additive Glock/Ion flashes, weapon shine, HUD and inventory.
 The three currently implemented combat weapons pass presentation transitions and
-inspected captures; all-weapon presentation and menus remain open.
+inspected captures. Sequence 229 connects native menu navigation, supplied artwork,
+settings, conflict-aware rebinding, difficulty start and pause/resume. The mouse and
+keyboard scenario passes after repairing signed native ABI mouse arguments.
+Save restoration, multiplayer screens and complete menu parity remain open.
 See [runtime progress](runtime-zig.md).
 
 The preserved installed game and saves are untouched. The results below describe

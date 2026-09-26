@@ -2825,3 +2825,22 @@ explicit test roots alongside actor tests; named imports alone did not execute t
 | Complete presentation | Unrun | Other weapons, status feedback, multiplayer HUD, companions, all effects and physical audio remain open. |
 | OpenGL2 presentation | Passed, limited | `runtime-zig-228/presentation-opengl2/`: same transitions and supplied media checks; Glock firing capture inspected. Both renderer paths blend the flash without an opaque rectangle. |
 | Applicable broad checks | Passed | `/tmp/dk3-runtime-228-suite.log`: 195 Zig and 44 Python tests, run once after integrated scenario repair. |
+
+## runtime-zig — sequence 229 (native menus and input)
+
+Connected native UI entrypoints to separate state, artwork, settings and binding
+modules. Shared DKF rendering draws the supplied menu art and animated plates.
+Mouse/keyboard routing, campaign difficulty selection, live settings, input conflicts,
+configuration commands, loading display and pause/resume now run natively. Difficulty
+is not repeated under extra options. Save restoration and multiplayer panels remain
+explicitly unavailable while their native services are unfinished.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Integrated modules/domain tests | Passed after repair | 49 runtime + 9 catalog checks. Repaired a reserved identifier, shadowed names and a compile-time float coercion in the renderer. |
+| Initial XTest fixture | Failed fixture | `runtime-zig-229/ui/` and `ui-focused/`: Xvfb lacked focused input; fixture now finds the ioquake3 window, sets focus and primes its pointer with grabbing disabled. |
+| Negative mouse input | Failed; repaired | `runtime-zig-229/ui-input/`: negative C-int mouse deltas arrived zero-extended in native VM slots; checked isize-to-i32 casts panicked. Explicit low-32-bit decoding now preserves the signed ABI value. |
+| Complete recorded menu input sequence | Passed | `runtime-zig-229/ui-mouse-repaired/`: XTest clicks change shine to Enhanced; keyboard reaches controls; conflict cancel preserves the binding, confirm replaces it; Ronin starts e1m1a with skill 1; Escape pauses/resumes. Artwork, options, conflict and pause captures inspected. Temporary profile only. |
+| Complete UI and campaign acceptance | Unrun | Save/load, multiplayer, remaining settings/panels, full opening cinematic and matched reference menu/audio comparison remain open. |
+| OpenGL2 input/rendering | Passed, limited | `runtime-zig-229/ui-opengl2/`: the same XTest sequence passes; options capture inspected. |
+| Applicable broad checks | Passed | `/tmp/dk3-runtime-229-suite.log`: 196 Zig and 44 Python tests after the input repair. |

@@ -8,6 +8,7 @@ pub const c = @cImport({
     @cInclude("cg_public.h");
     @cInclude("tr_types.h");
     @cInclude("ui_public.h");
+    @cInclude("keycodes.h");
     @cInclude("bg_public.h");
     @cInclude("botlib.h");
     @cInclude("be_aas.h");

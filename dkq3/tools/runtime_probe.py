@@ -32,6 +32,26 @@ def send(pipe, command):
         os.close(fd)
 
 
+def stage_client_modules(prefix, home):
+    """Copy native modules and owned shaders into an isolated profile."""
+    (home / "dk3/scripts").mkdir(parents=True)
+    for module in ("qagame", "cgame", "ui"):
+        shutil.copy2(prefix / f"lib/dk3/{module}.so", home / f"dk3/{module}.so")
+    shutil.copy2(prefix / "share/dk3/scripts/dk3-projectile-weather.shader",
+                 home / "dk3/scripts/dk3-projectile-weather.shader")
+
+
+def client_settings(engine, home, renderer="opengl1", workers=4):
+    return {"net_enabled": "0", "fs_basepath": str(engine / "share"),
+            "fs_homepath": str(home), "fs_homedatapath": str(home),
+            "fs_homestatepath": str(home / "state"), "com_basegame": "dk3",
+            "com_pipefile": "commands.fifo", "vm_game": "0", "vm_cgame": "0",
+            "vm_ui": "0", "g_gametype": "2", "dk3_runtime_probe": "2",
+            "dk3_jobs": str(workers), "com_maxfps": "60", "cl_renderer": renderer,
+            "r_fullscreen": "0", "r_mode": "-1", "r_customwidth": "960",
+            "r_customheight": "540", "s_useOpenAL": "0"}
+
+
 def run(args, workers):
     log = args.report / f"workers-{workers}.log"
     with tempfile.TemporaryDirectory(prefix="dk3-runtime-probe-") as temporary:

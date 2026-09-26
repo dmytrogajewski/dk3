@@ -14,7 +14,7 @@ Do not merge or push this work to main without an explicit release/merge request
 The old-runtime removal decision applies to this feature branch.
 
 The permanent source root is `src/runtime`, with `domain`, `ecs`, `engine`, `server`,
-`client`, and `tests` layers. `build/runtime.zig` composes native modules and tests
+`client`, `ui`, and `tests` layers. `build/runtime.zig` composes native modules and tests
 from the same named dependencies. Class-owned catalogs live in `src/weapons`,
 `src/actors`, and `src/items`. Architectural checks reject private gameplay headers
 and engine/system imports from pure domain/catalog code. See
@@ -357,3 +357,19 @@ health, armor, ammunition, level, attribute boosts/points, weapon models and cam
 inventory. Selection and attribute commands dispatch to the authoritative server.
 The three implemented combat weapons have focused animation and rendered evidence;
 remaining weapon-specific poses/effects, complete HUD states and menus remain open.
+
+## runtime-zig-229 — native menu ownership
+
+The UI ABI composes typed menu state, settings, controls and artwork modules through
+a public engine UI adapter. Selection persists independently of pointer hover.
+Supplied menu plates animate, difficulty figures start the chosen campaign difficulty,
+settings expose real engine/client options, and rebinding requires a deliberate choice
+when replacing an occupied key. Mouse coordinates use the same letterboxed layout
+as drawing. Keyboard focus survives zero-delta mouse events; pause/resume releases
+input and restores simulation. Native C-int VM arguments decode their low signed
+32 bits so negative mouse deltas cannot trigger checked-cast failures.
+
+The guarded UI scenario uses XTest input, an isolated X display and temporary profile;
+it exercises mouse settings, keyboard category selection, conflict cancel/replace,
+difficulty start and pause/resume. Save/load and multiplayer screens still require
+their native runtime services; loading a campaign is not script/cinematic acceptance.

@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import time
 
-from runtime_probe import send, wait
+from runtime_probe import send, wait, stage_client_modules, client_settings
 
 
 def movement_scenario(args, issue, capture, log):
@@ -435,22 +435,10 @@ def run(args):
     inputs = []
     with tempfile.TemporaryDirectory(prefix="dk3-runtime-client-") as temporary:
         home = Path(temporary)
-        (home / "dk3").mkdir()
-        for module in ("qagame", "cgame", "ui"):
-            shutil.copy2(args.prefix / f"lib/dk3/{module}.so", home / f"dk3/{module}.so")
-        (home / "dk3/scripts").mkdir()
-        shutil.copy2(args.prefix / "share/dk3/scripts/dk3-projectile-weather.shader",
-                     home / "dk3/scripts/dk3-projectile-weather.shader")
+        stage_client_modules(args.prefix, home)
         command = [str(args.guard), "--headless", "--screen", "960x540",
                    "--timeout", "90s", "--mem", "8G", "--", str(args.engine / "bin/dk3")]
-        settings = {"net_enabled": "0", "fs_basepath": str(args.engine / "share"),
-                    "fs_homepath": str(home), "fs_homedatapath": str(home),
-                    "fs_homestatepath": str(home / "state"), "com_basegame": "dk3",
-                    "com_pipefile": "commands.fifo", "vm_game": "0", "vm_cgame": "0",
-                    "vm_ui": "0", "g_gametype": "2", "dk3_runtime_probe": "2",
-                    "dk3_jobs": str(args.workers), "com_maxfps": "60",
-                    "cl_renderer": args.renderer, "r_fullscreen": "0", "r_mode": "-1",
-                    "r_customwidth": "960", "r_customheight": "540", "s_useOpenAL": "0"}
+        settings = client_settings(args.engine, home, args.renderer, args.workers)
         for name, value in settings.items():
             command += ["+set", name, value]
         command += ["+devmap", args.map]

@@ -10,6 +10,7 @@ They compose the following layers; this is the game's runtime, not an alternate 
 | `engine/` | Public ABI, syscalls, collision/filesystem services and transport projections | Public engine headers and domain values |
 | `server/` | Authoritative systems and ordering, applying domain rules to ECS state | Domain, ECS and explicit engine adapters |
 | `client/` | Snapshot presentation and local commands | Domain prediction and engine adapters |
+| `ui/` | Typed menus, settings, rebinding and supplied menu artwork | Domain menu state and public UI adapter |
 | `tests/` | Differential fixtures and runtime contracts | Test-only references; never linked into products |
 
 Weapon class definitions live in `src/weapons`; item metadata in `src/items`.
