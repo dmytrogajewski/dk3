@@ -4,8 +4,9 @@
 
 Sequence 217 begins the accepted [native Zig replacement runtime](runtime-zig.md):
 archetype ECS, parallel systems, separate native modules and an isolated installation.
-Sequences 218–220 connect native movement, shared weapon controllers, binary movers,
-train paths, attachment assemblies, secret doors and continuous rotation. The replacement remains incomplete.
+Sequences 218–221 connect native movement, shared weapon controllers, binary movers,
+train paths, attachment assemblies, secret doors, continuous rotation and core
+pickups/key locks with authored spawn filtering. The replacement remains incomplete.
 The existing runtime stays default until implemented-scope acceptance passes.
 This supersedes the historical C/QVM game-module guidance below.
 

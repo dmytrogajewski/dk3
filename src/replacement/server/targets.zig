@@ -23,7 +23,7 @@ pub const Router = struct {
         self.depth += 1;
         defer self.depth -= 1;
         const object = (try world.get(entity, data.MapObject)).*;
-        if (prop.nonempty(object, "keyname")) return;
+        if (!@import("keys.zig").allows(world, object, activator)) return;
         if (world.get(entity, data.Mover)) |_| return movers.use(world, slots, projections, entity, activator, now) else |_| {}
         if ((world.get(entity, data.Secret) catch null) != null or (world.get(entity, data.Rotation) catch null) != null) {
             if (try @import("special_movers.zig").use(world, slots, projections, entity, activator, now)) try self.fire(world, slots, projections, entity, activator, now);

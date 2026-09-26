@@ -19,6 +19,7 @@ const Fixture = struct {
         var self: Fixture = .{};
         self.table.entries[id] = .{ .ammoMax = 100, .initialAmmo = 100, .ammoCost = 1, .lifetime = 5 };
         _ = self.state.acquire(&self.table, id, 100);
+        if (id == 7) self.state.gas_until_ms = 5000;
         return self;
     }
     fn tick(self: *Fixture, milliseconds: u32, attack: bool) !void {
@@ -74,4 +75,18 @@ test "all concrete input policies emit bounded events without engine globals" {
         try std.testing.expect(fixture.state.ammo[entry.id] >= 0);
         if (entry.id != 28) try std.testing.expect(fixture.events.count > 0);
     }
+}
+
+test "Gas Hands duration freezes while another weapon is selected" {
+    var fixture = Fixture.init(7);
+    fixture.state.dk3Inventory |= 1 << 1;
+    fixture.state.weapon = 1;
+    try fixture.tick(1000, false);
+    try std.testing.expectEqual(@as(i64, 6000), fixture.state.gas_until_ms);
+    fixture.state.weapon = 7;
+    try fixture.tick(4999, false);
+    try std.testing.expect(fixture.state.dk3Inventory & (1 << 7) != 0);
+    try fixture.tick(1, false);
+    try std.testing.expectEqual(@as(i64, 0), fixture.state.gas_until_ms);
+    try std.testing.expect(fixture.state.dk3Inventory & (1 << 7) == 0);
 }

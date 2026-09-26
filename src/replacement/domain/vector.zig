@@ -37,3 +37,10 @@ pub fn basis(angles: Vec3) struct { forward: Vec3, right: Vec3 } {
     const cr = @cos(roll);
     return .{ .forward = .{ cp * cy, cp * sy, -sp }, .right = .{ -sr * sp * cy + cr * sy, -sr * sp * sy - cr * cy, -sr * cp } };
 }
+
+// Match the bundled x86 SSE conversion's nearest-even rounding at half units.
+pub fn snap(value: f32) f32 {
+    const low = @floor(value);
+    const fraction = value - low;
+    return if (fraction < 0.5) low else if (fraction > 0.5) low + 1 else if (@mod(low, 2) == 0) low else low + 1;
+}

@@ -109,12 +109,11 @@ pub fn heldEffect(parent: *c.refEntity_t, client: c_int) void {
 pub fn pickup(player: *server.Entity) ?bool {
     if (c.g_gametype.integer != c.GT_SINGLE_PLAYER) return null;
     const ps = &player.client[0].ps;
-    var duration = v.i(@max(0, @min(c.DK_MAX_GASHANDS_TIME / 1000, server.info(@This()).lifetime)) * 1000);
-    const remaining = @max(0, ps.powerups[c.PW_DK3_GASHANDS] - server.now());
-    if (duration <= 0) c.G_Error("dk3: weapon_gashands requires a positive supplied lifetime");
-    if (remaining >= c.DK_MAX_GASHANDS_TIME) return false;
-    duration = @min(duration, c.DK_MAX_GASHANDS_TIME - remaining);
-    ps.powerups[c.PW_DK3_GASHANDS] = server.now() + remaining + duration;
+    const deadline = (@import("../gas_rules.zig").extend(ps.powerups[c.PW_DK3_GASHANDS], server.now(), server.info(@This()).lifetime) catch {
+        c.G_Error("dk3: weapon_gashands requires a positive supplied lifetime");
+        unreachable;
+    }) orelse return false;
+    ps.powerups[c.PW_DK3_GASHANDS] = @intCast(deadline);
     ps.dk3Inventory |= @as(c_int, 1) << id;
     ps.weapon = id;
     ps.weaponstate = c.WEAPON_RAISING;
@@ -127,12 +126,14 @@ pub fn inventoryTick(player: *server.Entity) void {
     if (c.g_gametype.integer != c.GT_SINGLE_PLAYER) return;
     const ps = &player.client[0].ps;
     if (c.DK_HasWeapon(ps, id) == 0) return;
+    if (@import("../gas_rules.zig").advance(ps.powerups[c.PW_DK3_GASHANDS], server.now(), c.level.time - c.level.previousTime, player.health > 0, ps.weapon != id or ps.dk3CameraActive != 0 or ps.pm_type == c.PM_INTERMISSION)) |deadline| {
+        ps.powerups[c.PW_DK3_GASHANDS] = @intCast(deadline);
+        return;
+    }
     if (player.health <= 0) {
         c.DK_ExpireGasHands(ps);
         return;
     }
-    if ((ps.weapon != id or ps.dk3CameraActive != 0 or ps.pm_type == c.PM_INTERMISSION) and ps.powerups[c.PW_DK3_GASHANDS] > 0) ps.powerups[c.PW_DK3_GASHANDS] += c.level.time - c.level.previousTime;
-    if (ps.powerups[c.PW_DK3_GASHANDS] > server.now()) return;
     c.DK_ExpireGasHands(ps);
     c.G_AddEvent(player, c.EV_GENERAL_SOUND, c.DK_SoundIndex("e1/we_gasstopa.wav"));
     c.trap_SendServerCommand(player.s.number, c.va(@constCast("dk3_weapon %d"), ps.weapon));

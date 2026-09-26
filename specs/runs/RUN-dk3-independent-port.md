@@ -2646,3 +2646,28 @@ projection now have shared owners instead of duplicated module-entrypoint logic.
 All engine runs use dkguard headless software rendering and isolated profiles.
 No normal installation or save was written. Earlier aggregate checks remain valid
 for unchanged components; no duplicate broad suite. Full rewrite remains open.
+
+
+## runtime-zig — sequence 221 (active implementation)
+
+Implemented keys, weapon/ammunition, health and armor pickup policies; ballistic
+floor placement/bounce with supplied model bounds; resource configstrings and item
+models; acquisition visibility/target dispatch and respawn deadlines; key ownership
+checks; explicit weapon selection and server acquisition selection. Metadata is
+shared through reviewed source definitions. Ammunition saturation and Gas Hands
+duration policies are shared with the existing Zig weapon backend. Spawn mode/skill
+filters now precede behavior registration while preserving map persistent IDs.
+Tagged components no longer require meaningless zero initialization during relocation.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Domain/build checks | Passed | 37 replacement tests, native modules built. Covers union relocation, metadata/key composites, bounded acquisition, gas timing, model bounds and spawn exclusions/ID stability. |
+| Initial e1m3b key/button diagnostic | Failed scope; corrected | `runtime-zig-221/inventory/` records collection and activation, but source review identified button 423 as co-op-only. Missing mode filtering was repaired; this result is not single-player progression acceptance. |
+| e1m6a blue card and locked button | Passed | `runtime-zig-221/blue-card/`: item 2 settles, touch changes key mask to 1 and hides the item; button 85 stays closed before collection and opens afterward, activating four-way door 82. Explicit diagnostic placement/activation; key capture inspected, normal walking/cinematic path not certified. |
+| Affected lift and delayed-door paths | Passed | `runtime-zig-221/lift/` and `client/`; same isolated runners after map-filter/item integration. |
+| First aggregate build | Failed; repaired | C pointer nullability in `DK_AddAmmunition` adapter prevented legacy compilation and two Python contract tests. Fixed by validating the C pointer and passing a local typed value to shared rules. All 175 Zig checks had already passed. |
+| Aggregate checks after adapter repair | Passed | `zig build game test --prefix zig-out/legacy-check -Dgame-runtime=legacy --summary all`: existing modules build, 175 Zig and 49 Python tests pass. |
+| Pickup audio, boosts/statuses, platform-carried items, full progression | Unrun | Remaining implementation/acceptance; ordinary launcher stays legacy. |
+
+All probes use dkguard and temporary profiles. Private assets, saves and captures
+remain local. This is continuing implementation, not full rewrite completion.

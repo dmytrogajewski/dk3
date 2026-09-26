@@ -70,6 +70,7 @@ pub const Context = struct {
     slot: u16,
     shot_mask: u32,
     healthy: bool = true,
+    single_player: bool = true,
     attack_boost: i32 = 0,
     camera_active: bool = false,
     msec: i32 = 0,
@@ -86,6 +87,7 @@ pub const Context = struct {
         self.motion = motion;
         self.command = command;
         self.msec = @intCast(milliseconds);
+        if (!self.canFire()) self.inventoryTick();
         rules.tick(self);
         if (self.failure) |err| return err;
     }
@@ -138,9 +140,13 @@ pub const Context = struct {
         };
     }
     pub fn inventoryTick(self: *Context) void {
-        if (self.ps.weapon != 7 or self.camera_active or self.ps.gas_until_ms <= 0 or self.ps.gas_until_ms > self.command.time_ms) return;
-        self.ps.gas_until_ms = 0;
-        rules.expireGas(self.ps);
+        if (!self.single_player or self.ps.dk3Inventory & (@as(i32, 1) << 7) == 0) return;
+        if (catalog.gas.advance(self.ps.gas_until_ms, self.command.time_ms, self.msec, self.healthy, self.ps.weapon != 7 or self.camera_active or self.player.mode == .frozen)) |deadline| {
+            self.ps.gas_until_ms = deadline;
+        } else {
+            self.ps.gas_until_ms = 0;
+            rules.expireGas(self.ps);
+        }
     }
     fn contact(self: *Context, range: f32, eye_offset: f32, body: bool) ?collision.Trace {
         var eye = self.motion.position;

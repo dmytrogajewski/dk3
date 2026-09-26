@@ -31,3 +31,5 @@ pub const transitions = @import("controller.zig");
 pub const Shot = @import("shot.zig").Shot;
 
 pub const values = @import("values.zig");
+
+pub const gas = @import("gas_rules.zig");

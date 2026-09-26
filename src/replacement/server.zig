@@ -51,6 +51,7 @@ fn init(now: i64) !void {
     slots = .{};
     clients = .{};
     targets = .{};
+    @import("server/resources.zig").reset();
     if (engine.integer("dk3_runtime_probe") == 2) {
         const bytes = try @import("engine/files.zig").read(.server, &engine.gateway, std.heap.c_allocator, "dk3/tables/weapons.cfg", 4 * 1024 * 1024);
         defer std.heap.c_allocator.free(bytes);
@@ -66,7 +67,7 @@ fn init(now: i64) !void {
         _ = try world.?.create(null, .{ object.binding, object.transform });
     }
     if (engine.integer("dk3_runtime_probe") == 2) {
-        try @import("server/world_systems.zig").spawn(&world.?, &slots, &projection, now);
+        try @import("server/world_systems.zig").spawn(&world.?, &slots, &projection, now, clients.episode);
     }
     var text: [160]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: isolated bootstrap, {d} map entities, {d} workers; gameplay not qualified\n", .{ world.?.count(), jobs }));
@@ -106,6 +107,27 @@ fn consoleCommand() isize {
             var failure: [128]u8 = undefined;
             engine.print(std.fmt.bufPrintZ(&failure, "dk3 zig probe failed: {s}\n", .{@errorName(err)}) catch unreachable);
         };
+        return 1;
+    }
+    if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_items")) {
+        for (slots.occupants) |occupant| {
+            const entity = occupant orelse continue;
+            const pickup = world.?.get(entity, component.Pickup) catch continue;
+            const object = (world.?.get(entity, component.MapObject) catch unreachable).*;
+            const transform = (world.?.get(entity, component.Transform) catch unreachable).*;
+            const motion = (world.?.get(entity, component.ItemMotion) catch unreachable).*;
+            var message: [256]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "zig item id={d} class={s} visible={d} ground={?d} pos={d:.2},{d:.2},{d:.2}\n", .{ world.?.persistentId(entity) catch unreachable, object.classname, @intFromBool(pickup.visible), motion.ground, transform.position[0], transform.position[1], transform.position[2] }) catch unreachable);
+        }
+        return 1;
+    }
+    if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_inventory")) {
+        const entity = clients.entities[0] orelse return 1;
+        const loadout = (world.?.get(entity, component.Weapons) catch unreachable).*;
+        const keys = (world.?.get(entity, component.Keys) catch unreachable).*;
+        const health = (world.?.get(entity, component.Health) catch unreachable).*;
+        var message: [256]u8 = undefined;
+        engine.print(std.fmt.bufPrintZ(&message, "zig inventory keys={x} quest={x} owned={x} weapon={d} health={d} armor={d}\n", .{ keys.mask, keys.quest, @as(u32, @bitCast(loadout.dk3Inventory)), loadout.weapon, health.current, health.armor }) catch unreachable);
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_movers")) {
@@ -179,7 +201,11 @@ fn consoleCommand() isize {
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_activate")) {
         var argument: [32]u8 = undefined;
         const id = std.fmt.parseInt(u32, engine.argv(1, &argument), 10) catch return 1;
-        if (world.?.find(id)) |entity| targets.activate(&world.?, &slots, &projection, entity, 0, clock.now_ms) catch |err| runtimeFailure(err);
+        var owner: u32 = 0;
+        if (std.mem.eql(u8, engine.argv(2, &argument), "player")) if (clients.entities[0]) |player| {
+            owner = world.?.persistentId(player) catch unreachable;
+        };
+        if (world.?.find(id)) |entity| targets.activate(&world.?, &slots, &projection, entity, owner, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
     if (!std.mem.eql(u8, command, "dk3_runtime_status")) return 0;
@@ -212,7 +238,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 engine.fatal("Zig replacement: invalid engine frame time");
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
-                @import("server/world_systems.zig").step(&world.?, &slots, &projection, &targets, clock.now_ms, elapsed) catch |err| runtimeFailure(err);
+                @import("server/world_systems.zig").step(&world.?, &slots, &projection, &targets, clock.now_ms, elapsed, &clients.weapon_table) catch |err| runtimeFailure(err);
                 for (clients.entities, 0..) |entity, index| if (entity != null) {
                     clients.publish(&world.?, &projection, &players, index) catch |err| runtimeFailure(err);
                 };

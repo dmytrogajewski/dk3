@@ -194,7 +194,7 @@ pub fn World(comptime Components: anytype) type {
                 column(T, dest, chunk)[row.row] = if (source.mask & (@as(Mask, 1) << i) != 0)
                     column(T, source, source.chunks.items[old.chunk])[old.row]
                 else
-                    std.mem.zeroes(T);
+                    undefined; // put initializes the only newly added column before returning.
             };
             self.removeRow(old);
             self.slots[entity.index].archetype = ai;
@@ -309,4 +309,18 @@ test "query epochs block structural changes and chunks stay bounded" {
     try std.testing.expectError(error.Capacity, world.put(ent, Health{ .value = 1 }));
     try std.testing.expectEqual(@as(f32, 8), (try world.get(ent, Position)).x);
     try std.testing.expectEqual(@as(usize, 1), world.count());
+}
+
+test "structural relocation preserves tagged unions without zero initialization" {
+    const Value = union(enum) { count: u32, label: []const u8 };
+    const Extra = struct { number: u32 };
+    var world = World(.{ Value, Extra }).init(std.testing.allocator, 4);
+    defer world.deinit();
+    const entity = try world.create(null, .{Value{ .label = "key" }});
+    try world.put(entity, Extra{ .number = 9 });
+    try std.testing.expectEqualStrings("key", (try world.get(entity, Value)).label);
+    try world.remove(entity, Extra);
+    try std.testing.expectEqualStrings("key", (try world.get(entity, Value)).label);
+    try world.put(entity, Value{ .count = 17 });
+    try std.testing.expectEqual(@as(u32, 17), (try world.get(entity, Value)).count);
 }

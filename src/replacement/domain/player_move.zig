@@ -298,7 +298,14 @@ pub fn runWithHook(player: *Player, motion: *slide.State, command: Command, para
         const milliseconds: u32 = @intCast(@min(command.time_ms - player.command_ms, parameters.fixed_ms orelse 66));
         player.command_ms += milliseconds;
         if (cmd.up < 10) player.jump_held = false;
-        if (player.mode == .frozen) continue;
+        if (player.mode == .frozen) {
+            if (hook) |after| {
+                var step_command = cmd;
+                step_command.time_ms = player.command_ms;
+                try after.run_fn(after.context, player, motion, step_command, milliseconds);
+            }
+            continue;
+        }
         var frame: Frame = .{ .player = player, .motion = motion, .cmd = cmd, .parameters = parameters, .service = service, .result = &result, .delta = @as(f32, @floatFromInt(milliseconds)) * 0.001, .forward = basis.forward, .right = basis.right };
         if (player.mode == .noclip or player.mode == .spectator) {
             if (player.mode == .spectator) try frame.bounds() else player.view_height = 22;
@@ -338,16 +345,9 @@ pub fn runWithHook(player: *Player, motion: *slide.State, command: Command, para
             try after.run_fn(after.context, player, motion, step_command, milliseconds);
         }
         if (parameters.snap_velocity) for (&motion.velocity) |*axis| {
-            axis.* = snap(axis.*);
+            axis.* = v.snap(axis.*);
         };
         if (player.jump_held) cmd.up = 20;
     }
     return result;
-}
-
-// Match the bundled x86 SSE conversion's nearest-even rounding at half units.
-fn snap(value: f32) f32 {
-    const low = @floor(value);
-    const fraction = value - low;
-    return if (fraction < 0.5) low else if (fraction > 0.5) low + 1 else if (@mod(low, 2) == 0) low else low + 1;
 }

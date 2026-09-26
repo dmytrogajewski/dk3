@@ -9,6 +9,8 @@ const move = @import("domain/player_move.zig");
 const v = @import("domain/vector.zig");
 const c = abi.c;
 const weapons = @import("domain/weapons.zig");
+var selected_weapon: i32 = 0;
+var inventory_mask: i32 = 0;
 var weapon_table: weapons.Table = .{};
 var inline_models: [c.MAX_MODELS]c.qhandle_t = @splat(0);
 var game: c.gameState_t = undefined;
@@ -31,6 +33,9 @@ fn shutdown() void {
 }
 fn init(server_message: i32, sequence: i32, client: i32) !void {
     shutdown();
+    @import("client/models.zig").reset();
+    selected_weapon = 0;
+    inventory_mask = 0;
     if (engine.integer("dk3_runtime_probe") != 2) return error.ReplacementGameplayNotQualified;
     _ = engine.gateway.call(c.CG_GETGAMESTATE, .{&game});
     if (!std.mem.eql(u8, try engine.config(&game, c.CS_GAME_VERSION), bridge.version)) return error.RuntimeMismatch;
@@ -61,6 +66,7 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     snapshot_number = server_message - 1;
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "viewpos")});
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "use")});
+    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
     engine.print("dk3 zig: shared movement prediction initialized\n");
 }
 fn draw(now: i32) !void {
@@ -74,13 +80,19 @@ fn draw(now: i32) !void {
         have_snapshot = true;
         while (command_sequence < snapshot.serverCommandSequence) {
             command_sequence += 1;
-            _ = engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)});
+            if (engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)}) != 0) {
+                if (@import("client/commands.zig").selectedWeapon(snapshot.ps.dk3Inventory)) |id| selected_weapon = id;
+            }
         }
         _ = engine.gateway.call(c.CG_GETGAMESTATE, .{&game});
     }
     if (!have_snapshot or snapshot_number < 0 or snapshot.ps.clientNum != client_number) return;
     if (snapshot.numEntities < 0 or snapshot.numEntities > snapshot.entities.len) return error.InvalidSnapshot;
     engine.setSnapshot(snapshot.entities[0..@intCast(snapshot.numEntities)], now);
+    if (selected_weapon == 0 or snapshot.ps.dk3Inventory != inventory_mask) {
+        selected_weapon = snapshot.ps.weapon;
+        inventory_mask = snapshot.ps.dk3Inventory;
+    }
     const w = &world.?;
     const player_entity = predicted.?;
     const transform = try w.get(player_entity, data.Transform);
@@ -99,14 +111,14 @@ fn draw(now: i32) !void {
         const command = bridge.command(input, &player.delta_angles);
         var motion: @import("domain/slide.zig").State = .{ .position = transform.position, .velocity = velocity.linear };
         var events: weapons.Events = .{};
-        var weapon_context: weapons.Context = .{ .ps = loadout, .healthy = snapshot.ps.stats[c.STAT_HEALTH] > 0, .table = &weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(client_number), .shot_mask = c.MASK_SHOT };
+        var weapon_context: weapons.Context = .{ .ps = loadout, .healthy = snapshot.ps.stats[c.STAT_HEALTH] > 0, .single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER, .table = &weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(client_number), .shot_mask = c.MASK_SHOT };
         _ = try move.runWithHook(player, &motion, command, bridge.parameters(@intCast(client_number)), engine.collisionService(), weapon_context.hook());
         transform.position = motion.position;
         transform.angles = command.angles;
         velocity.linear = motion.velocity;
     }
     view_angles = transform.angles;
-    _ = engine.gateway.call(c.CG_SETUSERCMDVALUE, .{ @as(isize, snapshot.ps.weapon), engine.floatArg(1) });
+    _ = engine.gateway.call(c.CG_SETUSERCMDVALUE, .{ @as(isize, selected_weapon), engine.floatArg(1) });
     var ref = std.mem.zeroes(c.refdef_t);
     ref.width = display.vidWidth;
     ref.height = display.vidHeight;
@@ -123,9 +135,13 @@ fn draw(now: i32) !void {
     ref.dk3Lightstyles = @splat(1);
     _ = engine.gateway.call(c.CG_R_CLEARSCENE, .{});
     for (snapshot.entities[0..@intCast(snapshot.numEntities)]) |entity| {
-        if (entity.solid != c.SOLID_BMODEL or entity.modelindex <= 0 or entity.modelindex >= inline_models.len) continue;
+        var handle: c.qhandle_t = 0;
+        if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
+            handle = inline_models[@intCast(entity.modelindex)];
+        } else if (entity.eType == c.ET_DK3_ITEM) handle = try @import("client/models.zig").get(&game, entity.modelindex);
+        if (handle == 0) continue;
         var rendered = std.mem.zeroes(c.refEntity_t);
-        rendered.hModel = inline_models[@intCast(entity.modelindex)];
+        rendered.hModel = handle;
         rendered.reType = c.RT_MODEL;
         rendered.origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
         rendered.oldorigin = rendered.origin;
@@ -142,7 +158,28 @@ fn draw(now: i32) !void {
 fn console() isize {
     var buffer: [128]u8 = @splat(0);
     _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 0), &buffer, @as(isize, buffer.len) });
-    if (!std.mem.eql(u8, std.mem.sliceTo(&buffer, 0), "viewpos") or world == null) return 0;
+    const name = std.mem.sliceTo(&buffer, 0);
+    if (world == null or !have_snapshot) return 0;
+    if (std.mem.eql(u8, name, "weapon")) {
+        _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 1), &buffer, @as(isize, buffer.len) });
+        const id = std.fmt.parseInt(u5, std.mem.sliceTo(&buffer, 0), 10) catch return 1;
+        if (@import("weapon_catalog").find(id) != null and @as(u32, @bitCast(snapshot.ps.dk3Inventory)) & (@as(u32, 1) << id) != 0) selected_weapon = id;
+        return 1;
+    }
+    if (std.mem.eql(u8, name, "weapnext") or std.mem.eql(u8, name, "weapprev")) {
+        const direction: i32 = if (std.mem.eql(u8, name, "weapnext")) 1 else -1;
+        var id = selected_weapon;
+        for (0..28) |_| {
+            id = @mod(id - 1 + direction, 28) + 1;
+            const entry = @import("weapon_catalog").find(@intCast(id)).?;
+            if (entry.spec.auto_select and @as(u32, @bitCast(snapshot.ps.dk3Inventory)) & (@as(u32, 1) << @as(u5, @intCast(id))) != 0) {
+                selected_weapon = id;
+                break;
+            }
+        }
+        return 1;
+    }
+    if (!std.mem.eql(u8, name, "viewpos")) return 0;
     const transform = world.?.get(predicted.?, data.Transform) catch return 0;
     var message: [200]u8 = undefined;
     engine.print(std.fmt.bufPrintZ(&message, "zig viewpos: {d:.3} {d:.3} {d:.3}, angles {d:.2} {d:.2} {d:.2}\n", .{ transform.position[0], transform.position[1], transform.position[2], view_angles[0], view_angles[1], view_angles[2] }) catch unreachable);

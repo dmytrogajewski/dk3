@@ -33,7 +33,7 @@ pub const Clients = struct {
         }
         var transform = spawn orelse return error.MissingPlayerSpawn;
         transform.position[2] += 9;
-        const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
+        const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Keys{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
         errdefer world.destroy(entity) catch unreachable;
         _ = try slots.acquire(entity, @intCast(index));
         self.entities[index] = entity;
@@ -74,7 +74,7 @@ pub const Clients = struct {
         const velocity = try world.get(entity, data.Velocity);
         var motion: @import("../domain/slide.zig").State = .{ .position = transform.position, .velocity = velocity.linear };
         var events: weapons.Events = .{};
-        var weapon_context: weapons.Context = .{ .ps = try world.get(entity, data.Weapons), .table = &self.weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(index), .shot_mask = c.MASK_SHOT };
+        var weapon_context: weapons.Context = .{ .ps = try world.get(entity, data.Weapons), .healthy = (try world.get(entity, data.Health)).current > 0, .single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER, .table = &self.weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(index), .shot_mask = c.MASK_SHOT };
         const result = try @import("../domain/player_move.zig").runWithHook(player, &motion, command, bridge.parameters(@intCast(index)), engine.collisionService(), weapon_context.hook());
         for (events.values[0..events.count], 0..) |event, i| {
             const sequence = weapon_context.ps.event_sequence -% @as(u32, @intCast(events.count - i));
@@ -101,7 +101,14 @@ pub const Clients = struct {
         const inventory = (try world.get(entity, data.Weapons)).*;
         const ps = &states[index];
         bridge.write(ps, (try world.get(entity, data.Player)).*, transform, velocity);
-        ps.stats[c.STAT_HEALTH] = (try world.get(entity, data.Health)).current;
+        const health = (try world.get(entity, data.Health)).*;
+        ps.stats[c.STAT_HEALTH] = health.current;
+        ps.stats[c.STAT_MAX_HEALTH] = health.maximum;
+        ps.stats[c.STAT_ARMOR] = health.armor;
+        ps.dk3ArmorAbsorption = health.absorption;
+        const keys = (try world.get(entity, data.Keys)).*;
+        ps.dk3Keys = @bitCast(keys.mask);
+        ps.dk3Quest = @bitCast(keys.quest);
         bridge.writeWeapons(ps, inventory);
         const projection = &projections[index];
         projection.state.number = @intCast(index);

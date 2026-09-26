@@ -23,7 +23,7 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     if (object.targetname.len != 0 and !std.mem.eql(u8, object.classname, "func_button")) return;
     try router.activate(world, slots, projections, target, try world.persistentId(player_entity), now);
 }
-fn overlap(a: *const abi.EntityProjection, b: *const abi.EntityProjection, padding: f32) bool {
+pub fn overlap(a: *const abi.EntityProjection, b: *const abi.EntityProjection, padding: f32) bool {
     for (0..3) |axis| if (a.shared.absmax[axis] + padding < b.shared.absmin[axis] or a.shared.absmin[axis] - padding > b.shared.absmax[axis]) return false;
     return true;
 }
@@ -43,7 +43,7 @@ pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             if (trigger.?.counter or object.flags & 1 != 0 or projection.shared.contents & c.CONTENTS_TRIGGER == 0) continue;
         } else if (mover) |motion| {
             if (!button_touch and (motion.group != try world.persistentId(entity) or object.targetname.len != 0 or (!motion.platform and object.flags & 16 == 0))) continue;
-            if (prop.nonempty(object, "keyname") or try prop.number(object, "health", 0) > 0) continue;
+            if (try prop.number(object, "health", 0) > 0) continue;
         } else continue;
         for (occupants[0..Slots.clients]) |client| {
             const actor = client orelse continue;

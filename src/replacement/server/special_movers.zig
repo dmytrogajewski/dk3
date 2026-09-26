@@ -72,7 +72,7 @@ pub fn use(world: *data.World, slots: *const Slots, projections: []abi.EntityPro
     const original = try world.get(entity, data.Secret);
     const master = world.find(original.group) orelse return error.MissingMoverMaster;
     const control = try world.get(master, data.Secret);
-    if (control.phase != .closed or prop.nonempty((try world.get(master, data.MapObject)).*, "keyname")) return false;
+    if (control.phase != .closed or !@import("keys.zig").allows(world, (try world.get(master, data.MapObject)).*, owner)) return false;
     for (slots.occupants) |occupant| {
         const part = occupant orelse continue;
         const secret = world.get(part, data.Secret) catch continue;

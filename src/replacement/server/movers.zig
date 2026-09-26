@@ -121,8 +121,7 @@ pub fn use(world: *data.World, slots: *const Slots, projections: []abi.EntityPro
     const master = world.find(original.group) orelse return error.MissingMoverMaster;
     const mover = try world.get(master, data.Mover);
     const object = (try world.get(master, data.MapObject)).*;
-    // Key inventory and cinematic activation are pending; never bypass authored locks.
-    if (prop.nonempty(object, "keyname")) return;
+    if (!@import("keys.zig").allows(world, object, activator)) return;
     if (try mover.use(now, activator)) |opened| try start(world, slots, projections, mover.group, opened, now, true);
 }
 pub const Arrivals = struct { entities: [ecs.max_entities]ecs.Entity = undefined, count: usize = 0 };

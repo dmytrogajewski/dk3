@@ -12,7 +12,7 @@ pub fn track(b: *std.Build, module: *std.Build.Module, roots: []const []const u8
         var walker = directory.walk(b.allocator) catch @panic("OOM");
         defer walker.deinit();
         while (walker.next(b.graph.io) catch |err| @panic(b.fmt("header inputs: {t}", .{err}))) |entry| {
-            if (entry.kind != .file or (!std.mem.endsWith(u8, entry.path, ".h") and !std.mem.endsWith(u8, entry.path, ".inc"))) continue;
+            if (entry.kind != .file or (!std.mem.endsWith(u8, entry.path, ".h") and !std.mem.endsWith(u8, entry.path, ".inc") and !std.mem.endsWith(u8, entry.path, ".def"))) continue;
             paths.append(b.allocator, b.pathJoin(&.{ root, entry.path })) catch @panic("OOM");
         }
     }

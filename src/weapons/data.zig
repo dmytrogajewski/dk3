@@ -60,14 +60,15 @@ export fn DK_AmmoWeapon(name: [*c]const u8) callconv(.c) c_int {
     return 0;
 }
 export fn DK_AddAmmunition(ammo: [*c]c_int, weapon: c_int, rounds: c_int) callconv(.c) c.qboolean {
-    if (weapon <= 0 or weapon >= c.DK_WEAPON_COUNT) return c.qfalse;
+    if (ammo == null or weapon <= 0 or weapon >= c.DK_WEAPON_COUNT) return c.qfalse;
     const index: usize = @intCast(weapon);
     const data = dk_weapons[index];
-    if (ammo[index] >= data.ammoMax) return c.qfalse;
     var pack = data.initialAmmo;
     inline for (registry.weapons) |W| if (W.id == weapon and W.spec.ammo_pack > 0) {
         pack = W.spec.ammo_pack;
     };
-    ammo[index] = @min(data.ammoMax, ammo[index] + @max(0, if (rounds > 0) rounds else pack));
-    return c.qtrue;
+    var amount: i32 = ammo[index];
+    const changed = @import("inventory_rules.zig").addAmmo(&amount, data.ammoMax, rounds, pack);
+    ammo[index] = amount;
+    return @intFromBool(changed);
 }

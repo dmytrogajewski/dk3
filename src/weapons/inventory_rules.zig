@@ -46,3 +46,20 @@ pub fn grantPair(owned: *u32, ammunition: []i32, id: u5, maximum: i32, rounds: i
     owned.* |= @as(u32, 1) << id;
     ammunition[id] = @intCast(@min(@as(i64, maximum), @as(i64, ammunition[id]) + rounds));
 }
+
+/// Ammunition packs never grant ownership; addition cannot overflow on malformed counts.
+pub fn addAmmo(current: *i32, maximum: i32, rounds: i32, default_pack: i32) bool {
+    if (maximum < 0 or current.* >= maximum) return false;
+    const amount = @max(0, if (rounds > 0) rounds else default_pack);
+    current.* = @intCast(@min(@as(i64, maximum), @as(i64, current.*) + amount));
+    return true;
+}
+test "ammo packs saturate before narrowing large authored counts" {
+    var amount: i32 = 20;
+    try std.testing.expect(addAmmo(&amount, 100, std.math.maxInt(i32), 10));
+    try std.testing.expectEqual(@as(i32, 100), amount);
+    try std.testing.expect(!addAmmo(&amount, 100, 1, 10));
+    amount = 0;
+    try std.testing.expect(addAmmo(&amount, 100, 0, 10));
+    try std.testing.expectEqual(@as(i32, 10), amount);
+}

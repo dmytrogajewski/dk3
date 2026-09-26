@@ -124,6 +124,47 @@ def special_scenario(args, issue, capture, log):
             "scope": "e1m3b rotating brush start, toggle and resume; rotating riders unqualified"}
 
 
+def inventory_scenario(issue, capture, log):
+    def mover_state(identity):
+        issue("dk3_runtime_movers")
+        states = re.findall(rf"zig mover id={identity} .*state=(\w+)", log.read_text(errors="replace"))
+        if not states:
+            raise RuntimeError(f"missing mover {identity}")
+        return states[-1]
+
+    issue("dk3_runtime_activate 85 player", 0.5)
+    if mover_state(85) != "closed":
+        raise RuntimeError("key-locked button opened without key")
+    issue("dk3_runtime_items")
+    text = log.read_text(errors="replace")
+    values = re.findall(r"zig item id=2 class=item_control_card_blue visible=(\d) ground=(\w+) pos=([^\n]+)", text)
+    if not values or values[-1][0] != "1" or values[-1][1] == "null":
+        raise RuntimeError("key did not settle on the floor")
+    x, y, z = map(float, values[-1][2].split(","))
+    issue(f"dk3_runtime_place {x + 80} {y} {z + 24}", 0.2)
+    issue("dk3_look 180 15")
+    capture("key-before")
+    issue(f"dk3_runtime_place {x} {y} {z + 24}", 0.5)
+    issue("dk3_runtime_inventory")
+    issue("dk3_runtime_items")
+    text = log.read_text(errors="replace")
+    keys = re.findall(r"zig inventory keys=([0-9a-f]+)", text)
+    if not keys or int(keys[-1], 16) & (1 << 0) == 0:
+        raise RuntimeError("touch failed to collect blue keycard")
+    if not re.search(r"zig item id=2 class=item_control_card_blue visible=0", text):
+        raise RuntimeError("collected key remained visible")
+    issue("dk3_runtime_activate 85 player", 0.3)
+    state = mover_state(85)
+    if state not in ("opening", "open"):
+        raise RuntimeError("collected key did not unlock button")
+    issue("dk3_runtime_items", 1)
+    if mover_state(82) not in ("opening", "open"):
+        raise RuntimeError("button arrival failed to activate four-way door")
+    capture("key-collected")
+    return {"keys": keys[-1], "button_state": state,
+            "scope": "e1m6a key floor settlement, touch pickup and locked button target; diagnostic positioning, full authored progression unqualified"}
+
+
 def run(args):
     args.report.mkdir(parents=True, exist_ok=True)
     log = args.report / "client.log"
@@ -165,7 +206,9 @@ def run(args):
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
                 if args.scenario == "lift":
                     result = lift_scenario(issue, capture, log)
-                elif args.scenario in ("secret", "rotation"):
+                elif args.scenario == "inventory":
+                    result = inventory_scenario(issue, capture, log)
+                elif args.scenario in ("secret", "rotation", "inventory"):
                     result = special_scenario(args, issue, capture, log)
                 else:
                     result = movement_scenario(args, issue, capture, log)
@@ -188,21 +231,21 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
     args = parser.parse_args()
     if args.map is None:
-        args.map = {"lift": "e1m3a", "secret": "e3dm1"}.get(args.scenario, "e1m3b")
+        args.map = {"lift": "e1m3a", "secret": "e3dm1", "inventory": "e1m6a"}.get(args.scenario, "e1m3b")
     if args.report is None:
         args.report = Path("zig-out/reports/runtime-zig-219/lift" if args.scenario == "lift" else "zig-out/reports/runtime-zig-218/client")
-    if args.scenario in ("secret", "rotation"):
-        expected_map = "e3dm1" if args.scenario == "secret" else "e1m3b"
+    if args.scenario in ("secret", "rotation", "inventory"):
+        expected_map = {"secret": "e3dm1", "inventory": "e1m6a"}.get(args.scenario, "e1m3b")
         if args.map != expected_map or args.mover is not None:
             parser.error(f"{args.scenario} scenario uses {expected_map}; omit --mover")
         if args.report == Path("zig-out/reports/runtime-zig-218/client"):
-            args.report = Path(f"zig-out/reports/runtime-zig-220/{args.scenario}")
+            args.report = Path(f"zig-out/reports/runtime-zig-{221 if args.scenario == 'inventory' else 220}/{args.scenario}")
     if args.scenario == "lift" and (args.map != "e1m3a" or args.mover is not None):
         parser.error("lift scenario uses e1m3a's bigplat; omit --mover")
     if not re.fullmatch(r"[a-zA-Z0-9_]+", args.map):

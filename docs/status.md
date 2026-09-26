@@ -1,9 +1,9 @@
 # Game completion state
 
-Native rewrite sequence 220 adds secret doors, continuous rotation and a shared
-world-system coordinator. Focused mover probes pass; the replacement remains
-incomplete and the existing runtime remains the normal launcher default. See
-[native runtime progress](runtime-zig.md#active-implementation-runtime-zig-220).
+Native rewrite sequence 221 adds key/weapon/ammunition/health/armor pickups,
+model rendering and authored spawn filtering. Focused key-lock and mover probes
+pass; the replacement remains incomplete and the existing runtime remains the
+normal launcher default. See [native runtime progress](runtime-zig.md#active-implementation-runtime-zig-221).
 
 
 Sequence 203 is implementing the accepted [Zig multiplayer/Internet-room scope](multiplayer-zig.md).

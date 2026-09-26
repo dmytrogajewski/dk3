@@ -54,3 +54,7 @@ pub fn link(entity: *abi.EntityProjection) void {
 pub fn unlink(entity: *abi.EntityProjection) void {
     _ = gateway.call(c.G_UNLINKENTITY, .{entity});
 }
+
+pub fn send(client: u16, command: [:0]const u8) void {
+    _ = gateway.call(c.G_SEND_SERVER_COMMAND, .{ @as(isize, client), command.ptr });
+}

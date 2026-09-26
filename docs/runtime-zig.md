@@ -217,3 +217,28 @@ Reproduce with `runtime_player_probe.py --engine zig-out/play/current --prefix
 zig-out/replacement --scenario secret` (or `--scenario rotation`). The normal
 launcher still uses the existing runtime. Combat, actors, inventory progression,
 scripts/cinematics, restore/travel and full presentation/UI remain implementation work.
+
+
+## Active implementation: runtime-zig-221
+
+Native keys, weapon/ammunition pickups, health and armor are connected to floor
+physics, MD3-derived bounds, model configstrings/rendering, visibility, respawn
+policy, target dispatch and player-state projection. Key names unlock doors/buttons
+through persistent player IDs. Weapon selection commands and server acquisition
+selection are connected. Shared metadata serves C and Zig; shared ammunition and
+Gas Hands duration policies avoid parallel weapon-rule implementations.
+
+Map spawning now applies mode/difficulty restrictions before behavior registration,
+without renumbering authored IDs. ECS relocation supports tagged component unions.
+Native products and 37 focused tests pass. The e1m6a blue-card probe verifies floor
+settlement, touch collection, rejection before key ownership and button/door activation
+afterward. The affected lift and delayed-door probes still pass. Diagnostic placement
+and activation are recorded; this is not a full authored route or cinematic replay.
+
+```sh
+python3 dkq3/tools/runtime_player_probe.py --engine zig-out/play/current --prefix zig-out/replacement --scenario inventory
+```
+
+Boost/status pickups, pickup audio/messages, moving-platform item transport, native
+combat/actors, progression, scripts/cinematics, restoration/travel and full UI/HUD
+remain open. The normal installation and saves remain untouched.

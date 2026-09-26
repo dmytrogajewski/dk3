@@ -7,15 +7,17 @@ const Router = @import("targets.zig").Router;
 const binary = @import("movers.zig");
 const trains = @import("trains.zig");
 const special = @import("special_movers.zig");
-pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
+pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8) !void {
+    try @import("spawn_filter.zig").apply(world);
     try @import("brushes.zig").spawn(world, slots, projections);
     try binary.spawn(world, slots, projections);
     try @import("targets.zig").spawn(world);
     try trains.spawn(world, slots, projections, now);
     try special.spawn(world, slots, projections, now);
+    try @import("items.zig").spawn(world, slots, projections, now, episode);
     try @import("attachments.zig").spawn(world);
 }
-pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, targets: *Router, now: i64, elapsed: u32) !void {
+pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, targets: *Router, now: i64, elapsed: u32, table: *const @import("../domain/weapons.zig").Table) !void {
     try @import("interactions.zig").touch(world, slots, projections, targets, now);
     try binary.prepare(world, slots, projections, now);
     try trains.prepare(world, slots, projections, now);
@@ -44,5 +46,6 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try targets.fireNamed(world, slots, projections, name, entity, train.owner, now);
         }
     }
+    try @import("items.zig").step(world, slots, projections, targets, table, now, elapsed);
     try targets.step(world, slots, projections, now);
 }
