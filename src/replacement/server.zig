@@ -102,6 +102,13 @@ fn probeMotion() !void {
 fn consoleCommand() isize {
     var buffer: [128]u8 = undefined;
     const command = engine.argv(0, &buffer);
+    if (engine.integer("dk3_runtime_probe") == 2) {
+        if (@import("server/combat_probe.zig").command(command, &world.?, &slots, &projection, clients.entities[0], &clients.weapon_table) catch |err| blk: {
+            var message: [128]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "dk3 zig combat probe failed: {s}\n", .{@errorName(err)}) catch unreachable);
+            break :blk true;
+        }) return 1;
+    }
     if (std.mem.eql(u8, command, "dk3_runtime_probe_motion")) {
         probeMotion() catch |err| {
             var failure: [128]u8 = undefined;
@@ -248,7 +255,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             return 0;
         },
         c.GAME_CLIENT_BEGIN => clients.begin(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err),
-        c.GAME_CLIENT_THINK => clients.think(&world.?, &projection, &players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err),
+        c.GAME_CLIENT_THINK => clients.think(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err),
         c.GAME_CLIENT_DISCONNECT => clients.disconnect(&world.?, &slots, &projection, @intCast(arg0)) catch |err| runtimeFailure(err),
         c.GAME_RUN_FRAME => {
             const elapsed = clock.advance(arg0) catch {

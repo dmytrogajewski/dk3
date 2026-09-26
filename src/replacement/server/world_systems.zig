@@ -47,6 +47,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try targets.fireNamed(world, slots, projections, name, entity, train.owner, now);
         }
     }
+    try @import("combat.zig").step(world, slots, projections, now);
     try @import("items.zig").step(world, slots, projections, targets, table, now, elapsed);
     try targets.step(world, slots, projections, now);
 }

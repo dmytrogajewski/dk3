@@ -216,6 +216,27 @@ def effects_scenario(issue, capture, log):
             "scope": "e4m4b pickup timers, protection and snapshot audio dispatch; diagnostic positioning/damage, physical audio and combat parity unqualified"}
 
 
+def combat_scenario(issue, capture, log):
+    issue("developer 1")
+    results = []
+    for weapon in (21, 2):
+        issue("dk3_runtime_clear_targets")
+        issue(f"dk3_runtime_equip {weapon}")
+        issue("dk3_runtime_target")
+        issue("dk3_runtime_targets")
+        before = len(log.read_text(errors="replace"))
+        issue("+attack", 4)
+        issue("-attack", 0.3)
+        issue("dk3_runtime_targets")
+        text = log.read_text(errors="replace")[before:]
+        health = re.findall(r"zig combat: target=(\d+) health=(-?\d+)", text)
+        if not health or int(health[-1][1]) > 0 or "killed=1" not in text:
+            raise RuntimeError(f"weapon {weapon} did not kill target through normal attack input: {log}")
+        results.append({"weapon": weapon, "target": int(health[-1][0]), "health": int(health[-1][1])})
+        capture(f"combat-{weapon}")
+    return {"attacks": results, "scope": "normal fire input against diagnostic ECS targets; Glock hitscan and Ion projectile damage/death, not actor/campaign or visual parity acceptance"}
+
+
 def run(args):
     args.report.mkdir(parents=True, exist_ok=True)
     log = args.report / "client.log"
@@ -257,6 +278,8 @@ def run(args):
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
                 if args.scenario == "lift":
                     result = lift_scenario(issue, capture, log)
+                elif args.scenario == "combat":
+                    result = combat_scenario(issue, capture, log)
                 elif args.scenario == "effects":
                     result = effects_scenario(issue, capture, log)
                 elif args.scenario == "inventory":
@@ -284,7 +307,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -296,6 +319,7 @@ def main():
         "rotation": ("e1m3b", "runtime-zig-220/rotation"),
         "inventory": ("e1m6a", "runtime-zig-221/inventory"),
         "effects": ("e4m4b", "runtime-zig-222/effects"),
+        "combat": ("e1m3b", "runtime-zig-224/combat"),
     }
     expected_map, report_name = defaults[args.scenario]
     if args.map is None:

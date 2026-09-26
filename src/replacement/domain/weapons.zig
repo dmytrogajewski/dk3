@@ -51,7 +51,7 @@ pub const Table = struct {
         return table;
     }
 };
-pub const Fired = struct { weapon: u5, sequence: i32, command_ms: i64, position: v.Vec3, angles: v.Vec3, charge: i32 };
+pub const Fired = struct { weapon: u5, sequence: i32, command_ms: i64, position: v.Vec3, angles: v.Vec3, view_height: f32 = 22, ducked: bool = false, charge: i32 };
 pub const Event = union(enum) { fired: Fired, no_ammo };
 pub const Events = struct {
     values: [128]Event = undefined,
@@ -135,7 +135,7 @@ pub const Context = struct {
     }
     pub fn fireEvent(self: *Context) void {
         self.ps.event_sequence +%= 1;
-        self.events.append(.{ .fired = .{ .weapon = @intCast(self.ps.weapon), .sequence = self.ps.dk3WeaponSequence, .command_ms = self.command.time_ms, .position = self.motion.position, .angles = self.command.angles, .charge = self.ps.dk3Charge } }) catch |err| {
+        self.events.append(.{ .fired = .{ .weapon = @intCast(self.ps.weapon), .sequence = self.ps.dk3WeaponSequence, .command_ms = self.command.time_ms, .position = self.motion.position, .angles = self.command.angles, .view_height = self.player.view_height, .ducked = self.player.ducked, .charge = self.ps.dk3Charge } }) catch |err| {
             self.failure = err;
         };
     }

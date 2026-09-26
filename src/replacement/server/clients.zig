@@ -60,7 +60,7 @@ pub const Clients = struct {
             self.entities[index] = null;
         }
     }
-    pub fn think(self: *Clients, world: *data.World, projections: []abi.EntityProjection, states: []c.playerState_t, index: usize, now: i64) !void {
+    pub fn think(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, index: usize, now: i64) !void {
         if (index >= self.entities.len) return error.InvalidClient;
         const entity = self.entities[index] orelse return;
         var input: c.usercmd_t = undefined;
@@ -96,6 +96,11 @@ pub const Clients = struct {
         body.maxs = result.maxs;
         body.grounded = player.ground_entity != c.ENTITYNUM_NONE;
         try self.publish(world, projections, states, index);
+        // Dispatch after movement/projection: spawning events may relocate ECS columns.
+        for (events.values[0..events.count]) |event| switch (event) {
+            .fired => |shot| try @import("combat.zig").fire(world, slots, projections, entity, shot, &self.weapon_table, now),
+            .no_ammo => {},
+        };
     }
     pub fn publish(self: *Clients, world: *data.World, projections: []abi.EntityProjection, states: []c.playerState_t, index: usize) !void {
         const entity = self.entities[index].?;

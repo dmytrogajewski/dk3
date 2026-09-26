@@ -38,7 +38,7 @@ fn trace(raw: *anyopaque, request: @import("../domain/collision.zig").Request) !
     const engine: *abi.Gateway = @ptrCast(@alignCast(raw));
     var result: c.trace_t = undefined;
     _ = engine.call(c.G_TRACE, .{ &result, &request.start, &request.mins, &request.maxs, &request.end, @as(isize, request.slot), @as(isize, @as(i32, @bitCast(request.mask))) });
-    return .{ .fraction = result.fraction, .end = result.endpos, .normal = result.plane.normal, .start_solid = result.startsolid != 0, .all_solid = result.allsolid != 0, .entity = @intCast(result.entityNum), .slick = result.surfaceFlags & c.SURF_SLICK != 0, .ladder = result.surfaceFlags & c.SURF_LADDER != 0 };
+    return .{ .fraction = result.fraction, .contents = @bitCast(result.contents), .sky = result.surfaceFlags & c.SURF_SKY != 0, .end = result.endpos, .normal = result.plane.normal, .start_solid = result.startsolid != 0, .all_solid = result.allsolid != 0, .entity = @intCast(result.entityNum), .slick = result.surfaceFlags & c.SURF_SLICK != 0, .ladder = result.surfaceFlags & c.SURF_LADDER != 0 };
 }
 
 fn contents(raw: *anyopaque, point: @import("../domain/components.zig").Vec3, skip: u16) !u32 {

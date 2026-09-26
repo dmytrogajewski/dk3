@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 2;
 pub const spec: profiles.Spec = .{
+    .combat = .{ .ion = .{ .radius = 2, .water_radius = 64, .bounce_retention = 1.25, .max_bounces = 3, .cleanup_ms = 30000 } },
     .companion_episode = 1,
     .ammo_class = "ammo_ionpack", // ion
     .ammo_pack = 50,

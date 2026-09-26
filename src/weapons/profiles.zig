@@ -51,7 +51,14 @@ pub const ProjectileSpawn = struct {
     lifetime_ms: u32 = 0,
 };
 
+pub const Combat = union(enum) {
+    pending,
+    hitscan: struct { single_player_scale: f32 = 1, standing_height: ?f32 = null, crouching_height: ?f32 = null },
+    ion: struct { radius: f32, water_radius: f32, bounce_retention: f32, max_bounces: u8, cleanup_ms: i64 },
+};
+
 pub const Spec = struct {
+    combat: Combat = .pending,
     ammo_class: ?[:0]const u8 = null,
     /// Rounds in one gold ammo pack; 0 falls back to the initial ammunition.
     ammo_pack: c_int = 0,
