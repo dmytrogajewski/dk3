@@ -2602,3 +2602,28 @@ Local diagnostics and captures stay ignored. Reusable isolated client runner:
 `dkq3/tools/runtime_player_probe.py`; no original or converted assets are committed.
 Existing-runtime and replacement module builds passed during connected development;
 the aggregate suite passed 159 Zig tests and 49 Python tests. Full runtime acceptance remains pending.
+
+
+## runtime-zig — sequence 219 (active implementation)
+
+Train path legs, angular timing, departure-corner dwell, trigger-only rest, redirected
+activation/elevators and teleport corners are connected. Attachment parent IDs,
+cycle checks, pose preparation/rebase and whole-hierarchy initial/teleport movement
+are implemented. Collision publication is transactional; deadlines advance and both
+mover families finish before arrival targets run. Static brush roots support animated
+children. Existing target queue capacity is preserved at 256 delayed actions.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Replacement domain checks | Passed | 26 tests: adds departure dwell/retrigger, angular timing, parent pose composition, nested teleport/door endpoint rebase and cycle rejection. |
+| First diagnostic e1m3a board attempt | Failed input; corrected | `rider219.log` and `rider219-diagnostic.log` retained. Bounding-box-center placement put the player below walkable world geometry. Collision held the lift and player at the bottom. The board helper now rejects obstructed placement. |
+| Valid standing position, repeated ascent activation, upper dwell and return | Passed | `zig-out/reports/runtime-zig-219/lift/`: 47 recorded samples. Lift z -902 → -274, wait 10000 ms, fixed due 13801, observed upper hold 9750 ms between polling samples, then z -902 / paused. Player carried to upper stop and returned to the bottom landing. Upper capture inspected. |
+| Nested attachment placement | Passed (domain) | Preparing poses leaves ECS untouched; commit moves child/grandchild and rebases child-door endpoint. Real cinematic assembly/rendering is not yet accepted. |
+| Compound obstruction / rotating riders | Unrun | Complete collision transaction code exists; richer scene validation remains. |
+| Physical button, path targets, script/cinematic progression | Unrun | Diagnostic activation isolates train behavior. Scripts/cinematics are still implementation work. |
+
+Reproducer: `runtime_player_probe.py --engine zig-out/play/current --prefix
+zig-out/replacement --scenario lift`. It copies only native modules into a temporary
+profile, invokes dkguard headless software rendering and keeps logs/inputs/captures
+local. No normal installation or existing save was written. Aggregate checks from
+218 remain recorded; replacement tests and affected engine scenarios were refreshed.

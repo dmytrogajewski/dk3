@@ -174,3 +174,27 @@ The script runs software rendering through `dkguard --headless`, uses a temporar
 profile, and keeps inputs/logs/captures under the ignored report directory. The
 optional mover assertion is specific to e1m3b's delayed door. Visual captures need
 inspection; diagnostic command success does not establish scenario acceptance.
+
+## Active implementation: runtime-zig-219
+
+Train path legs, angular travel, departure-corner dwell, trigger-only stops,
+redirected/elevator activation and teleport corners are connected. Persistent
+parent IDs define bounded attachment hierarchies with cycle rejection. Initial
+placement/teleports carry descendants; ordinary movement prepares complete poses
+before collision and commits or delays the assembly together. Static brush parents
+can own animated children. Arrival dispatch runs after both mover families finish.
+These additions remain part of the unqualified replacement, not a production cutover.
+
+Focused checks now total 26 replacement tests. The real e1m3a `bigplat` replay
+carries the player upward, holds its authored ten-second dwell, descends and rests
+at the lower trigger-only corner. The probe uses explicit diagnostic positioning
+and activation; original saves are untouched. It does not certify the physical
+button/trigger chain or full campaign progression. Multi-part obstruction, rotating
+riders and compound attached-mover scenarios remain open.
+
+```sh
+python3 dkq3/tools/runtime_player_probe.py --engine zig-out/play/current --prefix zig-out/replacement --scenario lift
+```
+
+Combat/projectiles, actors/navigation, secret/continuous movers, scripts/cinematics,
+save restoration/travel, full presentation/UI and overall acceptance remain open.

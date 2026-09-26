@@ -69,6 +69,8 @@ fn init(now: i64) !void {
         try @import("server/brushes.zig").spawn(&world.?, &slots, &projection);
         try @import("server/movers.zig").spawn(&world.?, &slots, &projection);
         try @import("server/targets.zig").spawn(&world.?);
+        try @import("server/trains.zig").spawn(&world.?, &slots, &projection, now);
+        try @import("server/attachments.zig").spawn(&world.?);
     }
     var text: [160]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: isolated bootstrap, {d} map entities, {d} workers; gameplay not qualified\n", .{ world.?.count(), jobs }));
@@ -121,6 +123,51 @@ fn consoleCommand() isize {
         }
         return 1;
     }
+    if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_trains")) {
+        for (slots.occupants) |occupant| {
+            const entity = occupant orelse continue;
+            const train = world.?.get(entity, component.Train) catch continue;
+            const object = (world.?.get(entity, component.MapObject) catch unreachable).*;
+            const transform = (world.?.get(entity, component.Transform) catch unreachable).*;
+            var message: [320]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "zig train id={d} name={s} phase={s} corner={d} wait={d} due={?d} start={d} duration={d} endz={d:.1} pos={d:.1},{d:.1},{d:.1}\n", .{ world.?.persistentId(entity) catch unreachable, object.targetname, @tagName(train.phase), train.destination, train.departure_wait_ms, train.action.at_ms, train.position.start_ms, train.position.duration_ms, train.position.end[2], transform.position[0], transform.position[1], transform.position[2] }) catch unreachable);
+        }
+        return 1;
+    }
+    if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_place")) {
+        const player_entity = clients.entities[0] orelse return 1;
+        var point: component.Vec3 = undefined;
+        for (&point, 0..) |*axis, i| {
+            var argument: [64]u8 = undefined;
+            axis.* = std.fmt.parseFloat(f32, engine.argv(@intCast(i + 1), &argument)) catch return 1;
+            if (!std.math.isFinite(axis.*) or @abs(axis.*) > 1000000) return 1;
+        }
+        (world.?.get(player_entity, component.Transform) catch unreachable).position = point;
+        (world.?.get(player_entity, component.Velocity) catch unreachable).linear = @splat(0);
+        (world.?.get(player_entity, component.Player) catch unreachable).ground_entity = c.ENTITYNUM_NONE;
+        clients.publish(&world.?, &projection, &players, 0) catch |err| runtimeFailure(err);
+        return 1;
+    }
+    if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_board")) {
+        var argument: [32]u8 = undefined;
+        const id = std.fmt.parseInt(u32, engine.argv(1, &argument), 10) catch return 1;
+        const player_entity = clients.entities[0] orelse return 1;
+        const entity = world.?.find(id) orelse return 1;
+        const binding = world.?.get(entity, component.Binding) catch return 1;
+        const brush = &projection[binding.slot];
+        const transform = world.?.get(player_entity, component.Transform) catch unreachable;
+        const candidate: component.Vec3 = .{ (brush.shared.absmin[0] + brush.shared.absmax[0]) * 0.5, (brush.shared.absmin[1] + brush.shared.absmax[1]) * 0.5, brush.shared.absmax[2] + 24.125 };
+        const body = (world.?.get(player_entity, component.Body) catch unreachable).*;
+        const clear = engine.collisionService().trace(.{ .start = candidate, .end = candidate, .mins = body.mins, .maxs = body.maxs, .slot = 0, .mask = c.MASK_PLAYERSOLID }) catch |err| runtimeFailure(err);
+        if (clear.start_solid) {
+            engine.print("zig probe: brush centre is obstructed; choose a known walkable position with dk3_runtime_place.\n");
+            return 1;
+        }
+        transform.position = candidate;
+        (world.?.get(player_entity, component.Velocity) catch unreachable).linear = @splat(0);
+        clients.publish(&world.?, &projection, &players, 0) catch |err| runtimeFailure(err);
+        return 1;
+    }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_activate")) {
         var argument: [32]u8 = undefined;
         const id = std.fmt.parseInt(u32, engine.argv(1, &argument), 10) catch return 1;
@@ -158,11 +205,26 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
                 @import("server/interactions.zig").touch(&world.?, &slots, &projection, &targets, clock.now_ms) catch |err| runtimeFailure(err);
-                const arrivals = @import("server/movers.zig").step(&world.?, &slots, &projection, clock.now_ms, elapsed) catch |err| runtimeFailure(err);
+                @import("server/movers.zig").prepare(&world.?, &slots, &projection, clock.now_ms) catch |err| runtimeFailure(err);
+                @import("server/trains.zig").prepare(&world.?, &slots, &projection, clock.now_ms) catch |err| runtimeFailure(err);
+                @import("server/movers.zig").step(&world.?, &slots, &projection, clock.now_ms, elapsed) catch |err| runtimeFailure(err);
+                @import("server/trains.zig").step(&world.?, &slots, &projection, clock.now_ms, elapsed) catch |err| runtimeFailure(err);
+                @import("server/pusher.zig").staticRoots(&world.?, &slots, &projection, clock.now_ms, elapsed) catch |err| runtimeFailure(err);
+                const arrivals = @import("server/movers.zig").finish(&world.?, &slots, &projection, clock.now_ms) catch |err| runtimeFailure(err);
+                const train_arrivals = @import("server/trains.zig").finish(&world.?, &slots, &projection, clock.now_ms) catch |err| runtimeFailure(err);
                 for (arrivals.entities[0..arrivals.count]) |entity| {
                     if (!world.?.alive(entity)) continue;
                     const owner = (world.?.get(entity, component.Mover) catch |err| runtimeFailure(err)).owner;
                     targets.fire(&world.?, &slots, &projection, entity, owner, clock.now_ms) catch |err| runtimeFailure(err);
+                }
+                for (train_arrivals.entities[0..train_arrivals.count]) |entity| {
+                    if (!world.?.alive(entity)) continue;
+                    const train = (world.?.get(entity, component.Train) catch |err| runtimeFailure(err)).*;
+                    if (world.?.find(train.destination)) |point| {
+                        const object = (world.?.get(point, component.MapObject) catch |err| runtimeFailure(err)).*;
+                        const name = @import("server/properties.zig").text(object, "pathtarget") orelse "";
+                        targets.fireNamed(&world.?, &slots, &projection, name, entity, train.owner, clock.now_ms) catch |err| runtimeFailure(err);
+                    }
                 }
                 targets.step(&world.?, &slots, &projection, clock.now_ms) catch |err| runtimeFailure(err);
                 for (clients.entities, 0..) |entity, index| if (entity != null) {

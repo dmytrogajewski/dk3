@@ -136,48 +136,51 @@ pub fn use(world: *data.World, slots: *const Slots, projections: []abi.EntityPro
     if (try mover.use(now, activator)) |opened| try start(world, slots, projections, mover.group, opened, now, true);
 }
 pub const Arrivals = struct { entities: [ecs.max_entities]ecs.Entity = undefined, count: usize = 0 };
-pub fn step(world: *data.World, slots: *const Slots, projections: []abi.EntityProjection, now: i64, elapsed: u32) !Arrivals {
-    var arrivals: Arrivals = .{};
+pub fn prepare(world: *data.World, slots: *const Slots, projections: []abi.EntityProjection, now: i64) !void {
+    for (slots.occupants) |occupant| {
+        const entity = occupant orelse continue;
+        const mover = world.get(entity, data.Mover) catch continue;
+        if (mover.group == try world.persistentId(entity) and mover.return_at.due(now)) try start(world, slots, projections, mover.group, mover.state == .closed, now, false);
+    }
+}
+pub fn step(world: *data.World, slots: *const Slots, projections: []abi.EntityProjection, now: i64, elapsed: u32) !void {
     for (slots.occupants) |occupant| {
         const entity = occupant orelse continue;
         const master = world.get(entity, data.Mover) catch continue;
-        if (master.group != try world.persistentId(entity)) continue;
-        if (master.return_at.due(now)) try start(world, slots, projections, master.group, master.state == .closed, now, false);
+        if (master.group != try world.persistentId(entity) or @import("attachments.zig").attached(world, entity)) continue;
         var moves: [ecs.max_entities]pusher.Move = undefined;
         var count: usize = 0;
         for (slots.occupants) |part_occupant| {
             const part = part_occupant orelse continue;
             const mover = world.get(part, data.Mover) catch continue;
-            if (mover.group != master.group or !mover.moving()) continue;
+            if (mover.group != master.group) continue;
             var transform = (try world.get(part, data.Transform)).*;
-            if (mover.angular) transform.angles = mover.motion.sample(now) else transform.position = mover.motion.sample(now);
+            if (mover.moving()) {
+                if (mover.angular) transform.angles = mover.motion.sample(now) else transform.position = mover.motion.sample(now);
+            }
             moves[count] = .{ .entity = part, .destination = transform };
             count += 1;
         }
-        if (count == 0) continue;
-        if (try pusher.push(world, slots, projections, moves[0..count])) |blocker| {
-            // Transaction restored every rider and part. Pause all trajectories together.
-            for (moves[0..count]) |move| {
-                const mover = try world.get(move.entity, data.Mover);
-                mover.motion.start_ms += elapsed;
-                try publish(world, move.entity, projections);
-            }
+        if (try pusher.push(world, slots, projections, moves[0..count], now, elapsed)) |blocker| {
             if (world.get(blocker, data.Health)) |health| {
                 if (master.damage > 0) health.current = @max(0, health.current - master.damage);
             } else |_| {}
-            if (!master.force) try start(world, slots, projections, master.group, master.state == .closing, now, false);
-            continue;
+            if (!master.force and master.moving()) try start(world, slots, projections, master.group, master.state == .closing, now, false);
         }
-        for (moves[0..count]) |move| {
-            const mover = try world.get(move.entity, data.Mover);
-            if (mover.motion.finished(now)) {
-                if (try mover.reached(now, mover.group == try world.persistentId(move.entity))) {
-                    arrivals.entities[arrivals.count] = move.entity;
-                    arrivals.count += 1;
-                }
+    }
+}
+pub fn finish(world: *data.World, slots: *const Slots, projections: []abi.EntityProjection, now: i64) !Arrivals {
+    var arrivals: Arrivals = .{};
+    for (slots.occupants) |occupant| {
+        const entity = occupant orelse continue;
+        const mover = world.get(entity, data.Mover) catch continue;
+        if (mover.moving() and mover.motion.finished(now)) {
+            if (try mover.reached(now, mover.group == try world.persistentId(entity))) {
+                arrivals.entities[arrivals.count] = entity;
+                arrivals.count += 1;
             }
-            try publish(world, move.entity, projections);
         }
+        try publish(world, entity, projections);
     }
     return arrivals;
 }

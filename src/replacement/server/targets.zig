@@ -6,21 +6,33 @@ const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
 const Slots = @import("../engine/slots.zig").Slots;
+const named = @import("names.zig").named;
 const prop = @import("properties.zig");
 const movers = @import("movers.zig");
 const c = abi.c;
 const Trigger = data.Trigger;
 const Action = struct { source: u32, activator: u32, due_ms: i64 };
 pub const Router = struct {
-    pending: [128]?Action = @splat(null),
+    pending: [256]?Action = @splat(null),
     depth: usize = 0,
     pub fn activate(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {
+        return self.activateFrom(world, slots, projections, entity, null, activator, now);
+    }
+    pub fn activateFrom(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, source: ?ecs.Entity, activator: u32, now: i64) anyerror!void {
         if (self.depth >= 64) return error.TargetCycle;
         self.depth += 1;
         defer self.depth -= 1;
         const object = (try world.get(entity, data.MapObject)).*;
         if (prop.nonempty(object, "keyname")) return;
         if (world.get(entity, data.Mover)) |_| return movers.use(world, slots, projections, entity, activator, now) else |_| {}
+        if (world.get(entity, data.Train)) |_| return @import("trains.zig").use(world, projections, entity, source, activator, now) else |_| {}
+        if (std.mem.eql(u8, object.classname, "trigger_elevator")) {
+            const matches = try named(world, object.target);
+            if (matches.count > 0) if (world.find(matches.ids[0])) |train| {
+                if (world.get(train, data.Train)) |_| try @import("trains.zig").use(world, projections, train, source, activator, now) else |_| {}
+            };
+            return;
+        }
         if (world.get(entity, data.Trigger)) |trigger| {
             if (now < trigger.ready_ms or (trigger.limit > 0 and trigger.uses >= trigger.limit)) return;
             trigger.uses += 1;
@@ -64,8 +76,16 @@ pub const Router = struct {
             for (matches.ids[0..matches.count]) |id| {
                 if (!world.alive(entity)) return;
                 if (id == own_id) continue;
-                if (world.find(id)) |target| try self.activate(world, slots, projections, target, activator, now);
+                if (world.find(id)) |target| try self.activateFrom(world, slots, projections, target, entity, activator, now);
             }
+        }
+    }
+    pub fn fireNamed(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, name: []const u8, source: ecs.Entity, activator: u32, now: i64) anyerror!void {
+        if (name.len == 0) return;
+        const matches = try named(world, name);
+        for (matches.ids[0..matches.count]) |id| {
+            if (!world.alive(source)) return;
+            if (world.find(id)) |entity| try self.activateFrom(world, slots, projections, entity, source, activator, now);
         }
     }
     pub fn step(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
@@ -78,18 +98,6 @@ pub const Router = struct {
         };
     }
 };
-const Named = struct { ids: [ecs.max_entities]u32 = undefined, count: usize = 0 };
-fn named(world: *data.World, name: []const u8) !Named {
-    var result: Named = .{};
-    var query = world.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
-    defer query.deinit();
-    while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| if (std.mem.eql(u8, name, object.targetname)) {
-        result.ids[result.count] = try world.persistentId(entity);
-        result.count += 1;
-    };
-    std.mem.sort(u32, result.ids[0..result.count], {}, std.sort.asc(u32));
-    return result;
-}
 pub fn spawn(world: *data.World) !void {
     var entities: [ecs.max_entities]ecs.Entity = undefined;
     var count: usize = 0;

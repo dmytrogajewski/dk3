@@ -59,7 +59,12 @@ rider pushing and authored target progression remain unverified; native combat,
 actors, persistence, presentation and UI are still unfinished. **Full migration and
 cutover remain open.** The ordinary launcher remains on the existing runtime.
 
-Updated 2026-09-26, through **runtime-zig, sequence 218 (active)**.
+Sequence 219 adds train path/dwell transitions and attachment assemblies. The native
+e1m3a lift carries the rider, holds its ten-second upper dwell and returns to lower
+rest in the isolated replay. Compound obstruction, rotating riders and authored
+progression remain unverified. Native gameplay migration is still in progress.
+
+Updated 2026-09-26, through **runtime-zig, sequence 219 (active)**.
 
 **dk3 is a playable development build, not a completed Daikatana port.** Independent
 native systems exist across the game, but implementation and successful focused
