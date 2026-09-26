@@ -1,10 +1,24 @@
-# Native Zig replacement runtime
+# Native Zig runtime
 
 Accepted 2026-09-26; implementation starts at **runtime-zig-217**. This decision
 supersedes the general C/QVM requirement for dk3 gameplay, client and UI modules.
 The Zig runtime is now the only source/build runtime; the old runtime is removed.
 This is a development decision, not a claim of gameplay acceptance.
 Implemented code and verified acceptance are tracked separately in the run log.
+
+## Branch and layout
+
+All unfinished runtime development is on `rewrite/native-zig-runtime`. `main` was
+restored to the pre-rewrite working tree (`ed0755f`) by restoration commit `e3966c4`.
+Do not merge or push this work to main without an explicit release/merge request.
+The old-runtime removal decision applies to this feature branch.
+
+The permanent source root is `src/runtime`, with `domain`, `ecs`, `engine`, `server`,
+`client`, and `tests` layers. `build/runtime.zig` composes native modules and tests
+from the same named dependencies. Class-owned catalogs live in `src/weapons`,
+`src/actors`, and `src/items`. Architectural checks reject private gameplay headers
+and engine/system imports from pure domain/catalog code. See
+[`src/runtime/README.md`](../src/runtime/README.md) for ownership rules.
 
 ## Scope and boundaries
 
@@ -265,3 +279,28 @@ python3 dkq3/tools/runtime_player_probe.py --engine zig-out/play/current --prefi
 Boost/status pickups, pickup audio/messages, moving-platform item transport, native
 combat/actors, progression, scripts/cinematics, restoration/travel and full UI/HUD
 remain open. The normal installation and saves remain untouched.
+
+## Active implementation: runtime-zig-224–225
+
+Normal fire events dispatch Glock/Disruptor hitscan and Ion projectile policies into
+native damage. Ion bolts own persistent shooter identity, collision/bounce state and
+lifetimes in ECS. Class metadata owns projectile tuning; the server owns collision
+and event delivery. Native client models and sound events show those entities.
+The other 25 weapon combat policies remain pending, even though their input
+controllers and metadata exist. Full effects, knockback and Gold combat parity remain open.
+
+Four civilian classes load supplied health, bounds, speed and animation sequences.
+Workers/prisoners have native movement, damage receipts, death animation/target dispatch
+and visible-death witness panic. Actor metadata is owned by world-system state and
+allocated for the map lifetime. Movers can transactionally push actors/corpses using
+the same assembly mechanism as players. Navigation, scripted actor control, hostile
+attacks, actor sounds and final-pose corpse bounds remain open.
+
+The e1m2a civilian scenario demonstrates Glock damage killing authored worker 10 and
+worker 9 witnessing the death, entering flee and moving away. Player positioning and
+equipment are diagnostic; this is not a campaign-route or full actor acceptance.
+
+```sh
+zig build game test-runtime --prefix zig-out/native-dev
+python3 dkq3/tools/runtime_player_probe.py --engine /path/to/local/engine-generation --prefix zig-out/native-dev --scenario civilians
+```

@@ -1,0 +1,179 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//! Civilian lifecycle and perception; navigation and hostile attack policies remain separate work.
+const std = @import("std");
+const data = @import("../domain/components.zig");
+const ecs = @import("../ecs/world.zig");
+const rules = @import("../domain/actors.zig");
+const catalog = @import("actor_catalog");
+const abi = @import("../engine/abi.zig");
+const engine = @import("../engine/server.zig");
+const Slots = @import("../engine/slots.zig").Slots;
+const v = @import("../domain/vector.zig");
+const c = abi.c;
+pub const Actors = struct {
+    table: rules.Table = .{},
+    pub fn spawn(self: *Actors, allocator: std.mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
+        const bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, "dk3/tables/aidata.cfg", 4 * 1024 * 1024);
+        self.table = try rules.Table.parse(bytes);
+        var animations: [catalog.civilians.len]bool = @splat(false);
+        var candidates: [ecs.max_entities]ecs.Entity = undefined;
+        var count: usize = 0;
+        var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.Transform }), 0, 0);
+        {
+            defer query.deinit();
+            while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| {
+                if (catalog.civilian(object.classname) != null) {
+                    candidates[count] = entity;
+                    count += 1;
+                }
+            };
+        }
+        for (candidates[0..count]) |entity| {
+            const object = (try world.get(entity, data.MapObject)).*;
+            const id = catalog.civilian(object.classname).?;
+            const definition = &self.table.definitions[id];
+            if (!definition.loaded) return error.MissingActorDefinition;
+            if (!animations[id]) {
+                var path: [80]u8 = undefined;
+                const name = try std.fmt.bufPrintZ(&path, "{s}.anim", .{definition.model});
+                const metadata = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, name, 1 << 20);
+                const policy = catalog.civilians[id];
+                definition.idle = try @import("../domain/animation.zig").find(metadata, policy.idle) orelse return error.MissingActorIdle;
+                definition.run = try @import("../domain/animation.zig").find(metadata, policy.run) orelse return error.MissingActorRun;
+                definition.death = try @import("../domain/animation.zig").find(metadata, policy.death) orelse return error.MissingActorDeath;
+                animations[id] = true;
+            }
+            const health = try @import("properties.zig").number(object, "health", @floatFromInt(definition.health));
+            if (health <= 0) return error.InvalidActorHealth;
+            try world.put(entity, data.Actor{ .definition = id, .changed_ms = now });
+            try world.put(entity, data.Hurt{});
+            try world.put(entity, data.Health{ .current = @intFromFloat(health), .maximum = @intFromFloat(health) });
+            try world.put(entity, data.Velocity{});
+            try world.put(entity, data.Body{ .mins = definition.mins, .maxs = definition.maxs, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID });
+            const model = try @import("resources.zig").model(definition.model);
+            const slot = try slots.acquire(entity, null);
+            try world.put(entity, data.Binding{ .slot = slot, .model = model });
+            projections[slot] = std.mem.zeroes(abi.EntityProjection);
+            try self.publish(world, entity, projections, now);
+        }
+    }
+    fn publish(self: *const Actors, world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
+        const actor = (try world.get(entity, data.Actor)).*;
+        const definition = self.table.definitions[actor.definition];
+        const pose = (try world.get(entity, data.Transform)).*;
+        const body = (try world.get(entity, data.Body)).*;
+        const binding = (try world.get(entity, data.Binding)).*;
+        const sequence = switch (actor.mode) {
+            .idle => definition.idle,
+            .flee => definition.run,
+            .dead => definition.death,
+        };
+        const projection = &projections[binding.slot];
+        projection.state.number = binding.slot;
+        projection.state.eType = c.ET_GENERAL;
+        projection.state.modelindex = binding.model;
+        projection.state.groundEntityNum = actor.ground_entity;
+        projection.state.frame = sequence.frame(now - actor.changed_ms, actor.mode != .dead);
+        projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
+        projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
+        projection.shared.currentOrigin = pose.position;
+        projection.shared.currentAngles = pose.angles;
+        projection.shared.mins = body.mins;
+        projection.shared.maxs = body.maxs;
+        projection.shared.contents = @bitCast(body.contents);
+        projection.shared.ownerNum = c.ENTITYNUM_NONE;
+        engine.link(projection);
+    }
+    fn visible(from: v.Vec3, to: v.Vec3, skip: u16, target: u16) !bool {
+        const hit = try engine.collisionService().trace(.{ .start = from, .end = to, .mins = @splat(0), .maxs = @splat(0), .slot = skip, .mask = c.MASK_SOLID });
+        return hit.fraction == 1 or hit.entity == target;
+    }
+    pub fn step(self: *Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *@import("targets.zig").Router, now: i64, elapsed: u32) !void {
+        const occupants = slots.occupants;
+        for (occupants) |occupant| {
+            const entity = occupant orelse continue;
+            if (!world.alive(entity)) continue;
+            var actor = (world.get(entity, data.Actor) catch continue).*;
+            const binding = (try world.get(entity, data.Binding)).*;
+            var pose = (try world.get(entity, data.Transform)).*;
+            var body = (try world.get(entity, data.Body)).*;
+            const hurt = (try world.get(entity, data.Hurt)).*;
+            const dead = (try world.get(entity, data.Health)).current <= 0;
+            if (dead and actor.mode != .dead) {
+                actor.mode = .dead;
+                actor.changed_ms = now;
+                body.contents = c.CONTENTS_CORPSE;
+                // Retain supplied horizontal bounds; final-pose corpse bounds remain to qualify.
+                body.maxs[2] = @min(body.maxs[2], 0);
+            }
+            if (!dead) {
+                if (hurt.revision != actor.receipt) {
+                    actor.receipt = hurt.revision;
+                    const point = if (world.find(hurt.source)) |source| (try world.get(source, data.Transform)).position else pose.position;
+                    actor.panic(hurt.source, point, now);
+                }
+                // A dead civilian records its last attacker. Only a new, visible death can trigger a witness.
+                for (occupants, 0..) |other, other_slot| {
+                    const corpse = other orelse continue;
+                    if (!world.alive(corpse)) continue;
+                    _ = world.get(corpse, data.Actor) catch continue;
+                    if ((try world.get(corpse, data.Health)).current > 0) continue;
+                    const receipt = (try world.get(corpse, data.Hurt)).*;
+                    if (receipt.at_ms <= actor.witness_ms) continue;
+                    const point = (try world.get(corpse, data.Transform)).position;
+                    if (v.length(v.add(point, v.scale(pose.position, -1))) > catalog.civilians[actor.definition].witness_range) continue;
+                    if (!try visible(v.add(pose.position, .{ 0, 0, 16 }), point, binding.slot, @intCast(other_slot))) continue;
+                    actor.witness_ms = receipt.at_ms;
+                    actor.panic(receipt.source, point, now);
+                }
+                if (actor.mode == .flee and now >= actor.panic_until) {
+                    actor.mode = .idle;
+                    actor.changed_ms = now;
+                }
+            }
+            var motion: @import("../domain/slide.zig").State = .{ .position = pose.position, .velocity = (try world.get(entity, data.Velocity)).linear };
+            var remaining = elapsed;
+            while (remaining > 0) {
+                const milliseconds = @min(remaining, 50);
+                remaining -= milliseconds;
+                const ground = try engine.collisionService().trace(.{ .start = motion.position, .end = v.add(motion.position, .{ 0, 0, -0.25 }), .mins = body.mins, .maxs = body.maxs, .slot = binding.slot, .mask = body.collision_mask });
+                const grounded = !ground.start_solid and ground.fraction < 1 and ground.normal[2] >= 0.7;
+                actor.ground_entity = if (grounded) ground.entity else c.ENTITYNUM_NONE;
+                body.grounded = grounded;
+                if (grounded) {
+                    motion.velocity[0] = 0;
+                    motion.velocity[1] = 0;
+                    if (motion.velocity[2] < 0) motion.velocity[2] = 0;
+                    if (actor.mode == .flee) {
+                        const threat = if (world.find(actor.threat)) |source| (try world.get(source, data.Transform)).position else actor.threat_position;
+                        const horizontal = rules.fleeVelocity(motion.position, threat, self.table.definitions[actor.definition].speed);
+                        motion.velocity[0] = horizontal[0];
+                        motion.velocity[1] = horizontal[1];
+                        pose.angles[1] = std.math.atan2(horizontal[1], horizontal[0]) * (180.0 / std.math.pi);
+                    }
+                }
+                var movement: @import("../domain/slide.zig").Context = .{ .service = engine.collisionService(), .mins = body.mins, .maxs = body.maxs, .slot = binding.slot, .mask = body.collision_mask, .delta = @as(f32, @floatFromInt(milliseconds)) * 0.001, .gravity = 800, .ground = if (grounded) ground.normal else null };
+                if (actor.mode == .dead) _ = try movement.move(&motion) else try movement.step(&motion);
+            }
+            pose.position = motion.position;
+            (try world.get(entity, data.Actor)).* = actor;
+            (try world.get(entity, data.Transform)).* = pose;
+            (try world.get(entity, data.Velocity)).linear = motion.velocity;
+            (try world.get(entity, data.Body)).* = body;
+            try self.publish(world, entity, projections, now);
+            if (dead and !actor.death_dispatched) {
+                (try world.get(entity, data.Actor)).death_dispatched = true;
+                try router.fire(world, slots, projections, entity, hurt.source, now);
+            }
+        }
+    }
+};
+pub fn diagnostics(world: *data.World, slots: *const Slots) !void {
+    for (slots.occupants) |occupant| {
+        const entity = occupant orelse continue;
+        const actor = world.get(entity, data.Actor) catch continue;
+        const pose = (try world.get(entity, data.Transform)).*;
+        var text: [240]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig actor: id={d} state={s} health={d} pos={d:.3},{d:.3},{d:.3} threat={d} witness={d}\n", .{ try world.persistentId(entity), @tagName(actor.mode), (try world.get(entity, data.Health)).current, pose.position[0], pose.position[1], pose.position[2], actor.threat, actor.witness_ms }));
+    }
+}

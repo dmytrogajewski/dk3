@@ -22,10 +22,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }) });
     b.installArtifact(guard);
-    b.installFile("src/replacement/client/dk3-projectile-weather.shader", "share/dk3/scripts/dk3-projectile-weather.shader");
+    b.installFile("src/runtime/client/dk3-projectile-weather.shader", "share/dk3/scripts/dk3-projectile-weather.shader");
     if (engine.declare(b, target, optimize)) game.declare(b, target, optimize, rules_identity);
     const checks = b.step("test", "Run the existing published component checks");
-    checks.dependOn(@import("build/replacement.zig").declareTests(b, optimize));
+    checks.dependOn(@import("build/runtime.zig").declareTests(b, optimize));
     checks.dependOn(&b.top_level_steps.get("test-online").?.step);
     checks.dependOn(&b.top_level_steps.get("test-codec").?.step);
     checks.dependOn(&b.addFmt(.{ .paths = &.{ "build.zig", "build.zig.zon", "build", "src" }, .check = true }).step);

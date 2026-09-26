@@ -25,7 +25,7 @@ fn hurt(world: *data.World, target: ecs.Entity, owner_id: u32, amount: f32, now:
         }
     }
     if (!std.math.isFinite(scaled) or scaled <= 0) return false;
-    const result = try @import("damage.zig").apply(world, target, @intFromFloat(@min(@ceil(scaled), 1000000)), now, .{ .bypass_armor = bypass_armor });
+    const result = try @import("damage.zig").apply(world, target, @intFromFloat(@min(@ceil(scaled), 1000000)), now, .{ .bypass_armor = bypass_armor, .source = owner_id });
     if (engine.integer("developer") != 0 and (result.blood > 0 or result.armor > 0)) {
         var buffer: [160]u8 = undefined;
         engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 zig combat: target={d} blood={d} armor={d} killed={d}\n", .{ try world.persistentId(target), result.blood, result.armor, @intFromBool(result.killed) }));

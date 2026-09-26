@@ -8,6 +8,7 @@ const component = @import("domain/components.zig");
 const map = @import("server/map.zig");
 const Pool = @import("ecs/jobs.zig").Pool;
 var targets: @import("server/targets.zig").Router = .{};
+var systems: @import("server/world_systems.zig").State = .{};
 var clients: @import("server/clients.zig").Clients = .{};
 var arena: ?std.heap.ArenaAllocator = null;
 var world: ?component.World = null;
@@ -50,6 +51,7 @@ fn init(now: i64) !void {
     clock = .{ .now_ms = now };
     slots = .{};
     clients = .{};
+    systems = .{};
     targets = .{};
     @import("server/resources.zig").reset();
     if (engine.integer("dk3_runtime_probe") == 2) {
@@ -67,7 +69,7 @@ fn init(now: i64) !void {
         _ = try world.?.create(null, .{ object.binding, object.transform });
     }
     if (engine.integer("dk3_runtime_probe") == 2) {
-        try @import("server/world_systems.zig").spawn(&world.?, &slots, &projection, now, clients.episode);
+        try systems.spawn(arena.?.allocator(), &world.?, &slots, &projection, now, clients.episode);
     }
     var text: [160]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: isolated bootstrap, {d} map entities, {d} workers; gameplay not qualified\n", .{ world.?.count(), jobs }));
@@ -103,6 +105,10 @@ fn consoleCommand() isize {
     var buffer: [128]u8 = undefined;
     const command = engine.argv(0, &buffer);
     if (engine.integer("dk3_runtime_probe") == 2) {
+        if (std.mem.eql(u8, command, "dk3_runtime_actors")) {
+            @import("server/actors.zig").diagnostics(&world.?, &slots) catch |err| runtimeFailure(err);
+            return 1;
+        }
         if (@import("server/combat_probe.zig").command(command, &world.?, &slots, &projection, clients.entities[0], &clients.weapon_table) catch |err| blk: {
             var message: [128]u8 = undefined;
             engine.print(std.fmt.bufPrintZ(&message, "dk3 zig combat probe failed: {s}\n", .{@errorName(err)}) catch unreachable);
@@ -246,7 +252,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
         },
         c.GAME_SHUTDOWN => shutdown(),
         c.GAME_CLIENT_CONNECT => {
-            if (engine.integer("dk3_runtime_probe") != 2) return @intCast(@intFromPtr(@as([*:0]const u8, "Zig replacement bootstrap does not admit players; movement development requires dk3_runtime_probe=2.")));
+            if (engine.integer("dk3_runtime_probe") != 2) return @intCast(@intFromPtr(@as([*:0]const u8, "Native bootstrap does not admit players; movement development requires dk3_runtime_probe=2.")));
             if (arg0 < 0 or arg0 >= c.MAX_CLIENTS) return @intCast(@intFromPtr(@as([*:0]const u8, "Invalid client slot.")));
             var userinfo: [c.MAX_INFO_STRING]u8 = @splat(0);
             _ = engine.gateway.call(c.G_GET_USERINFO, .{ arg0, &userinfo, @as(isize, userinfo.len) });
@@ -259,10 +265,10 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
         c.GAME_CLIENT_DISCONNECT => clients.disconnect(&world.?, &slots, &projection, @intCast(arg0)) catch |err| runtimeFailure(err),
         c.GAME_RUN_FRAME => {
             const elapsed = clock.advance(arg0) catch {
-                engine.fatal("Zig replacement: invalid engine frame time");
+                engine.fatal("Native runtime: invalid engine frame time");
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
-                @import("server/world_systems.zig").step(&world.?, &slots, &projection, &targets, clock.now_ms, elapsed, &clients.weapon_table) catch |err| runtimeFailure(err);
+                systems.step(&world.?, &slots, &projection, &targets, clock.now_ms, elapsed, &clients.weapon_table) catch |err| runtimeFailure(err);
                 for (clients.entities, 0..) |entity, index| if (entity != null) {
                     clients.publish(&world.?, &projection, &players, index) catch |err| runtimeFailure(err);
                 };

@@ -3,6 +3,7 @@
 """Isolated native client/movement probe; does not certify campaign acceptance."""
 import argparse
 import json
+import math
 from pathlib import Path
 import re
 import shutil
@@ -237,6 +238,55 @@ def combat_scenario(issue, capture, log):
     return {"attacks": results, "scope": "normal fire input against diagnostic ECS targets; Glock hitscan and Ion projectile damage/death, not actor/campaign or visual parity acceptance"}
 
 
+def civilians_scenario(issue, capture, log):
+    def actors():
+        issue("dk3_runtime_actors", 0.05)
+        result = {}
+        for identity, mode, health, position, threat, witness in re.findall(
+                r"zig actor: id=(\d+) state=(\w+) health=(-?\d+) pos=([\d.,-]+) threat=(\d+) witness=(-?\d+)",
+                log.read_text(errors="replace")):
+            result[int(identity)] = {"state": mode, "health": int(health), "position": list(map(float, position.split(','))),
+                                     "threat": int(threat), "witness": int(witness)}
+        return result
+    issue("developer 1")
+    issue("cl_debugMove 3")
+    initial = actors()
+    issue("dk3_runtime_face_target 10", 0.3)
+    placement = re.findall(r"zig combat: fixture player=([\d.,-]+) target=10", log.read_text(errors="replace"))
+    if not placement:
+        raise RuntimeError("no clear standing point near authored worker 10")
+    player = list(map(float, placement[-1].split(',')))
+    issue("dk3_runtime_equip 21")
+    issue("dk3_runtime_inventory")
+    issue("viewpos")
+    capture("workers-before")
+    latest = initial
+    for _ in range(70):
+        latest = actors()
+        if latest[10]["health"] <= 0:
+            break
+        target = latest[10]["position"]
+        dx, dy, dz = target[0] - player[0], target[1] - player[1], target[2] + 8 - (player[2] + 22)
+        yaw = math.degrees(math.atan2(dy, dx))
+        pitch = -math.degrees(math.atan2(dz, math.hypot(dx, dy)))
+        issue(f"dk3_look {yaw} {pitch}", 0.05)
+        issue("+attack", 0.1)
+    issue("-attack", 0.2)
+    issue("dk3_runtime_inventory")
+    issue("viewpos")
+    after = actors()
+    capture("worker-death-witness")
+    if after[10]["health"] > 0 or after[10]["state"] != "dead":
+        raise RuntimeError(f"authored worker 10 did not die: {after[10]}")
+    if after[9]["state"] != "flee" or after[9]["witness"] < 0:
+        raise RuntimeError(f"nearby worker 9 did not witness the killing: {after[9]}")
+    if math.dist(after[9]["position"], initial[9]["position"]) < 1:
+        issue("dk3_runtime_actors", 0.5)
+        after = actors()
+    return {"before": {str(i): initial[i] for i in (9, 10)}, "after": {str(i): after[i] for i in (9, 10)},
+            "scope": "e1m2a authored civilian bodies, normal Glock input, death and witness panic; diagnostic player positioning/equipment, navigation and full actor parity unqualified"}
+
+
 def run(args):
     args.report.mkdir(parents=True, exist_ok=True)
     log = args.report / "client.log"
@@ -278,6 +328,8 @@ def run(args):
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
                 if args.scenario == "lift":
                     result = lift_scenario(issue, capture, log)
+                elif args.scenario == "civilians":
+                    result = civilians_scenario(issue, capture, log)
                 elif args.scenario == "combat":
                     result = combat_scenario(issue, capture, log)
                 elif args.scenario == "effects":
@@ -307,7 +359,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "civilians"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -320,6 +372,7 @@ def main():
         "inventory": ("e1m6a", "runtime-zig-221/inventory"),
         "effects": ("e4m4b", "runtime-zig-222/effects"),
         "combat": ("e1m3b", "runtime-zig-224/combat"),
+        "civilians": ("e1m2a", "runtime-zig-225/civilians"),
     }
     expected_map, report_name = defaults[args.scenario]
     if args.map is None:

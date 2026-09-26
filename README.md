@@ -5,9 +5,11 @@ An open-source project to bring **Daikatana to the ioquake3 engine**, built with
 **Native Zig runtime under development; gameplay is incomplete.**
 
 The old gameplay runtime has been removed. The only game/client/UI implementation
-is now `src/replacement`, built on the bundled ioquake3 engine. Weapon definitions,
-movement, ECS world systems, movers and pickups are connected; combat, actors,
-scripts, save restoration and complete presentation/UI still need implementation.
+is now `src/runtime`, built on the bundled ioquake3 engine. Weapon definitions,
+movement, ECS world systems, movers and pickups are connected. Combat and civilian
+actors are partially implemented; hostile actors, scripts, save restoration and
+complete presentation/UI remain unfinished. Development stays on
+`rewrite/native-zig-runtime`; `main` preserves the working pre-rewrite game.
 
 See the [native architecture and progress](docs/runtime-zig.md),
 [current status](docs/status.md), and [full roadmap](docs/rewrite-roadmap.md).
@@ -72,7 +74,7 @@ default Internet-server trust, see [RPM packaging](docs/rpm.md).
 ```text
 engine/ioquake3/   Bundled engine, upstream foundations, and third-party notices
 engine/bspc/       Bundled navigation compiler and its notices
-src/replacement/  Native Zig game/client/UI, domain, ECS and engine adapters
+src/runtime/  Native Zig game/client/UI, domain, ECS and engine adapters
 src/weapons/      Pure weapon descriptions and shared policies
 src/items/        Item metadata and key policies
 src/network/      Zig protocol and security

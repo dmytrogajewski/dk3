@@ -145,10 +145,12 @@ fn draw(now: i32) !void {
         var handle: c.qhandle_t = 0;
         if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
             handle = inline_models[@intCast(entity.modelindex)];
-        } else if (entity.eType == c.ET_DK3_ITEM or entity.eType == c.ET_MISSILE) handle = try @import("client/models.zig").get(&game, entity.modelindex);
+        } else if (entity.eType == c.ET_DK3_ITEM or entity.eType == c.ET_MISSILE or entity.eType == c.ET_GENERAL) handle = try @import("client/models.zig").get(&game, entity.modelindex);
         if (handle == 0) continue;
         var rendered = std.mem.zeroes(c.refEntity_t);
         rendered.hModel = handle;
+        rendered.frame = entity.frame;
+        rendered.oldframe = entity.frame;
         rendered.reType = c.RT_MODEL;
         rendered.origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
         rendered.oldorigin = rendered.origin;

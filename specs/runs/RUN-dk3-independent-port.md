@@ -2711,3 +2711,50 @@ preserved installed game, private reference, assets and saves were not modified.
 Architecture priority: connect native weapon events to hit/projectile simulation,
 damage/death and actor reactions; then scripts/progression, restoration/travel and UI.
 No legacy backend parity work remains in the development cadence.
+
+
+## runtime-zig — sequence 224 (initial combat; feature branch)
+
+Connected copied fire intents to native Glock/Disruptor trace damage and Ion ECS
+projectiles. Weapon class policies own attack kind and Ion radius, water discharge,
+bounce and cleanup tuning. The server resolves collision and persistent shooter IDs;
+health/armor/protection remain domain rules. Fire/explosion audio uses class metadata.
+Normal input against diagnostic ECS targets kills with both Glock and Ion.
+`runtime-zig-224/combat/` records inputs/results. This does not qualify remaining
+weapons, knockback, all Ion cases, full effects or Gold parity. Other 25 combat
+policies are explicitly pending, not silently mapped to a generic attack.
+
+All committed and then-uncommitted rewrite work was preserved and pushed on
+`rewrite/native-zig-runtime` before restoring main. Main restoration `e3966c4` has
+exactly the `ed0755f` tree. The feature branch, not main, is the only rewrite target.
+
+## runtime-zig — sequence 225 (runtime structure and civilians)
+
+Renamed `src/replacement` to `src/runtime` and `build/replacement.zig` to
+`build/runtime.zig`. Runtime entrypoints compose domain rules, ECS infrastructure,
+public engine adapters, authoritative server systems and client presentation.
+Catalogs remain separate class-owned modules. Native products/tests share one build
+composition helper; architecture checks reject engine/system dependencies in pure
+layers and private engine gameplay headers.
+
+Implemented four civilian classes from supplied actor tuning and model animation
+metadata. World-system state owns definitions with map-lifetime storage. Actor state
+owns panic/death transitions; the shared damage service records attacker identity and
+time. Visible, new civilian deaths trigger nearby witness panic. Movement integrates
+actual elapsed time, while final death animation holds its last frame and routes
+authored death targets once. Client projection draws supplied actor frames. The mover
+transaction now admits actor/corpse bodies as well as players.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| First actor build | Failed; repaired | Explicit float coercion needed for yaw conversion; 44 native policy tests already passed. |
+| Initial e1m2a worker probe | Failed fixture | `runtime-zig-225/civilians/` and `civilians-diagnostic/`: chosen player point was over a drop. Player fell from the workers' elevation while the fixture aimed from its old position; actor damage was not exercised. Captures/log retained. |
+| Grounded e1m2a worker encounter | Passed | `runtime-zig-225/civilians-grounded/`: collision/line-of-sight-checked diagnostic placement, ordinary Glock input kills authored worker 10; worker 9 stays healthy, records the witnessed death, enters flee and moves. Death/flee capture inspected. |
+| Native build and surviving aggregate | Passed | `/tmp/dk3-runtime-225-suite.log`: all modules, 182 Zig tests (44 native runtime) and 44 Python tests including architecture boundaries. |
+| Existing lift and combat regressions | Passed | `runtime-zig-225/lift/` retains the authored upper dwell and player carriage; `runtime-zig-225/combat/` kills separate diagnostic targets with Glock and Ion after actor/structure integration. |
+| Actor/corpse platform carry and compound obstruction | Unrun | Implementation connected; player lift regression does not certify actor carriage or compound obstruction. |
+| Navigation, hostile actors, scripted actor control, actor audio, corpse pose bounds | Unrun | Remaining implementation/acceptance; initial civilian behavior is not full actor parity. |
+
+Reports use dkguard software rendering, temporary profiles and supplied local assets.
+Neither main, installed game, saves nor private reference files are changed by these
+runtime scenarios.

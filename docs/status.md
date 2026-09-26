@@ -1,10 +1,13 @@
 # Game completion state
 
-Sequence 223 removes the legacy game/client/UI and their C-dependent Zig adapters.
-Only the native Zig runtime is built. Its 41 focused tests and module builds pass;
-full gameplay remains incomplete. Sequence 222 connects character/status pickups,
-damage accounting and snapshot sound events. Weapon pickup audio belongs to weapon
-metadata. See [native runtime progress](runtime-zig.md#active-decision-runtime-zig-223).
+Feature branch `rewrite/native-zig-runtime` contains the incomplete native runtime;
+`main` is restored to the working pre-rewrite tree. Sequence 225 replaces the temporary
+source root with `src/runtime` and enforces domain/engine dependency boundaries.
+Glock/Disruptor trace damage and Ion projectiles are connected. Four civilian classes
+have authored metadata, animation, movement, death and witness panic; the e1m2a
+worker scenario has passed with diagnostic positioning/equipment. Most combat,
+hostile actors/navigation, scripts/cinematics, save restore/travel, full presentation
+and multiplayer integration remain open. See [runtime progress](runtime-zig.md).
 
 The preserved installed game and saves are untouched. The results below describe
 historical runtime versions and do not establish acceptance of the new runtime.

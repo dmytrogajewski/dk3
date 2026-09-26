@@ -3,7 +3,8 @@
 const std = @import("std");
 const Health = @import("items.zig").Health;
 const Character = @import("character.zig").State;
-pub const Options = struct { bypass_armor: bool = false, bypass_protection: bool = false, environmental: bool = false, attacker_class: []const u8 = "" };
+pub const Receipt = struct { source: u32 = 0, at_ms: i64 = -1, revision: u32 = 0 };
+pub const Options = struct { source: u32 = 0, bypass_armor: bool = false, bypass_protection: bool = false, environmental: bool = false, attacker_class: []const u8 = "" };
 pub const Result = struct { blood: i32 = 0, armor: i32 = 0, killed: bool = false };
 pub fn apply(health: *Health, character: ?Character, amount: i32, now: i64, options: Options) Result {
     if (amount <= 0 or health.current <= 0) return .{};

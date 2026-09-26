@@ -2,6 +2,12 @@
 
 ## Current completion state
 
+Unfinished native work lives on `rewrite/native-zig-runtime`; `main` is restored to
+its pre-rewrite working tree. Sequence 225 establishes `src/runtime` as the permanent
+module root, enforces pure-layer boundaries and connects initial combat to authored
+civilian movement, death and witness panic. Main must not receive rewrite commits
+without an explicit merge/release request.
+
 Sequence 217 begins the accepted [native Zig replacement runtime](runtime-zig.md):
 archetype ECS, parallel systems, separate native modules and an isolated installation.
 Sequences 218–221 connect native movement, shared weapon controllers, binary movers,

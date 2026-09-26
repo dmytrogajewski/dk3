@@ -3,13 +3,13 @@
 const std = @import("std");
 pub fn declare(b: *std.Build) []const u8 {
     var paths: std.ArrayList([]const u8) = .empty;
-    for ([_][]const u8{ "src/replacement", "src/weapons", "src/items", "src/multiplayer", "engine/ioquake3/code/game" }) |root| {
+    for ([_][]const u8{ "src/runtime", "src/weapons", "src/items", "src/actors", "src/multiplayer", "engine/ioquake3/code/game" }) |root| {
         var directory = std.Io.Dir.cwd().openDir(b.graph.io, b.pathFromRoot(root), .{ .iterate = true }) catch @panic("missing gameplay source");
         defer directory.close(b.graph.io);
         var walker = directory.walk(b.allocator) catch @panic("OOM");
         defer walker.deinit();
         while (walker.next(b.graph.io) catch @panic("cannot walk gameplay source")) |entry| {
-            if (entry.kind != .file or (std.mem.startsWith(u8, entry.path, "client/") and !std.mem.eql(u8, root, "src/replacement"))) continue;
+            if (entry.kind != .file or (std.mem.startsWith(u8, entry.path, "client/") and !std.mem.eql(u8, root, "src/runtime"))) continue;
             if (!std.mem.endsWith(u8, entry.path, ".c") and !std.mem.endsWith(u8, entry.path, ".h") and !std.mem.endsWith(u8, entry.path, ".zig") and !std.mem.endsWith(u8, entry.path, ".def")) continue;
             paths.append(b.allocator, b.pathJoin(&.{ root, entry.path })) catch @panic("OOM");
         }

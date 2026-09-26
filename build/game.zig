@@ -11,7 +11,7 @@ pub fn declare(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
         return;
     }
     for ([_]config.Product{ .qagame, .cgame, .ui }) |product| {
-        const artifact = @import("replacement.zig").addProduct(b, target, optimize, product, rules_identity);
+        const artifact = @import("runtime.zig").addProduct(b, target, optimize, product, rules_identity);
         const install = b.addInstallFileWithDir(artifact.getEmittedBin(), .lib, b.fmt("dk3/{t}.so", .{product}));
         step.dependOn(&install.step);
     }

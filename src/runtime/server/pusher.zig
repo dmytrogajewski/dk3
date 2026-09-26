@@ -48,10 +48,12 @@ fn pushProjected(world: *data.World, slots: *const Slots, projections: []abi.Ent
         for (slots.occupants, 0..) |occupant, index| {
             const entity = occupant orelse continue;
             if (seen[index]) continue;
-            const player = world.get(entity, data.Player) catch continue;
-            if (player.mode == .noclip or player.mode == .spectator) continue;
+            const ground = if (world.get(entity, data.Player)) |player| blk: {
+                if (player.mode == .noclip or player.mode == .spectator) continue;
+                break :blk player.ground_entity;
+            } else |_| if (world.get(entity, data.Actor)) |actor| actor.ground_entity else |_| continue;
             const other = &projections[index];
-            const riding = player.ground_entity == before.slot;
+            const riding = ground == before.slot;
             if (!riding) {
                 var intersects = true;
                 for (0..3) |axis| if (other.shared.absmin[axis] >= projection.shared.absmax[axis] or other.shared.absmax[axis] <= projection.shared.absmin[axis]) {
@@ -97,6 +99,8 @@ fn pushProjected(world: *data.World, slots: *const Slots, projections: []abi.Ent
         if (world.get(entity, data.Player)) |player| {
             player.ground_entity = @intCast(projection.state.groundEntityNum);
             player.delta_angles[1] +%= before.yaw_delta;
+        } else |_| if (world.get(entity, data.Actor)) |actor| {
+            actor.ground_entity = @intCast(projection.state.groundEntityNum);
         } else |_| {}
     }
     committed = true;
