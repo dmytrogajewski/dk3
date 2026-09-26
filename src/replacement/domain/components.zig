@@ -4,6 +4,8 @@ const std = @import("std");
 pub const Inventory = @import("inventory_rules").Inventory;
 pub const Weapons = @import("weapons.zig").State;
 pub const Trigger = struct { uses: u32 = 0, limit: u32 = 0, ready_ms: i64 = 0, wait_ms: i32 = 200, counter: bool = false };
+pub const Rotation = @import("special_movers.zig").Rotation;
+pub const Secret = @import("special_movers.zig").Secret;
 pub const Train = @import("trains.zig").Train;
 pub const Mover = @import("movers.zig").Binary;
 pub const Player = @import("player_move.zig").Player;
@@ -26,7 +28,7 @@ pub const Gravity = struct { acceleration: f32 = 800 };
 pub const Motion = struct { destination: Vec3 = @splat(0), velocity: Vec3 = @splat(0) };
 pub const Lifetime = struct { expires_ms: i64 };
 pub const Attachment = struct { parent_id: u32, offset: Vec3 };
-pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16 };
+pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18 };
 pub const Component = union(ComponentId) {
     transform: Transform,
     velocity: Velocity,
@@ -45,6 +47,8 @@ pub const Component = union(ComponentId) {
     mover: Mover,
     trigger: Trigger,
     train: Train,
+    rotation: Rotation,
+    secret: Secret,
 };
 pub const types = blk: {
     const fields = std.meta.fields(Component);

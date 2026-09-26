@@ -198,3 +198,22 @@ python3 dkq3/tools/runtime_player_probe.py --engine zig-out/play/current --prefi
 
 Combat/projectiles, actors/navigation, secret/continuous movers, scripts/cinematics,
 save restoration/travel, full presentation/UI and overall acceptance remain open.
+
+
+## Active implementation: runtime-zig-220
+
+Two-leg secret doors and continuous rotating brushes now use the same transactional
+attachment/pusher path as binary movers and trains. World-system ordering has one
+coordinator; engine trajectory encoding is shared. Attached special movers sample
+independent motion before parent composition and defer their motion clocks on rollback.
+
+Focused real-map probes demonstrate e3dm1 secret door 43 opening both legs, waiting,
+and retracing to its closed position; e1m3b rotating brush 72 starts, stops without
+drift, and resumes. The affected e1m3a lift and e1m3b delayed door still pass. These
+use diagnostic activation; shoot activation, rotating riders, sounds and compound
+obstructions remain unqualified. Replacement modules and domain checks build.
+
+Reproduce with `runtime_player_probe.py --engine zig-out/play/current --prefix
+zig-out/replacement --scenario secret` (or `--scenario rotation`). The normal
+launcher still uses the existing runtime. Combat, actors, inventory progression,
+scripts/cinematics, restore/travel and full presentation/UI remain implementation work.

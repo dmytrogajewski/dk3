@@ -1,5 +1,11 @@
 # Game completion state
 
+Native rewrite sequence 220 adds secret doors, continuous rotation and a shared
+world-system coordinator. Focused mover probes pass; the replacement remains
+incomplete and the existing runtime remains the normal launcher default. See
+[native runtime progress](runtime-zig.md#active-implementation-runtime-zig-220).
+
+
 Sequence 203 is implementing the accepted [Zig multiplayer/Internet-room scope](multiplayer-zig.md).
 The one-host IP deployment passes explicit-CA HTTPS verification and focused real
 Internet scenarios: three encrypted clients, readiness, browser ping, reconnect,

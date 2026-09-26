@@ -88,6 +88,42 @@ def lift_scenario(issue, capture, log):
     return {"samples": len(samples), "scope": "e1m3a lift ride, departure dwell and return; diagnostic activation, not full campaign acceptance"}
 
 
+def special_scenario(args, issue, capture, log):
+    identity = 43 if args.scenario == "secret" else 72
+
+    def sample():
+        issue("dk3_runtime_special", 0.4)
+        values = re.findall(rf"zig special id={identity} phase=(\w+) pos=([^\n]+) angles=([^\n]+)", log.read_text(errors="replace"))
+        if not values:
+            raise RuntimeError("special mover diagnostics missing")
+        return values[-1]
+
+    if args.scenario == "secret":
+        issue(f"dk3_runtime_activate {identity}")
+        phases = []
+        deadline = time.monotonic() + 35
+        while time.monotonic() < deadline:
+            phases.append(sample()[0])
+            if "open" in phases and phases[-1] == "closed":
+                break
+        if not all(phase in phases for phase in ("waiting_first", "open", "waiting_return")) or phases[-1] != "closed":
+            raise RuntimeError(f"incomplete secret-door cycle: {phases}")
+        return {"phases": phases, "scope": "e3dm1 secret-door cycle; diagnostic activation, shoot activation unqualified"}
+    first, second = sample(), sample()
+    if first[0] != "rotating" or second[0] != "rotating" or first[2] == second[2]:
+        raise RuntimeError("authored rotation did not start")
+    issue(f"dk3_runtime_activate {identity}")
+    stopped, held = sample(), sample()
+    if stopped != held or stopped[0] != "stopped":
+        raise RuntimeError("rotation failed to remain stopped")
+    issue(f"dk3_runtime_activate {identity}")
+    resumed, moving = sample(), sample()
+    if resumed[0] != "rotating" or moving[0] != "rotating" or resumed[2] == moving[2]:
+        raise RuntimeError("rotation did not resume")
+    return {"samples": [first, second, stopped, held, resumed, moving],
+            "scope": "e1m3b rotating brush start, toggle and resume; rotating riders unqualified"}
+
+
 def run(args):
     args.report.mkdir(parents=True, exist_ok=True)
     log = args.report / "client.log"
@@ -127,7 +163,12 @@ def run(args):
 
             try:
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
-                result = lift_scenario(issue, capture, log) if args.scenario == "lift" else movement_scenario(args, issue, capture, log)
+                if args.scenario == "lift":
+                    result = lift_scenario(issue, capture, log)
+                elif args.scenario in ("secret", "rotation"):
+                    result = special_scenario(args, issue, capture, log)
+                else:
+                    result = movement_scenario(args, issue, capture, log)
                 issue("quit", 0)
                 if process.wait(timeout=15) != 0:
                     raise RuntimeError(f"engine shutdown failed: {log}")
@@ -147,15 +188,21 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
     args = parser.parse_args()
     if args.map is None:
-        args.map = "e1m3a" if args.scenario == "lift" else "e1m3b"
+        args.map = {"lift": "e1m3a", "secret": "e3dm1"}.get(args.scenario, "e1m3b")
     if args.report is None:
         args.report = Path("zig-out/reports/runtime-zig-219/lift" if args.scenario == "lift" else "zig-out/reports/runtime-zig-218/client")
+    if args.scenario in ("secret", "rotation"):
+        expected_map = "e3dm1" if args.scenario == "secret" else "e1m3b"
+        if args.map != expected_map or args.mover is not None:
+            parser.error(f"{args.scenario} scenario uses {expected_map}; omit --mover")
+        if args.report == Path("zig-out/reports/runtime-zig-218/client"):
+            args.report = Path(f"zig-out/reports/runtime-zig-220/{args.scenario}")
     if args.scenario == "lift" and (args.map != "e1m3a" or args.mover is not None):
         parser.error("lift scenario uses e1m3a's bigplat; omit --mover")
     if not re.fullmatch(r"[a-zA-Z0-9_]+", args.map):

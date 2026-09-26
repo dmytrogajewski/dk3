@@ -50,22 +50,9 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     const projection = &projections[(try world.get(entity, data.Binding)).slot];
     projection.shared.currentOrigin = transform.position;
     projection.shared.currentAngles = transform.angles;
-    projection.state.pos = trajectory(train.position, transform.position, train.phase == .moving);
-    projection.state.apos = trajectory(train.angles, transform.angles, train.phase == .moving);
+    projection.state.pos = if (train.phase == .moving) @import("../engine/trajectory.zig").fromMotion(train.position) else @import("../engine/trajectory.zig").stationary(transform.position);
+    projection.state.apos = if (train.phase == .moving) @import("../engine/trajectory.zig").fromMotion(train.angles) else @import("../engine/trajectory.zig").stationary(transform.angles);
     engine.link(projection);
-}
-fn trajectory(motion: @import("../domain/movers.zig").Motion, position: data.Vec3, moving: bool) c.trajectory_t {
-    var result = std.mem.zeroes(c.trajectory_t);
-    result.trBase = position;
-    if (moving) {
-        const v = @import("../domain/vector.zig");
-        result.trBase = motion.base;
-        result.trDelta = v.scale(v.add(motion.end, v.scale(motion.base, -1)), 1000 / @as(f32, @floatFromInt(motion.duration_ms)));
-        result.trType = c.TR_LINEAR_STOP;
-        result.trTime = @intCast(motion.start_ms);
-        result.trDuration = motion.duration_ms;
-    }
-    return result;
 }
 fn arrived(world: *data.World, entity: ecs.Entity, now: i64) !void {
     const train = try world.get(entity, data.Train);

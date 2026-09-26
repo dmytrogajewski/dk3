@@ -90,21 +90,11 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     const projection = &projections[(try world.get(entity, data.Binding)).slot];
     projection.shared.currentOrigin = transform.position;
     projection.shared.currentAngles = transform.angles;
-    projection.state.pos = std.mem.zeroes(c.trajectory_t);
-    projection.state.apos = std.mem.zeroes(c.trajectory_t);
-    projection.state.pos.trBase = transform.position;
-    projection.state.apos.trBase = transform.angles;
-    const trajectory = if (mover.angular) &projection.state.apos else &projection.state.pos;
+    const wire = @import("../engine/trajectory.zig");
+    projection.state.pos = wire.stationary(transform.position);
+    projection.state.apos = wire.stationary(transform.angles);
     if (mover.moving()) {
-        trajectory.trType = switch (mover.motion.curve) {
-            .linear => c.TR_LINEAR_STOP,
-            .accelerate => c.TR_DK_ACCEL_STOP,
-            .bounce => c.TR_DK_BOUNCE_STOP,
-        };
-        trajectory.trBase = mover.motion.base;
-        trajectory.trDelta = v.scale(v.add(mover.motion.end, v.scale(mover.motion.base, -1)), 1000 / @as(f32, @floatFromInt(mover.motion.duration_ms)));
-        trajectory.trTime = @intCast(mover.motion.start_ms);
-        trajectory.trDuration = mover.motion.duration_ms;
+        if (mover.angular) projection.state.apos = wire.fromMotion(mover.motion) else projection.state.pos = wire.fromMotion(mover.motion);
     }
     engine.link(projection);
 }

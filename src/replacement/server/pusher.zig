@@ -110,7 +110,9 @@ pub fn publishAssembly(world: *data.World, projections: []abi.EntityProjection, 
             try @import("movers.zig").publish(world, part.entity, projections);
         } else |_| if (world.get(part.entity, data.Train)) |_| {
             try @import("trains.zig").publish(world, part.entity, projections);
-        } else |_| {
+        } else |_| if ((world.get(part.entity, data.Secret) catch null) != null or (world.get(part.entity, data.Rotation) catch null) != null) {
+            try @import("special_movers.zig").publish(world, part.entity, projections);
+        } else {
             const projection = &projections[binding.slot];
             const transform = (try world.get(part.entity, data.Transform)).*;
             projection.shared.currentOrigin = transform.position;
@@ -163,6 +165,8 @@ pub fn staticRoots(world: *data.World, slots: *const Slots, projections: []abi.E
             } else return error.CyclicAttachment;
             if (world.get(parent, data.Mover)) |_| continue else |_| {}
             if (world.get(parent, data.Train)) |_| continue else |_| {}
+            if (world.get(parent, data.Secret)) |_| continue else |_| {}
+            if (world.get(parent, data.Rotation)) |_| continue else |_| {}
             const slot = slots.find(parent) orelse continue;
             roots[slot] = true;
         };

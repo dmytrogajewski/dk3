@@ -22,3 +22,28 @@ pub fn evaluate(value: c.trajectory_t, now: i32) v.Vec3 {
         else => value.trBase,
     };
 }
+
+pub fn stationary(position: v.Vec3) c.trajectory_t {
+    var result = @import("std").mem.zeroes(c.trajectory_t);
+    result.trBase = position;
+    return result;
+}
+pub fn fromMotion(motion: @import("../domain/movers.zig").Motion) c.trajectory_t {
+    var result = stationary(motion.base);
+    result.trType = switch (motion.curve) {
+        .linear => c.TR_LINEAR_STOP,
+        .accelerate => c.TR_DK_ACCEL_STOP,
+        .bounce => c.TR_DK_BOUNCE_STOP,
+    };
+    result.trDelta = v.scale(v.add(motion.end, v.scale(motion.base, -1)), 1000 / @as(f32, @floatFromInt(motion.duration_ms)));
+    result.trTime = @intCast(motion.start_ms);
+    result.trDuration = motion.duration_ms;
+    return result;
+}
+pub fn linear(position: v.Vec3, rate: v.Vec3, start: i64) c.trajectory_t {
+    var result = stationary(position);
+    result.trType = c.TR_LINEAR;
+    result.trDelta = rate;
+    result.trTime = @intCast(start);
+    return result;
+}

@@ -89,6 +89,17 @@ pub const Assembly = struct {
                         mover.motion.end = pose.point(mover.motion.end, parent.before, parent.after);
                     }
                 } else |_| {}
+                if (world.get(part.entity, data.Secret)) |secret| {
+                    secret.closed = pose.point(secret.closed, parent.before, parent.after);
+                    secret.first = pose.point(secret.first, parent.before, parent.after);
+                    secret.opened = pose.point(secret.opened, parent.before, parent.after);
+                    secret.motion.base = pose.point(secret.motion.base, parent.before, parent.after);
+                    secret.motion.end = pose.point(secret.motion.end, parent.before, parent.after);
+                } else |_| {}
+                if (world.get(part.entity, data.Rotation)) |rotation| {
+                    rotation.base = pose.orientation(rotation.base, parent.before.angles, parent.after.angles);
+                    rotation.rate = pose.rotate(rotation.rate, parent.before.angles, parent.after.angles);
+                } else |_| {}
                 if (world.get(part.entity, data.Train)) |train| {
                     train.position.base = pose.point(train.position.base, parent.before, parent.after);
                     train.position.end = pose.point(train.position.end, parent.before, parent.after);
@@ -101,6 +112,8 @@ pub const Assembly = struct {
     pub fn delay(self: *const Assembly, world: *data.World, elapsed: u32) !void {
         for (self.parts[0..self.count]) |part| {
             if (world.get(part.entity, data.Mover)) |mover| mover.motion.start_ms += elapsed else |_| {}
+            if (world.get(part.entity, data.Rotation)) |rotation| rotation.started_ms += elapsed else |_| {}
+            if (world.get(part.entity, data.Secret)) |secret| secret.motion.start_ms += elapsed else |_| {}
             if (world.get(part.entity, data.Train)) |train| {
                 train.position.start_ms += elapsed;
                 train.angles.start_ms += elapsed;
@@ -134,6 +147,10 @@ pub fn prepare(world: *data.World, moves: []const Move, now: i64, sample_childre
                         if (mover.angular) destination.angles = mover.motion.sample(now) else destination.position = mover.motion.sample(now);
                     }
                 } else |_| {}
+                if (world.get(entity, data.Secret)) |secret| {
+                    if (secret.moving()) destination.position = secret.motion.sample(now);
+                } else |_| {}
+                if (world.get(entity, data.Rotation)) |rotation| destination.angles = rotation.sample(now) else |_| {}
                 if (world.get(entity, data.Train)) |train| {
                     if (train.phase == .moving) destination = .{ .position = train.position.sample(now), .angles = train.angles.sample(now) };
                 } else |_| {}
@@ -170,4 +187,17 @@ test "attachment cycles are rejected before pose publication" {
     const parent = try world.create(1, .{ data.Transform{}, data.Attachment{ .parent_id = 2, .offset = @splat(0) } });
     _ = try world.create(2, .{ data.Transform{}, data.Attachment{ .parent_id = 1, .offset = @splat(0) } });
     try std.testing.expectError(error.CyclicAttachment, prepare(&world, &.{.{ .entity = parent, .destination = .{} }}, 0, false));
+}
+
+test "attached rotating child advances inside the parent collision proposal" {
+    var world = data.World.init(std.testing.allocator, 16);
+    defer world.deinit();
+    const parent = try world.create(1, .{data.Transform{}});
+    const child = try world.create(2, .{ data.Transform{ .position = .{ 10, 0, 0 } }, data.Attachment{ .parent_id = 1, .offset = .{ 10, 0, 0 } }, data.Rotation{ .base = @splat(0), .rate = .{ 0, 90, 0 }, .active = true } });
+    var assembly = try prepare(&world, &.{.{ .entity = parent, .destination = .{ .position = .{ 0, 0, 100 } } }}, 1000, true);
+    try std.testing.expectEqual(data.Vec3{ 0, 90, 0 }, assembly.parts[assembly.find(2).?].after.angles);
+    try std.testing.expectEqual(data.Vec3{ 10, 0, 100 }, assembly.parts[assembly.find(2).?].after.position);
+    try assembly.delay(&world, 50);
+    try std.testing.expectEqual(@as(i64, 50), (try world.get(child, data.Rotation)).started_ms);
+    try std.testing.expectEqual(data.Vec3{ 10, 0, 0 }, (try world.get(child, data.Transform)).position);
 }

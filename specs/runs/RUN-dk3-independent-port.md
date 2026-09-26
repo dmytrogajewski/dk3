@@ -2627,3 +2627,22 @@ zig-out/replacement --scenario lift`. It copies only native modules into a tempo
 profile, invokes dkguard headless software rendering and keeps logs/inputs/captures
 local. No normal installation or existing save was written. Aggregate checks from
 218 remain recorded; replacement tests and affected engine scenarios were refreshed.
+
+
+## runtime-zig — sequence 220 (active implementation)
+
+Implemented secret-door two-leg travel, inter-leg pauses, return/stay-open behavior,
+continuous rotation toggling and attachment integration. World ordering and trajectory
+projection now have shared owners instead of duplicated module-entrypoint logic.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Replacement build and domain checks | Passed | Native products build; secret-cycle, stopped rotation and attached-child proposal/rollback checks pass. |
+| e3dm1 secret door 43 | Passed | Both opening legs, open dwell, both return legs and closed rest recorded in `runtime-zig-220/secret/`; diagnostic activation only. |
+| e1m3b rotation 72 | Passed | Rotation advances, holds exact stopped angles across samples, then resumes in `runtime-zig-220/rotation/`. |
+| Affected lift and delayed door | Passed | Refreshed `runtime-zig-220/lift/` and `client/` preserve upper dwell/rider transport and repeated delayed-door activation. |
+| Shooting secret doors, rotation riders, compound obstruction | Unrun | Shooting depends on native combat; other scenarios remain required. |
+
+All engine runs use dkguard headless software rendering and isolated profiles.
+No normal installation or save was written. Earlier aggregate checks remain valid
+for unchanged components; no duplicate broad suite. Full rewrite remains open.

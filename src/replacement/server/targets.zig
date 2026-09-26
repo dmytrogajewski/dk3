@@ -25,6 +25,10 @@ pub const Router = struct {
         const object = (try world.get(entity, data.MapObject)).*;
         if (prop.nonempty(object, "keyname")) return;
         if (world.get(entity, data.Mover)) |_| return movers.use(world, slots, projections, entity, activator, now) else |_| {}
+        if ((world.get(entity, data.Secret) catch null) != null or (world.get(entity, data.Rotation) catch null) != null) {
+            if (try @import("special_movers.zig").use(world, slots, projections, entity, activator, now)) try self.fire(world, slots, projections, entity, activator, now);
+            return;
+        }
         if (world.get(entity, data.Train)) |_| return @import("trains.zig").use(world, projections, entity, source, activator, now) else |_| {}
         if (std.mem.eql(u8, object.classname, "trigger_elevator")) {
             const matches = try named(world, object.target);
