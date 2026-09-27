@@ -9,6 +9,7 @@ pub const motion = @import("server/motion.zig");
 pub const map = @import("server/map.zig");
 test {
     _ = @import("domain/scenery.zig");
+    _ = @import("domain/gibs.zig");
     _ = @import("domain/multiplayer.zig");
     _ = @import("domain/bot_combat.zig");
     _ = @import("domain/player_pose.zig");

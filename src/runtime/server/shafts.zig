@@ -33,7 +33,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.eType = c.ET_GENERAL;
     projection.state.generic1 = policy.render_tag;
     projection.state.modelindex = binding.model;
-    projection.state.angles2 = @splat(if (shaft.kind == .fletcher) @as(f32, 0.5) else 1);
+    projection.state.angles2 = @splat(if (policy.magic(shaft.kind)) @as(f32, 0.5) else 1);
     projection.state.frame = 0;
     projection.state.time = @intCast(attack.born_ms);
     projection.state.time2 = if (shaft.contact_ms) |at| @intCast(at + 5000) else 0;
@@ -68,11 +68,16 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             if (shaft.phase == .flying) {
                 if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
                     if ((world.get(victim, data.Health) catch null) != null) {
-                        _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(shaft.damage)), now, .{ .source = attack.owner, .attacker_class = if (shaft.kind == .centurion) "monster_centurion" else if (shaft.kind == .fletcher) "monster_fletcher" else "monster_thief" });
+                        _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(shaft.damage)), now, .{ .source = attack.owner, .attacker_class = switch (shaft.kind) {
+                            .centurion => "monster_centurion",
+                            .fletcher => "monster_fletcher",
+                            .thief => "monster_thief",
+                            .harpy => "monster_harpy",
+                        } });
                         try @import("weapon_damage.zig").shove(world, victim, attack.owner, velocity, shaft.damage, now);
                     }
                 };
-                if (shaft.kind == .fletcher) {
+                if (policy.magic(shaft.kind)) {
                     if (hit.entity == c.ENTITYNUM_WORLD) try @import("events.zig").sound(world, slots, projections, "global/e_arrowimp.wav", pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
                     return lifecycle.remove(world, slots, projections, entity);
                 }

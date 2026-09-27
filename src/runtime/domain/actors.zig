@@ -19,6 +19,8 @@ pub const State = struct {
     psyclaw: catalog.psyclaw.State = .{},
     doombat: catalog.doombat.State = .{},
     griffon: catalog.griffon.State = .{},
+    harpy: catalog.harpy.State = .{},
+    dragon: catalog.dragon.State = .{},
     pain_ready_ms: i64 = 0,
     evasion: catalog.evasion.State = .{},
     battleboar: catalog.battleboar.State = .{},
@@ -66,6 +68,7 @@ pub const State = struct {
     witness_ms: i64 = -1,
     receipt: u32 = 0,
     death_dispatched: bool = false,
+    gibbed: bool = false,
     ground_entity: u16 = 2047,
     route: @import("navigation.zig").State = .{},
     escape_until: i64 = 0,
@@ -87,6 +90,8 @@ pub const Definition = struct {
     prisoner_rock: catalog.weapon.Tuning = .{},
     alternate_idle: animation.Sequence = .{},
     doombat_fireball: catalog.weapon.Tuning = .{},
+    harpy_arrow: catalog.weapon.Tuning = .{},
+    dragon_fireball: catalog.weapon.Tuning = .{},
     psyclaw_blast: catalog.weapon.Tuning = .{},
     sludge_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
     boar_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
@@ -237,6 +242,14 @@ pub const Table = struct {
                 entry.doombat_fireball = try catalog.weapon.Tuning.parse(row, "weapon2_");
                 entry.doombat_fireball.speed = 400;
                 entry.sight_range = 10000;
+            }
+            if (catalog.entries[id].kind == .harpy) {
+                entry.harpy_arrow = try catalog.weapon.Tuning.parse(row, "weapon1_");
+                if (entry.harpy_arrow.speed <= 0) return error.InvalidHarpyArrow;
+            }
+            if (catalog.entries[id].kind == .dragon) {
+                entry.dragon_fireball = try catalog.weapon.Tuning.parse(row, "weapon1_");
+                if (entry.dragon_fireball.speed <= 0) return error.InvalidDragonFireball;
             }
             if (catalog.entries[id].kind == .psyclaw) {
                 entry.psyclaw_blast = try catalog.weapon.Tuning.parse(row, "weapon2_");

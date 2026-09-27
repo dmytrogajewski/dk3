@@ -81,6 +81,8 @@ pub const Actors = struct {
             .sealcaptain, .sealcommando, .sealgirl, .uzigang => &catalog.gunners.attacks,
             .doombat => &catalog.doombat.attacks,
             .griffon => &catalog.griffon.attacks,
+            .harpy => &catalog.harpy.attacks,
+            .dragon => &catalog.dragon.attacks,
             .psyclaw => &catalog.psyclaw.attacks,
             .sludgeminion => &catalog.sludge.attacks,
             .rotworm => &catalog.rotworm.attacks,
@@ -134,7 +136,8 @@ pub const Actors = struct {
         }
         if (policy.kind == .dwarf or policy.kind == .lycanthir or policy.kind == .knight1 or policy.kind == .knight2 or policy.kind == .plague_rat or policy.kind == .fletcher or policy.kind == .battleboar or policy.kind == .rocketdude or policy.kind == .thief or policy.kind == .blackprisoner or policy.kind == .whiteprisoner or policy.kind == .femgang or policy.kind == .sealcaptain or policy.kind == .sealcommando or policy.kind == .sealgirl or policy.kind == .uzigang) definition.death_b = try animation.find(metadata, "dieb") orelse return error.MissingActorDeath;
         if (policy.kind == .femgang) definition.alternate_idle = try animation.find(metadata, "ambb") orelse return error.MissingFemgangIdle;
-        if (policy.kind == .griffon) {
+        if (policy.kind == .harpy and (definition.attacks[2].first > 191 or definition.attacks[2].last < 209)) return error.InvalidHarpyDrop;
+        if (policy.kind == .griffon or policy.kind == .harpy) {
             definition.ground_run = try animation.find(metadata, "runa") orelse return error.MissingGriffonGroundRun;
             if (!self.water_ready) {
                 try self.water_routes.initGround(self.allocator);
@@ -168,7 +171,7 @@ pub const Actors = struct {
                 self.air_ready = true;
             }
         }
-        if ((policy.kind == .cambot or policy.kind == .doombat or policy.kind == .griffon) and !self.air_ready) {
+        if ((policy.kind == .cambot or policy.kind == .doombat or policy.kind == .griffon or policy.kind == .harpy or policy.kind == .dragon) and !self.air_ready) {
             try self.air_routes.init(self.allocator);
             self.air_ready = true;
         }
@@ -271,6 +274,19 @@ pub const Actors = struct {
         if (policy.kind == .griffon and actor.mode != .dead and actor.reaction == null and actor.scripted_pose == null) {
             if (actor.griffon.phase == .leap) projection.state.frame = definition.attacks[4].frame(now - actor.melee.started_ms, true) else if (!actor.griffon.flying and actor.mode == .chase) projection.state.frame = definition.ground_run.frame(now - actor.changed_ms, true);
         }
+        if (policy.kind == .harpy and actor.mode != .dead and actor.reaction == null and actor.scripted_pose == null) {
+            switch (actor.harpy.phase) {
+                .takeoff, .rising => projection.state.frame = definition.attacks[2].last - (definition.attacks[2].frame(now - actor.melee.started_ms, false) - definition.attacks[2].first),
+                .dodge, .approach_land => projection.state.frame = definition.ground_run.frame(now - actor.changed_ms, true),
+                .chase => if (!actor.harpy.flying and actor.mode == .chase) {
+                    projection.state.frame = definition.ground_run.frame(now - actor.changed_ms, true);
+                },
+                .attack => if (!actor.melee.active) {
+                    projection.state.frame = (if (actor.harpy.flying) definition.run else definition.ground_run).frame(now - actor.harpy.warmup_started_ms, true);
+                },
+                else => {},
+            }
+        }
         if (policy.kind == .column and actor.column.phase == .asleep) projection.state.frame = definition.awakening.first;
         if (policy.kind == .lasergat and actor.mode != .attack) projection.state.frame = 1;
         if (policy.kind == .battleboar and actor.mode == .attack and actor.melee.pose == 0 and actor.battleboar.flashed and projection.state.frame > 91 and projection.state.frame < 97 and @mod(@divTrunc(now - actor.melee.started_ms, 50), 2) == 0) projection.state.time2 = catalog.battleboar.flash_tag;
@@ -280,6 +296,14 @@ pub const Actors = struct {
                 projection.state.time2 = catalog.rockgat.flash_tag;
                 break;
             };
+        }
+        if (policy.kind == .dragon and actor.mode != .dead and actor.scripted_pose == null and actor.reaction == null) {
+            if (actor.dragon.phase == .hover) projection.state.frame = definition.attacks[1].frame(now - actor.melee.started_ms, true);
+            if (actor.dragon.breath_until_ms) |until| {
+                projection.state.time2 = catalog.dragon.breath_tag;
+                projection.state.time = @intCast(until - 850);
+                projection.state.origin2 = actor.dragon.breath_direction;
+            }
         }
         projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
         projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
@@ -306,6 +330,10 @@ pub const Actors = struct {
             var body = (try world.get(entity, data.Body)).*;
             const hurt = (try world.get(entity, data.Hurt)).*;
             const dead = (try world.get(entity, data.Health)).current <= 0;
+            if (dead and actor.gibbed and actor.death_dispatched and now >= actor.changed_ms + 100) {
+                try @import("weapon_entities.zig").remove(world, slots, projections, entity);
+                continue;
+            }
             if (dead and (catalog.entries[actor.definition].kind == .rockgat or catalog.entries[actor.definition].kind == .lasergat)) {
                 try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode);
                 try @import("actor_spawns.zig").death(self, world, slots, projections, router, entity, now);
@@ -315,6 +343,11 @@ pub const Actors = struct {
                 continue;
             }
             if (dead and actor.mode != .dead) {
+                const kind = catalog.entries[actor.definition].kind;
+                if ((kind == .griffon or kind == .harpy or kind == .dragon) and engine.integer("sv_violence") == 0) {
+                    try @import("actor_gibs.zig").spawn(world, slots, projections, entity, now);
+                    actor.gibbed = true;
+                }
                 if (catalog.entries[actor.definition].kind == .rotworm) {
                     pose.angles[0] = 0;
                     actor.rotworm.phase = .ground;
@@ -345,7 +378,7 @@ pub const Actors = struct {
                 actor.reaction_until_ms = null;
                 actor.mode = .dead;
                 actor.changed_ms = now;
-                body.contents = c.CONTENTS_CORPSE;
+                body.contents = if (actor.gibbed) 0 else c.CONTENTS_CORPSE;
                 // Retain supplied horizontal bounds; final-pose corpse bounds remain to qualify.
                 body.maxs[2] = @min(body.maxs[2], 0);
             }
@@ -413,7 +446,7 @@ pub const Actors = struct {
                 const point = if (acting and script.?.moving) script.?.destination else if (!acting and following) try @import("scripts.zig").path(world, slots, projections, router, entity, &actor, pose, speed, now) else null;
                 actor.mode = if (point != null) .chase else .idle;
                 if (policy.kind == .cambot and now >= actor.think_ms) actor.think_ms = now + 100;
-                if (policy.kind == .skeeter or policy.kind == .thunderskeet or policy.kind == .cambot or policy.kind == .doombat or (policy.kind == .griffon and actor.griffon.flying)) {
+                if (policy.kind == .skeeter or policy.kind == .thunderskeet or policy.kind == .cambot or policy.kind == .doombat or policy.kind == .dragon or (policy.kind == .griffon and actor.griffon.flying) or (policy.kind == .harpy and actor.harpy.flying)) {
                     velocity.linear = @splat(0);
                     if (point) |destination| if (try self.air_routes.next(pose.position, destination, body, binding.slot)) |waypoint| {
                         const delta = v.subtract(waypoint, pose.position);
@@ -426,6 +459,7 @@ pub const Actors = struct {
                     if (policy.kind == .shark) try @import("sharks.zig").swim(self, &actor, &pose, &body, &velocity, binding.slot, elapsed, 1) else if (rat and actor.rat.swimming) actor.rat.water = try @import("actor_water.zig").move(&self.water_routes, &actor, &pose, &body, &velocity, speed, binding.slot, elapsed) else try @import("actor_motion.zig").step(&actor, &pose, &body, &velocity, navigation, actor.threat_position, speed, binding.slot, now, elapsed);
                 }
                 if (policy.kind == .cryotech) try @import("cryotechs.zig").ambient(world, slots, projections, entity, &actor, pose, definition, now);
+                if (policy.kind == .dragon and actor.path != 0) try @import("dragons.zig").patrol(world, slots, projections, entity, &actor, pose, now);
                 (try world.get(entity, data.Actor)).* = actor;
                 (try world.get(entity, data.Transform)).* = pose;
                 (try world.get(entity, data.Velocity)).* = velocity;
@@ -474,6 +508,10 @@ pub const Actors = struct {
                 try @import("crox.zig").swim(self, &actor, &pose, &body, &velocity, self.table.definitions[actor.definition], binding.slot, elapsed, slow);
             } else if (!dead and policy.kind == .griffon and body.motion_owner == null) {
                 try @import("griffons.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
+            } else if (!dead and policy.kind == .harpy and body.motion_owner == null) {
+                try @import("harpies.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
+            } else if (!dead and policy.kind == .dragon and body.motion_owner == null) {
+                try @import("dragons.zig").step(world, slots, projections, entity, &actor, &pose, body, &velocity, self.table.definitions[actor.definition], now, elapsed);
             } else if (policy.kind == .doombat and body.motion_owner == null) {
                 if (dead) try @import("doombats.zig").motion(&pose, body, &velocity, binding.slot, elapsed, self.table.definitions[actor.definition].speed, true) else try @import("doombats.zig").fly(self, world, slots, projections, entity, &actor, &pose, body, &velocity, now, elapsed);
             } else if (!dead and policy.kind == .cambot and body.motion_owner == null) {

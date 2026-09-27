@@ -32,6 +32,7 @@ fn shutdown() void {
     @import("client/scoreboard.zig").reset();
     @import("client/messages.zig").reset();
     @import("client/cinematics.zig").reset();
+    @import("client/dragon.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
     world = null;
@@ -199,7 +200,7 @@ fn draw(now: i32) !void {
             @import("client/sprites.zig").drawPlane(sprite, 0, @import("engine/trajectory.zig").evaluate(entity.pos, now), entity.angles2[0], true, v.scale(ref.viewaxis[1], -1), ref.viewaxis[2], .{ 255, 255, 255, 115 });
             continue;
         }
-        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").shafts.render_tag and entity.weapon == @intFromEnum(@import("actor_catalog").shafts.Kind.fletcher)) {
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").shafts.render_tag and (entity.weapon == @intFromEnum(@import("actor_catalog").shafts.Kind.fletcher) or entity.weapon == @intFromEnum(@import("actor_catalog").shafts.Kind.harpy))) {
             const origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
             const glow = try @import("client/sprites.zig").register("models/global/we_flarered.sp2");
             @import("client/sprites.zig").draw(glow, 0, origin, 1, true, &ref);
@@ -293,16 +294,22 @@ fn draw(now: i32) !void {
             for (entity.origin2, rendered.shaderRGBA[0..3]) |axis, *channel| channel.* = @intFromFloat(std.math.clamp(axis, 0, 1) * 255);
             rendered.shaderRGBA[3] = 115;
         }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").fireballs.render_tag and entity.weapon == @intFromEnum(@import("actor_catalog").fireballs.Kind.dragon)) {
+            rendered.shaderRGBA = .{ 217, 64, 13, 77 };
+            @import("client/dragon.zig").fireball(entity, now);
+        }
         if (entity.eType == c.ET_MISSILE) try @import("client/projectiles.zig").decorate(&rendered, entity, now);
         try @import("client/events.zig").loop(&game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
         if (entity.eType == c.ET_GENERAL and (entity.time2 == @import("actor_catalog").cambot.idle_tag or entity.time2 == @import("actor_catalog").cambot.alert_tag)) try @import("client/cambot.zig").draw(&rendered, entity.time2 == @import("actor_catalog").cambot.alert_tag, &ref);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").battleboar.flash_tag) try @import("client/battleboar.zig").draw(&rendered);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").rockgat.flash_tag) try @import("client/rockgat.zig").draw(&rendered);
+        if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").dragon.breath_tag) try @import("client/dragon.zig").breath(&rendered, entity, now);
         if (entity.eType == c.ET_GENERAL and entity.generic1 > 0 and entity.generic1 <= 1000) try @import("client/status_visuals.zig").frost(rendered, @as(f32, @floatFromInt(entity.generic1)) / 1000);
     }
     if (snapshot.ps.dk3CameraActive != 0) @import("client/cinematics.zig").audio(ref.vieworg);
     @import("client/impacts.zig").draw(now, &ref);
+    @import("client/dragon.zig").draw(now, &ref);
     if (player.mode == .normal and snapshot.ps.stats[c.STAT_HEALTH] > 0) try weapon_view.draw(loadout.*, character.*, &ref, client_number, now, weapon_end_ms);
     _ = engine.gateway.call(c.CG_R_RENDERSCENE, .{&ref});
     if (snapshot.ps.dk3CameraActive != 0) {

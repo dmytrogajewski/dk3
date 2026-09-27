@@ -219,6 +219,28 @@ dk3/fx/weapon-shine
  }
 }
 
+dk3/fx/dragon-fire
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.2421875 0.876953125 0.75390625
+ }
+}
+
+dk3/fx/dragon-smoke
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.24609375 0 0 0.4921875 0.251953125 0.00390625
+ }
+}
+
 dk3/fx/cryo-spray
 {
  cull disable

@@ -297,7 +297,11 @@ pub fn validate(snapshot: *Loaded) !void {
             if (!scenery.fragment and !scenery.explosion) {
                 try require(world, entity, .{ data.MapObject, data.Random });
                 if (!@import("scenery.zig").owns((try world.get(entity, data.MapObject)).classname)) return error.InvalidSavedScenery;
-            } else if (scenery.breakable or scenery.expires_ms == null) return error.InvalidSavedScenery;
+            } else if (scenery.breakable or (scenery.expires_ms == null and scenery.gib == null)) return error.InvalidSavedScenery;
+            if (scenery.gib != null) {
+                try require(world, entity, .{data.Random});
+                if (!scenery.fragment or scenery.breakable or scenery.explosion or scenery.movement != .bounce) return error.InvalidSavedScenery;
+            }
             if (scenery.breakable) try require(world, entity, .{ data.Health, data.Hurt });
             if (scenery.broken and (!scenery.breakable or (try world.get(entity, data.Health)).current > 0 or (try world.get(entity, data.Body)).contents != 0)) return error.InvalidSavedScenery;
         }
@@ -330,7 +334,7 @@ pub fn validate(snapshot: *Loaded) !void {
                     if (shaft.damage <= 0 or shaft.damage > 1000000 or (shaft.phase == .flying) != (shaft.contact_ms == null)) return error.InvalidSavedActorAttack;
                     const expiry = if (shaft.contact_ms) |at| at + 5000 else attack.born_ms + @import("actor_catalog").shafts.flightTime(shaft.kind);
                     if (attack.stepped_ms > expiry) return error.InvalidSavedActorAttack;
-                    if (shaft.contact_ms) |at| if (at < attack.born_ms or at > attack.stepped_ms or shaft.kind == .fletcher) return error.InvalidSavedActorAttack;
+                    if (shaft.contact_ms) |at| if (at < attack.born_ms or at > attack.stepped_ms or @import("actor_catalog").shafts.magic(shaft.kind)) return error.InvalidSavedActorAttack;
                 },
                 .rotworm_spit => |spit| {
                     if (spit.damage <= 0 or spit.damage > 1000000 or attack.stepped_ms > attack.born_ms + 5000) return error.InvalidSavedActorAttack;
@@ -399,6 +403,9 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Velocity, data.Body, data.Health, data.Hurt, data.Binding, data.MapObject });
             if (actor.doombat.bob > 5 or !std.math.isFinite(actor.doombat.speed) or actor.doombat.speed < 0) return error.InvalidSavedActor;
             for (actor.griffon.destination ++ actor.griffon.previous) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
+            for (actor.harpy.destination) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
+            for (actor.dragon.breath_direction) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1.001) return error.InvalidSavedActor;
+            if (actor.gibbed and ((try world.get(entity, data.Health)).current > 0 or (try world.get(entity, data.Body)).contents != 0 or actor.mode != .dead)) return error.InvalidSavedActor;
             if (!std.math.isFinite(actor.sludge.ammo) or @abs(actor.sludge.ammo) > 1000000) return error.InvalidSavedActor;
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
             if (actor.lycanthir.phase != .living and (@import("actor_catalog").entries[actor.definition].kind != .lycanthir or actor.lycanthir.wake_ms < actor.lycanthir.started_ms and actor.lycanthir.phase == .collapsed)) return error.InvalidSavedResurrection;

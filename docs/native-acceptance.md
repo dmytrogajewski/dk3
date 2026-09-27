@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–258): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–259): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -57,6 +57,8 @@ error is retained in `/tmp/dk3-runtime-257-gunners-link.log`. No new contract su
 engine scenario or connected playthrough has run in this coding pass. Sequence 258
 connects Psyclaw, Doombat and Griffon, repairs generic pain and shared fireballs, and
 links all three modules in `/tmp/dk3-runtime-258-griffon-link.log` (compile evidence only).
+Sequence 259 connects Harpy, Dragon and flesh-fragment deaths; its coherent three-module
+link is `/tmp/dk3-runtime-259-dragon-link.log`. No gameplay acceptance is added.
 
 Shared changes invalidate prior script/cinematic, damage, actor perception,
 restoration/travel and multiplayer coverage on the developing build. Sequence 258
@@ -307,8 +309,8 @@ air/ground pursuit, room/liquid checks, authored-node landing, retreat, ground l
 and timed strikes. Its ten-unit launch lift is collision-traced. Air turning uses the
 shortest wrapped yaw difference; retreat uses a bounded search and existing authored
 graphs. These are native compatibility choices, not reference-playback acceptance.
-Griffon/Harpy always-gib behavior and broader creature death presentation still need
-implementation; this checkpoint does not claim complete actor parity.
+Griffon/Harpy always-gib behavior was still missing at this checkpoint and is connected
+in sequence 259 below; this does not claim complete actor parity.
 
 Shared generic pain now preserves the ordinary first roll before the independent
 heavy-hit wrapper roll. A light second-roll reaction retains its current animation
@@ -324,11 +326,41 @@ extraction's unused-variable compile error was corrected. New policy/pain tests 
 included in explicit test roots but **have not run**. No running native-engine identity,
 connected encounter, save restoration or private reference playback was established.
 
+## Sequence 259 implementation checkpoint
+
+Harpy now connects ground/air ranged combat, obstruction dodge, room-height terrain
+selection, authored-node approach, forward/reversed `drop`, ascent and settling phases.
+Its magic arrow reuses Fletcher's reviewed callback, including ten-second scheduled
+expiry despite the unused three-second delay field. Private call-site review finds no
+transition of Harpy into the hover movement mode required by its dormant swooping code;
+native active flight attacks therefore remain stationary. Magic-arrow flight/contact
+and the existing Fletcher scenarios require affected regression replay.
+
+Dragon connects patrol sounds, random-duration hover, attack animation/sound, breath
+warning and fireball release. The converted model contains `hr_muzzle`; both breath
+and fireball particle effects are connected to the supplied atlas. Particles retain
+their birth pose and continue after emission ends. Native emission is normalized to
+60 Hz, uses a bounded 4096-particle pool and a regular radial emitter; these intentional
+presentation departures from render-frame emission/private radial math need visual
+qualification. No unused Dragon fly-away task is invented as an active combat loop.
+
+Griffon, Harpy and Dragon now fragment on death unless the violence setting suppresses
+that branch. The existing scenery lifecycle carries mass/mode-dependent flesh fragments,
+class hulls, inherited motion, bounce, delayed fade and saved clocks. Corpse collision
+clears immediately; the actor is removed after death outputs and the following tick.
+The fragment cap is a strict 100 rather than the reference's off-by-one admission.
+Blood clouds/decals, liquid float behavior and additional gib sounds remain presentation /
+physics parity work. Other creature gib policies have not yet been connected.
+
+Status remains **implemented; unverified**. `/tmp/dk3-runtime-259-dragon-link.log`
+links all three modules; no new contract execution, engine scenario, connected campaign
+or multiplayer run. Current engine/asset gameplay identity remains unestablished.
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data (including monster factories/death
 spawns) still finds these unimplemented classes at this checkpoint: Buboid, Chaingang,
-Deathsphere, Dragon, Garroth, Harpy, Kage, Medusa, final Mikiko, Nharre,
+Deathsphere, Garroth, Kage, Medusa, final Mikiko, Nharre,
 Stavros, Wisp and Wyndrax. Script-created classes and boss phases remain part of the full audit.
 This inventory is a coding work list, not campaign-load or traversal acceptance.
 

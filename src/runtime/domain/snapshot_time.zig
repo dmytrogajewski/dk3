@@ -18,6 +18,10 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.started_ms, delta);
             try deadline(&value.breaking_ms, delta);
             try deadline(&value.expires_ms, delta);
+            if (value.gib) |*gib| {
+                try shift(&gib.next_ms, delta);
+                try deadline(&gib.fade_ms, delta);
+            }
         },
         .companion => {
             try deadline(&value.animation_until, delta);
@@ -185,6 +189,14 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try active(&value.doombat.started_ms, delta);
             try active(&value.griffon.started_ms, delta);
             try deadline(&value.griffon.until_ms, delta);
+            try active(&value.harpy.started_ms, delta);
+            try active(&value.harpy.warmup_started_ms, delta);
+            try active(&value.harpy.ready_ms, delta);
+            try active(&value.harpy.shot_ms, delta);
+            try deadline(&value.harpy.until_ms, delta);
+            try active(&value.dragon.until_ms, delta);
+            try active(&value.dragon.ambient_ms, delta);
+            try deadline(&value.dragon.breath_until_ms, delta);
             try active(&value.psyclaw.protected_until_ms, delta);
             try active(&value.psyclaw.emit_ms, delta);
             try deadline(&value.psyclaw.jump_started_ms, delta);

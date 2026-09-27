@@ -26,6 +26,7 @@ pub const State = struct {
     expires_ms: ?i64 = null,
     fragment: bool = false,
     explosion: bool = false,
+    gib: ?@import("gibs.zig").State = null,
 };
 pub const Definition = struct {
     model: []const u8,

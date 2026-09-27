@@ -196,6 +196,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (!world.alive(entity)) continue;
         const state = world.get(entity, data.Scenery) catch continue;
         if (state.broken) continue;
+        if (state.gib != null and try @import("actor_gibs.zig").update(world, entity, state, (try world.get(entity, data.Body)).*, now)) {
+            try @import("weapon_entities.zig").remove(world, slots, projections, entity);
+            continue;
+        }
         if (state.expires_ms) |deadline| if (now >= deadline) {
             try @import("weapon_entities.zig").remove(world, slots, projections, entity);
             continue;
@@ -227,7 +231,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                     pose.position = hit.end;
                     body.grounded = false;
                     if (hit.fraction < 1) {
-                        velocity.linear = policy.contact(velocity.linear, hit.normal, state.movement == .bounce);
+                        velocity.linear = if (state.gib != null) try @import("actor_gibs.zig").contact(world, entity, state, velocity.linear, hit.normal) else policy.contact(velocity.linear, hit.normal, state.movement == .bounce);
                         body.grounded = hit.normal[2] > 0.7 and velocity.linear[2] == 0;
                         projections[slot].state.groundEntityNum = if (body.grounded) hit.entity else c.ENTITYNUM_NONE;
                     }

@@ -3565,3 +3565,18 @@ light-hit pain and class-policy regression contracts have not run. No systematic
 suite, engine scenario or connected campaign/multiplayer acceptance ran during this
 checkpoint. Full remaining campaign, companion, boss, multiplayer and release scope
 continues. Main, installed game, saves, assets and online service remain untouched.
+
+## Sequence 259 — harpy-dragon-and-fragments (implementation checkpoint)
+
+Continues after pushed feature checkpoint `479035f`. Harpy terrain transitions and
+magic-arrow attacks, Dragon hover/breath/fireball combat and the three large fliers'
+flesh-fragment deaths are connected. Reference call-site review distinguishes active
+controllers from unqueued/dormant hover or retreat code. Supplied Dragon MD3 hardpoint
+inspection confirms `hr_muzzle`. Existing scenery and projectile mechanisms carry
+fragments and arrows; no new ECS framework or legacy gameplay dependency was added.
+
+`/tmp/dk3-runtime-259-dragon-link.log` records a coherent three-module link. New
+room-threshold and fragment-count contracts remain unexecuted. Blood/liquid fragment
+parity, particle comparison and all applicable engine/restoration scenarios remain
+open in the matrix. The complete campaign/multiplayer coding pass continues; no
+systematic verification, live-service change or preserved-install/save modification.
