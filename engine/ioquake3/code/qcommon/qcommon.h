@@ -719,6 +719,12 @@ void	FS_FCloseFile( fileHandle_t f );
 
 long	FS_ReadFileDir(const char *qpath, void *searchPath, qboolean unpure, void **buffer);
 long	FS_ReadFile(const char *qpath, void **buffer);
+/* Start/poll/end are owner-thread calls. The worker owns an independent loose
+ * file or ZIP stream and never touches search paths, fsh, hunk or zone state. */
+typedef struct fsReadJob_s fsReadJob_t;
+fsReadJob_t *FS_BeginBackgroundRead(const char *qpath, int maximum);
+int FS_PollBackgroundRead(fsReadJob_t *job, const void **bytes, int *length);
+void FS_EndBackgroundRead(fsReadJob_t *job);
 // returns the length of the file
 // a null buffer will just return the file length without loading
 // as a quick check for existence. -1 length == not present

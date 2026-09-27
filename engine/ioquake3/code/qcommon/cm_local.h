@@ -135,6 +135,8 @@ typedef struct {
 #define	SURFACE_CLIP_EPSILON	(0.125)
 
 extern	clipMap_t	cm;
+/* Permanent collision allocations belong to the selected resident world. */
+void *CM_WorldAlloc(int size);
 extern	int			c_pointcontents;
 extern	int			c_traces, c_brush_traces, c_patch_traces;
 extern	cvar_t		*cm_noAreas;

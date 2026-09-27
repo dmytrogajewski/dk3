@@ -132,7 +132,7 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         module.addLibraryPath(.{ .cwd_relative = paths[1] });
         module.linkSystemLibrary(library.link_name, .{ .use_pkg_config = .no });
     }
-    for ([_][]const u8{ "dl", "m" }) |library| module.linkSystemLibrary(library, .{});
+    for ([_][]const u8{ "dl", "m", "pthread" }) |library| module.linkSystemLibrary(library, .{});
     const artifact = switch (product) {
         .client, .server => b.addExecutable(.{ .name = name(product), .root_module = module }),
         else => b.addLibrary(.{ .name = name(product), .linkage = .dynamic, .root_module = module }),

@@ -374,6 +374,30 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
         return FS_DK3SaveRead(args[1], VMA(2), VMA(3), args[4], args[5]);
     case G_DK3_HOLD_WORLD:
         return SV_DK3HoldWorld(args[1], args[2] != 0);
+    case G_DK3_WORLD_REQUEST_V1:
+        return CM_RequestWorld(VMA(1));
+    case G_DK3_WORLD_POLL_V1:
+        return CM_PollWorld(args[1]);
+    case G_DK3_WORLD_RELEASE_V1:
+        return CM_ReleaseWorld(args[1]);
+    case G_DK3_WORLD_BYTES_V1:
+        return CM_WorldBytes(args[1]);
+    case G_DK3_WORLD_TRACE_V1: {
+        unsigned int previous = CM_CurrentWorld();
+        if (!CM_SelectWorld(args[1])) return 0;
+        CM_BoxTrace(VMA(2), VMA(3), VMA(4), VMA(5), VMA(6), args[7], args[8], qfalse);
+        CM_SelectWorld(previous);
+        return 1;
+    }
+    case G_DK3_WORLD_ENTITIES_V1: {
+        unsigned int previous = CM_CurrentWorld();
+        int length;
+        if (!CM_SelectWorld(args[1])) return -1;
+        length = strlen(CM_EntityString()) + 1;
+        if (args[3] >= length) Com_Memcpy(VMA(2), CM_EntityString(), length);
+        CM_SelectWorld(previous);
+        return length;
+    }
 	case G_FS_FOPEN_FILE:
 		return FS_FOpenFileByMode( VMA(1), VMA(2), args[3] );
 	case G_FS_READ:

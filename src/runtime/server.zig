@@ -28,11 +28,13 @@ var campaign: campaign_module.State = .{};
 var restoring_visit = false;
 const checkpoint_rules = @import("domain/checkpoint.zig");
 var checkpoint: checkpoint_rules.State = .{};
+var resident_worlds: @import("server/resident_worlds.zig").State = .{};
 
 export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown(restart: bool) void {
+    resident_worlds.deinit();
     // Engine bot client slots outlive a fast VM restart. Release their input
     // owners before unloading; the new match population admits fresh bots.
     if (restart) if (world) |*value| for (bots.brains, 0..) |brain, index| {
@@ -302,6 +304,13 @@ fn probeMotion() !void {
 fn consoleCommand() isize {
     var buffer: [128]u8 = undefined;
     const command = engine.argv(0, &buffer);
+    if (std.mem.eql(u8, command, "dk3_runtime_resident")) {
+        resident_worlds.command() catch |err| {
+            var message: [128]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "dk3 resident: failed {s}\n", .{@errorName(err)}) catch unreachable);
+        };
+        return 1;
+    }
     if (@import("server/multiplayer.zig").enabled() and std.mem.eql(u8, command, "addbot")) {
         bots.add(&world.?, &slots, &projection, &players, &clients, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
@@ -541,6 +550,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
                 if (campaign.departing or restore_pending != null) return 0;
+                resident_worlds.step() catch |err| runtimeFailure(err);
                 rooms.tick(&world.?, &clients, clock.now_ms) catch |err| runtimeFailure(err);
                 systems.multiplayer.warmup = rooms.warmup_ms != 0;
                 campaign_module.endings(&world.?, &targets, clock.now_ms) catch |err| runtimeFailure(err);

@@ -5901,3 +5901,56 @@ these shared perception/death/presentation changes. This batch adds no complete
 episode, connected bridge encounter, fresh opening gate or full multiplayer claim.
 Finer Ion impact/gib presentation parity and all-class animation comparison remain
 tracked separately from the repaired missing behavior.
+
+## Sequence 297 — seamless-worlds: resident collision preparation
+
+The owner withdraws the reported death-restoration defect and requests asynchronous
+level loading. The accepted plan explicitly chooses continuous movement/rendering,
+connected combat and complete connected-region residency before releasing control.
+Authored cuts may be held until the next region is ready. This is a new authorized
+engine/runtime workstream, not a reduction of complete-port scope. The complete
+contract and remaining implementation are recorded in `docs/seamless-worlds.md`.
+
+Implemented: per-world collision allocation and generation-checked ownership,
+scoped temporary hulls/portal counters, independent asynchronous loose/PK3 reads,
+owner-thread collision admission, versioned native preparation/trace imports and
+native lifecycle ownership. Inline model leaves now append actual array indices;
+upstream unrelated-allocation pointer subtraction is removed. Collision arrays,
+patches and PHS bytes all belong to the released world, not the global hunk.
+Workers never call game/engine owner APIs. Native preparation permits four active
+readers; complete decoding remains one owner-thread map per frame and is measured,
+not claimed nonblocking. Cancel/release joins workers and invalidates handles.
+
+The connection inventory inspects all 84 supplied BSPs and 124 exits (22 authored
+cuts, 102 geometry-unreviewed). Four named arrival markers are missing. Initial
+filtering by episode prefix wrongly omitted transition/ending maps; the retained
+inventory includes them and claims no missing destination or seamless portal.
+Actual seam geometry and region membership remain to be qualified.
+
+Verified installation:
+`zig-out/native-dev/play/feeda104ab302c3a0aac69c07ccaa6bb2a4ba553e8239a88f6584600b2b348bc`.
+Combined identity:
+`1ee73a1054d8554a6e6b14f1d07bc838f944147761413f5bc029b5174c9b594b`.
+Base asset generation remains `e7dbc256…9ff`; default local HD remains `d2e8d95b…645`.
+Evidence root: `zig-out/reports/runtime-zig-297/`.
+
+| Scenario | Outcome |
+|---|---|
+| `resident-opengl1/` | Passed: four collision contexts ready without changing the active map/player; distinct destination floor traces, ordinary movement, save/load, release and handle generation reuse. Preparation diagnostics only. Admission 7–9 ms. Inspected active-world capture. |
+| `presentation-opengl2/` | Passed: existing real New Game/intro skip/arrival skip, snapshot presentation, save/load and pause. Shared collision allocation regression; not full intro/campaign acceptance. |
+| `lan-regression/` | Passed: two real UDP clients, movement/fire/death/respawn, spectator/rejoin, reconnect and fast restart. No public service touched. |
+| `aggregate.log` | Passed: 379 Zig + 78 Python tests and actual-engine collision executable; all 44 steps. Engine tests exercise separate worlds and inline models, active-world pinning, stale handles and malformed-header rejection without relying on NDEBUG-sensitive assertions. |
+
+Build repair: the native cleanup loop required a block. The first standalone C
+contract build exposed the test allocator macro and debug-draw stubs plus a PHS
+allocation still using the hunk; these were repaired before the verified build.
+`zig build play-install` remains usable, with default HD. All engine runs use
+software rendering under dkguard with isolated profiles and temporary saves.
+
+**Incomplete:** resident rendering and navigation, geometric seam qualification,
+map-owned native ECS/client state, cross-portal movement/combat, region readiness
+admission and region save migration/restoration. Ordinary exits still perform map
+loads; preparation is a diagnostic entrypoint, not an advertised seamless option.
+No connected seamless acceptance is claimed and no old runtime is reconnected.
+Previous full-route/encounter acceptance must be replayed after shared world changes;
+main, the preserved playable installation, user saves and live service are untouched.

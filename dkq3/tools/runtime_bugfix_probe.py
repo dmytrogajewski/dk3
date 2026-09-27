@@ -164,7 +164,7 @@ def sky(driver, report, capture):
     return dict(scope="Fixed actual camera, advancing native render time, supplied moving cloud/lightning shader. Pixel motion and illumination variance; not full original sky timing equivalence.", times=times, mean_luminance=means, differences=differences)
 
 
-def run(args):
+def run(args, scenario=None):
     if not __debug__ or (args.report.exists() and any(args.report.iterdir())):
         raise RuntimeError("Evidence requires assertions and a fresh report directory")
     args.report.mkdir(parents=True, exist_ok=True)
@@ -190,7 +190,8 @@ def run(args):
                 shutil.copy2(source, args.report / source.name)
             try:
                 wait(process, log, lambda text: "first snapshot applied" in text and driver.pipe.exists(), 40)
-                result = {"opening": opening, "bridge": bridge, "sky": sky}[args.scenario](driver, args.report, capture)
+                exercise = scenario or {"opening": opening, "bridge": bridge, "sky": sky}[args.scenario]
+                result = exercise(driver, args.report, capture)
                 driver.issue("quit")
                 assert process.wait(timeout=10) == 0
                 (args.report / "passed.json").write_text(json.dumps(dict(identity=identity, result=result), indent=2))

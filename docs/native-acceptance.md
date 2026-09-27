@@ -14,6 +14,7 @@ is inferred from class counts or test volume.
 
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
+| Seamless connected regions | Sequence 297 adds asynchronous BSP reads and resident collision contexts; **seamless traversal is not implemented** | Engine collision contracts exercise real loaders/traces, inline models, ownership and stale handles | Four maps prepare while e1m1a movement/save/load continues; diagnostic only | Resident rendering/navigation, seam qualification, map ECS ownership, cross-boundary combat and region persistence remain. See [implementation status](seamless-worlds.md). |
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at 296; full interactions unverified | 296 verifies rendered Ion flight/light; earlier narrow controller fixtures do not establish full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
 | Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 296; connected coverage needs revalidation | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
@@ -22,6 +23,34 @@ is inferred from class counts or test volume.
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. Earlier factory arrival replay needs revalidation after shared changes | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 297 — resident collision preparation
+
+Verified installation:
+`zig-out/native-dev/play/feeda104ab302c3a0aac69c07ccaa6bb2a4ba553e8239a88f6584600b2b348bc`.
+Combined engine/modules/renderers/assets identity:
+`1ee73a1054d8554a6e6b14f1d07bc838f944147761413f5bc029b5174c9b594b`.
+Asset generation remains
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+default HD overlay remains `d2e8d95b…645` from sequence 295.
+Evidence root: `zig-out/reports/runtime-zig-297/`.
+
+| Evidence | Exact outcome / limitations |
+|---|---|
+| `resident-opengl1/passed.json` | Four separately owned maps reach collision readiness while e1m1a remains active. Floor traces hit each actual destination; normal movement, save/load, release and generation reuse pass. Controlled preparation commands, not a campaign crossing. Owner-thread admission measures 7–9 ms; no frame-time guarantee. |
+| `presentation-opengl2/result.json` | Existing real New Game, intro/arrival Escape, movement snapshot presentation, save/load and pause pass after the shared collision allocation change. Full intro is skipped. |
+| `lan-regression/result.json` | Two real UDP clients pass movement/fire/death/respawn, spectator/rejoin, reconnect and fast restart. Existing match semantics; no connected multiplayer maps. |
+| `aggregate.log` | 379 Zig tests, 78 Python tests and the standalone actual-engine collision contract executable pass; 44/44 build steps. Contract checks remain active independent of C `NDEBUG`; Zig roots use Debug/ReleaseSafe. |
+| `connections.json` | Local inventory of all 84 supplied maps and 124 exits: 22 explicit authored cuts, 102 geometry-unreviewed exits, four missing named landings. No portal admitted as seamless. The initial episode-name filter omitted transition maps and was corrected before retaining this inventory. |
+
+Ordinary exits still use the existing map-loading path. The accepted continuous
+movement/cross-boundary combat plan is **incomplete**, not replaced with file-cache
+warming. Collision preparation is opt-in through developer diagnostics until the
+remaining owners exist; ordinary play remains available via `zig build play`.
+No save schema or wire format changed in this slice. Prior connected campaign and
+collision-dependent encounter results require replay on the eventual consolidated
+region build; these diagnostics do not transfer that acceptance. The withdrawn
+death-restoration report produced no gameplay change in this sequence.
 
 ## Sequence 296 — opening repair acceptance
 

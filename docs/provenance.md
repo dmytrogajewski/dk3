@@ -288,3 +288,14 @@ stone rather than main's generic metal mapping. Existing local sky/HD shaders an
 images are reused. The interpolation repair is based on captured native engine
 clock values, not private renderer code. Focused verification and remaining visual
 parity limits are recorded in sequence 296 and native acceptance.
+
+Sequence 297 begins resident-world preparation using the bundled GPL engine only.
+Collision allocation/selection, generation handles, independent background file
+streams and versioned native imports are project-authored changes; upstream
+notices remain intact and `engine/DEVELOPMENT.json` records source hashes.
+The independent connection inventory reads already-admitted converted BSPs and
+retains generated coordinates locally. No private source, new asset corpus or
+reference implementation is introduced. Actual engine collision tests use small
+project-authored synthetic BSPs, separately from the recorded four-map native
+diagnostic. This is not provenance or acceptance for unimplemented seamless
+rendering, navigation, cross-world gameplay or persistence.

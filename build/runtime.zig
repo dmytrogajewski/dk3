@@ -9,6 +9,13 @@ pub fn declareTests(b: *std.Build, optimize: std.builtin.OptimizeMode) *std.Buil
     for ([_][]const u8{ "engine/ioquake3/code/game/bg_pmove.c", "engine/ioquake3/code/game/bg_slidemove.c", "engine/ioquake3/code/qcommon/q_math.c", "src/runtime/tests/movement_reference.c" }) |source| root.addCSourceFile(.{ .file = b.path(source), .flags = &.{ "-std=gnu99", "-ffp-contract=off" } });
     root.linkSystemLibrary("m", .{});
     step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = root })).step);
+    const collision = b.createModule(.{ .target = b.graph.host, .optimize = optimize, .link_libc = true });
+    collision.addIncludePath(b.path("engine/ioquake3/code/qcommon"));
+    for ([_][]const u8{ "cm_load.c", "cm_patch.c", "cm_polylib.c", "cm_trace.c", "cm_test.c", "q_shared.c", "q_math.c", "md4.c" }) |source|
+        collision.addCSourceFile(.{ .file = b.path(b.fmt("engine/ioquake3/code/qcommon/{s}", .{source})), .flags = &.{"-std=gnu99"} });
+    collision.addCSourceFile(.{ .file = b.path("src/runtime/tests/collision_worlds.c"), .flags = &.{"-std=gnu99"} });
+    collision.linkSystemLibrary("m", .{});
+    step.dependOn(&b.addRunArtifact(b.addExecutable(.{ .name = "collision-world-contracts", .root_module = collision })).step);
     // Named module imports do not contribute their own tests to the runtime root.
     for ([_][]const u8{ "src/actors/catalog.zig", "src/weapons/catalog.zig", "src/weapons/inventory_rules.zig", "src/items/catalog.zig" }) |source| {
         const catalog = b.createModule(.{ .root_source_file = b.path(source), .target = b.graph.host, .optimize = optimize });
