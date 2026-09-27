@@ -5,7 +5,6 @@ pub const spec: profiles.Spec = .{
     .player_grip = .pistol,
     .combat = .melee,
     .campaign_equipment = true,
-    .companion_pickup = false, // sword
     .world_model = "models/global/a_daikatana.dkm",
     .audio = .{ .ready = "global/we_swordwhoosha.wav", .away = "global/we_swordwhooshc.wav" },
     .animation = .{

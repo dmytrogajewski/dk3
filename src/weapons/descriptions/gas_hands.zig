@@ -5,7 +5,6 @@ pub const spec: profiles.Spec = .{
     .player_grip = .glove,
     .combat = .melee,
     .equipped = false,
-    .companion_pickup = false, // gashands
     .droppable = false,
     .world_model = "models/e1/a_gashand.dkm",
     .animation = .{

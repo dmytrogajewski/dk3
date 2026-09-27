@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–266): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–267): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -647,6 +647,46 @@ engine, connected multiplayer/campaign, test-suite or reference-playback accepta
 added. Scoring, team changes, objective settlement/attachment, bot controls/yielding and
 Nharre restoration require consolidated replay. Main, installed game, saves and live
 service remain untouched.
+
+## Sequence 267 — companion combat, collection and body presentation
+
+**Implemented; unverified.** Weapon definitions now own companion inventory slots,
+pickup/ammunition permissions, empty-ammo melee eligibility, shot-clearance probes
+and close-teammate restrictions. Enemy class policies own their selection exceptions
+(e.g. Silverclaw against Lycanthir). The selector preserves the reviewed later-choice
+priority instead of substituting player/bot damage ranking. Companions use ordinary
+weapon switching/firing controllers and suppress fire across blocked traces or below
+15 health. Empty Discus/Venomous selection approaches within melee reach; this narrowly
+corrects the reference's overwritten melee-range calculation, without changing weapon
+damage or collision.
+
+Explicit collection rejects unsupported items, wrong episode weapons, unavailable
+ammunition, unwanted health and carrying-Mikiko weapon use. Automatic idle collection
+checks `itemspawnflags`, visibility, eligibility and a bounded route under 256 units;
+explicit orders may override the authored companion exclusion bits as in the reference.
+Actual overlap and the shared pickup policy grant items and own their audio. Bounded
+failed collection returns to follow and reports failure for explicit orders. The AAS
+route length is native navigation evidence, not claimed private-node path equivalence.
+Companions yield an occupied movement lane and use physically encountered unnamed,
+unlocked ordinary doors with their own activator/key checks. Neither path teleports
+followers or remotely activates puzzle controls.
+
+Companion body frames now use supplied character/grip idle/run/jump/attack sequences,
+including the separate carrying model. Repeated attack decisions no longer restart the
+body pose every frame. Remote players use actual fire timestamps for supplied standing
+and crouched attack poses. Both remote players and companions attach the weapon-owned
+world model/frame at `hp_gun`; unsupported/missing media raises a named error. Exact
+attack/movement blending, jump timing and effect presentation need runtime qualification.
+
+Collection/yield deadlines rebase in snapshots; travel and authored stop/teleport clear
+local item/recovery references. New selection, item admission, bounded-route, clock and
+firing-pose regressions are written and unexecuted. The targeted three-module link is
+`/tmp/dk3-runtime-267-companions-link.log`; all three modules also link at the final
+checkpoint in `/tmp/dk3-runtime-267-companions-consolidated-link.log`. No test suite or engine/connected scenario ran. No verified gameplay identity
+or acceptance is added. Companion swimming, ladders, crouch navigation, full scripted
+progression and their movement/persistence interactions remain coding-pass work, along
+with the complete campaign/multiplayer/release outcomes. Revalidate companion orders,
+collection, travel, combat and remote presentation on the consolidated build.
 
 ## Remaining authored actor admission
 

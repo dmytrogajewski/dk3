@@ -3701,3 +3701,22 @@ mark. No verified gameplay build/asset identity or acceptance is added. Companio
 combat/pickups/navigation, campaign progression, complete multiplayer interactions and
 release remain open. Continue the broad coding pass before consolidated verification.
 Main, installation, saves and service preserved.
+
+## Sequence 267 — companion-combat-collection-and-equipped-models (implementation checkpoint)
+
+Continues after pushed `64bfb21`. Companion inventory/selection restrictions are now
+weapon-owned and enemy-owned; ordinary weapon controllers execute their decisions.
+Explicit/automatic collection, actual pickup admission, bounded route recovery,
+doorway yielding and nearby unlocked door use are connected. Carried equipment and
+supplied firing/body poses now render for companions and remote players. Snapshots
+rebase new deadlines; travel and authored party actions clear local recovery references.
+The matrix records reviewed contracts, narrow empty-ammo approach correction and
+remaining path/presentation qualifications. New regression roots are unexecuted.
+
+All three modules link in `/tmp/dk3-runtime-267-companions-consolidated-link.log`.
+No test suite, engine scenario, connected gameplay or reference playback ran. No
+verified gameplay build/asset identity or acceptance is added. Next continue companion
+swimming/ladder/crouch traversal, broader campaign interaction/script auditing and
+complete multiplayer/release implementation before consolidated verification.
+Main remains `e3966c4d40678dbf91619034b5dcb33b763dcbed`; installed game, saves and
+live service remain untouched. Feature branch only.

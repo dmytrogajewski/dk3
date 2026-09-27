@@ -13,6 +13,7 @@ const c = abi.c;
 pub const Actors = struct {
     table: rules.Table = .{},
     weapons: @import("../domain/weapons.zig").Table = .{},
+    companion_poses: [catalog.entries.len]?@import("../domain/companion_pose.zig").Set = @splat(null),
     episode: u8 = 1,
     allocator: std.mem.Allocator = undefined,
     event_bytes: []const u8 = "",
@@ -177,6 +178,7 @@ pub const Actors = struct {
         }
         if (policy.kind == .column) definition.awakening = try animation.find(metadata, "awaken") orelse return error.MissingActorAwakening;
         if (policy.kind == .companion) {
+            self.companion_poses[id] = try @import("../domain/companion_pose.zig").Set.read(metadata, std.mem.eql(u8, policy.classname, "mikikofly"));
             definition.attacks[0] = try animation.find(metadata, "ataka") orelse definition.idle;
             definition.walk = try animation.find(metadata, "walka") orelse definition.run;
         }
@@ -392,6 +394,17 @@ pub const Actors = struct {
             projection.state.origin2 = .{ actor.buboid.alpha, if (actor.buboid.phase == .melting or actor.buboid.phase == .unmelting) @as(f32, 1) else 0, 0 };
         }
         if (policy.kind == .deathsphere and actor.mode != .dead and actor.scripted_pose == null and actor.melee.active and actor.melee.pose == 2) projection.state.frame = definition.attacks[2].frame(now - actor.melee.started_ms, true);
+        if (policy.kind == .companion) {
+            projection.state.time2 = catalog.companions.render_tag;
+            const companion = (try world.get(entity, data.Companion)).*;
+            const loadout = (try world.get(entity, data.Weapons)).*;
+            projection.state.weapon = if (companion.carrying or actor.mode == .dead) 0 else loadout.weapon;
+            if (actor.mode != .dead and actor.reaction == null and actor.scripted_pose == null) {
+                const poses = self.companion_poses[actor.definition] orelse return error.MissingCompanionPoses;
+                const velocity = (try world.get(entity, data.Velocity)).linear;
+                projection.state.frame = poses.frame(loadout.weapon, @abs(velocity[0]) > 1 or @abs(velocity[1]) > 1, !body.grounded and @abs(velocity[2]) > 1, loadout.last_fire_ms, actor.changed_ms, now);
+            }
+        }
         if (world.get(entity, data.Ailments) catch null) |status| {
             if (status.stone) projection.state.generic1 = catalog.medusa.stone_tag;
             if (status.petrified_frame) |frame| projection.state.frame = frame;
@@ -613,11 +626,14 @@ pub const Actors = struct {
                     else => try @import("ground_combat.zig").think(&self.water_routes, world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                 }
             }
-            if (!dead and policy.kind == .companion) try @import("companions.zig").goal(&self.weapons, world, slots, entity, &actor, &pose, now);
+            const previous_companion_mode = actor.mode;
+            if (!dead and policy.kind == .companion) try @import("companions.zig").goal(self, navigation, world, slots, entity, &actor, &pose, now);
             if (!dead and policy.kind == .mishima_guard) try @import("hostiles.zig").guard(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now);
             var velocity = (try world.get(entity, data.Velocity)).*;
             if (!dead and policy.kind == .froginator and body.motion_owner == null) try @import("froginators.zig").think(world, slots, projections, entity, &actor, &pose, body, &velocity, self.table.definitions[actor.definition], now);
             if (!dead and policy.kind == .crox and body.motion_owner == null) try @import("crox.zig").think(self, world, slots, projections, entity, &actor, &pose, body, &velocity, now);
+            if (!dead and policy.kind == .companion) try @import("companion_navigation.zig").prepare(world, slots, projections, entity, &actor, pose, body, now);
+            if (policy.kind == .companion and actor.mode != previous_companion_mode) actor.changed_ms = now;
             const threat = if (world.find(actor.threat)) |source| (try world.get(source, data.Transform)).position else actor.threat_position;
             const slow = if (world.get(entity, data.Ailments) catch null) |ailment| 1 - 0.8 * ailment.freeze_level else 1;
             if (!dead and policy.kind == .protopod) try @import("skeeters.zig").pod(self, world, slots, projections, entity, &actor, pose, &body, now);

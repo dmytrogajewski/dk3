@@ -13,6 +13,7 @@ pub const silverclaw = @import("descriptions/silverclaw.zig");
 pub const hammer = @import("descriptions/hammer.zig");
 pub const shockwave = @import("descriptions/shockwave.zig");
 pub const trident = @import("descriptions/trident.zig");
+pub const bolter = @import("descriptions/bolter.zig");
 pub const ballista = @import("descriptions/ballista.zig");
 pub const novabeam = @import("descriptions/novabeam.zig");
 pub const flashlight = @import("descriptions/flashlight.zig");

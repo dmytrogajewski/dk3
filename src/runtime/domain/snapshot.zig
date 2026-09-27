@@ -527,6 +527,12 @@ pub fn validate(snapshot: *Loaded) !void {
                 const owner = world.find(companion.owner) orelse return error.InvalidSavedCompanionOwner;
                 try require(world, owner, .{data.Player});
             }
+            if (companion.selected_weapon != 0) {
+                const entry = @import("weapon_catalog").find(companion.selected_weapon) orelse return error.InvalidSavedCompanionWeapon;
+                if (entry.spec.companion == null or companion.carrying or (try world.get(entity, data.Weapons)).dk3Inventory & (@as(i32, 1) << companion.selected_weapon) == 0) return error.InvalidSavedCompanionWeapon;
+            }
+            for (companion.destination ++ companion.yield_position) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedCompanionAction;
+            if (companion.collect_forced and companion.collecting == 0) return error.InvalidSavedCompanionAction;
             if (companion.animation_until != null and (companion.authored == .none or (try world.get(entity, data.Actor)).scripted_pose == null)) return error.InvalidSavedCompanionAction;
         }
         if (world.get(entity, data.Projectile) catch null) |projectile| {

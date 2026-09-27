@@ -241,7 +241,7 @@ pub const Clients = struct {
             const pose_set = &(self.poses[session.appearance % 3] orelse return error.MissingPlayerAnimation);
             const player = (try world.get(entity, data.Player)).*;
             const weapon = @import("weapon_catalog").find(@intCast(inventory.weapon)) orelse return error.UnknownPlayerWeapon;
-            projection.state.frame = pose_set.frame(&session.pose, .{ .velocity = velocity.linear, .yaw = transform.angles[1], .ducked = player.ducked, .jumping = player.jump_held and player.ground_entity == c.ENTITYNUM_NONE and player.water_level < 2, .dead = health.current <= 0 }, weapon.spec.player_grip, now);
+            projection.state.frame = pose_set.frame(&session.pose, .{ .velocity = velocity.linear, .yaw = transform.angles[1], .ducked = player.ducked, .jumping = player.jump_held and player.ground_entity == c.ENTITYNUM_NONE and player.water_level < 2, .dead = health.current <= 0, .fired_ms = inventory.last_fire_ms }, weapon.spec.player_grip, now);
         }
         projection.state.generic1 = if (ailments.stone) @import("actor_catalog").medusa.stone_tag else 0;
         if (ailments.petrified_frame) |frame| projection.state.frame = frame;

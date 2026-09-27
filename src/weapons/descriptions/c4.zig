@@ -9,7 +9,6 @@ pub const spec: profiles.Spec = .{
     .ammo_class = "ammo_c4", // c4
     .projectile = .{ .gravity = true, .splash_scale = 1, .splash_radius = 300 },
     .visual = .{ .projectile_model = "models/e1/we_c4prj.dkm", .blast_sound = "global/e_explode1.wav", .color = .{ 1, 0.5, 0 }, .glow = false },
-    .companion_pickup = false,
     .world_model = "models/e1/a_c4.dkm",
     .animation = .{
         .view_model = "models/e1/w_c4.dkm",

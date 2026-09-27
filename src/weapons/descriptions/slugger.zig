@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 23;
 pub const spec: profiles.Spec = .{
+    .companion = .{ .slot = 2, .safety = .spread },
     .player_grip = .rifle,
     .combat = .{ .pellets = .{ .count = 12, .spread = 0.07 } },
     .impact = .bullet,

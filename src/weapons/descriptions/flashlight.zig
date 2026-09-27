@@ -4,7 +4,6 @@ pub const id: u5 = 28;
 pub const spec: profiles.Spec = .{
     .player_grip = .pistol,
     .combat = .flashlight,
-    .companion_pickup = false,
     .auto_select = false,
     .droppable = false, // flashlight
     .animation = .{ .view_model = "models/e2/w_sflare.dkm", .ready = "ready", .away = "away", .fire = "shoota", .idle = .{ "amba", null, null } },

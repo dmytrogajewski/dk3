@@ -65,6 +65,14 @@ pub const Traveler = struct {
             try @import("snapshot_time.zig").rebase(.character, &follower.character, delta);
             try @import("snapshot_time.zig").rebase(.weapons, &follower.weapons, delta);
             follower.state.target = 0;
+            follower.state.collecting = 0;
+            follower.state.collect_forced = false;
+            follower.state.collect_scan_ms = now;
+            follower.state.collect_until_ms = 0;
+            follower.state.avoided_item = 0;
+            follower.state.avoid_until_ms = 0;
+            follower.state.yielding_until_ms = 0;
+            follower.state.selected_weapon = 0;
             follower.state.owner = 0;
             follower.state.order = .follow;
             follower.state.authored = .none;

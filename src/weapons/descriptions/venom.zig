@@ -2,10 +2,10 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 11;
 pub const spec: profiles.Spec = .{
+    .companion = .{ .slot = 1, .empty_melee = true, .clearance = 16, .safety = .owner },
     .player_grip = .rifle,
     .combat = .projectile,
     .projectile = .{ .mins = .{ -8, -8, -2 }, .maxs = .{ 8, 8, 14 }, .inertial = true, .lifetime_scale = 2, .action_delay_ms = 350, .contact_when_resting = true, .resting_lifetime_scale = 0.5 },
-    .companion_episode = 2,
     .ammo_class = "ammo_venomous", // venom
     .visual = .{ .projectile_model = "models/e2/we_3dvenom.dkm", .resting_sprite = "models/e2/we_venstand.sp2", .sprite_additive = false, .impact_sprite = "models/e2/we_vendis.sp2", .color = .{ 0.35, 1, 0.2 }, .glow = false },
     .world_model = "models/e2/a_venom.dkm",

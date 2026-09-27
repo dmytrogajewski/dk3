@@ -6,7 +6,6 @@ pub const spec: profiles.Spec = .{
     .combat = .zeus,
     .ammo_class = "ammo_zeus", // zeus
     .ammo_pack = 1,
-    .companion_pickup = false,
     .visual = .{ .color = .{ 0.2, 0.65, 1 } },
     .world_model = "models/e2/a_zeus.dkm",
     .animation = .{

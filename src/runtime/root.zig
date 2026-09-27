@@ -13,6 +13,8 @@ test {
     _ = @import("domain/multiplayer.zig");
     _ = @import("domain/bot_combat.zig");
     _ = @import("server/bot_routes.zig");
+    _ = @import("server/companion_items.zig");
+    _ = @import("server/companion_weapons.zig");
     _ = @import("domain/player_pose.zig");
     _ = @import("domain/actions.zig");
     _ = @import("domain/cinematics.zig");

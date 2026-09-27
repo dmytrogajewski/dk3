@@ -116,6 +116,14 @@ pub const Combat = union(enum) {
 };
 
 pub const PlayerGrip = enum { glove, pistol, rifle, shoulder };
+pub const Companion = struct {
+    slot: u2,
+    pickup: bool = true,
+    ammunition: bool = true,
+    empty_melee: bool = false,
+    clearance: f32 = 5,
+    safety: enum { none, spread, owner, both } = .none,
+};
 pub const Spec = struct {
     player_grip: PlayerGrip,
     reselect_command: ?[:0]const u8 = null,
@@ -126,10 +134,9 @@ pub const Spec = struct {
     ammo_pack: c_int = 0,
     auto_select: bool = true,
     droppable: bool = true,
-    companion_pickup: bool = true,
+    companion: ?Companion = null,
     start_episode: u8 = 0,
     campaign_equipment: bool = false,
-    companion_episode: u8 = 0,
     splash_hazard: bool = false,
     bot_charge_ms: c_int = 0,
     bot_range: ?f32 = null,

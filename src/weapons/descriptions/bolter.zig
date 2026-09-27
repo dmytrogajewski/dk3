@@ -2,10 +2,10 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 16;
 pub const spec: profiles.Spec = .{
+    .companion = .{ .slot = 1, .clearance = 16 },
     .player_grip = .rifle,
     .combat = .projectile,
     .projectile = .{ .mins = @splat(-4), .maxs = @splat(4), .inertial = true },
-    .companion_episode = 3,
     .ammo_class = "ammo_bolts", // bolter
     .visual = .{ .projectile_model = "models/e3/we_bolt.dkm", .projectile_scale = 2, .glow = false },
     .world_model = "models/e3/a_bolter.dkm",

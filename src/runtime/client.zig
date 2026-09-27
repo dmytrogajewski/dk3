@@ -52,6 +52,7 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     shutdown();
     @import("client/models.zig").reset();
     @import("client/objectives.zig").reset();
+    @import("client/held_weapons.zig").reset();
     @import("client/events.zig").reset();
     selected_weapon = 0;
     inventory_mask = 0;
@@ -118,6 +119,7 @@ fn draw(now: i32) !void {
                     @import("client/messages.zig").reset();
                     @import("client/models.zig").reset();
                     @import("client/objectives.zig").reset();
+                    @import("client/held_weapons.zig").reset();
                     @import("client/events.zig").reset();
                     weapon_view.init();
                     if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
@@ -355,6 +357,7 @@ fn draw(now: i32) !void {
         if ((entity.eType == c.ET_GENERAL or entity.eType == c.ET_MISSILE) and rendered.shaderRGBA[3] < 255 and std.mem.endsWith(u8, try engine.config(&game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), ".dkm")) rendered.skinNum = if (entity.generic1 == @import("actor_catalog").medusa.stone_tag) 3 else 1;
         try @import("client/events.zig").loop(&game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
+        if (entity.eType == c.ET_PLAYER or (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").companions.render_tag)) try @import("client/held_weapons.zig").draw(&rendered, entity.weapon);
         if (entity.eType == c.ET_GENERAL and (entity.time2 == @import("actor_catalog").cambot.idle_tag or entity.time2 == @import("actor_catalog").cambot.alert_tag)) try @import("client/cambot.zig").draw(&rendered, entity.time2 == @import("actor_catalog").cambot.alert_tag, &ref);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").battleboar.flash_tag) try @import("client/battleboar.zig").draw(&rendered);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").rockgat.flash_tag) try @import("client/rockgat.zig").draw(&rendered);

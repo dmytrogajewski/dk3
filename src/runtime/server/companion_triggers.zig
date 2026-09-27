@@ -79,6 +79,9 @@ pub fn use(actors: *Actors, world: *data.World, slots: *Slots, projections: []ab
             state.stopped = false;
             state.destination = point;
             state.target = 0;
+            state.collecting = 0;
+            state.collect_forced = false;
+            state.yielding_until_ms = 0;
             state.animation_until = null;
             state.after_teleport = if (object.flags & 1 != 0) .stay else if (object.flags & 2 != 0) .follow else state.order;
             const actor = try world.get(follower, data.Actor);

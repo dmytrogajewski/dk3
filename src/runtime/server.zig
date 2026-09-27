@@ -516,7 +516,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     const origin = v.add(pose.position, .{ 0, 0, 22 });
                     const trace = engine.collisionService().trace(.{ .start = origin, .end = v.add(origin, v.scale(v.basis(pose.angles).forward, 2000)), .mins = @splat(0), .maxs = @splat(0), .slot = @intCast(arg0), .mask = c.MASK_SHOT | c.CONTENTS_TRIGGER }) catch |err| runtimeFailure(err);
                     const target = if (trace.entity < slots.occupants.len) if (slots.occupants[trace.entity]) |entity| world.?.persistentId(entity) catch unreachable else 0 else 0;
-                    const changed = @import("server/companions.zig").order(&world.?, player, who, order, target, trace.end) catch |err| runtimeFailure(err);
+                    const changed = @import("server/companions.zig").order(&systems.actors, &world.?, clock.now_ms, player, who, order, target, trace.end) catch |err| runtimeFailure(err);
                     engine.send(@intCast(arg0), if (changed) "cp \"Companion order received\"" else "cp \"Companion order unavailable\"");
                 }
                 return 0;

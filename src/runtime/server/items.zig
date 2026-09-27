@@ -120,8 +120,9 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             if (world.get(player, data.Player) catch null) |state| {
                 if (state.mode != .normal) continue;
             } else if (world.get(player, data.Companion) catch null) |companion| {
-                if (companion.order != .collect or companion.target != try world.persistentId(entity)) continue;
-                if (pickup.kind == .key or pickup.kind == .save_gem) continue;
+                if (companion.collecting != try world.persistentId(entity) or companion.stopped) continue;
+                const actor_system = router.actors orelse return error.MissingActorDefinitions;
+                if (!try @import("companion_items.zig").allows(world, player, entity, table, actor_system.episode, companion.collect_forced, now)) continue;
             } else continue;
             const player_slot = (try world.get(player, data.Binding)).slot;
             if (!@import("interactions.zig").overlap(&projections[slot], &projections[player_slot], 0)) continue;
