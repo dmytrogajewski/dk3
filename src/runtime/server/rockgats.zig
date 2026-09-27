@@ -43,26 +43,7 @@ fn target(world: *data.World, slots: *Slots, actor: *data.Actor, pose: data.Tran
     return null;
 }
 fn shot(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, enemy: ecs.Entity, pose: data.Transform, state: *policy.State, now: i64) !void {
-    const random = try world.get(entity, data.Random);
-    const aim = try @import("actor_aim.zig").lead(world, enemy, pose, @splat(0), random);
-    const slot = (try world.get(entity, data.Binding)).slot;
-    const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, state.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-    var contact: u32 = 0;
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| if ((world.get(victim, data.Health) catch null) != null and policy.damageAdmitted(@intCast(std.math.clamp(engine.integer("g_spSkill"), 1, 5)), random.next())) {
-        const amount = state.damage + random.next() * state.random_damage;
-        if (try @import("weapon_damage.zig").hurt(world, victim, try world.persistentId(entity), 0, amount, now, false)) {
-            contact = try world.persistentId(victim);
-            try @import("weapon_damage.zig").shove(world, victim, try world.persistentId(entity), aim.direction, amount, now);
-        }
-    };
-    const chance = random.next();
-    if (hit.fraction < 1 and chance < (if (contact != 0) @as(f32, 0.85) else 0.75)) {
-        var name: [64]u8 = undefined;
-        const count: f32 = if (contact != 0) 4 else 8;
-        const letter = @as(u8, 'a') + @as(u8, @intFromFloat(random.next() * count));
-        const sound = try std.fmt.bufPrint(&name, "global/e_{s}{c}.wav", .{ if (contact != 0) @as([]const u8, "bulflesh") else "ricochet", letter });
-        try @import("events.zig").sound(world, slots, projections, sound, hit.end, hit.entity, c.CHAN_AUTO, now);
-    }
+    const contact = try @import("actor_bullets.zig").fire(world, slots, projections, entity, enemy, pose, .{ .range = state.range, .damage = state.damage, .random_damage = state.random_damage }, now);
     state.shots +%= 1;
     var text: [128]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 rockgat: id={d} shot={d} contact={d}\n", .{ try world.persistentId(entity), state.shots, contact }));

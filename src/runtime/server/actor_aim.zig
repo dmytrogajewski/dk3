@@ -5,6 +5,8 @@ const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const v = @import("../domain/vector.zig");
 const engine = @import("../engine/server.zig");
+const c = @import("../engine/abi.zig").c;
+const Slots = @import("../engine/slots.zig").Slots;
 pub fn muzzle(pose: data.Transform, offset: v.Vec3) v.Vec3 {
     const axes = v.basis(pose.angles);
     return v.add(pose.position, v.add(v.scale(axes.right, offset[0]), v.add(v.scale(axes.forward, offset[1]), v.scale(v.cross(axes.right, axes.forward), offset[2]))));
@@ -33,4 +35,16 @@ pub fn lead(world: *data.World, target: ecs.Entity, pose: data.Transform, offset
         destination[2] -= target_body.maxs[2] - target_body.mins[2];
     };
     return .{ .origin = origin, .direction = v.normalize(v.subtract(destination, origin)) };
+}
+
+pub fn clearProjectile(world: *data.World, slots: *Slots, entity: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, minimum: f32) !bool {
+    const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, try world.get(entity, data.Random));
+    const distance = v.length(v.subtract((try world.get(target, data.Transform)).position, pose.position));
+    const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, distance)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
+    if (hit.fraction == 1 or hit.entity == (try world.get(target, data.Binding)).slot) return true;
+    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |other| {
+        if ((world.get(other, data.Player) catch null) != null) return true;
+        if ((world.get(other, data.Actor) catch null) != null and (world.get(other, data.Companion) catch null) == null) return false;
+    };
+    return hit.fraction * distance > (if (minimum == 0) tuning.damage + 32 else minimum);
 }

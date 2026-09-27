@@ -3503,3 +3503,31 @@ connected. Supplied absent-animation behavior, water containment and incomplete
 evasion/presentation are explicit in the matrix. This feature-branch checkpoint is
 implemented/unverified: no new contract suite or engine scenario has run in this pass.
 The remaining actor/boss, campaign, companion, mode and release scope remains open.
+
+## Sequence 256 — episode-controller-continuation (in progress)
+
+Continues the authorized broad coding pass after feature checkpoint `54f15fe`, pushed
+only to `rewrite/native-zig-runtime`. Main, installed game/saves and live service remain
+preserved. Rotworm class connects authored ceiling ambush, acquisition/release, jump
+flight/landing and bite transitions, ground bite/spit selection and typed venom spit.
+Spit collision/lifetime, player-only poison and save rebasing/admission are connected.
+This is implemented/unverified; no scenario or aggregate suite has run. Current matrix
+retains the complete four-episode/multiplayer scope and all previous coverage limits.
+
+Centurion/Fletcher, Battleboar, Rocket Gang and Rocket MP are connected to authored
+weapon data, lifecycle/rendering and save state. Shared rockets retain distinct class
+launch offsets, accelerations, lifetimes and presentation. Evasion consumes supplied
+hide-node flags; reviewed ground sidestep distances reserve 44 units. Rockgat bullet
+logic was extracted without changing its firing contract. Previous actor movement,
+attack/restoration evidence requires affected replay. The acceptance matrix records
+remaining cover, targeting, reaction and presentation limits. No new tests or engine
+runs; the initial link's Zig 0.16 enum-conversion defect was repaired, with the repair
+link pending. Full remaining actor/boss, campaign and multiplayer scope stays open.
+
+The sequence-256 connected checkpoint additionally implements Thief, black/white
+prisoners and Femgang; all three modules link in
+`/tmp/dk3-runtime-256-episode-link.log`. Initial enum conversion and subsequent local
+name-shadowing compile errors are retained in the earlier logs and repaired. This is
+compile evidence only. No contracts, native-engine scenarios or connected playthrough
+ran in this coding pass. Supplied BSP class/factory/death-spawn inspection identifies
+21 remaining actor classes, explicitly listed in the current acceptance matrix.

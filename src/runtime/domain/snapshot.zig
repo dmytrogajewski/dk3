@@ -309,8 +309,20 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
             if (attack.owner == 0 or attack.stepped_ms < attack.born_ms) return error.InvalidSavedActorAttack;
             switch (attack.attack) {
-                .vermin_rocket => |rocket| {
-                    if (rocket.damage <= 0 or rocket.damage > 1000000 or rocket.speed <= 0 or rocket.speed > 65536 or rocket.divisor == 0 or rocket.frame > 2 or attack.stepped_ms > attack.born_ms + 4000 or rocket.next_ms <= attack.stepped_ms or rocket.next_ms > attack.stepped_ms + 100) return error.InvalidSavedActorAttack;
+                .prisoner_rock => |rock| {
+                    if (rock.damage <= 0 or rock.damage > 1000000 or attack.stepped_ms > attack.born_ms + 3000) return error.InvalidSavedActorAttack;
+                },
+                .shaft => |shaft| {
+                    if (shaft.damage <= 0 or shaft.damage > 1000000 or (shaft.phase == .flying) != (shaft.contact_ms == null)) return error.InvalidSavedActorAttack;
+                    const expiry = if (shaft.contact_ms) |at| at + 5000 else attack.born_ms + @import("actor_catalog").shafts.flightTime(shaft.kind);
+                    if (attack.stepped_ms > expiry) return error.InvalidSavedActorAttack;
+                    if (shaft.contact_ms) |at| if (at < attack.born_ms or at > attack.stepped_ms or shaft.kind == .fletcher) return error.InvalidSavedActorAttack;
+                },
+                .rotworm_spit => |spit| {
+                    if (spit.damage <= 0 or spit.damage > 1000000 or attack.stepped_ms > attack.born_ms + 5000) return error.InvalidSavedActorAttack;
+                },
+                .rocket => |rocket| {
+                    if (rocket.damage <= 0 or rocket.damage > 1000000 or rocket.speed <= 0 or rocket.speed > 65536 or rocket.divisor == 0 or rocket.frame > 2 or attack.stepped_ms > attack.born_ms + @import("actor_catalog").missiles.lifetime(rocket.kind) or rocket.next_ms <= attack.stepped_ms or rocket.next_ms > attack.stepped_ms + (if (rocket.kind == .battleboar) @as(i64, 5000) else 100)) return error.InvalidSavedActorAttack;
                 },
                 .knight_flame => |fire| {
                     if (fire.damage <= 0 or fire.damage > 1000000 or attack.stepped_ms > attack.born_ms + 5000 or fire.drift_ms <= attack.stepped_ms or fire.drift_ms > attack.stepped_ms + 100) return error.InvalidSavedActorAttack;

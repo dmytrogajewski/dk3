@@ -9,6 +9,9 @@ pub const State = struct {
         knight_flame: knights.Flame,
         knight_zap: knights.Zap,
         knight_punch: void,
-        vermin_rocket: @import("actor_catalog").vermin.Rocket,
+        rocket: @import("actor_catalog").missiles.Rocket,
+        rotworm_spit: @import("actor_catalog").rotworm.Spit,
+        shaft: @import("actor_catalog").shafts.Shaft,
+        prisoner_rock: @import("actor_catalog").prisoners.Rock,
     },
 };

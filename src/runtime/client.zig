@@ -198,11 +198,19 @@ fn draw(now: i32) !void {
             @import("client/sprites.zig").drawPlane(sprite, 0, @import("engine/trajectory.zig").evaluate(entity.pos, now), entity.angles2[0], true, v.scale(ref.viewaxis[1], -1), ref.viewaxis[2], .{ 255, 255, 255, 115 });
             continue;
         }
-        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").vermin.render_tag) {
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").shafts.render_tag and entity.weapon == @intFromEnum(@import("actor_catalog").shafts.Kind.fletcher)) {
             const origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
-            const glow = try @import("client/sprites.zig").register(@import("actor_catalog").vermin.glow);
-            @import("client/sprites.zig").draw(glow, 0, origin, 1.45, true, &ref);
-            _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &origin, engine.floatArg(145), engine.floatArg(0.75), engine.floatArg(0.45), engine.floatArg(0.15) });
+            const glow = try @import("client/sprites.zig").register("models/global/we_flarered.sp2");
+            @import("client/sprites.zig").draw(glow, 0, origin, 1, true, &ref);
+            _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &origin, engine.floatArg(175), engine.floatArg(0.65), engine.floatArg(0.35), engine.floatArg(0.35) });
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").missiles.render_tag) {
+            const origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
+            const kind = std.enums.fromInt(@import("actor_catalog").missiles.Kind, entity.weapon) orelse return error.InvalidActorMissile;
+            const boar = kind == .battleboar;
+            const glow = try @import("client/sprites.zig").register(@import("actor_catalog").missiles.glow(kind));
+            @import("client/sprites.zig").draw(glow, 0, origin, if (boar) 0.75 else if (kind == .mp_left or kind == .mp_right) 1 else 1.45, true, &ref);
+            _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &origin, engine.floatArg(if (boar) 115 else 145), engine.floatArg(0.75), engine.floatArg(if (boar) 0.15 else 0.45), engine.floatArg(0.15) });
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").knights.render_tag) {
             if (try @import("client/knights.zig").draw(entity, now, &ref)) continue;
@@ -258,10 +266,12 @@ fn draw(now: i32) !void {
         rendered.shaderRGBA = @splat(255);
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/scenery.zig").render_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").dwarf.axe_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(@divTrunc((@as(i64, entity.time2) - now) * 255, 1000), 0, 255));
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").shafts.render_tag and entity.time2 > 0) rendered.shaderRGBA[3] = @intCast(std.math.clamp(@divTrunc((@as(i64, entity.time2) - now) * 255, 1000), 0, 255));
         if (entity.eType == c.ET_MISSILE) try @import("client/projectiles.zig").decorate(&rendered, entity, now);
         try @import("client/events.zig").loop(&game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
         if (entity.eType == c.ET_GENERAL and (entity.time2 == @import("actor_catalog").cambot.idle_tag or entity.time2 == @import("actor_catalog").cambot.alert_tag)) try @import("client/cambot.zig").draw(&rendered, entity.time2 == @import("actor_catalog").cambot.alert_tag, &ref);
+        if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").battleboar.flash_tag) try @import("client/battleboar.zig").draw(&rendered);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").rockgat.flash_tag) try @import("client/rockgat.zig").draw(&rendered);
         if (entity.eType == c.ET_GENERAL and entity.generic1 > 0 and entity.generic1 <= 1000) try @import("client/status_visuals.zig").frost(rendered, @as(f32, @floatFromInt(entity.generic1)) / 1000);
     }

@@ -5,7 +5,7 @@ const v = @import("../domain/vector.zig");
 const data = @import("../domain/components.zig");
 const engine = @import("../engine/server.zig");
 const c = @import("../engine/abi.zig").c;
-const Node = struct { index: u16, position: v.Vec3, links: []const [2]i16 };
+const Node = struct { index: u16, flags: u32 = 0, position: v.Vec3, links: []const [2]i16 };
 pub const Routes = struct {
     nodes: []const Node = &.{},
     indices: [4096]?u16 = @splat(null),

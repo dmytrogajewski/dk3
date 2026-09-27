@@ -9,7 +9,7 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const Definition = @import("../domain/actors.zig").Definition;
 const policy = @import("actor_catalog").vermin;
-pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, definition: Definition, now: i64) !void {
+pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, definition: Definition, now: i64) !void {
     const hurt = (try world.get(entity, data.Hurt)).*;
     const injured = hurt.revision != actor.receipt;
     const sensed = try @import("actor_perception.zig").perceive(world, slots, entity, actor, pose.*, definition, now);
@@ -34,6 +34,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         actor.mode = .idle;
         return;
     };
+    if (@import("actor_evasion.zig").update(actor, pose.*, now)) return;
     const delta = v.subtract(actor.threat_position, pose.position);
     const yaw = std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi;
     const tick = now >= actor.think_ms;
@@ -58,6 +59,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         if (now - actor.melee.started_ms >= definition.attacks[actor.melee.pose].duration()) actor.melee.active = false;
     }
     if (!actor.melee.active and tick and facing and sensed.visible) {
+        if (try @import("actor_evasion.zig").targeted(world, entity, target, pose.*) and (try world.get(entity, data.Random)).next() > 0.75 and try @import("actor_evasion.zig").start(routes, world, entity, target, actor, pose.*, true, now)) return;
         actor.melee.begin(chosen, now);
         actor.changed_ms = now;
     }
@@ -88,7 +90,7 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
     const strike = if (jump) actor.melee.event(2, @divTrunc(@as(i64, definition.second_strikes[index].?) * 1000, sequence.fps), now, false) else first;
     if (!strike or (index != 0 and !facing)) return;
     if (index == 2) {
-        try @import("vermin_rockets.zig").launch(world, slots, projections, entity, target, pose, definition.vermin_rocket, now);
+        try @import("actor_rockets.zig").launch(world, slots, projections, entity, target, pose, .vermin, definition.vermin_rocket, now);
         actor.vermin.ready_ms = now + 1500;
         return;
     }

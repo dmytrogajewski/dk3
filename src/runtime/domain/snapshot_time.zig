@@ -155,7 +155,8 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
             switch (value.attack) {
-                .vermin_rocket => |*rocket| try shift(&rocket.next_ms, delta),
+                .shaft => |*shaft| try deadline(&shaft.contact_ms, delta),
+                .rocket => |*rocket| try shift(&rocket.next_ms, delta),
                 .knight_flame => |*fire| try shift(&fire.drift_ms, delta),
                 .knight_zap => |*zap| for (&zap.bolts) |*maybe| {
                     if (maybe.*) |*bolt| {
@@ -163,7 +164,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
                         try shift(&bolt.next_ms, delta);
                     }
                 },
-                .knight_punch => {},
+                .knight_punch, .rotworm_spit, .prisoner_rock => {},
             }
         },
         .actor_laser => {
@@ -172,10 +173,22 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try deadline(&value.contact_ms, delta);
         },
         .actor => {
+            try active(&value.thief.next_attack_ms, delta);
+            try deadline(&value.thief.sidestep_until, delta);
+            try active(&value.prisoner.ready_ms, delta);
+            try active(&value.prisoner.emit_ms, delta);
+            try deadline(&value.evasion.until_ms, delta);
+            try deadline(&value.archer.sidestep_until, delta);
+            try active(&value.archer.ready_ms, delta);
+            try active(&value.rocketgang.ready_ms, delta);
+            try active(&value.rocketmp.ready_ms, delta);
+            try deadline(&value.rocketmp.evade_until, delta);
+            try active(&value.archer.clear_ms, delta);
             try deadline(&value.knight.sidestep_until, delta);
             try deadline(&value.rat.evasion_until, delta);
             try active(&value.shark.wander_until_ms, delta);
             try active(&value.vermin.ready_ms, delta);
+            try shift(&value.rotworm.started_ms, delta);
             try active(&value.lasergat.servo_ms, delta);
             try deadline(&value.inmater.sidestep_until, delta);
             try active(&value.surgeon.until_ms, delta);

@@ -105,7 +105,8 @@ pub fn step(actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocit
 pub fn sidestep(pose: data.Transform, body: data.Body, slot: u16, roll: f32) !?v.Vec3 {
     return sidestepDistance(pose, body, slot, roll, 96);
 }
-pub fn sidestepDistance(pose: data.Transform, body: data.Body, slot: u16, roll: f32, distance: f32) !?v.Vec3 {
+pub fn sidestepDistance(pose: data.Transform, body: data.Body, slot: u16, roll: f32, requested: f32) !?v.Vec3 {
+    const distance = @import("actor_catalog").evasion.distance(requested);
     const right = v.basis(pose.angles).right;
     const side: f32 = if (roll < 0.5) -1 else 1;
     for ([_]f32{ side, -side }) |sign| {
@@ -113,7 +114,7 @@ pub fn sidestepDistance(pose: data.Transform, body: data.Body, slot: u16, roll: 
         const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         if (hit.start_solid or hit.fraction < 1) continue;
         const ground = try engine.collisionService().trace(.{ .start = destination, .end = v.add(destination, .{ 0, 0, -32 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
-        if (ground.start_solid or ground.fraction == 1 or ground.normal[2] < 0.7) continue;
+        if (ground.start_solid or ground.fraction == 1 or ground.normal[2] < 0.7 or !try direct(pose.position, ground.end, body, slot)) continue;
         return ground.end;
     }
     return null;

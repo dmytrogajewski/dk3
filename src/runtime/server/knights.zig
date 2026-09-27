@@ -71,17 +71,6 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     actor.mode = if (actor.melee.active) .attack else .chase;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing, now);
 }
-fn clear(world: *data.World, slots: *Slots, entity: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: policy.Weapon) !bool {
-    const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, try world.get(entity, data.Random));
-    const distance = v.length(v.subtract((try world.get(target, data.Transform)).position, pose.position));
-    const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, distance)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
-    if (hit.fraction == 1 or hit.entity == (try world.get(target, data.Binding)).slot) return true;
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |other| {
-        if ((world.get(other, data.Player) catch null) != null) return true;
-        if ((world.get(other, data.Actor) catch null) != null and (world.get(other, data.Companion) catch null) == null) return false;
-    };
-    return hit.fraction * distance > tuning.damage + 32;
-}
 fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, facing: bool, now: i64) !void {
     const index = actor.melee.pose;
     const sequence = definition.attacks[index];
@@ -94,7 +83,7 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
     if (!actor.melee.event(1, @divTrunc(@as(i64, definition.strikes[index]) * 1000, sequence.fps), now, false) or !facing) return;
     const lightning = catalog.entries[actor.definition].kind == .knight2;
     if (index == 1) {
-        if (!try clear(world, slots, entity, target, pose, definition.knight_ranged)) {
+        if (!try @import("actor_aim.zig").clearProjectile(world, slots, entity, target, pose, definition.knight_ranged, 0)) {
             if (try @import("actor_motion.zig").sidestep(pose, (try world.get(entity, data.Body)).*, slot, (try world.get(entity, data.Random)).next())) |point| {
                 actor.knight.destination = point;
                 actor.knight.sidestep_until = now + 2000;

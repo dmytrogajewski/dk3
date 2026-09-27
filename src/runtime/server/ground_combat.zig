@@ -8,7 +8,7 @@ const engine = @import("../engine/server.zig");
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 const catalog = @import("actor_catalog");
-pub fn think(world: *data.World, slots: *@import("../engine/slots.zig").Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, definition: @import("../domain/actors.zig").Definition, now: i64) !void {
+pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World, slots: *@import("../engine/slots.zig").Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, definition: @import("../domain/actors.zig").Definition, now: i64) !void {
     const kind = catalog.entries[actor.definition].kind;
     const hurt = (try world.get(entity, data.Hurt)).*;
     const newly_hurt = hurt.revision != actor.receipt;
@@ -39,13 +39,13 @@ pub fn think(world: *data.World, slots: *@import("../engine/slots.zig").Slots, p
     if (newly_hurt and hurt.amount > 0) {
         const random = (try world.get(entity, data.Random)).next();
         const chance: f32 = switch (kind) {
-            .skeleton, .dwarf, .labmonkey => 0.2,
+            .skeleton, .dwarf, .labmonkey, .femgang => 0.2,
             .lycanthir, .cerberus => 0.1,
             .ragemaster, .satyr => 0.05,
             .column => 1,
             else => unreachable,
         };
-        if (random < chance and (kind != .labmonkey or hurt.amount >= 35)) if (definition.pain[if (kind == .column and hurt.amount >= 20) @as(usize, 1) else 0]) |sequence| {
+        if (random < chance and ((kind != .labmonkey and kind != .femgang) or hurt.amount >= 35)) if (definition.pain[if (kind == .column and hurt.amount >= 20) @as(usize, 1) else 0]) |sequence| {
             actor.reaction = sequence;
             actor.reaction_started_ms = now;
             actor.reaction_until_ms = now + sequence.duration();
@@ -55,10 +55,17 @@ pub fn think(world: *data.World, slots: *@import("../engine/slots.zig").Slots, p
         };
     }
     const target = perceived.enemy orelse {
+        if (kind == .femgang and !actor.femgang.idle_chosen) {
+            actor.femgang.idle_chosen = true;
+            actor.femgang.idle_b = (try world.get(entity, data.Random)).next() >= 0.85;
+            actor.changed_ms = now;
+        }
         actor.mode = .idle;
         actor.melee.active = false;
         return;
     };
+    if (kind == .femgang) actor.femgang.idle_chosen = false;
+    if (@import("actor_evasion.zig").update(actor, pose.*, now)) return;
     const delta = v.subtract(actor.threat_position, pose.position);
     const yaw = std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi;
     const turn = @mod(yaw - pose.angles[1] + 180, 360) - 180;
@@ -67,8 +74,8 @@ pub fn think(world: *data.World, slots: *@import("../engine/slots.zig").Slots, p
         pose.angles[1] += std.math.clamp(turn, -definition.yaw_speed, definition.yaw_speed);
         actor.think_ms = now + 100;
     }
-    const facing = @abs(@mod(yaw - pose.angles[1] + 180, 360) - 180) <= 8;
-    const reachable = perceived.visible and (if (kind == .lycanthir) perceived.distance < 1000 else if (kind == .dwarf) perceived.distance < definition.dwarf.range else if (kind == .labmonkey or kind == .cerberus) perceived.distance < @max(definition.attack_range, definition.jump_distance) else perceived.distance < (if (kind == .column) catalog.column.attack_distance else definition.attack_range));
+    const facing = @abs(@mod(yaw - pose.angles[1] + 180, 360) - 180) <= (if (kind == .femgang) @as(f32, 5) else 8);
+    const reachable = perceived.visible and (if (kind == .femgang) perceived.distance < catalog.femgang.attack_distance else if (kind == .lycanthir) perceived.distance < 1000 else if (kind == .dwarf) perceived.distance < definition.dwarf.range else if (kind == .labmonkey or kind == .cerberus) perceived.distance < @max(definition.attack_range, definition.jump_distance) else perceived.distance < (if (kind == .column) catalog.column.attack_distance else definition.attack_range));
     // Deliver every crossed authored event before completing its animation. A
     // slow frame must not erase a final strike or sound.
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing, now);
@@ -83,9 +90,11 @@ pub fn think(world: *data.World, slots: *@import("../engine/slots.zig").Slots, p
     }
     if (admitted and kind == .cerberus) admitted = catalog.cerberus.inRange(perceived.distance, definition.range, definition.jump_distance, (try world.get(entity, data.Random)).next());
     if (admitted and kind == .labmonkey) admitted = catalog.labmonkey.inRange(perceived.distance, definition.attack_range, definition.jump_distance, (try world.get(entity, data.Random)).next());
+    if (admitted and kind == .femgang and !completed and try @import("actor_evasion.zig").targeted(world, entity, target, pose.*) and (try world.get(entity, data.Random)).next() > 0.5 and try @import("actor_evasion.zig").start(routes, world, entity, target, actor, pose.*, false, now)) return;
     if (admitted) {
         const random = (try world.get(entity, data.Random)).next();
         const chosen: u3 = switch (kind) {
+            .femgang => catalog.femgang.select(perceived.distance, definition.range),
             .cerberus => catalog.cerberus.select(perceived.distance, definition.attack_range, random),
             .ragemaster => catalog.ragemaster.select(random),
             .labmonkey => catalog.labmonkey.select(perceived.distance, random),
@@ -102,7 +111,7 @@ pub fn think(world: *data.World, slots: *@import("../engine/slots.zig").Slots, p
         const transition = if (kind == .satyr) catalog.satyr.transition(actor.melee.pose, chosen) else null;
         actor.melee.begin(transition orelse chosen, now);
         actor.melee.next_pose = if (transition != null) chosen else null;
-        actor.melee.moving = (kind == .skeleton and chosen == catalog.skeleton.chase_pose) or (kind == .satyr and chosen == catalog.satyr.chase_pose) or (kind == .column and chosen == 1) or (kind == .dwarf and chosen == 1) or (kind == .lycanthir and chosen == 3);
+        actor.melee.moving = (kind == .femgang and chosen == 1) or (kind == .skeleton and chosen == catalog.skeleton.chase_pose) or (kind == .satyr and chosen == catalog.satyr.chase_pose) or (kind == .column and chosen == 1) or (kind == .dwarf and chosen == 1) or (kind == .lycanthir and chosen == 3);
         if (kind == .labmonkey) {
             const state = try world.get(entity, data.Random);
             const hop = if (completed) catalog.labmonkey.hop(perceived.distance, state.next()) else null;
@@ -122,7 +131,7 @@ pub fn think(world: *data.World, slots: *@import("../engine/slots.zig").Slots, p
         if (kind == .cerberus) actor.cerberus.launched = false;
         actor.changed_ms = now;
     }
-    actor.mode = if (actor.melee.active) if (actor.melee.moving and (kind == .column or perceived.distance >= (if (kind == .lycanthir) @as(f32, 60) else 40))) .chase else .attack else if (!reachable) .chase else .idle;
+    actor.mode = if (actor.melee.active) if (actor.melee.moving and (kind == .column or kind == .femgang or perceived.distance >= (if (kind == .lycanthir) @as(f32, 60) else 40))) .chase else .attack else if (!reachable) .chase else .idle;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing, now);
 }
 pub fn emit(world: *data.World, slots: *@import("../engine/slots.zig").Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: @import("../domain/actors.zig").Definition, target: ecs.Entity, facing: bool, now: i64) !void {
@@ -152,7 +161,7 @@ pub fn emit(world: *data.World, slots: *@import("../engine/slots.zig").Slots, pr
     }
     const strikes = [_]?u16{ definition.strikes[index], definition.second_strikes[index] };
     for (strikes, 0..) |strike, i| if (strike) |frame| {
-        if ((kind == .column or kind == .dwarf or kind == .cerberus or kind == .shark or (kind == .lycanthir and index == 4)) and i == 1) continue;
+        if ((kind == .femgang or kind == .column or kind == .dwarf or kind == .cerberus or kind == .shark or (kind == .lycanthir and index == 4)) and i == 1) continue;
         if (!actor.melee.event(@as(u2, 1) << @intCast(i), (if (kind == .lycanthir and index == 4) definition.jump_strike_ms else @divTrunc(@as(i64, frame) * 1000, sequence.fps)), now, false) or (!facing and kind != .shark and !(kind == .lycanthir and index == 4) and !(kind == .cerberus and index == 2))) continue;
         if (kind == .dwarf and actor.melee.pose == 2) {
             _ = try @import("dwarf_axes.zig").launch(world, slots, projections, entity, target, pose, definition.dwarf, now);
@@ -162,7 +171,7 @@ pub fn emit(world: *data.World, slots: *@import("../engine/slots.zig").Slots, pr
         const start = v.add(pose.position, v.add(v.scale(axes.right, definition.offset[0]), v.add(v.scale(axes.forward, definition.offset[1]), .{ 0, 0, definition.offset[2] })));
         const body = (try world.get(target, data.Body)).*;
         const aim = v.add((try world.get(target, data.Transform)).position, v.scale(v.add(body.mins, body.maxs), 0.5));
-        const leading = if (kind == .cerberus or kind == .shark) try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random)) else null;
+        const leading = if (kind == .femgang or kind == .cerberus or kind == .shark) try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random)) else null;
         const hit = try engine.collisionService().trace(.{ .start = if (leading) |value| value.origin else start, .end = if (leading) |value| v.add(value.origin, v.scale(value.direction, definition.range)) else v.add(start, v.scale(v.normalize(v.subtract(aim, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
         if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
             const random = (try world.get(entity, data.Random)).next();

@@ -11,6 +11,15 @@ pub const State = struct {
     cryotech: catalog.cryotech.State = .{},
     surgeon: catalog.surgeon.State = .{},
     cerberus: catalog.cerberus.State = .{},
+    thief: catalog.thief.State = .{},
+    prisoner: catalog.prisoners.State = .{},
+    femgang: catalog.femgang.State = .{},
+    evasion: catalog.evasion.State = .{},
+    battleboar: catalog.battleboar.State = .{},
+    rocketmp: catalog.rocketmp.State = .{},
+    rocketgang: catalog.rocketgang.State = .{},
+    archer: catalog.archers.State = .{},
+    rotworm: catalog.rotworm.State = .{},
     vermin: catalog.vermin.State = .{},
     shark: catalog.shark.State = .{},
     rat: catalog.rats.State = .{},
@@ -66,7 +75,16 @@ pub const State = struct {
 };
 pub const Definition = struct {
     loaded: bool = false,
+    pain_c: ?animation.Sequence = null,
     dwarf: catalog.dwarf.Tuning = .{},
+    thief_knife: catalog.weapon.Tuning = .{},
+    prisoner_rock: catalog.weapon.Tuning = .{},
+    alternate_idle: animation.Sequence = .{},
+    boar_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
+    mp_rockets: [2]catalog.weapon.Tuning = @splat(.{}),
+    gang_rockets: [2]catalog.weapon.Tuning = @splat(.{}),
+    archer_ranged: catalog.weapon.Tuning = .{},
+    rotworm_spit: catalog.weapon.Tuning = .{},
     vermin_rocket: catalog.weapon.Tuning = .{},
     vermin_has_leap: bool = false,
     rat_poison: catalog.weapon.Tuning = .{},
@@ -196,6 +214,43 @@ pub const Table = struct {
                 entry.range = try row.number("weapon2_distance", 0);
                 if (entry.damage < 0 or entry.random_damage < 0 or entry.range <= 0) return error.InvalidCryotechWeapon;
             }
+            if (catalog.entries[id].kind == .thief) {
+                entry.thief_knife = try catalog.weapon.Tuning.parse(row, "weapon2_");
+                if (entry.thief_knife.speed <= 0) return error.InvalidThiefKnife;
+            }
+            if (catalog.entries[id].kind == .blackprisoner or catalog.entries[id].kind == .whiteprisoner) {
+                entry.prisoner_rock = try catalog.weapon.Tuning.parse(row, "weapon2_");
+                if (entry.prisoner_rock.speed <= 0) return error.InvalidPrisonerRock;
+            }
+            if (catalog.entries[id].kind == .battleboar) {
+                entry.boar_weapons = .{ try catalog.weapon.Tuning.parse(row, "weapon1_"), try catalog.weapon.Tuning.parse(row, "weapon2_") };
+                if (entry.boar_weapons[1].speed <= 0) return error.InvalidBoarRocket;
+            }
+            if (catalog.entries[id].kind == .rocketmp) {
+                entry.mp_rockets = .{ try catalog.weapon.Tuning.parse(row, "weapon2_"), try catalog.weapon.Tuning.parse(row, "weapon3_") };
+                for (entry.mp_rockets) |rocket| if (rocket.speed <= 0) return error.InvalidMpRocket;
+            }
+            if (catalog.entries[id].kind == .rocketdude) {
+                entry.gang_rockets = .{ try catalog.weapon.Tuning.parse(row, "weapon1_"), try catalog.weapon.Tuning.parse(row, "weapon2_") };
+                for (entry.gang_rockets) |rocket| if (rocket.speed <= 0) return error.InvalidGangRocket;
+            }
+            if (catalog.entries[id].kind == .centurion or catalog.entries[id].kind == .fletcher) {
+                entry.archer_ranged = try catalog.weapon.Tuning.parse(row, "weapon1_");
+                if (entry.archer_ranged.speed <= 0) return error.InvalidArcherProjectile;
+                if (catalog.entries[id].kind == .centurion) {
+                    const melee = try catalog.weapon.Tuning.parse(row, "weapon2_");
+                    entry.damage = melee.damage;
+                    entry.random_damage = melee.random_damage;
+                    entry.range = melee.range;
+                    entry.offset = melee.offset;
+                    entry.spread = melee.spread;
+                }
+            }
+            if (catalog.entries[id].kind == .rotworm) {
+                entry.rotworm_spit = try catalog.weapon.Tuning.parse(row, "weapon2_");
+                if (entry.rotworm_spit.speed <= 0) return error.InvalidRotwormSpit;
+            }
+            if (catalog.entries[id].kind == .shark and entry.walk_speed <= 0) return error.InvalidSharkSpeed;
             if (catalog.entries[id].kind == .venomvermin) {
                 entry.vermin_rocket = try catalog.weapon.Tuning.parse(row, "weapon3_");
                 const bite = try catalog.weapon.Tuning.parse(row, "weapon2_");

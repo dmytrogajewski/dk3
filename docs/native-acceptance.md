@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequence 255): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–256): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -48,10 +48,10 @@ progression, complete companion/cinematic progression, dynamic navigation/bot go
 complete player/multiplayer presentation, CTF/deathtag interaction parity and
 release integration. Unknown `monster_*` entities now fail admission with their
 classname instead of silently disappearing. All four episodes and multiplayer remain
-open as complete outcomes. There is no verified build/asset identity for sequence 255.
+open as complete outcomes. There is no verified engine/asset identity for the current coding pass.
 Targeted link logs are compile evidence only; the last successful intermediate link
-was `/tmp/dk3-runtime-255-creatures-link.log`, covering the connected knight,
-Cerberus, rat, Shark and VenomVermin batches. `/tmp/dk3-runtime-255-multiplayer-link-fixed.log` linked the prior batch. Earlier `/tmp/dk3-runtime-255-world-link.log` also linked. These isolated
+was `/tmp/dk3-runtime-255-creatures-link.log`, covering feature checkpoint `54f15fe` with the connected knight,
+Cerberus, rat, Shark and VenomVermin batches. The episode-controller continuation now supersedes that link. `/tmp/dk3-runtime-255-multiplayer-link-fixed.log` linked the prior batch. Earlier `/tmp/dk3-runtime-255-world-link.log` also linked. These isolated
 link checks establish compilation only; new contracts have not yet been executed.
 
 Shared changes invalidate prior script/cinematic, damage, actor perception,
@@ -220,6 +220,57 @@ Sequence-255 compatibility details and limitations:
   running sequence continues. A supplied `atakd` is used when present. Ranged cooldown
   and attack/missile state persist. Evasive targeting/actions, smoke trail, polygon
   explosion and full pain/presentation remain unfinished. No encounter claim is made.
+
+- Sequence 256 continues the same broad coding pass after pushed feature checkpoint
+  `54f15fe`. Rotworm ceiling admission/release, jump landing/bite and poison/spit are
+  connected, unverified. An authored ceiling flag without a ceiling intersection is
+  rejected instead of moving the actor outside the map. The supplied model lacks
+  `jumpa`; the existing `atakb` sequence remains, as on the failed reference request.
+  Spit poison applies only to players; bite poison uses the shared living-character
+  contract. Rotworm generic pain, inertial impulse parity and tracked spit particles
+  still require completion/qualification. No new campaign or restoration acceptance.
+
+- Sequence 256 also connects Centurion/Fletcher shafts, Battleboar gun/rocket and
+  Rocket Gang/Rocket MP controllers, authored attack events, projectile collision,
+  client models/glows and saved state. Centurion uses the active throwing-knife
+  contact contract: world embedding versus entity-contact falling, followed by fade.
+  Fletcher arrows disappear on contact and silently expire after ten seconds.
+  Battleboar fires one bullet trace despite its two muzzle flashes; its full-speed
+  missile expires after five seconds. Gang/Vermin missiles use seven-to-one
+  acceleration; MP missiles use four-to-one. MP's frame-zero second strike is retained.
+- Evasion adds supplied hide-node flags, class admission chances, strafing, sidesteps
+  and dodge destinations. Ground sidestep/strafe/dodge travel reserves the reviewed
+  44-unit offset (52/36/84 units), superseding earlier distance descriptions. Native
+  collision uses the full hull, continuous floor support and either clear side;
+  this deliberately repairs the reference's rejected clear opposite side. Hide-node
+  admission uses native graph reachability; weighted-path equivalence remains open.
+  Player targeting currently retains Cambot's direct-crosshair contract, narrower
+  than reference auto-aim. Exact cover scheduling and reaction/presentation remain
+  unfinished. These are implemented paths, not claims of full class parity.
+- Shared rocket/bullet extraction and sidestep correction require Vermin, Rockgat,
+  Inmater, spider, rat and knight regressions. Authored movement dispatch no longer
+  calls combat in place of motion for Rotworm/Vermin. Vermin missile origin now uses
+  its active post-aim class offset. Save layout/controller changes supersede prior
+  native restoration evidence. No installed or user saves were edited.
+- Initial sequence-256 module linking failed on a removed Zig 0.16 enum conversion
+  API (`/tmp/dk3-runtime-256-link.log`); corrected to `std.enums.fromInt`. A subsequent name-shadowing error was repaired; all three modules then linked in
+  `/tmp/dk3-runtime-256-episode-link.log`. No new contract, engine or connected-campaign acceptance.
+
+- The same checkpoint connects Thief knife/melee cadence, black/white prisoner
+  punch/ballistic-rock selection and Femgang moving kicks/idle variation. Prisoner
+  attack admission, two strike flags and distinct pain/death policies are explicit.
+  A knife without contact expires after three seconds relative to launch; this avoids
+  the reference's uninitialized absolute delay affecting freshly spawned projectiles.
+  Contacted knives retain the five-second axe callback. No scenario acceptance yet.
+
+## Remaining authored actor admission
+
+Read-only inspection of supplied BSP entity data (including monster factories/death
+spawns) still finds these unimplemented classes at this checkpoint: Buboid, Chaingang,
+Deathsphere, Doombat, Dragon, Garroth, Griffon, Harpy, Kage, Medusa, final Mikiko, Nharre,
+Psyclaw, Seal Captain, Seal Commando, Seal Girl, Sludgeminion, Stavros, Uzi Gang, Wisp
+and Wyndrax. Script-created classes and boss phases remain part of the full audit.
+This inventory is a coding work list, not campaign-load or traversal acceptance.
 
 ## Acceptance rules
 
