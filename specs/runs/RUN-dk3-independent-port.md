@@ -3378,3 +3378,47 @@ swimming ascent from actual water/height state; these latest route refinements a
 replay. Nine focused input tests pass in `/tmp/dk3-runtime-252-driver-final.log`.
 A bounded kill fallback prevents temporary engine shutdown delay from hiding the
 original scenario error. Installed game/saves/service and main remain unchanged.
+
+## runtime-zig — sequence 253 (bridge victory, restoration and frog floor contact)
+
+All 28 weapon policies remain connected. Work is on native campaign integration;
+full weapon interactions and the entire four-episode/multiplayer scope remain open.
+
+The bridge boss now has a connected successful segment from a legitimate ordinary
+checkpoint: observed Ion contacts defeat it, all ten factory skeets are observed,
+pending ThunderSprays clear while the player keeps moving, the defeated encounter
+saves/restores, and the death-opened door leads through the authored e1m1c transition.
+Stopping immediately after the kill had left the player under pending splash attacks.
+Read-only ThunderSpray position/velocity diagnostics now guide ordinary keyboard
+movement; no damage, geometry or enemy behavior was tuned for the driver.
+
+| Scenario | State | Evidence / limits |
+|---|---|---|
+| Fresh intro/arrival/first encounter | Narrow stages passed; whole route failed | `runtime-zig-253/fresh-opening/`, identity `a2335b58fb0761ca4ac551e49a172da257c49e554508340270f623104369131b`; Normal New Game, all intro shots, arrival, ordinary Ion pickup, actual save/load. Navigation fails later. |
+| Bridge boss, safe defeated encounter restoration and factory entry | Passed connected segment | `bridge-clear-sprays/`, identity `3309ba59495aee2a771ce24f870c1f818adc7f1abfc19b549372fd3b3ce2a779`. Starts at a legitimate checkpoint, not fresh campaign; later factory route fails. |
+| Boss reward and factory supplies | Passed narrow connected segment | `bridge-reward-route/`, identity `26ae3d5bcffe24fcfa305d3c8807057772dc9798025d4ef518cd49910afeef2d`; actual Megashield touch gives 400 armor, B→C transition, tree 195 fruit use and ammunition pickup. First gate setup fails because the control is above the lower approach. |
+| Natural death/reload | Passed narrow running/connected subcase | `bridge-open-water/death-reload.json`: observed natural death, then both server/client restoration boundaries and living normal gameplay from an earlier healthy checkpoint. The combat route remains failed. |
+| Old frog landing | Failed meaningful regression | `frog-before-contact/`: unmodified captured campaign save SHA `26f2a9c7c891ebbd13de6202baaea4fb014485d2795bd60a8cfe38f5f8b1304f`, exact old modules in identity manifest. Frog 27 never leaves jump after floor rebound. Earlier `frog-before/` and `frog-before-valid/` fail setup and do not count. |
+| Repaired frog landing | Passed focused running case | `frog-after-contact/`, same fixture. Actual ground entity and departure from jump required, not inferred from waiting. `marsh-landed-frogs/` then reaches authored A→B from a legitimate first-encounter checkpoint; later bridge combat driver assertion fails. |
+| Consolidated checks | Passed | `/tmp/dk3-runtime-253-aggregate.log`: 242 Zig + 54 Python checks, three native modules, formatting. Assertions enabled, all explicit test roots execute. Later factory-only driver route refinements require gameplay replay, not another unchanged broad suite. |
+| Fresh consolidated opening gate | In progress; not accepted | `fresh-consolidated/` uses the frog-fixed build and full asset manifest. Factory control approach, interior/lift, e1m2a exit and visited-world round trip remain open. |
+
+Frog repair follows reviewed private contracts without importing implementation:
+FROG_Start_Jump uses bounce motion; FROG_Jump finishes on ground contact; P_CheckGround
+probes 0.5 down, rejects upward speed above 100, and accepts normal.z >= 0.7. Native
+had required downward motion and sampled a repeating +13.333 rebound forever.
+Class-owned floor acceptance now settles that short rebound and snaps to the probe
+contact. Fast launches and wall/steep-slope hits remain airborne in the contract
+regression. No shared actor physics change; complete frog water/pose parity is open.
+
+Rejected driver shortcuts remain failures: the Cambot death target cannot substitute
+for the player-only touch bridge generator; the lower bank loses boss visibility;
+the eastern arena boundary is an authored lethal volume. The completed bridge segment
+uses the intact platform and normal player contact. No arbitrary dwell or puzzle bypass.
+
+Driver movement time excludes stopped diagnostics, frozen playback and restored/map
+clocks. Held attacks track observed actor displacement and independently record fire
+and contact. Failed setup/blocked flight does not pass. Precise approaches release
+from observed speed and verify actual stopping, preventing overshoot oscillation.
+Factory pipe exploration is still driver development; none of its failed paths counts
+as traversal. Main, installed game, user saves and live service remain preserved.

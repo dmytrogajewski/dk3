@@ -15,15 +15,17 @@ class NativeInput:
             raise RuntimeError("Native acceptance requires Python assertions enabled")
         self.process, self.pipe, self.log, self.home = process, pipe, log, home
         self.inputs, self.diagnostic, self.serial = inputs, diagnostic, 0
+        self.forward_ms = 0
+        self._activity_sample = None
 
     def text(self):
         return self.log.read_text(errors="replace")
 
     def issue(self, command):
         verb = command.split()[0]
-        allowed = {"weapon", "save", "load", "use", "dk3_look", "viewpos", "screenshotJPEG",
+        allowed = {"weapon", "attribute", "save", "load", "use", "dk3_look", "viewpos", "screenshotJPEG",
                    "dk3_runtime_observe", "dk3_runtime_actors", "dk3_runtime_world",
-                   "dk3_runtime_projectiles", "dk3_runtime_beams", "dk3_runtime_ion_aim", "quit"}
+                   "dk3_runtime_items", "dk3_runtime_character", "dk3_runtime_projectiles", "dk3_runtime_beams", "dk3_runtime_ion_aim", "dk3_runtime_movers", "quit"}
         buttons = {sign + name for sign in ("+", "-") for name in
                    ("forward", "back", "moveleft", "moveright", "moveup", "movedown", "attack", "speed")}
         if not self.diagnostic and (verb not in allowed | buttons or ";" in command or "\n" in command):
@@ -36,6 +38,11 @@ class NativeInput:
         while time.monotonic() < deadline:
             result, offset = self._observe_once()
             if not result.get("connecting"):
+                previous = self._activity_sample
+                if previous and result.get("mode") == previous.get("mode") == "normal" and result.get("map") == previous.get("map"):
+                    if result.get("forward", 0) > 0 and previous.get("forward", 0) > 0:
+                        self.forward_ms += max(0, result["cmd"] - previous["cmd"])
+                self._activity_sample = result
                 return result
             # A map handoff may accept console commands before ClientBegin.
             # Wait for the connection event, including one emitted just after
@@ -140,6 +147,7 @@ class NativeInput:
         path = self.home / f"state/dk3/saves/{slot}.sav"
         if not path.exists() or not path.read_bytes().startswith(b"DK3SAVE"):
             raise RuntimeError(f"Save completion did not produce a native save: {slot}")
+        self.last_save = slot
         return path
 
     def load(self, slot):
@@ -149,7 +157,9 @@ class NativeInput:
              "dk3 zig client: restoration applied" in text[before:]) or "Save/load refused:" in text[before:], 15)[before:]
         if "Save/load refused:" in result:
             raise RuntimeError(next(line for line in result.splitlines() if "Save/load refused:" in line))
-        return self.until(lambda _: True, description="restored input processing")
+        restored = self.until(lambda _: True, description="restored input processing")
+        self.last_save = slot
+        return restored
 
 
 def record_identity(engine, prefix, report):

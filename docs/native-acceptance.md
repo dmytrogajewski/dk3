@@ -10,8 +10,8 @@ results never transfer to native acceptance.
 | Milestone | Implemented / contract-tested | Running native engine / connected authored gameplay | Blockers and evidence limits |
 |---|---|---|---|
 | Weapon controllers | All 28 class-owned policies connected; Zeus, Wyndrax, Nightmare and Metamaser included. | Focused interactions passed in sequences 232–243. Sequence 251 repairs and exercises close Ion aiming. | Dispatch coverage does not establish all weapon interactions. Most fixtures grant equipment/health or place targets. Trident merge setup and Sunflare bright sprite edges remain open. |
-| Fresh opening campaign | Intro, opening actors, action programs, world controls and native saves connected. | **Full gate unrun:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. | No coherent full-route build accepted. Current checkpoint development clears the bridge river, uses the repaired health tree, collects ammunition and destroys both turret controls, climbs and triggers bridge destruction/boss creation. Boss combat, e1m1c and e1m2a exit remain. |
-| Native restoration | Typed snapshots, controller state and visited archives have executing contracts. | Actor/action restoration has focused engine evidence. Arrival save/load exercised. | Connected death/reload and visited-world persistence remain unrun. Sequence-241 travel is historical and needs replay after trigger-bounds changes. |
+| Fresh opening campaign | Intro, opening actors, action programs, world controls and native saves connected. | **Full gate not accepted:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. | No coherent full-route build accepted. Checkpoint development now defeats the bridge boss, restores the defeated encounter, collects its authored Megashield and reaches e1m1c. The factory approach reaches the first gate. Factory traversal, authored e1m2a exit and a fresh consolidated replay remain. |
+| Native restoration | Typed snapshots, controller state and visited archives have executing contracts. | Actor/action restoration has focused engine evidence. Arrival save/load exercised. | Connected natural death/reload has narrow sequence-253 evidence. Visited-world persistence still needs replay. Sequence-241 travel is historical and needs replay after trigger-bounds changes. |
 | Remaining campaign and multiplayer | Partial native implementations; no legacy backend. | Unrun as complete native outcomes. | Most later actors, companions/cinematic progression, four episodes, multiplayer modes/bots, network and release acceptance remain open. |
 
 ## Exact verified segments
@@ -29,13 +29,18 @@ these results do **not** claim comparison through reference playback.
 | Normal health pickup and river approach | `fcec9367951d0aa5a7619003e8d32df28de584fc759a4ab3f05bce633eff376f` | `runtime-zig-251/bridge-resupply/`, `bridge_health_pickup.sav` | Legitimate checkpoint, ordinary inventory/input. River route failed while the driver waited for stillness in a current; later attempt stopped at low health after Crox contact. |
 | Sloped and flat health trees settle and restore; partial fruit use restores | `a2335b58fb0761ca4ac551e49a172da257c49e554508340270f623104369131b` | `runtime-zig-252/tree-before/`, `tree-after/` | The old build fails the drift assertion. Diagnostic placement/health for use; floor settlement starts from fresh authored worlds. |
 | River Crox kills, five tree uses, two Ion packs and western turret control | Same sequence-252 identity above | `runtime-zig-252/bridge-healthy-ammo/`, `bridge-upper-contact/`, `bridge-active-defense/` | Narrow connected segments from legitimate checkpoints. Earlier attempts fail later. Active-defense reaches the boss entrance with 83 health and 124 Ion rounds; whole bridge battle is not yet accepted. |
+| Bridge boss defeat, ten authored skeets, safe defeated-encounter save/load and authored e1m1c entry | `3309ba59495aee2a771ce24f870c1f818adc7f1abfc19b549372fd3b3ce2a779` | `runtime-zig-253/bridge-clear-sprays/` | Legitimate bridge checkpoint. Ordinary Ion fire and movement; pending sprays must clear before stopping. Route fails later in e1m1c. Frog contact repair requires relevant route replay; not fresh campaign. |
+| Boss Megashield pickup (400 armor), authored e1m1c entry, fruit resupply, combat and first gate approach | `26ae3d5bcffe24fcfa305d3c8807057772dc9798025d4ef518cd49910afeef2d` | `runtime-zig-253/bridge-reward-route/` | Legitimate defeated-boss checkpoint, unchanged supplies. Gate shot fails setup: driver is below the upper switch. No gate or factory traversal claim. |
+| Froginator completes captured floor contact instead of rebounding forever | Full manifests in both reports; current modules match sequence-253 frog-fixed build above | `runtime-zig-253/frog-before-contact/`, `frog-after-contact/`, `frog-landings.json` | Same unmodified legitimate save SHA `26f2a9c7c891ebbd13de6202baaea4fb014485d2795bd60a8cfe38f5f8b1304f`. Old modules fail the actual landing assertion; repaired modules pass. Focused restoration fixture, not fresh gameplay. |
+| Repaired frogs and authored marsh exit into the bridge | Same frog-fixed identity above | `runtime-zig-253/marsh-landed-frogs/` | Legitimate first-encounter checkpoint; actual A→B crossing and bridge pickup. Later combat driver assertion fails; full bridge route not passed. |
+| Natural death and acknowledged restoration of living gameplay | Full manifest in `runtime-zig-253/bridge-open-water/identity.json` | `bridge-open-water/death-reload.json`, inputs and capture | Ordinary failed encounter, followed by reload of an earlier healthy checkpoint. The battle remains failed. Does not certify every death/restoration permutation. |
 | Cambot acquisition/alarm restoration and four observed ten-health tree uses, partial/empty restoration | `7398a5842fa26b90bf0c52012167b8a910824c5c2037d003648d759f39a11496` | `runtime-zig-249/opening-actors-heal/` | Diagnostic placement/health. Alarm/dodge permutations and full presentation remain open. |
 | Crox actual water level 3/swimming displacement, pending melee restoration/contact; Rockgat popup, burst restoration, lowering and lethal Ion contact/removal restoration | `282dd04dbfffddac553b953267f7575711f125a62d3f9d0e9c98237b4df08cd1` | `runtime-zig-250/crox-consolidated/`, `rockgat-contact/` | Diagnostic placement/equipment/health. Crox transitions/steering/avoidance, Rockgat authored toggle/death outputs and full presentation unqualified. |
 | Bridge factory creates ten skeets plus Thunderskeet; paths/aggression restore | `b1a868d39f0d0e0c2242551e7b8deef800dc5a1691679b5a524640a5f741cf88` | `runtime-zig-247/bridge-first/` | Controlled activation and health 10000. No bridge combat, boss death outputs or connected traversal acceptance. |
 | Remote angled-trigger rejection before/after load; actual exit contact works | `02a5fcdaf9752fbcfe8a91801ced0639e35ab6b07ab6d1ca986a3f664fba172c` | `runtime-zig-248/trigger-before/`, `trigger-after/` | Defective build fails the regression. Diagnostic placement; prior angled-trigger travel requires revalidation. |
 
 Paths above are under `zig-out/reports/`. Historical detail and older identities stay
-in [the journal](../specs/runs/RUN-dk3-independent-port.md), sequences 232–252.
+in [the journal](../specs/runs/RUN-dk3-independent-port.md), sequences 232–253.
 
 ## Current defects, limits and revalidation
 
@@ -54,13 +59,18 @@ in [the journal](../specs/runs/RUN-dk3-independent-port.md), sequences 232–252
   health establish contact. Idle visible enemies can be engaged before attacking.
   Hatching/expiring windows remain excluded. Low-health disengagement proved unsafe
   under active fire and has been replaced by active defense on the route to supplies.
-- Boss attempts `bridge-boss-battle/`, `bridge-boss-clear-lane/`, `bridge-arena-route/`
-  failed: corpse obstruction, lethal splash on the narrow ledge, then an unsuitable
-  submerged waypoint. Actual boss attacks/contact are observed, but no boss defeat.
-  No gameplay tuning changed to accommodate these driver failures.
-- Next connected work: finish the bridge encounter/death outputs, then e1m1c and e1m2a.
-  The driver includes a candidate boss/exit route, **under development**. Resupply and combat from
-  checkpoints do not establish the required fresh coherent New Game route.
+- Sequence 253 repairs frog jump landing only: a half-unit ground probe accepts slow
+  upward bounce motion (at most 100 units/second) on a walkable floor, as reviewed in
+  private ground-contact and frog task contracts. The defective build remains in the
+  focused regression evidence. No global actor physics, damage or geometry tuning.
+- Driver attack tracking follows actual displacement and records fire/contact separately.
+  Blind pause assumptions missed short frog attacks. Incoming boss spray observations
+  guide ordinary movement; an observed zero pending count precedes save/load. The
+  natural boss drop supplies armor for the factory route. Repeated low-health factory
+  attempts are superseded by this legitimate resupply route.
+- Next connected work: qualify the factory upper control route, yard, interior/lift,
+  e1m2a exit and visited-world round trip; then finish the fresh consolidated gate.
+  A fresh New Game replay is in progress. All checkpoint results remain separate.
 - Crox amphibious steering/avoidance, floor orientation and all attack poses; Cambot
   search cone, vertical avoidance, post-death wandering and inertia; Thunderskeet
   combat/death outputs; actor pain/gibs and complete audiovisual parity remain open.
@@ -71,12 +81,11 @@ in [the journal](../specs/runs/RUN-dk3-independent-port.md), sequences 232–252
 - Pod shell monster/experience classification, triggered cinematics, earthquake/debris
   presentation and later campaign classes remain implementation gaps. Shared action
   cleanup/body-control, death outputs, perception and travel need applicable regressions.
-- Aggregate checkpoint `/tmp/dk3-runtime-252-aggregate-fixed.log`: 241 Zig + 52 Python
+- Aggregate checkpoint `/tmp/dk3-runtime-253-aggregate.log`: 242 Zig + 54 Python
   checks, formatting and three modules passed. Assertions are enabled and all explicit
-  test roots execute. The first run detected an incomplete driver test fixture; it was
-  corrected to include actual actor state and to reject idle hatching as well. Later
-  save/refusal handling passes nine focused driver checks. Latest boss navigation and
-  swimming refinements await running-engine replay; they do not change module identity.
+  test roots execute. Subsequent factory driver waypoint/crouch refinements remain
+  under gameplay qualification; they do not alter the verified native build.
+
 
 ## Acceptance rules
 

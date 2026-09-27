@@ -3,10 +3,42 @@ import unittest
 from unittest.mock import patch
 
 from runtime_input import NativeInput
-from runtime_opening_route import firing_pause
+from runtime_arena_combat import evade
 
 
 class NativeInputTests(unittest.TestCase):
+    def test_splash_dodge_accounts_for_time_needed_to_reach_cover(self):
+        corners = ((-896, 500), (-720, 500), (-720, 780), (-896, 780))
+        self.assertEqual(evade((-896, 500, 984), corners, [(1.5, (-896, 500))]), (-720, 780))
+        # An imminent hit cannot be avoided by pretending the far corner was
+        # reached instantly. A crossing route through its impact is rejected.
+        chosen = evade((-810, 640, 984), corners, [(0.3, (-820, 610)), (1.0, (-720, 780))])
+        self.assertEqual(chosen, (-896, 780))
+
+    def test_movement_clock_excludes_diagnostics_and_world_restoration(self):
+        driver = NativeInput(None, None, None, None, [])
+        # Only confirmed forward intervals in one live world count as a stall.
+        samples = [
+            ("e1m1a", "normal", 0, 100),
+            ("e1m1a", "normal", 127, 200),
+            ("e1m1a", "normal", 127, 300),
+            ("e1m1a", "normal", 0, 400),
+            ("e1m1a", "normal", 0, 10000),
+            ("e1m1a", "normal", 127, 10100),
+            ("e1m1b", "normal", 127, 10200),
+            ("e1m1b", "frozen", 127, 10300),
+            ("e1m1b", "normal", 127, 10400),
+            ("e1m1b", "normal", 127, 100),  # Restored command clock.
+            ("e1m1b", "normal", 127, 200),
+        ]
+        with patch.object(driver, "_observe_once", side_effect=[
+            ({"map": name, "mode": mode, "forward": forward, "cmd": cmd}, 0)
+            for name, mode, forward, cmd in samples
+        ]):
+            for _ in samples:
+                driver.observe()
+        self.assertEqual(driver.forward_ms, 200)
+
     def test_save_and_load_refusals_end_the_wait_without_claiming_completion(self):
         driver = NativeInput(None, None, None, None, [])
         for action in (driver.save, driver.load):
@@ -15,23 +47,6 @@ class NativeInputTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "Save/load refused"):
                     action("encounter")
                 self.assertTrue(wait.call_args.args[2]("prior\nSave/load refused: CannotSaveDeadPlayer\n"))
-
-    def test_firing_window_excludes_expiring_attacks_and_hatching(self):
-        row = {"state": "attack", "class": "monster_slaughterskeet", "skeeter": "attack", "velocity": (0, 0, 0), "attack_left": "599"}
-        self.assertFalse(firing_pause(row))
-        row["attack_left"] = "900"
-        self.assertTrue(firing_pause(row))
-        row["skeeter"] = "hatching"
-        self.assertFalse(firing_pause(row))
-        row["state"] = "idle"
-        self.assertFalse(firing_pause(row))
-        row["skeeter"] = "chase"
-        self.assertTrue(firing_pause(row))
-        row["state"] = "attack"
-        row.update({"class": "monster_froginator", "frog": "bite", "ground": "2046", "velocity": (0, 0, -40)})
-        self.assertTrue(firing_pause(row))
-        row["ground"] = "2047"
-        self.assertFalse(firing_pause(row))
 
     def test_campaign_driver_rejects_mutation_and_command_chaining(self):
         driver = NativeInput(None, None, None, None, [])

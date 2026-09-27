@@ -31,134 +31,93 @@ def nearest_hostile(driver, distance=500, expected_map=None):
         if row["health"] <= 0 or row.get("sight") != "1" or row.get("class") not in ("monster_slaughterskeet", "monster_froginator"):
             continue
         separation = math.dist(state["pos"], row["pos"])
-        if separation < distance:
+        if separation < distance and row.get("skeeter") != "hatching":
             candidates.append((separation, identity, row))
     return min(candidates, default=None)
 
 
-def firing_pause(row):
-    if row.get("skeeter") == "hatching":
-        return False
-    if row["state"] == "idle":
-        if row["class"] == "monster_froginator":
-            return math.hypot(*row["velocity"][:2]) < 1 and row.get("ground") != "2047"
-        return math.dist(row["velocity"], (0, 0, 0)) < 1
-    if int(row["attack_left"]) < 600:
-        return False  # Allow the acknowledged aim/fire commands and projectile flight.
-    if row["class"] == "monster_froginator":
-        return row.get("frog") in ("bite", "spit") and math.hypot(*row["velocity"][:2]) < 1 and row.get("ground") != "2047"
-    return row.get("skeeter") == "attack" and math.dist(row["velocity"], (0, 0, 0)) < 1
-
-
 def fight(driver, capture, expected_map):
-    if driver.observe()["health"] <= 0:
+    state = driver.observe()
+    if state["health"] <= 0:
         raise RuntimeError("Player died before the encounter")
     target = nearest_hostile(driver, expected_map=expected_map)
     if target is None:
         return False
-    if not firing_pause(target[2]):
-        return False
-    driver.stop_forward(settle_vertical=True)
     _, identity, row = target
-    checkpoint = driver.save(f"encounter_{identity}")
-    shutil.copy2(checkpoint, driver.log.parent / checkpoint.name)
-    weapon = driver.observe()["weapon"]
-    for window in range(3):
-        state = driver.ready(weapon)
-        if state["map"] != expected_map:
-            raise RuntimeError("Unexpected map change during combat")
-        if state["health"] <= 0:
-            raise RuntimeError("Player died during the encounter")
-        deadline = time.monotonic() + 2
-        while True:
-            row = actors(driver).get(identity)
+    driver.stop_forward(settle_vertical=True)
+    state = driver.observe()
+    close = math.dist(state["pos"], row["pos"]) < 64
+    weapon = 1 if state["water"] >= 2 or (state["water"] == 1 and close) else 2
+    if weapon == 1 and not close:
+        return False
+    state = driver.select(weapon) if state["weapon"] != weapon else driver.ready(weapon)
+    if weapon == 2 and state["ammo"] <= 0:
+        return False
+    before, initial, previous = state, row.copy(), row.copy()
+    fired = contacted = False
+    deadline = time.monotonic() + 3
+    held = False
+    try:
+        while time.monotonic() < deadline:
             state = driver.observe()
-            if row is None or row["health"] <= 0:
-                return True
-            if state["health"] <= 0:
-                raise RuntimeError("Player died while observing the encounter")
-            if firing_pause(row):
+            if state["map"] != expected_map or state["health"] <= 0:
+                raise RuntimeError("Combat interrupted by death or an unexpected map change")
+            fired |= state["event"] != before["event"] and state["fire"] != before["fire"]
+            row = actors(driver).get(identity)
+            if row is None:
+                raise RuntimeError("Observed combat target disappeared without a death sample")
+            contacted |= row["health"] < initial["health"]
+            if row["health"] <= 0:
                 break
-            if time.monotonic() >= deadline:
-                driver.inputs.append({"engagement_deferred": identity, "reason": "no firing window; continue approach", "actor": row})
-                return True
-        if row.get("sight") != "1":
-            return True
-        point = row.get("aim", row["pos"])
-        delta = [point[i] - state["pos"][i] for i in range(3)]
-        delta[2] -= 22
-        if weapon == 2 and (state["ammo"] == 0 or state["water"] >= 2):
-            if math.dist(delta, (0, 0, 0)) >= 72:
-                driver.inputs.append({"engagement_deferred": identity, "reason": "Ion empty or submerged; continue toward supplies/dry ground"})
-                return True
-            driver.select(1)  # Ordinary starting Disruptor for close contact.
-            weapon = 1
-            continue  # Re-observe the target after the weapon transition.
-        if weapon == 1 and math.dist(delta, (0, 0, 0)) >= 72:
-            return True
-        driver.aim(math.degrees(math.atan2(delta[1], delta[0])),
-                   -math.degrees(math.atan2(delta[2], math.hypot(*delta[:2]))))
-        if weapon == 2:
-            trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
-            first_hit = int(re.search(r"flight_target=(\d+)", trace)[1])
-            if first_hit not in (0, identity):
-                driver.inputs.append({"aim_obstruction": first_hit, "intended": identity})
-                return False  # Continue movement before trying a blocked muzzle lane.
-        previous = row.copy()
-        before = driver.ready(weapon)
-        fired = contacted = False
-        deadline = time.monotonic() + 2
-        driver.issue("+attack")
-        try:
-            # Hold ordinary automatic fire across a real attack pause. Releasing
-            # and re-acknowledging every shot consumed most of a skeet's window.
-            while time.monotonic() < deadline:
-                state = driver.observe()
-                fired |= state["event"] != before["event"] and state["fire"] != before["fire"]
-                if state["map"] != expected_map or state["health"] <= 0:
-                    raise RuntimeError("Combat interrupted by death or an unexpected map change")
-                row = actors(driver).get(identity)
-                contacted |= row is None or row["health"] < previous["health"]
-                if row is None or row["health"] <= 0:
-                    break
-                expiring = row["state"] == "attack" and int(row["attack_left"]) < 150
-                if row["state"] not in ("idle", "attack") or expiring or math.dist(row["pos"], previous["pos"]) > 4:
-                    break
-        finally:
+            if row["sight"] != "1":
+                break
+            # Lead observed displacement, not an actor's desired velocity while
+            # blocked against geometry. Keep tracking through short attack poses.
+            elapsed = max(1, int(row["now"]) - int(previous["now"]))
+            velocity = [(row["pos"][i] - previous["pos"][i]) * 1000 / elapsed for i in range(3)]
+            lead = min(0.5, math.dist(row["aim"], state["pos"]) / 1800 + 0.05) if weapon == 2 else 0
+            point = [row["aim"][i] + velocity[i] * lead for i in range(3)]
+            delta = [point[i] - state["pos"][i] for i in range(3)]
+            delta[2] -= 22
+            yaw = math.degrees(math.atan2(delta[1], delta[0]))
+            pitch = max(-87.890625, min(87.890625, -math.degrees(math.atan2(delta[2], math.hypot(*delta[:2])))))
+            if not held:
+                driver.aim(yaw, pitch)
+                if weapon == 2:
+                    trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
+                    first_hit = int(re.search(r"flight_target=(\d+)", trace)[1])
+                    if first_hit not in (0, identity):
+                        driver.inputs.append({"aim_obstruction": first_hit, "intended": identity})
+                        break
+                driver.issue("+attack")
+                held = True
+            else:
+                driver.issue(f"dk3_look {yaw} {pitch}")
+            previous = row.copy()
+    finally:
+        if held:
             driver.issue("-attack")
-            released = driver.until(lambda s: not s["buttons"] & 1, description="processed burst release")
-            # An immediate kill can appear in actor state between the last
-            # player observation and release. Observe the fire event there too.
+            released = driver.until(lambda s: not s["buttons"] & 1, description="processed combat release")
             fired |= released["event"] != before["event"] and released["fire"] != before["fire"]
-        if not fired:
-            raise RuntimeError("No actual fire event in the observed attack window")
-        if not contacted:
-            deadline = time.monotonic() + 1
-            while time.monotonic() < deadline:
-                row = actors(driver).get(identity)
-                if row is None or row["health"] < previous["health"]:
-                    contacted = True
-                    break
-        driver.inputs.append({"combat_window": window, "target": identity, "fired": fired,
-                              "contacted": contacted, "before": previous, "after": row})
-        if not contacted:
-            capture(f"aim-no-contact-{identity}-{window}")
-            raise RuntimeError(f"No confirmed target contact for {identity}; inspect attack window and trace")
-        if row is None or row["health"] <= 0:
-            capture(f"encounter-{identity}-cleared")
-            return True
-    raise RuntimeError(f"Combat windows exhausted for {identity}; inspect evidence")
+        driver.inputs.append({"combat_target": identity, "fired": fired, "contacted": contacted,
+                              "before": initial, "after": row})
+    if held and not fired:
+        raise RuntimeError("Held attack produced no actual fire event")
+    # A miss is a recorded gameplay outcome, not a target-contact pass. Continue
+    # moving before trying again instead of spending another stationary window.
+    return contacted
 
 
-def walk(driver, point, capture, *, combat=False, tolerance=48):
+def walk(driver, point, capture, *, combat=False, tolerance=48, floor_limit=None, jump=True):
     deadline = time.monotonic() + 15
-    last_progress = time.monotonic()
+    last_progress = driver.forward_ms
     next_combat = 0
     best = float("inf")
     heading = None
     moving = False
     jumped = False
     swimming_up = False
+    previous_motion = None
     expected_map = driver.observe()["map"]
     precise = tolerance < 32
     if precise:
@@ -170,6 +129,9 @@ def walk(driver, point, capture, *, combat=False, tolerance=48):
                 raise RuntimeError(f"Unexpected map change during waypoint movement: {expected_map} -> {state['map']}")
             if state["health"] <= 0:
                 raise RuntimeError("Player died during route movement")
+            if floor_limit is not None and state["pos"][2] < floor_limit:
+                driver.inputs.append({"waypoint_departure": {"point": point, "state": state}})
+                return state  # Caller follows the connected lower route.
             surface = state["water"] >= 2 and len(point) == 3 and point[2] > state["pos"][2] + 8
             if surface and not swimming_up:
                 driver.issue("+moveup")
@@ -180,18 +142,26 @@ def walk(driver, point, capture, *, combat=False, tolerance=48):
                 driver.until(lambda s: s["up"] == 0, description="processed swimming ascent release")
                 swimming_up = False
             distance = math.dist(state["pos"][:2], point[:2])
-            if distance < tolerance:
+            speed = 0
+            if moving and previous_motion is not None and state["cmd"] > previous_motion["cmd"]:
+                speed = min(320, 1000 * math.dist(state["pos"][:2], previous_motion["pos"][:2]) /
+                            (state["cmd"] - previous_motion["cmd"]))
+            previous_motion = state
+            # Release ahead of the target using observed travel speed, then
+            # acknowledge actual friction/position. Short approaches otherwise
+            # alternate past the target before every release finishes.
+            if distance < tolerance + speed * 0.10:
                 state = driver.stop_forward()
                 heading, moving = None, False
                 if math.dist(state["pos"][:2], point[:2]) < tolerance:
                     return state
                 continue
             if distance < best - 8:
-                best, last_progress = distance, time.monotonic()
-            if time.monotonic() - last_progress > 3:
+                best, last_progress = distance, driver.forward_ms
+            if driver.forward_ms - last_progress > 3000:
                 capture("navigation-stalled")
                 raise RuntimeError(f"No movement progress toward {point}; current {state['pos']}")
-            if combat and time.monotonic() >= next_combat:
+            if combat and state["water"] < 2 and time.monotonic() >= next_combat:
                 # Actor/aim round trips are not movement ticks. Stop before
                 # inspecting them so the player cannot run past the waypoint.
                 inspection_started = time.monotonic()
@@ -199,13 +169,12 @@ def walk(driver, point, capture, *, combat=False, tolerance=48):
                 heading, moving = None, False
                 if fight(driver, capture, expected_map):
                     deadline = time.monotonic() + 15
-                    last_progress = time.monotonic()
+                    last_progress = driver.forward_ms
                 else:
                     # Deliberately stationary observations are not failed
                     # movement. Each diagnostic has its own bounded timeout.
                     stationary_time = time.monotonic() - inspection_started
                     deadline += stationary_time
-                    last_progress += stationary_time
                 next_combat = time.monotonic() + 0.75
                 state = driver.observe()
                 if math.dist(state["pos"][:2], point[:2]) < tolerance:
@@ -219,7 +188,7 @@ def walk(driver, point, capture, *, combat=False, tolerance=48):
                 yaw = math.degrees(math.atan2(point[1] - state["pos"][1], point[0] - state["pos"][0]))
                 driver.aim(yaw, 0)
                 heading, moving = yaw, False
-            if not swimming_up and not jumped and len(point) == 3 and point[2] - state["pos"][2] > 18 and distance < 100:
+            if jump and not swimming_up and not jumped and len(point) == 3 and point[2] - state["pos"][2] > 18 and distance < 100:
                 start_z = state["pos"][2]
                 driver.issue("+forward")
                 driver.issue("+moveup")
@@ -230,6 +199,7 @@ def walk(driver, point, capture, *, combat=False, tolerance=48):
                     driver.issue("-moveup")
                     driver.until(lambda s: s["up"] == 0, description="processed jump release")
                 jumped, moving = True, True
+                next_combat = time.monotonic() + 1.0  # Finish the jump before stopping for diagnostics.
             if not moving:
                 driver.issue("+forward")
                 driver.until(lambda s: 0 < s["forward"] <= (64 if precise else 127), description="processed forward input")
@@ -273,8 +243,8 @@ def opening_route(driver, capture, report, phase="arrival"):
 
 
 def marsh_exit(driver, capture, report, start_index=0):
-    state = driver.observe()
-    if state["map"] != "e1m1a" or state["health"] <= 0 or state["weapon"] != 2:
+    state = driver.select(2)
+    if state["map"] != "e1m1a" or state["health"] <= 0:
         raise RuntimeError(f"First-encounter checkpoint setup invalid: {state}")
     route = ((730, -2081, 392), (499, -2047, 485), (393, -1854, 488),
              (430, -1618, 488), (374, -1538, 488), (240, -1528, 488),
@@ -285,12 +255,39 @@ def marsh_exit(driver, capture, report, start_index=0):
              (-896, -2224, 328), (-872, -2160, 328), (-864, -2133, 302),
              (-848, -2053, 302), (-824, -1912, 296), (-823, -1868, 329),
              (-855, -1689, 393), (-880, -1560, 425), (-866, -1438, 474),
-             (-696, -1416, 503))
+             (-768, -1416, 503))
     try:
         for index, point in enumerate(route):
             if index < start_index:
                 continue
-            walk(driver, point, capture, combat=True)
+            if 12 <= index <= 20 and driver.observe()["pos"][2] < 340:
+                # A fall into the authored lower pond connects through its own
+                # supplied water/ground nodes; do not try to climb the tall rim.
+                for lower in ((-560, -2008, 312), (-616, -1933, 318), (-768, -1920, 312), (-824, -1912, 320)):
+                    walk(driver, lower, capture, combat=True)
+                return marsh_exit(driver, capture, report, start_index=23)
+            walk(driver, point, capture, combat=True, floor_limit=340 if 12 <= index <= 20 else None)
+            if index in (1, 9):
+                from runtime_bridge_route import checkpoint, resupply
+                if index == 1:
+                    detour = ((413, -2069, 488), (432, -2304, 536), (464, -2432, 592),
+                              (592, -2528, 648), (608, -2464, 608), (608, -2424, 632),
+                              (608, -2376, 654), (560, -2352, 664))
+                    tree = 42
+                else:
+                    detour = ((-80, -1816, 584), (-64, -1870, 552), (-55, -1941, 585), (-64, -1948, 600))
+                    tree = 40
+                # Clear the visible defender before entering the narrow alcove.
+                fight(driver, capture, "e1m1a")
+                checkpoint(driver, capture, report, f"marsh_before_tree_{tree}")
+                for supply in detour:
+                    walk(driver, supply, capture, tolerance=20)
+                uses = resupply(driver, tree)
+                driver.inputs.append({"marsh_tree": tree, "uses": uses})
+                checkpoint(driver, capture, report, f"marsh_tree_{tree}")
+                for supply in reversed(detour[:-1]):
+                    walk(driver, supply, capture, combat=True)
+                walk(driver, point, capture, combat=True)
             if index in (8, 17, 26):
                 checkpoint = driver.save(f"opening_marsh_{index}")
                 shutil.copy2(checkpoint, report / checkpoint.name)

@@ -82,10 +82,11 @@ pub fn jump(actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocit
         const milliseconds = @min(remaining, 50);
         remaining -= milliseconds;
         const seconds = @as(f32, @floatFromInt(milliseconds)) * 0.001;
-        const floor = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, -0.25 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
-        body.grounded = velocity.linear[2] <= 0 and !floor.start_solid and floor.fraction < 1 and floor.normal[2] >= 0.7;
+        const floor = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, -0.5 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        body.grounded = policy.acceptsFloor(velocity.linear[2], floor.normal[2]) and !floor.start_solid and !floor.all_solid and floor.fraction < 1;
         actor.ground_entity = if (body.grounded) floor.entity else c.ENTITYNUM_NONE;
         if (body.grounded) {
+            pose.position = floor.end;
             velocity.linear = @splat(0);
             return;
         }

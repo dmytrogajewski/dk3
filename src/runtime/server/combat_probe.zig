@@ -85,6 +85,12 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
     if (std.mem.eql(u8, name, "dk3_runtime_projectiles")) {
         for (slots.occupants) |occupant| {
             const entity = occupant orelse continue;
+            if (world.get(entity, data.ThunderSpray) catch null) |spray| {
+                const velocity = (try world.get(entity, data.Velocity)).linear;
+                const position = (try world.get(entity, data.Transform)).position;
+                var output: [256]u8 = undefined;
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 thunder spray state: id={d} owner={d} velocity={d:.2},{d:.2},{d:.2} position={d:.2},{d:.2},{d:.2}\n", .{ try world.persistentId(entity), spray.owner, velocity[0], velocity[1], velocity[2], position[0], position[1], position[2] }));
+            }
             const projectile = world.get(entity, data.Projectile) catch continue;
             const lifetime = world.get(entity, data.Lifetime) catch null;
             const velocity = (try world.get(entity, data.Velocity)).linear;

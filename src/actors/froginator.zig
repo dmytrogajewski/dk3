@@ -5,6 +5,21 @@ pub const attacks = [_][]const u8{ "ataka", "atakb", "atakc" };
 pub const spit_model = "models/e1/me_sludge.dkm";
 pub const jump_sounds = [_][]const u8{ "e1/m_frogjumpa.wav", "e1/m_frogamba.wav" };
 pub const landing_sound = "e1/m_frogambb.wav";
+/// A short floor probe can settle the small rebound at the end of a jump.
+/// Fast upward launch/rebound motion must remain airborne.
+pub fn acceptsFloor(upward: f32, normal_z: f32) bool {
+    return upward <= 100 and normal_z >= 0.7;
+}
+
+test "frog landing admits the captured low rebound without cancelling launch or wall bounce" {
+    try std.testing.expect(acceptsFloor(13.333, 1));
+    try std.testing.expect(acceptsFloor(-40, 1));
+    try std.testing.expect(acceptsFloor(100, 0.7));
+    try std.testing.expect(!acceptsFloor(100.01, 1));
+    try std.testing.expect(!acceptsFloor(300, 1));
+    try std.testing.expect(!acceptsFloor(13.333, 0.69));
+    try std.testing.expect(!acceptsFloor(-40, 0));
+}
 pub const Spit = struct { owner: u32, damage: f32, born_ms: i64, stepped_ms: i64 };
 pub const Tuning = struct {
     damage: f32 = 0,

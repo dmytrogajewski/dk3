@@ -24,6 +24,45 @@ def world_rows(driver, kind):
     return rows
 
 
+def items(driver):
+    before = len(driver.text())
+    driver.issue("dk3_runtime_items")
+    driver.observe()
+    rows = {}
+    for line in driver.text()[before:].splitlines():
+        if "zig item id=" in line:
+            row = dict(re.findall(r"(\w+)=([^ ]*)", line))
+            row["pos"] = tuple(map(float, row["pos"].split(",")))
+            rows[int(row["id"])] = row
+    driver.inputs.append({"items": rows})
+    return rows
+
+
+def collect_boss_drop(driver, capture, report):
+    drops = [(identity, row) for identity, row in items(driver).items() if row["class"] == "item_megashield"]
+    if len(drops) != 1:
+        raise RuntimeError("Boss death did not leave its single authored Megashield")
+    identity, drop = drops[0]
+    if drop["visible"] != "1":
+        if driver.observe()["armor"] <= 0:
+            raise RuntimeError("Consumed boss drop without observed player armor")
+        return
+    before = driver.observe()["armor"]
+    if driver.observe()["pos"][2] > 900 and drop["pos"][2] < 800:
+        cross_drop(driver, (drop["pos"][0], drop["pos"][1], drop["pos"][2] + 24))
+    walk(driver, (drop["pos"][0], drop["pos"][1], drop["pos"][2] + 24), capture, tolerance=16)
+    driver.issue("+movedown")
+    try:
+        state = driver.until(lambda s: s["health"] <= 0 or s["armor"] > before, seconds=6,
+                             description="ordinary touch of the boss Megashield")
+        if state["health"] <= 0 or items(driver)[identity]["visible"] != "0":
+            raise RuntimeError("Boss drop contact did not leave a living armored player")
+    finally:
+        driver.issue("-movedown")
+        driver.until(lambda s: s["up"] >= 0, description="processed dive release")
+    checkpoint(driver, capture, report, "bridge_boss_reward")
+
+
 def aim_at(driver, point):
     state = driver.observe()
     delta = [point[i] - state["pos"][i] for i in range(3)]
@@ -81,7 +120,7 @@ def clear_close_attackers(driver, capture):
     raise TimeoutError("Close skeets remain at the authored control; inspect the combat driver")
 
 
-def shoot_control(driver, capture, identity, removed_actor):
+def shoot_control(driver, capture, identity, removed_actor=None):
     target = world_rows(driver, "destructible")[identity]
     if target["broken"] != "0" or int(target["health"]) <= 0:
         raise RuntimeError("Control setup is already broken")
@@ -103,18 +142,19 @@ def shoot_control(driver, capture, identity, removed_actor):
         else:
             raise RuntimeError(f"No confirmed damage to authored control {identity}")
         if target["broken"] == "1":
-            assert removed_actor not in actors(driver), "Control broke but linked turret remained"
+            if removed_actor is not None:
+                assert removed_actor not in actors(driver), "Control broke but linked turret remained"
             capture(f"control-{identity}-destroyed")
             return
     raise RuntimeError(f"Control {identity} did not break within the observed shot budget")
 
 
-def clear_ford(driver, capture, report):
+def clear_ford(driver, capture, report, identities=(387, 419)):
     if driver.observe()["water"] != 0:
         raise RuntimeError("Ford firing position is not on dry land")
     checkpoint(driver, capture, report, "bridge_ford_bank")
     contacts = []
-    for identity in (387, 419):
+    for identity in identities:
         for shot in range(18):
             row = actors(driver)[identity]
             if row["health"] <= 0:
@@ -169,6 +209,10 @@ def bridge_route(driver, capture, report, phase="bridge-arrival"):
     try:
         if phase == "bridge-supplies":
             return bridge_span(driver, capture, report)
+        if phase == "bridge-crossing":
+            return bridge_crossing(driver, capture, report)
+        if phase == "bridge-cleared":
+            return bridge_exit(driver, capture, report)
         if phase == "bridge-boss":
             return bridge_battle(driver, capture, report)
         if phase == "bridge-health":
@@ -244,6 +288,12 @@ def bridge_span(driver, capture, report):
     for point in ((-1648, 816, 984), (-1616, 752, 984)):
         walk(driver, point, capture, combat=True, tolerance=20)
     checkpoint(driver, capture, report, "bridge_before_span")
+    return bridge_crossing(driver, capture, report)
+
+
+def bridge_crossing(driver, capture, report):
+    walk(driver, (-1548, 800, 984), capture, tolerance=16)
+    clear_ford(driver, capture, report, identities=(431,))
     for point in ((-1563, 622, 988), (-1420, 640, 984), (-1280, 640, 984),
                   (-1120, 640, 984), (-1010, 640, 984), (-930, 640, 984)):
         walk(driver, point, capture, combat=True)
@@ -260,6 +310,9 @@ def bridge_span(driver, capture, report):
         pieces = world_rows(driver, "destructible")
         if boss and all(pieces[identity]["broken"] == "1" for identity in (80, 81, 82)):
             break
+        # Engage the visible wave during its authored entrance instead of
+        # standing idle until all ten actors and the boss have arrived.
+        fight(driver, capture, "e1m1b")
     else:
         raise RuntimeError("Bridge destruction or authored boss creation did not complete")
     checkpoint(driver, capture, report, "bridge_boss_arrival")
@@ -270,95 +323,27 @@ def bridge_span(driver, capture, report):
 def bridge_battle(driver, capture, report):
     driver.select(2)
     state = driver.observe()
-    if state["pos"][2] > 900:
-        # The east door ledge is narrower than a spray blast. Descend to the
-        # supplied arena-bank route before provoking the heavy flier.
-        for point in ((-950, 800, 984), (-1150, 800, 520), (-1350, 800, 520), (-1496, 799, 521)):
-            walk(driver, point, capture, combat=True)
-        if driver.observe()["water"] >= 2:
-            raise RuntimeError("Arena firing position is submerged; inspect the bank route")
-        checkpoint(driver, capture, report, "bridge_arena_bank")
-    deadline = time.monotonic() + 100
-    last_contact = time.monotonic()
-    contacts = []
-    waves = set()
-    northward = True
-
-    def evade():
-        nonlocal northward
-        state = driver.observe()
-        if state["pos"][1] > 1250:
-            northward = False
-        elif state["pos"][1] < 880:
-            northward = True
-        y = state["pos"][1] + (140 if northward else -140)
-        x = -1496 + (y - 799) * 163 / 548
-        walk(driver, (x, y, 521), capture, tolerance=32)
-        if driver.observe()["water"] >= 2:
-            raise RuntimeError("Evasive arena route entered deep water")
-
-    while time.monotonic() < deadline:
-        state = driver.observe()
-        if state["map"] != "e1m1b" or state["health"] <= 0:
-            raise RuntimeError("Bridge battle interrupted by death or an unexpected transition")
-        rows = actors(driver)
-        bosses = [(identity, row) for identity, row in rows.items() if row["unique"] == "tskeet"]
-        if len(bosses) != 1:
-            raise RuntimeError("Bridge battle requires exactly one authored boss")
-        identity, boss = bosses[0]
-        waves.update(row["unique"].lower() for row in rows.values()
-                     if re.fullmatch(r"skeet[1-5][ab]", row["unique"].lower()))
-        if boss["health"] <= 0:
-            break
-        if state["ammo"] <= 0:
-            raise RuntimeError("Bridge battle exhausted the collected Ion ammunition")
-        # Address close ordinary skeets before stopping to aim at the heavy flier.
-        if fight(driver, capture, "e1m1b"):
-            last_contact = time.monotonic()
-            evade()
-            continue
-        if driver.inputs[-1].get("aim_obstruction"):
-            evade()
-            continue
-        if time.monotonic() - last_contact > 15:
-            capture("boss-no-firing-lane")
-            raise RuntimeError("No productive boss firing window; inspect navigation and actor behavior")
-        if math.dist(boss["velocity"], (0, 0, 0)) > 1 or boss["sight"] != "1":
-            continue
-        driver.ready(2)
-        aim_at(driver, boss["aim"])
-        trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
-        if int(re.search(r"target=(\d+)", trace)[1]) != identity:
-            continue
-        if int(re.search(r"flight_target=(\d+)", trace)[1]) not in (0, identity):
-            evade()
-            continue
-        previous = boss["health"]
-        fired = driver.fire()
-        contact_deadline = time.monotonic() + 2
-        while time.monotonic() < contact_deadline:
-            boss = actors(driver)[identity]
-            if boss["health"] < previous:
-                last_contact = time.monotonic()
-                contacts.append({"before": previous, "after": boss["health"], "fire": fired["fire"]})
-                if boss["health"] > 0:
-                    evade()
-                break
-        else:
-            capture("boss-shot-missed")
-            raise RuntimeError("Boss moved out of the firing lane; revise aim before spending more ammunition")
-    else:
-        raise TimeoutError("Bridge boss survived the bounded battle")
-    if len(waves) != 10 or not contacts:
-        raise RuntimeError("Boss death does not establish the complete authored ten-skeet entrance")
+    from runtime_arena_combat import battle
+    contacts, waves = battle(driver, capture)
     checkpoint(driver, capture, report, "bridge_boss_defeated")
     driver.load("bridge_boss_defeated")
     restored = next(row for row in actors(driver).values() if row["unique"] == "tskeet")
     if restored["health"] > 0:
         raise RuntimeError("Boss death did not survive save/load")
+    return {"contacts": contacts, "waves": sorted(waves), "exit": bridge_exit(driver, capture, report)}
+
+
+def bridge_exit(driver, capture, report):
+    restored = next(row for row in actors(driver).values() if row["unique"] == "tskeet")
+    if restored["health"] > 0:
+        raise RuntimeError("Bridge exit requires the defeated authored boss")
+    collect_boss_drop(driver, capture, report)
+    if driver.observe()["pos"][2] > 900:
+        cross_drop(driver, (-1283, 908, 520))
+    cross_drop(driver, (-1322, 1242, 520))
     # The death target opens the authored north door. Walking through its actual
     # collision and touching the exit establishes more than a dispatched event.
-    for point in ((-1010, 820, 984), (-1120, 1030, 520), (-1333, 1347, 509),
+    for point in ((-1333, 1347, 509),
                   (-1331, 1415, 543), (-1314, 1510, 591), (-1314, 1578, 625),
                   (-1270, 1700, 661), (-1047, 1676, 664), (-900, 1600, 664)):
         walk(driver, point, capture, combat=True)
@@ -371,5 +356,36 @@ def bridge_battle(driver, capture, report):
     finally:
         driver.stop_forward()
     checkpoint(driver, capture, report, "factory_arrival")
+    from runtime_factory_route import factory_route
     return {"scope": "Bridge boss damage/death restoration and ordinary traversal through its death-opened door into e1m1c.",
-            "waves": sorted(waves), "contacts": contacts, "state": arrival}
+            "state": arrival, "factory": factory_route(driver, capture, report)}
+
+
+def cross_drop(driver, point):
+    """Pass a waypoint during a fall/swim without waiting for air friction."""
+    deadline = time.monotonic() + 10
+    heading = None
+    ascending = False
+    try:
+        while time.monotonic() < deadline:
+            state = driver.observe()
+            if state["health"] <= 0 or state["map"] != "e1m1b":
+                raise RuntimeError("Arena descent interrupted")
+            if math.dist(state["pos"][:2], point[:2]) < 64:
+                return state
+            yaw = math.degrees(math.atan2(point[1] - state["pos"][1], point[0] - state["pos"][0]))
+            if heading is None or abs((yaw - heading + 180) % 360 - 180) > 10:
+                driver.aim(yaw, 0)
+                heading = yaw
+            upward = state["water"] >= 2 and state["pos"][2] < point[2]
+            if upward != ascending:
+                driver.issue("+moveup" if upward else "-moveup")
+                ascending = upward
+            if state["forward"] == 0:
+                driver.issue("+forward")
+                driver.until(lambda s: s["forward"] > 0, description="processed descent steering")
+        raise TimeoutError(f"Did not pass arena descent waypoint {point}")
+    finally:
+        driver.issue("-forward")
+        driver.issue("-moveup")
+        driver.until(lambda s: s["forward"] == 0 and s["up"] == 0, description="processed descent input release")
