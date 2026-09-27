@@ -27,6 +27,7 @@ pub const Router = struct {
         defer self.depth -= 1;
         const object = (try world.get(entity, data.MapObject)).*;
         if (!@import("keys.zig").allows(world, object, activator)) return;
+        if ((world.get(entity, data.WorldControl) catch null) != null) return @import("world_controls.zig").use(world, slots, projections, self, entity, activator, now);
         if (@import("companion_triggers.zig").owns(object.classname)) return @import("companion_triggers.zig").use(self.actors orelse return error.MissingActorDefinitions, world, slots, projections, entity, activator, now);
         if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .rockgat) {
             if ((try world.get(entity, data.Health)).current > 0) {
@@ -119,6 +120,9 @@ pub const Router = struct {
             };
             return error.TargetQueueCapacity;
         }
+        try self.dispatch(world, slots, projections, entity, activator, now);
+    }
+    pub fn fireImmediate(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {
         try self.dispatch(world, slots, projections, entity, activator, now);
     }
     fn dispatch(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {

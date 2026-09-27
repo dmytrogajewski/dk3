@@ -30,7 +30,7 @@ pub fn parameters(slot: u16) move.Parameters {
     return .{ .slot = slot, .mask = c.MASK_PLAYERSOLID, .water_mask = c.MASK_WATER, .solid_mask = c.CONTENTS_SOLID };
 }
 pub fn read(ps: *const c.playerState_t) move.Player {
-    return .{ .command_ms = ps.commandTime, .delta_angles = ps.delta_angles, .mode = switch (ps.pm_type) {
+    return .{ .command_ms = ps.commandTime, .teleport_bit = ps.eFlags & c.EF_TELEPORT_BIT != 0, .delta_angles = ps.delta_angles, .mode = switch (ps.pm_type) {
         c.PM_NORMAL => .normal,
         c.PM_DEAD => .dead,
         c.PM_SPECTATOR => .spectator,
@@ -40,6 +40,7 @@ pub fn read(ps: *const c.playerState_t) move.Player {
 }
 pub fn write(ps: *c.playerState_t, player: move.Player, transform: data.Transform, velocity: data.Velocity) void {
     ps.commandTime = @intCast(player.command_ms);
+    ps.eFlags = (ps.eFlags & ~@as(i32, c.EF_TELEPORT_BIT)) | (if (player.teleport_bit) @as(i32, c.EF_TELEPORT_BIT) else 0);
     ps.delta_angles = player.delta_angles;
     ps.pm_type = switch (player.mode) {
         .normal => c.PM_NORMAL,

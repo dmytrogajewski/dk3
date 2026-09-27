@@ -3748,3 +3748,16 @@ Asset regeneration remains necessary. The broader entity/property audit identifi
 next missing authored controls rather than treating registered monster counts as complete
 campaign coverage. Continue the broad coding pass. Main, installed game, saves and
 online service remain preserved; feature branch only.
+
+## Sequence 270 — authored-controls-and-map-music (implementation checkpoint)
+
+Continues after `391ce57`. Timers, pushes, teleports, secrets, sidekick toggle volumes,
+map/trigger music and authored console/inventory actions now connect through existing
+routing, touch, collision and persistence mechanisms. The matrix records contract
+sources and scoped inventory-removal compatibility correction. New control variants
+use the existing 64-component registry capacity without expanding ECS architecture.
+Three native modules linked in `/tmp/dk3-runtime-270-controls-link.log` before later
+music-path validation and regression additions. Regression roots are unexecuted; no
+engine or connected scenario passed. Asset regeneration and consolidated verification
+remain pending. Continue authored speakers/audio, healing portals, effects and remaining
+campaign/multiplayer/release work. Main, installation, saves and service unchanged.

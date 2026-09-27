@@ -30,6 +30,8 @@ pub const State = struct {
         try binary.spawn(world, slots, projections);
         try @import("monitors.zig").spawn(world);
         try @import("targets.zig").spawn(world);
+        try @import("world_controls.zig").spawn(world, projections, now);
+        try @import("music.zig").restore(world, allocator);
         try @import("companion_triggers.zig").spawn(world, projections);
         try @import("campaign.zig").spawn(world);
         try @import("world_actions.zig").spawn(allocator, world, projections);
@@ -114,6 +116,7 @@ pub const State = struct {
         try @import("healthtrees.zig").step(world, slots, projections, now, elapsed);
         try @import("items.zig").step(world, slots, projections, targets, table, now, elapsed);
         try targets.step(world, slots, projections, now);
+        try @import("world_controls.zig").step(world, slots, projections, targets, now);
         if (!@import("cinematics.zig").active(world)) try self.scripts.step(world, slots, projections, &self.actors, targets, now);
         try @import("world_actions.zig").step(world, slots, projections, targets, now);
         try self.multiplayer.step(world, slots, projections, targets, now);

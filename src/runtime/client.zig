@@ -55,6 +55,7 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     @import("client/held_weapons.zig").reset();
     @import("client/events.zig").reset();
     selected_weapon = 0;
+    @import("client/music.zig").reset();
     inventory_mask = 0;
     if (engine.integer("dk3_runtime_probe") != 2) return error.ReplacementGameplayNotQualified;
     _ = engine.gateway.call(c.CG_GETGAMESTATE, .{&game});
@@ -133,6 +134,7 @@ fn draw(now: i32) !void {
     }
     if (!have_snapshot or snapshot_number < 0 or snapshot.ps.clientNum != client_number) return;
     if (snapshot.numEntities < 0 or snapshot.numEntities > snapshot.entities.len) return error.InvalidSnapshot;
+    try @import("client/music.zig").update(&game);
     engine.setSnapshot(snapshot.entities[0..@intCast(snapshot.numEntities)], now);
     try @import("client/events.zig").consume(&game, snapshot.entities[0..@intCast(snapshot.numEntities)]);
     if (selected_weapon == 0 or snapshot.ps.dk3Inventory != inventory_mask) {

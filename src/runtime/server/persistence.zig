@@ -219,4 +219,5 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         if (hidden) projection.shared.svFlags |= c.SVF_NOCLIENT;
         engine.link(projection);
     };
+    try @import("music.zig").restore(world, @import("std").heap.c_allocator);
 }

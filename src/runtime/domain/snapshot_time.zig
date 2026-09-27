@@ -18,6 +18,14 @@ fn liquid(value: *@import("environment.zig").State, delta: i64) !void {
 }
 pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)], delta: i64) !void {
     switch (id) {
+        .world_control => {
+            try active(&value.ready_ms, delta);
+            switch (value.action) {
+                .timer => |*timer| try deadline(&timer.next_ms, delta),
+                .music => |*music| try deadline(&music.changed_ms, delta),
+                else => {},
+            }
+        },
         .firefly => {
             try shift(&value.next_ms, delta);
             if (value.wisp) |*wisp| {
@@ -39,6 +47,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             }
         },
         .companion => {
+            try active(&value.motor.teleport_until_ms, delta);
             try shift(&value.motor.command_ms, delta);
             try active(&value.jump_started_ms, delta);
             try deadline(&value.animation_until, delta);
@@ -96,7 +105,10 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.expires_ms, delta);
         },
         .lifetime => try shift(&value.expires_ms, delta),
-        .player => try shift(&value.command_ms, delta),
+        .player => {
+            try shift(&value.command_ms, delta);
+            try active(&value.teleport_until_ms, delta);
+        },
         .weapons => {
             try active(&value.gas_until_ms, delta);
             try deadline(&value.last_fire_ms, delta);
@@ -376,4 +388,17 @@ test "liquid reserves preserve remaining air nitro callback and suit charge on r
     try std.testing.expectEqual(@as(?i64, 15000), character.liquid.nitro_ms);
     try std.testing.expectEqual(@as(i64, 5000), character.environment_charge_ms);
     try std.testing.expectEqual(@as(f32, 0.75), character.liquid.fraction);
+}
+
+test "world timer restore shifts its deadline but preserves variance sequence and activation" {
+    var control: data.WorldControl = .{ .uses = 3, .action = .{ .timer = .{ .next_ms = 2000, .wait_ms = 1000, .variance_ms = 500, .activator = 9, .random = 123 } } };
+    try rebase(.world_control, &control, 8000);
+    try std.testing.expectEqual(@as(?i64, 10000), control.action.timer.next_ms);
+    try std.testing.expectEqual(@as(u32, 123), control.action.timer.random);
+    try std.testing.expectEqual(@as(u32, 9), control.action.timer.activator);
+    try std.testing.expectEqual(@as(u32, 3), control.uses);
+    var player: data.Player = .{ .command_ms = 1000, .teleport_until_ms = 1700, .teleport_bit = true };
+    try rebase(.player, &player, 8000);
+    try std.testing.expectEqual(@as(i64, 9700), player.teleport_until_ms);
+    try std.testing.expect(player.teleport_bit);
 }

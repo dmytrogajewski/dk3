@@ -19,6 +19,7 @@ pub const Hurt = @import("damage.zig").Receipt;
 pub const Hazard = @import("world_actions.zig").Hazard;
 pub const Destructible = @import("world_actions.zig").Destructible;
 pub const Wall = @import("world_actions.zig").Wall;
+pub const WorldControl = @import("world_controls.zig").State;
 pub const TargetSequence = @import("world_actions.zig").Sequence;
 pub const Exit = @import("travel.zig").Exit;
 pub const Projectile = @import("combat.zig").Projectile;
@@ -72,7 +73,7 @@ pub const Gravity = struct { acceleration: f32 = 800 };
 pub const Motion = struct { destination: Vec3 = @splat(0), velocity: Vec3 = @splat(0) };
 pub const Lifetime = struct { expires_ms: i64 };
 pub const Attachment = struct { parent_id: u32, offset: Vec3 };
-pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21, character = 22, ailments = 23, sound_event = 24, projectile = 25, actor = 26, hurt = 27, hazard = 28, destructible = 29, wall = 30, target_sequence = 31, exit = 32, impact_event = 33, melee = 34, weapon_launch = 35, charge = 36, hammer = 37, shockwave = 38, nova = 39, flashlight = 40, zeus = 41, zeus_bolt = 42, nightmare = 43, meta_ring = 44, meta_laser = 45, cinematic = 46, performer = 47, frog_spit = 48, script = 49, health_tree = 50, thunder_spray = 51, monitor = 52, session = 53, objective = 54, companion = 55, dwarf_axe = 56, scenery = 57, firefly = 58, cryo_spray = 59, actor_laser = 60, actor_attack = 61, wisp_swarm = 62 };
+pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21, character = 22, ailments = 23, sound_event = 24, projectile = 25, actor = 26, hurt = 27, hazard = 28, destructible = 29, wall = 30, target_sequence = 31, exit = 32, impact_event = 33, melee = 34, weapon_launch = 35, charge = 36, hammer = 37, shockwave = 38, nova = 39, flashlight = 40, zeus = 41, zeus_bolt = 42, nightmare = 43, meta_ring = 44, meta_laser = 45, cinematic = 46, performer = 47, frog_spit = 48, script = 49, health_tree = 50, thunder_spray = 51, monitor = 52, session = 53, objective = 54, companion = 55, dwarf_axe = 56, scenery = 57, firefly = 58, cryo_spray = 59, actor_laser = 60, actor_attack = 61, wisp_swarm = 62, world_control = 63 };
 pub const Component = union(ComponentId) {
     transform: Transform,
     velocity: Velocity,
@@ -137,6 +138,7 @@ pub const Component = union(ComponentId) {
     actor_laser: ActorLaser,
     actor_attack: ActorAttack,
     wisp_swarm: WispSwarm,
+    world_control: WorldControl,
 };
 pub const types = blk: {
     const fields = std.meta.fields(Component);

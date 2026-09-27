@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–269): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–270): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -755,6 +755,46 @@ absence is an audit candidate, not proof of missing behavior: definition tables 
 prefix owners must also be inspected. The audit confirmed missing teleports/push/timer/
 secret and authored audio controls; continue their implementation next. Full campaign,
 multiplayer and release acceptance remain open with no fresh verified gameplay identity.
+
+## Sequence 270 — authored-controls-and-map-music (implemented; unverified)
+
+Distinct saved control states now connect `func_timer`, `trigger_push`,
+`trigger_teleport`, `trigger_secret`, `trigger_toggle`, `trigger_changemusic`,
+`trigger_console` and `trigger_remove_inventory_item` to ordinary touch and target
+activation. Timers use authored initial pause/delay, repeat variance and once/toggle
+semantics; delay is not reapplied at every target firing. Push volumes use authored
+angle/speed and enable/once flags. Sidekick-only toggle volumes retain their activator
+and reviewed center/radius exit condition. Secrets count once and use episode audio.
+Console controls recognize the three commands actually supplied by the corpus;
+they do not execute arbitrary text in an engine command buffer.
+
+Teleport destinations retain their authored 27-unit marker offset; normal transit
+redirects entry speed, applies destination facing, clears ground and records a saved
+700 ms cooldown/teleport snapshot bit. Named cinematic relocation is separate.
+Occupied destinations damage intersecting bodies; map solids prevent relocation.
+Full telefrag immunity/occupancy, visual fog, paired transit, bot routing and normal
+campaign/cinematic traversal remain unverified. Those limits are not acceptance.
+
+Map music now reads the converted `music` table; trigger changes persist and restore
+through CS_MUSIC and the existing background-track service. The supplied trigger
+volumes use full gain; intermediate authored gain and complete music/cinematic mixing
+remain presentation qualification. Native user mixer settings are preserved. Selected
+music follows the most recent saved trigger; map-table selection supplies initial play.
+Inventory removal uses the trigger's authored `item`, intentionally correcting the
+reference's erroneous check of the touching entity's `keyname`. Deleting a selected
+weapon removes ownership without an invented forced switch; ordinary weapon rules
+prevent firing it. The final sword trigger is the supplied affected case.
+
+Private reference review covered Triggers.cpp and func_various.cpp contracts, and the
+supplied entity/property inventory `/tmp/dk3-runtime-270-controls-authored.json`.
+Native definitions use the existing ECS/target/collision/asset services. The final
+available component slot holds distinct authored control variants; no ECS expansion.
+Three modules link in `/tmp/dk3-runtime-270-controls-link.log` (before subsequent
+music-path validation and test additions). Timer/restoration/inventory regression
+roots are written and unexecuted. No tests, engine scenarios or connected acceptance
+ran. Saved controls, traversal, music and affected prior campaign/multiplayer routes
+require replay on the consolidated build. Authored speakers, healing portals, effects,
+remaining world controls, campaign interactions and complete release remain work.
 
 ## Remaining authored actor admission
 

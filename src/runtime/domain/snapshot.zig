@@ -523,6 +523,26 @@ pub fn validate(snapshot: *Loaded) !void {
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
             if (actor.lycanthir.phase != .living and (@import("actor_catalog").entries[actor.definition].kind != .lycanthir or actor.lycanthir.wake_ms < actor.lycanthir.started_ms and actor.lycanthir.phase == .collapsed)) return error.InvalidSavedResurrection;
         }
+        if (world.get(entity, data.WorldControl) catch null) |control| {
+            try require(world, entity, .{ data.MapObject, data.Transform });
+            const classname = (try world.get(entity, data.MapObject)).classname;
+            const expected = switch (control.action) {
+                .timer => "func_timer", .push => "trigger_push", .teleport => "trigger_teleport",
+                .secret => "trigger_secret", .toggle => "trigger_toggle", .music => "trigger_changemusic",
+                .console => "trigger_console", .remove_item => "trigger_remove_inventory_item",
+            };
+            if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
+            switch (control.action) {
+                .timer => |timer| if (timer.wait_ms < 100 or timer.wait_ms > 3600000 or timer.variance_ms < 0 or timer.variance_ms >= timer.wait_ms or timer.delay_ms < 0 or timer.delay_ms > 3600000) return error.InvalidSavedTimer,
+                .push => |push| for (push.velocity) |value| { if (!std.math.isFinite(value) or @abs(value) > 100000) return error.InvalidSavedPush; },
+                .toggle => |toggle| {
+                    if (!std.math.isFinite(toggle.radius) or toggle.radius < 0) return error.InvalidSavedToggle;
+                    for (toggle.center) |value| if (!std.math.isFinite(value)) return error.InvalidSavedToggle;
+                },
+                .music => |music| if (!std.math.isFinite(music.volume) or music.volume < 0 or music.volume > 1 or music.path.len == 0 or music.path.len >= 64) return error.InvalidSavedMusic,
+                else => {},
+            }
+        }
         if (world.get(entity, data.Companion) catch null) |companion| {
             try require(world, entity, .{ data.Actor, data.Health, data.Weapons, data.Character, data.Keys, data.Ailments });
             const kind = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition];

@@ -55,6 +55,19 @@ pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             } else exit.latched = false;
             continue;
         }
+        if ((world.get(entity, data.WorldControl) catch null) != null) {
+            if (projection.shared.contents & c.CONTENTS_TRIGGER == 0) continue;
+            for (occupants) |candidate| {
+                const other = candidate orelse continue;
+                if (!world.alive(entity) or !world.alive(other)) break;
+                if (!try @import("world_controls.zig").touches(world, entity, other)) continue;
+                if ((world.get(other, data.Health) catch continue).current <= 0) continue;
+                if ((world.get(other, data.Player) catch null)) |player| if (player.mode != .normal) continue;
+                const body = &projections[(try world.get(other, data.Binding)).slot];
+                if (overlap(body, projection, 0)) try @import("world_controls.zig").touch(world, slots, projections, router, entity, other, now);
+            }
+            continue;
+        }
         const trigger = world.get(entity, data.Trigger) catch null;
         const mover = world.get(entity, data.Mover) catch null;
         const sequence = if (world.get(entity, data.TargetSequence)) |state| state.* else |_| null;

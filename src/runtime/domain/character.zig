@@ -12,6 +12,7 @@ pub const State = struct {
     liquid: @import("environment.zig").State = .{},
     rings: u32 = 0,
     save_gems: i32 = 0,
+    secrets: u32 = 0,
     level: i32 = 1,
     experience: i32 = 0,
     points: i32 = 0,
