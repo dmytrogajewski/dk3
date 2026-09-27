@@ -863,6 +863,12 @@ void RB_StageIteratorSky( void ) {
 	// the sky box to see which blocks on each side need
 	// to be drawn
 	RB_ClipSkyPolygons( &tess );
+	/* Only the clipped face bounds are needed beyond this point. Reuse the
+	 * batch for generated sky faces instead of appending to a possibly full
+	 * set of source polygons. Cloud generation also owns its own batch. */
+	tess.numVertexes = 0;
+	tess.numIndexes = 0;
+	tess.firstIndex = 0;
 	backEnd.dk3FogSky = qtrue;
 
 	// r_showsky will let all the sky blocks be drawn in
@@ -914,7 +920,6 @@ void RB_StageIteratorSky( void ) {
 	// note that sky was drawn so we will draw a sun later
 	backEnd.skyRenderedThisView = qtrue;
 }
-
 
 
 

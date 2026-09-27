@@ -1278,6 +1278,13 @@ void CL_KeyDownEvent( int key, unsigned time )
 
 	// escape is always handled special
 	if ( key == K_ESCAPE ) {
+		/* Native cinematics own Escape before the in-game menu. Monitor views
+		 * use camera kind 2 and retain ordinary menu/input behavior. */
+		if ( clc.state == CA_ACTIVE && !clc.demoplaying &&
+			cl.snap.ps.dk3CameraActive == 1 && !(Key_GetCatcher() & KEYCATCH_UI) ) {
+			CL_AddReliableCommand( "cin_skip", qfalse );
+			return;
+		}
 		if ( Key_GetCatcher( ) & KEYCATCH_MESSAGE ) {
 			// clear message mode
 			Message_Key( key );

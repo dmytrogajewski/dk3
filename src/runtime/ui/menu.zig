@@ -17,6 +17,7 @@ pub const Menu = struct {
     panel: domain.Selection = .{ .selected = 0 },
     navigation_focus: bool = false,
     keyboard: bool = false,
+    slider_drag: ?usize = null,
     cursor_x: f32 = 320,
     cursor_y: f32 = 240,
     layout: domain.Layout = domain.Layout.fit(640, 480),
@@ -28,6 +29,7 @@ pub const Menu = struct {
     feedback: [256]u8 = @splat(0),
     saves: @import("saves.zig").Browser = .{},
     multiplayer: @import("multiplayer.zig").Browser = .{},
+    loading: @import("loading.zig").Screen = .{},
     pub fn init(self: *Menu) !void {
         self.* = .{};
         try self.art.init();
@@ -43,6 +45,7 @@ pub const Menu = struct {
     pub fn close(self: *Menu) void {
         if (self.active) engine.sound("sounds/menus/exit menu_001.wav");
         self.active = false;
+        self.slider_drag = null;
         self.capture = .{};
         engine.catchInput(false);
         if (self.music) {
@@ -68,6 +71,7 @@ pub const Menu = struct {
         @memcpy(self.feedback[0..len], value[0..len]);
     }
     fn selectPage(self: *Menu, page: usize) void {
+        self.slider_drag = null;
         if (!engine.inGame() and (page == 3 or page == 12)) return;
         if (page == 12) {
             self.close();
@@ -86,8 +90,19 @@ pub const Menu = struct {
     fn add(self: *Menu, rect: domain.Rect, label: []const u8, action: Action) void {
         std.debug.assert(self.count < self.widgets.len);
         const selected = !self.navigation_focus and ((self.keyboard and self.panel.selected == self.count) or (!self.keyboard and self.panel.hovered == self.count));
-        if (selected) self.art.rect(self.layout, rect.x - 4, rect.y - 2, rect.width + 8, rect.height + 4, self.art.white, .{ 0.3, 0.03, 0.01, 0.5 });
-        self.art.text(self.layout, rect.x, rect.y, label, selected);
+        const row = switch (action) {
+            .save_pick, .bind, .setting => true,
+            else => false,
+        };
+        if (action == .setting and settings.entries[action.setting].choices.len == 2) {
+            self.art.text(self.layout, rect.x, rect.y, "\x8f", settings.entries[action.setting].value() != 0);
+            self.art.text(self.layout, rect.x + 20, rect.y, settings.entries[action.setting].label, selected);
+        } else if (row) {
+            self.art.text(self.layout, rect.x, rect.y, label, selected);
+        } else {
+            const down = selected and engine.gateway.call(c.UI_KEY_ISDOWN, .{@as(isize, c.K_MOUSE1)}) != 0;
+            self.art.button(self.layout, rect.x, rect.y, rect.width, label, selected, down);
+        }
         self.widgets[self.count] = .{ .rect = rect, .action = action };
         self.count += 1;
     }
@@ -101,6 +116,12 @@ pub const Menu = struct {
             var number: [48]u8 = undefined;
             const text = try std.fmt.bufPrint(&buffer, "{s}: {s}", .{ setting.label, try setting.labelValue(&number) });
             self.button(92, 138 + @as(f32, @floatFromInt(row)) * 48, 330, text, .{ .setting = i });
+            if (setting.choices.len == 0) {
+                const rect = &self.widgets[self.count - 1].rect;
+                rect.height = 40;
+                self.art.glyph(self.layout, 10, rect.x, rect.y + 18, 203);
+                self.art.glyph(self.layout, 11, rect.x + (setting.value() - setting.minimum) / (setting.maximum - setting.minimum) * 183, rect.y + 18, 20);
+            }
             row += 1;
         };
         switch (value) {
@@ -113,11 +134,12 @@ pub const Menu = struct {
     fn panelDraw(self: *Menu) !void {
         switch (self.page) {
             0 => {
-                self.art.text(self.layout, 190, 112, "Select Difficulty", true);
+                const heading = "Select Difficulty";
+                self.art.text(self.layout, 220 - self.art.bright.metrics.width(heading, 1) * 0.5, 120, heading, true);
                 for ([_][]const u8{ "Ronin", "Samurai", "Shogun" }, 0..) |name, i| {
                     const x = 88 + @as(f32, @floatFromInt(i)) * 130;
-                    self.art.rect(self.layout, x, 80, 128, 256, self.art.figures[i], .{ 1, 1, 1, 0.9 });
-                    self.button(x + 12, 340, 106, name, .{ .difficulty = i });
+                    self.art.rect(self.layout, x, 80, 128, 256, self.art.figures[i], @splat(1));
+                    self.button(x + 12, 340, 105, name, .{ .difficulty = i });
                 }
                 self.button(330, 390, 125, "Extra Options", .options);
             },
@@ -203,7 +225,13 @@ pub const Menu = struct {
             self.panel.hovered = i;
             break;
         };
-        if (self.panel.hovered == null and self.cursor_x >= 440 and self.cursor_x < 640 and self.cursor_y >= 58 and self.cursor_y < 449) self.navigation.hovered = @intFromFloat((self.cursor_y - 58) / (391.0 / 14.0));
+        // Hit testing follows the projected plate column, including its slant.
+        if (self.panel.hovered == null and self.cursor_x >= 506 and self.cursor_x <= 593) {
+            const across = (self.cursor_x - 506) / 87;
+            const top = 76 - 21 * across;
+            const bottom = 436 + 26 * across;
+            if (self.cursor_y >= top and self.cursor_y < bottom) self.navigation.hovered = @intFromFloat((self.cursor_y - top) * 14 / (bottom - top));
+        }
     }
     pub fn mouse(self: *Menu, dx: i32, dy: i32) void {
         if (!self.active or (dx == 0 and dy == 0)) return;
@@ -211,8 +239,18 @@ pub const Menu = struct {
         self.cursor_x = std.math.clamp(self.cursor_x + @as(f32, @floatFromInt(dx)) / self.layout.scale, 0, 639);
         self.cursor_y = std.math.clamp(self.cursor_y + @as(f32, @floatFromInt(dy)) / self.layout.scale, 0, 479);
         self.hover();
+        if (self.slider_drag) |index| self.slide(index);
+    }
+    fn slide(self: *Menu, index: usize) void {
+        if (index >= self.count or self.widgets[index].action != .setting) return;
+        const widget = self.widgets[index];
+        const setting = settings.entries[widget.action.setting];
+        const fraction = std.math.clamp((self.cursor_x - widget.rect.x - 10) / 183, 0, 1);
+        const value = setting.minimum + @round(fraction * (setting.maximum - setting.minimum) / setting.step) * setting.step;
+        engine.setNumber(setting.name, std.math.clamp(value, setting.minimum, setting.maximum));
     }
     pub fn key(self: *Menu, code: i32, down: bool) !void {
+        if (code == c.K_MOUSE1 and !down) self.slider_drag = null;
         if (!self.active or !down) return;
         if (self.page == 1 and self.multiplayer.key(code)) return;
         if (self.capture.key(code)) return;
@@ -225,6 +263,13 @@ pub const Menu = struct {
             self.hover();
             if (self.navigation.click()) self.selectPage(self.navigation.selected.?) else if (self.panel.click()) {
                 self.navigation_focus = false;
+                const index = self.panel.selected.?;
+                const widget = self.widgets[index];
+                if (widget.action == .setting and settings.entries[widget.action.setting].choices.len == 0 and self.cursor_y >= widget.rect.y + 18) {
+                    self.slider_drag = index;
+                    self.slide(index);
+                    return;
+                }
                 try self.activate(self.widgets[self.panel.selected.?].action, 1);
             }
             return;
@@ -319,10 +364,6 @@ pub const Menu = struct {
     }
     pub fn connect(self: *Menu) void {
         self.resize();
-        self.art.rect(self.layout, 0, 0, 640, 480, self.art.white, .{ 0, 0, 0, 1 });
-        self.art.text(self.layout, 190, 190, "Loading Daikatana", true);
-        const client = engine.client();
-        self.art.text(self.layout, 90, 230, std.mem.sliceTo(&client.servername, 0), false);
-        self.art.text(self.layout, 90, 270, std.mem.sliceTo(&client.messageString, 0), false);
+        self.loading.render(self.layout, &self.art) catch self.message("Could not load loading-screen artwork.");
     }
 };

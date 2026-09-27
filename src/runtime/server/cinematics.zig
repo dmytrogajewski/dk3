@@ -184,8 +184,7 @@ pub const State = struct {
         var playback = (try world.get(controller, data.Cinematic)).*;
         if (playback.finished) return;
         if (engine.integer("dk3_cinematics") == 0) {
-            try finish(world, slots, projections, router, viewer, now);
-            if (playback.exit != 0) router.travel = .{ .exit = playback.exit, .player = try world.persistentId(viewer) } else if (world.find(playback.trigger)) |trigger_entity| try router.fire(world, slots, projections, trigger_entity, try world.persistentId(viewer), now);
+            try completePlayback(world, slots, projections, router, viewer, now);
             return;
         }
         if (!playback.active) {
@@ -208,14 +207,10 @@ pub const State = struct {
             playback.shot += 1;
             if (playback.shot >= program.shots.len) {
                 (try world.get(controller, data.Cinematic)).* = playback;
-                const trigger_id = playback.trigger;
-                try finish(world, slots, projections, router, viewer, now);
-                if (playback.exit != 0) {
-                    router.travel = .{ .exit = playback.exit, .player = try world.persistentId(viewer) };
-                } else if (world.find(trigger_id)) |trigger_entity| try router.fire(world, slots, projections, trigger_entity, try world.persistentId(viewer), now);
+                try completePlayback(world, slots, projections, router, viewer, now);
                 return;
             }
-            engine.send(0, "dk3_cine_stop");
+            engine.send(0, "dk3_cine_cut");
             playback.started_ms = now;
             playback.sounds = 0;
             playback.queued = @splat(0);
@@ -377,6 +372,7 @@ pub const State = struct {
                         pose.position = task.destination;
                         pose.angles = task.angles;
                         performer.velocity = @splat(0);
+                        projections[(try world.get(entity, data.Binding)).slot].state.eFlags ^= c.EF_TELEPORT_BIT;
                     },
                     .use => {
                         var query = world.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
@@ -501,6 +497,15 @@ fn remove(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
     try slots.release(slot, entity);
     try world.destroy(entity);
 }
+/// Natural completion and an explicit skip share cleanup and authored continuation.
+pub fn completePlayback(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *Router, player: ecs.Entity, now: i64) !void {
+    const controller = findController(world) orelse return;
+    const playback = (try world.get(controller, data.Cinematic)).*;
+    if (playback.finished) return;
+    try finish(world, slots, projections, router, player, now);
+    const id = try world.persistentId(player);
+    if (playback.exit != 0) router.travel = .{ .exit = playback.exit, .player = id } else if (world.find(playback.trigger)) |trigger| try router.fire(world, slots, projections, trigger, id, now);
+}
 pub fn finish(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *Router, player: ecs.Entity, now: i64) !void {
     var name: []const u8 = "";
     if (findController(world)) |entity| {
@@ -560,14 +565,16 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     const pose = (try world.get(entity, data.Transform)).*;
     const binding = (try world.get(entity, data.Binding)).*;
     const projection = &projections[binding.slot];
+    const teleport_flag = projection.state.eFlags & c.EF_TELEPORT_BIT;
     projection.* = std.mem.zeroes(abi.EntityProjection);
     projection.state.number = binding.slot;
     projection.state.eType = c.ET_GENERAL;
+    projection.state.eFlags = teleport_flag;
     projection.state.modelindex = binding.model;
-    projection.state.frame = performer.animation.frame(now - performer.animation_ms, performer.count == 0 or (performer.started and now >= performer.due_ms));
+    @import("../engine/animation.zig").publish(&projection.state, .{ .sequence = performer.animation, .started = performer.animation_ms, .looping = performer.count == 0 or (performer.started and now >= performer.due_ms) }, now);
     projection.state.angles2 = performer.scale;
-    projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
-    projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
+    projection.state.pos = @import("../engine/trajectory.zig").interpolated(pose.position);
+    projection.state.apos = @import("../engine/trajectory.zig").interpolated(pose.angles);
     projection.shared.currentOrigin = pose.position;
     projection.shared.currentAngles = pose.angles;
     projection.shared.ownerNum = c.ENTITYNUM_NONE;

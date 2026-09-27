@@ -79,6 +79,7 @@ static qboolean S_ValidSoundInterface( soundInterface_t *pSi )
 	if( !pSi->StopBackgroundTrack ) return qfalse;
 	if( !pSi->RawSamples ) return qfalse;
 	if( !pSi->StopAllSounds ) return qfalse;
+	if( !pSi->StopLocalSound ) return qfalse;
 	if( !pSi->ClearLoopingSounds ) return qfalse;
 	if( !pSi->AddLoopingSound ) return qfalse;
 	if( !pSi->AddRealLoopingSound ) return qfalse;
@@ -174,6 +175,10 @@ void S_StopAllSounds( void )
 	if( si.StopAllSounds ) {
 		si.StopAllSounds( );
 	}
+}
+
+void S_StopLocalSound( int channel ) {
+	if (si.StopLocalSound) si.StopLocalSound(channel);
 }
 
 /*

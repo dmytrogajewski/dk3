@@ -551,6 +551,9 @@ intptr_t CL_CgameSystemCalls( intptr_t *args ) {
 	case CG_S_STARTLOCALSOUND:
 		S_StartLocalSound( args[1], args[2] );
 		return 0;
+	case CG_DK3_STOP_LOCAL_SOUND_V1:
+		S_StopLocalSound(args[1]);
+		return 0;
 	case CG_S_CLEARLOOPINGSOUNDS:
 		S_ClearLoopingSounds(args[1]);
 		return 0;

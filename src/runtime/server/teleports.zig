@@ -8,11 +8,16 @@ const c = abi.c;
 const engine = @import("../engine/server.zig");
 const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
+pub fn destination(world: *data.World, trigger: ecs.Entity) !data.Transform {
+    const object = (try world.get(trigger, data.MapObject)).*;
+    const recipient = @import("scripts.zig").named(world, object.target) orelse return error.MissingTeleportDestination;
+    var target = (try world.get(recipient, data.Transform)).*;
+    if (std.mem.eql(u8, (try world.get(recipient, data.MapObject)).classname, "info_teleport_destination")) target.position[2] += 27;
+    return target;
+}
 pub fn move(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *@import("targets.zig").Router, trigger: ecs.Entity, entity: ecs.Entity, scripted: bool, now: i64) !void {
     const object = (try world.get(trigger, data.MapObject)).*;
-    const destination = @import("scripts.zig").named(world, object.target) orelse return error.MissingTeleportDestination;
-    var target = (try world.get(destination, data.Transform)).*;
-    if (std.mem.eql(u8, (try world.get(destination, data.MapObject)).classname, "info_teleport_destination")) target.position[2] += 27;
+    const target = try destination(world, trigger);
     const player = world.get(entity, data.Player) catch null;
     const companion = world.get(entity, data.Companion) catch null;
     const motor: ?*data.Player = if (player != null) player else if (companion) |value| &value.motor else null;

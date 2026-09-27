@@ -28,6 +28,11 @@ pub fn stationary(position: v.Vec3) c.trajectory_t {
     result.trBase = position;
     return result;
 }
+pub fn interpolated(position: v.Vec3) c.trajectory_t {
+    var result = stationary(position);
+    result.trType = c.TR_INTERPOLATE;
+    return result;
+}
 pub fn fromMotion(motion: @import("../domain/movers.zig").Motion) c.trajectory_t {
     var result = stationary(motion.base);
     result.trType = switch (motion.curve) {

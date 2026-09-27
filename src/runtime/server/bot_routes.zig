@@ -10,6 +10,59 @@ const c = @import("../engine/abi.zig").c;
 const prop = @import("properties.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 pub const Control = struct { id: u32, obstacle: u32, route_obstacle: u32, point: v.Vec3, action: enum { use, touch, shoot } };
+pub const Passage = struct { id: u32, point: v.Vec3 };
+/// Authored teleporter recovery for a physically blocked AAS route. Reaching
+/// the trigger is ordinary walking, qualified through every intervening hull.
+pub fn teleportPassage(world: *data.World, projections: []const @import("../engine/abi.zig").EntityProjection, actor: ecs.Entity, toward: v.Vec3, goal: v.Vec3, service: nav.Service, now: i64) !?Passage {
+    const pose = (try world.get(actor, data.Transform)).*;
+    const body = (try world.get(actor, data.Body)).*;
+    const slot = (try world.get(actor, data.Binding)).slot;
+    const id = try world.persistentId(actor);
+    const obstruction = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(v.normalize(v.subtract(toward, pose.position)), 80)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_PLAYERSOLID });
+    if (obstruction.fraction == 1) return null;
+    const steering = @import("../domain/navigation_input.zig");
+    var hazards: [256]steering.Bounds = undefined;
+    var hazard_count: usize = 0;
+    {
+        var query = world.queryAccess(data.World.mask(.{ data.Hazard, data.Binding }), 0, 0);
+        defer query.deinit();
+        while (query.next()) |view| for (view.read(data.Hazard), view.read(data.Binding)) |hazard, binding| {
+            if (!hazard.enabled) continue;
+            if (hazard_count == hazards.len) return null;
+            const bounds = projections[binding.slot].shared;
+            hazards[hazard_count] = .{ .mins = bounds.absmin, .maxs = bounds.absmax };
+            hazard_count += 1;
+        };
+    }
+    var selected: ?Passage = null;
+    var nearest: f32 = 640;
+    var query = world.queryAccess(data.World.mask(.{ data.WorldControl, data.MapObject, data.Binding }), 0, 0);
+    defer query.deinit();
+    while (query.next()) |view| for (view.entities(), view.read(data.WorldControl), view.read(data.MapObject), view.read(data.Binding)) |entity, control, object, binding| {
+        if (control.action != .teleport or now < control.ready_ms) continue;
+        if (!try @import("world_controls.zig").touches(world, entity, actor) or !@import("keys.zig").allows(world, object, id)) continue;
+        const box = projections[binding.slot].shared;
+        if (box.contents & c.CONTENTS_TRIGGER == 0) continue;
+        // A thin trigger can sit against a wall. Touching it requires hull
+        // overlap, not putting the player's origin inside the brush centre.
+        var contact = pose.position;
+        for (0..3) |axis| contact[axis] = std.math.clamp(contact[axis], box.absmin[axis] - body.maxs[axis] + 1, box.absmax[axis] - body.mins[axis] - 1);
+        const distance = nav.horizontalDistance(pose.position, contact);
+        if (distance >= nearest) continue;
+        const target = try @import("teleports.zig").destination(world, entity);
+        if (v.length(v.subtract(target.position, pose.position)) < 128) continue;
+        if (try service.next(.{ .position = target.position, .destination = goal, .slot = slot, .player = true, .allow_slime_escape = true }) == null) continue;
+        const point = try steering.walkPath(engine.collisionService(), .{ .start = pose.position, .end = contact, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_PLAYERSOLID }, c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO, hazards[0..hazard_count]) orelse continue;
+        var overlaps = true;
+        for (0..3) |axis| if (point[axis] + body.maxs[axis] <= box.absmin[axis] or point[axis] + body.mins[axis] >= box.absmax[axis]) {
+            overlaps = false;
+        };
+        if (!overlaps) continue;
+        selected = .{ .id = try world.persistentId(entity), .point = point };
+        nearest = distance;
+    };
+    return selected;
+}
 pub fn completed(world: *data.World, control: Control) bool {
     const obstacle = world.find(control.route_obstacle) orelse return true;
     const mover = world.get(obstacle, data.Mover) catch return true;

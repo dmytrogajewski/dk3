@@ -5,7 +5,7 @@ pub const flame_attacks = [_][]const u8{ "ataka", "atakb" };
 // The supplied Knight2 model and event table contain only atakc. Use that
 // authored stroke for the close punch too; the reference requests absent ataka.
 pub const lightning_attacks = [_][]const u8{ "atakc", "atakc" };
-pub const render_tag = 10006;
+pub const render_tag = 10044;
 pub const State = struct {
     sidestep_until: ?i64 = null,
     destination: [3]f32 = @splat(0),

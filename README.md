@@ -65,6 +65,9 @@ Builds default to `zig-out/native-dev`; settings and saves remain under that pre
 Use `-Dassets-dir=/path/to/cache` for a different converted cache or `-Dheadless=true`
 for a software-rendered test on a virtual display.
 
+Press **Escape** during a cinematic to skip it and continue its authored exit.
+Outside cinematics, Escape opens or closes the pause menu.
+
 Native New Game, save/load and multiplayer menus are connected; their current
 acceptance is recorded in the matrix. Development uses an isolated prefix/profile
 and does not update the preserved game or saves.

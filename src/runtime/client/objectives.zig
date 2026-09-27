@@ -32,8 +32,10 @@ pub fn draw(game: *const c.gameState_t, objective: c.entityState_t, entities: []
         var parent = std.mem.zeroes(c.refEntity_t);
         parent.hModel = try @import("models.zig").get(game, carrier.modelindex);
         if (parent.hModel == 0) return error.MissingObjectiveCarrierModel;
-        parent.frame = carrier.frame;
-        parent.oldframe = carrier.frame;
+        const animation = try @import("../engine/animation.zig").sample(carrier, now);
+        parent.frame = animation.frame;
+        parent.oldframe = animation.oldframe;
+        parent.backlerp = animation.backlerp;
         parent.origin = @import("../engine/trajectory.zig").evaluate(carrier.pos, now);
         angles = @import("../engine/trajectory.zig").evaluate(carrier.apos, now);
         axes(&parent, angles);

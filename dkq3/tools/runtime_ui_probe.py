@@ -14,6 +14,7 @@ import tempfile
 import time
 
 from runtime_probe import client_settings, send, stage_client_modules, wait
+from runtime_input import NativeInput, engine_failure, record_identity
 
 
 class Input:
@@ -115,13 +116,22 @@ class Input:
         self.x.XCloseDisplay(self.display)
 
 
-def saves_scenario(driver, issue, capture, process, log, home):
+def saves_scenario(driver, issue, capture, process, log, home, observer):
     issue("devmap e1m3a", 0.1)
-    wait(process, log, lambda text: "player entered isolated movement runtime" in text)
+    wait(process, log, lambda text: "first snapshot applied" in text or engine_failure(text))
+    observer.until(lambda s: s["map"] == "e1m3a" and s["mode"] == "normal" and s["input"] > 0,
+                   description="save-menu fixture has actual connected input")
     driver.focus()
     issue("dk3_runtime_place 818.916 -479.481 -823.875", 0.4)
-    issue("dk3_runtime_probe_health 100")
+    setup = observer.observe()
+    if setup["health"] <= 0 or sum((a - b) ** 2 for a, b in zip(setup["pos"], (818.916, -479.481, -823.875))) > 64:
+        raise RuntimeError(f"Save fixture did not reach the expected living location: {setup}")
     driver.key("Escape")
+    # This is a controlled UI fixture, not campaign progression. Establish
+    # its health while the real pause menu holds ordinary simulation.
+    issue("dk3_runtime_probe_health 100")
+    if observer.observe()["health"] != 100:
+        raise RuntimeError("Paused save-menu fixture did not establish its health")
     driver.align_menu()
     driver.click(530, 156)  # Save category.
     driver.click(155, 175)  # Save1, below quick.
@@ -164,7 +174,7 @@ def saves_scenario(driver, issue, capture, process, log, home):
     if re.findall(r"zig inventory .*health=(-?\d+)", log.read_text(errors="replace"))[-1] != "100":
         raise RuntimeError("main-menu load lost saved player state")
     capture("direct-map-restored")
-    return {"maps_started_by_load": maps,
+    return {"maps_started_by_load": maps, "setup": "Diagnostic placement and 100 health in e1m3a; explicit 30 damage after the save. Not a campaign scenario.",
             "scope": "XTest select save1 then click Save/Load; corrupt slot rejection; in-game restoration and direct main-menu saved-map restoration without a marsh detour; native schema only"}
 
 
@@ -203,30 +213,32 @@ def menu_scenario(driver, issue, capture, process, log):
     if '"g_spSkill" is:"1' not in log.read_text(errors="replace"):
         raise RuntimeError("Ronin selection did not start at easy difficulty")
     capture("campaign-start")
-    driver.key("Escape")
-    capture("paused")
-    driver.key("Escape")
-    capture("resumed")
-    return {"scope": "native menu artwork, XTest mouse/keyboard settings, binding conflict cancel/replace, difficulty start and pause/resume; saves, multiplayer and full UI parity remain open"}
+    return {"scope": "native menu artwork, XTest mouse/keyboard settings, binding conflict cancel/replace and difficulty start; pause/resume has its separate synchronized presentation scenario; saves, multiplayer and full UI parity remain open"}
 
 
 def run(args):
+    if not __debug__ or (args.report.exists() and any(args.report.iterdir())):
+        raise RuntimeError("Native menu evidence requires assertions and a fresh directory")
     args.report.mkdir(parents=True, exist_ok=True)
+    identity = record_identity(args.engine, args.prefix, args.report, require_installation=True)
     log = args.report / "client.log"
     inputs = []
     with tempfile.TemporaryDirectory(prefix="dk3-native-ui-") as temporary:
         home = Path(temporary)
-        stage_client_modules(args.prefix, home)
+        stage_client_modules(args.prefix, home, installation=args.engine)
         command = [str(args.engine / "bin/dk3")]
         for name, value in client_settings(args.engine, home, args.renderer).items():
             command += ["+set", name, value]
-        command += ["+set", "in_nograb", "1"]
+        command += ["+set", "in_nograb", "1", "+set", "g_spSkill", "3"]
         with log.open("w") as output:
             process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT)
             pipe = home / "dk3/commands.fifo"
             driver = None
+            observer = NativeInput(process, pipe, log, home, inputs, diagnostic=True)
 
             def issue(value, delay=0.2):
+                if failure := engine_failure(log.read_text(errors="replace")):
+                    raise RuntimeError(failure)
                 inputs.append({"command": value})
                 send(pipe, value)
                 time.sleep(delay)
@@ -241,12 +253,15 @@ def run(args):
                 wait(process, log, lambda text: "native menus initialized" in text and pipe.exists())
                 time.sleep(1)
                 driver = Input(inputs)
-                result = (saves_scenario(driver, issue, capture, process, log, home) if args.scenario == "saves"
+                result = (saves_scenario(driver, issue, capture, process, log, home, observer) if args.scenario == "saves"
                           else menu_scenario(driver, issue, capture, process, log))
                 issue("quit", 0)
                 if process.wait(timeout=15) != 0:
                     raise RuntimeError("native menu shutdown failed")
-                (args.report / "result.json").write_text(json.dumps({"renderer": args.renderer, **result}, indent=2) + "\n")
+                (args.report / "result.json").write_text(json.dumps({"identity": identity, "status": "passed", "renderer": args.renderer, **result}, indent=2) + "\n")
+            except Exception as error:
+                (args.report / "result.json").write_text(json.dumps({"identity": identity, "status": "failed", "error": str(error)}, indent=2) + "\n")
+                raise
             finally:
                 (args.report / "inputs.json").write_text(json.dumps({"launch": command, "inputs": inputs}, indent=2) + "\n")
                 if driver:

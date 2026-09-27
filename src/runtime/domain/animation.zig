@@ -1,6 +1,24 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Supplied model frame sequences, independent of renderer and simulation storage.
 const std = @import("std");
+pub const Playback = struct {
+    sequence: Sequence,
+    started: i64,
+    looping: bool = true,
+    reverse: bool = false,
+    pub fn frame(self: Playback, now: i64) u16 {
+        const value = self.sequence.frame(now - self.started, self.looping);
+        return if (self.reverse) self.sequence.last - (value - self.sequence.first) else value;
+    }
+    pub fn sample(self: Playback, now: i64) @TypeOf((Sequence{}).sample(0, false)) {
+        var value = self.sequence.sample(now - self.started, self.looping);
+        if (self.reverse) {
+            value.frame = self.sequence.last - (value.frame - self.sequence.first);
+            value.oldframe = self.sequence.last - (value.oldframe - self.sequence.first);
+        }
+        return value;
+    }
+};
 pub const Sequence = struct {
     first: u16 = 0,
     last: u16 = 0,

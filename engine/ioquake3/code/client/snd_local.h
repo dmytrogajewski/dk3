@@ -133,6 +133,7 @@ typedef struct
 	void (*StopBackgroundTrack)( void );
 	void (*RawSamples)(int stream, int samples, int rate, int width, int channels, const byte *data, float volume, int entityNum);
 	void (*StopAllSounds)( void );
+	void (*StopLocalSound)( int channel );
 	void (*ClearLoopingSounds)( qboolean killall );
 	void (*AddLoopingSound)( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );
 	void (*AddRealLoopingSound)( int entityNum, const vec3_t origin, const vec3_t velocity, sfxHandle_t sfx );

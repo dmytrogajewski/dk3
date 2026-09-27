@@ -317,41 +317,41 @@ pub const Actors = struct {
         projection.state.time2 = if (policy.kind == .cambot and actor.mode != .dead) if (actor.threat != 0) catalog.cambot.alert_tag else catalog.cambot.idle_tag else 0;
         if (policy.kind == .chaingang and actor.mode != .dead and actor.chaingang.flying) projection.state.time2 = catalog.chaingang.jet_tag;
         if (policy.kind == .deathsphere) projection.state.loopSound = if (actor.mode != .dead and actor.threat_seen_ms > 0) try @import("resources.zig").sound("e1/m_dspherehovera.wav") else 0;
-        projection.state.frame = sequence.frame(now - (if (actor.reaction != null and actor.mode != .dead) actor.reaction_started_ms else if (catalog.sequenceAttack(policy.kind) and actor.melee.active) actor.melee.started_ms else if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_ms else if ((catalog.sequenceAttack(policy.kind)) and actor.mode == .attack) actor.melee.started_ms else if (policy.kind == .crox and actor.mode == .attack) actor.crox.started_ms else if (policy.kind == .thunderskeet and actor.mode == .attack) actor.thunder.started_ms else if (policy.kind == .froginator and actor.mode == .attack) actor.frog.started_ms else if (policy.kind == .skeeter and (actor.mode == .attack or hatching)) actor.skeeter.started_ms else if (policy.kind == .mishima_guard and (actor.mode == .attack or actor.mode == .reload)) actor.guard.started_ms else if (actor.mode == .idle and actor.idle_started_ms != null) actor.idle_started_ms.? else actor.changed_ms), !hatching and actor.reaction == null and !actor.melee.active and (actor.mode == .idle or actor.mode == .flee or actor.mode == .chase));
-        if (policy.kind == .lycanthir) if (@import("lycanthirs.zig").frame(actor, definition, now)) |frame| {
-            projection.state.frame = frame;
+        var playback: @import("../domain/animation.zig").Playback = .{ .sequence = sequence, .started = if (actor.reaction != null and actor.mode != .dead) actor.reaction_started_ms else if (catalog.sequenceAttack(policy.kind) and actor.melee.active) actor.melee.started_ms else if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_ms else if ((catalog.sequenceAttack(policy.kind)) and actor.mode == .attack) actor.melee.started_ms else if (policy.kind == .crox and actor.mode == .attack) actor.crox.started_ms else if (policy.kind == .thunderskeet and actor.mode == .attack) actor.thunder.started_ms else if (policy.kind == .froginator and actor.mode == .attack) actor.frog.started_ms else if (policy.kind == .skeeter and (actor.mode == .attack or hatching)) actor.skeeter.started_ms else if (policy.kind == .mishima_guard and (actor.mode == .attack or actor.mode == .reload)) actor.guard.started_ms else if (actor.mode == .idle and actor.idle_started_ms != null) actor.idle_started_ms.? else actor.changed_ms, .looping = !hatching and actor.reaction == null and !actor.melee.active and (actor.mode == .idle or actor.mode == .flee or actor.mode == .chase) };
+        if (policy.kind == .lycanthir) if (@import("lycanthirs.zig").playback(actor, definition)) |value| {
+            playback = value;
         };
-        if ((policy.kind == .piperat or policy.kind == .plague_rat) and actor.rat.swimming and actor.mode == .chase and actor.scripted_pose == null and !actor.melee.active) projection.state.frame = definition.swim.frame(now - actor.changed_ms, true);
-        if (policy.kind == .surgeon and actor.surgeon.active and actor.mode != .dead) projection.state.frame = definition.attacks[actor.surgeon.pose].frame(now - actor.surgeon.started_ms, true);
+        if ((policy.kind == .piperat or policy.kind == .plague_rat) and actor.rat.swimming and actor.mode == .chase and actor.scripted_pose == null and !actor.melee.active) playback = .{ .sequence = definition.swim, .started = actor.changed_ms, .looping = true };
+        if (policy.kind == .surgeon and actor.surgeon.active and actor.mode != .dead) playback = .{ .sequence = definition.attacks[actor.surgeon.pose], .started = actor.surgeon.started_ms, .looping = true };
         if (policy.kind == .griffon and actor.mode != .dead and actor.reaction == null and actor.scripted_pose == null) {
-            if (actor.griffon.phase == .leap) projection.state.frame = definition.attacks[4].frame(now - actor.melee.started_ms, true) else if (!actor.griffon.flying and actor.mode == .chase) projection.state.frame = definition.ground_run.frame(now - actor.changed_ms, true);
+            if (actor.griffon.phase == .leap) playback = .{ .sequence = definition.attacks[4], .started = actor.melee.started_ms, .looping = true } else if (!actor.griffon.flying and actor.mode == .chase) playback = .{ .sequence = definition.ground_run, .started = actor.changed_ms, .looping = true };
         }
-        if (policy.kind == .chaingang and actor.mode != .dead and actor.reaction == null and actor.scripted_pose == null and !actor.melee.active and actor.mode == .chase and (!actor.chaingang.flying or actor.chaingang.phase == .dodge or actor.chaingang.phase == .approach_land)) projection.state.frame = definition.ground_run.frame(now - actor.changed_ms, true);
+        if (policy.kind == .chaingang and actor.mode != .dead and actor.reaction == null and actor.scripted_pose == null and !actor.melee.active and actor.mode == .chase and (!actor.chaingang.flying or actor.chaingang.phase == .dodge or actor.chaingang.phase == .approach_land)) playback = .{ .sequence = definition.ground_run, .started = actor.changed_ms, .looping = true };
         if (policy.kind == .harpy and actor.mode != .dead and actor.reaction == null and actor.scripted_pose == null) {
             switch (actor.harpy.phase) {
-                .takeoff, .rising => projection.state.frame = definition.attacks[2].last - (definition.attacks[2].frame(now - actor.melee.started_ms, false) - definition.attacks[2].first),
-                .dodge, .approach_land => projection.state.frame = definition.ground_run.frame(now - actor.changed_ms, true),
+                .takeoff, .rising => playback = .{ .sequence = definition.attacks[2], .started = actor.melee.started_ms, .looping = false, .reverse = true },
+                .dodge, .approach_land => playback = .{ .sequence = definition.ground_run, .started = actor.changed_ms, .looping = true },
                 .chase => if (!actor.harpy.flying and actor.mode == .chase) {
-                    projection.state.frame = definition.ground_run.frame(now - actor.changed_ms, true);
+                    playback = .{ .sequence = definition.ground_run, .started = actor.changed_ms, .looping = true };
                 },
                 .attack => if (!actor.melee.active) {
-                    projection.state.frame = (if (actor.harpy.flying) definition.run else definition.ground_run).frame(now - actor.harpy.warmup_started_ms, true);
+                    playback = .{ .sequence = if (actor.harpy.flying) definition.run else definition.ground_run, .started = actor.harpy.warmup_started_ms };
                 },
                 else => {},
             }
         }
-        if (policy.kind == .column and actor.column.phase == .asleep) projection.state.frame = definition.awakening.first;
-        if (policy.kind == .lasergat and actor.mode != .attack) projection.state.frame = 1;
-        if (policy.kind == .battleboar and actor.mode == .attack and actor.melee.pose == 0 and actor.battleboar.flashed and projection.state.frame > 91 and projection.state.frame < 97 and @mod(@divTrunc(now - actor.melee.started_ms, 50), 2) == 0) projection.state.time2 = catalog.battleboar.flash_tag;
+        if (policy.kind == .column and actor.column.phase == .asleep) playback = .{ .sequence = .{ .first = definition.awakening.first, .last = definition.awakening.first }, .started = now };
+        if (policy.kind == .lasergat and actor.mode != .attack) playback = .{ .sequence = .{ .first = 1, .last = 1 }, .started = now };
+        if (policy.kind == .battleboar and actor.mode == .attack and actor.melee.pose == 0 and actor.battleboar.flashed and playback.frame(now) > 91 and playback.frame(now) < 97 and @mod(@divTrunc(now - actor.melee.started_ms, 50), 2) == 0) projection.state.time2 = catalog.battleboar.flash_tag;
         if (policy.kind == .rockgat) {
-            projection.state.frame = actor.rockgat.frame(now);
+            playback = .{ .sequence = .{ .last = if (actor.rockgat.height == 0) 0 else if (actor.rockgat.raised) actor.rockgat.height else actor.rockgat.height - 1, .fps = 1000 / catalog.rockgat.frame_period_ms }, .started = actor.rockgat.pose_ms, .looping = false, .reverse = !actor.rockgat.raised };
             for (actor.rockgat.bursts) |burst| if (burst != null) {
                 projection.state.time2 = catalog.rockgat.flash_tag;
                 break;
             };
         }
         if (policy.kind == .dragon and actor.mode != .dead and actor.scripted_pose == null and actor.reaction == null) {
-            if (actor.dragon.phase == .hover) projection.state.frame = definition.attacks[1].frame(now - actor.melee.started_ms, true);
+            if (actor.dragon.phase == .hover) playback = .{ .sequence = definition.attacks[1], .started = actor.melee.started_ms, .looping = true };
             if (actor.dragon.breath_until_ms) |until| {
                 projection.state.time2 = catalog.dragon.breath_tag;
                 projection.state.time = @intCast(until - 850);
@@ -376,7 +376,7 @@ pub const Actors = struct {
         if (policy.kind == .kage) {
             projection.state.loopSound = if (actor.mode == .dead) 0 else if (actor.kage.phase == .charging) try @import("resources.zig").sound("e4/m_kage_ghost_am.wav") else if (actor.kage.humming) try @import("resources.zig").sound("global/we_dk_03a.wav") else 0;
             if (actor.mode != .dead) {
-                if (actor.kage.recharging()) projection.state.frame = definition.attacks[3].frame(now - actor.melee.started_ms, true);
+                if (actor.kage.recharging()) playback = .{ .sequence = definition.attacks[3], .started = actor.melee.started_ms, .looping = true };
                 projection.state.time2 = catalog.kage.fade_tag;
                 projection.state.origin2[0] = actor.kage.alpha;
                 projection.state.torsoAnim = @intFromFloat(actor.kage.alpha * 1000);
@@ -395,10 +395,10 @@ pub const Actors = struct {
         if (policy.kind == .ghost) {
             projection.state.time2 = catalog.kage.fade_tag;
             projection.state.origin2[0] = actor.ghost.alpha;
-            if (actor.scripted_pose == null) projection.state.frame = switch (actor.ghost.phase) {
-                .dormant, .waking => definition.idle.frame(now - actor.ghost.started_ms, false),
-                .chase, .fading => definition.run.frame(now - actor.ghost.started_ms, true),
-                .attack => definition.attacks[0].frame(now - actor.melee.started_ms, true),
+            if (actor.scripted_pose == null) playback = switch (actor.ghost.phase) {
+                .dormant, .waking => .{ .sequence = definition.idle, .started = actor.ghost.started_ms, .looping = false },
+                .chase, .fading => .{ .sequence = definition.run, .started = actor.ghost.started_ms },
+                .attack => .{ .sequence = definition.attacks[0], .started = actor.melee.started_ms },
             };
             if (actor.ghost.phase == .dormant) projection.state.modelindex = 0;
         }
@@ -408,22 +408,23 @@ pub const Actors = struct {
             projection.state.time = @intCast(actor.buboid.started_ms);
             projection.state.origin2 = .{ actor.buboid.alpha, if (actor.buboid.phase == .melting or actor.buboid.phase == .unmelting) @as(f32, 1) else 0, 0 };
         }
-        if (policy.kind == .deathsphere and actor.mode != .dead and actor.scripted_pose == null and actor.melee.active and actor.melee.pose == 2) projection.state.frame = definition.attacks[2].frame(now - actor.melee.started_ms, true);
+        if (policy.kind == .deathsphere and actor.mode != .dead and actor.scripted_pose == null and actor.melee.active and actor.melee.pose == 2) playback = .{ .sequence = definition.attacks[2], .started = actor.melee.started_ms, .looping = true };
         if (policy.kind == .companion) {
             projection.state.time2 = catalog.companions.render_tag;
             const companion = (try world.get(entity, data.Companion)).*;
             const loadout = (try world.get(entity, data.Weapons)).*;
             projection.state.weapon = if (companion.carrying or actor.mode == .dead) 0 else loadout.weapon;
             if (actor.mode != .dead and actor.reaction == null and actor.scripted_pose == null) {
-                projection.state.frame = (try self.companionPlayback(world, entity, now)).frame(now);
+                playback = try self.companionPlayback(world, entity, now);
             }
         }
         if (world.get(entity, data.Ailments) catch null) |status| {
             if (status.stone) projection.state.generic1 = catalog.medusa.stone_tag;
-            if (status.petrified_frame) |frame| projection.state.frame = frame;
+            if (status.petrified_frame) |frame| playback = .{ .sequence = .{ .first = frame, .last = frame }, .started = now };
         }
-        projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
-        projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
+        @import("../engine/animation.zig").publish(&projection.state, playback, now);
+        projection.state.pos = @import("../engine/trajectory.zig").interpolated(pose.position);
+        projection.state.apos = @import("../engine/trajectory.zig").interpolated(pose.angles);
         projection.shared.currentOrigin = pose.position;
         projection.shared.currentAngles = pose.angles;
         projection.shared.mins = body.mins;

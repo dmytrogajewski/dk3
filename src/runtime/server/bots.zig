@@ -26,6 +26,7 @@ const Brain = struct {
     avoid_until: i64 = 0,
     yield_point: ?v.Vec3 = null,
     yield_until: i64 = 0,
+    passage: ?struct { route: routes.Passage, teleport_bit: bool, until_ms: i64 } = null,
 };
 pub const State = struct {
     brains: [c.MAX_CLIENTS]?Brain = @splat(null),
@@ -37,14 +38,15 @@ pub const State = struct {
         for (self.brains, 0..) |maybe, index| if (maybe) |brain| {
             const route = brain.route;
             const waypoint = route.waypoint orelse nav.Waypoint{ .point = @splat(0) };
-            engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 bot route: slot={d} goal={d} avoided={d} destination={d:.2},{d:.2},{d:.2} waypoint={d:.2},{d:.2},{d:.2} valid={d} areas={d},{d} jump={d} crouch={d} ladder={d} blocked={d} progress_ms={d} refresh_ms={d} jump_until={d} control={d} yielding={d}\n", .{
-                index,                                brain.goal,                                     brain.avoided,
-                route.destination[0],                 route.destination[1],                           route.destination[2],
-                waypoint.point[0],                    waypoint.point[1],                              waypoint.point[2],
-                @intFromBool(route.waypoint != null), waypoint.from_area,                             waypoint.to_area,
-                @intFromBool(waypoint.jump),          @intFromBool(waypoint.crouch),                  @intFromBool(waypoint.ladder),
-                @intFromBool(route.blocked),          route.progress_ms,                              route.refresh_ms,
-                brain.jump_until,                     if (brain.control) |control| control.id else 0, @intFromBool(brain.yield_point != null),
+            engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 bot route: slot={d} goal={d} avoided={d} destination={d:.2},{d:.2},{d:.2} waypoint={d:.2},{d:.2},{d:.2} valid={d} areas={d},{d} jump={d} crouch={d} ladder={d} blocked={d} progress_ms={d} refresh_ms={d} jump_until={d} control={d} yielding={d} passage={d}\n", .{
+                index,                                                brain.goal,                                     brain.avoided,
+                route.destination[0],                                 route.destination[1],                           route.destination[2],
+                waypoint.point[0],                                    waypoint.point[1],                              waypoint.point[2],
+                @intFromBool(route.waypoint != null),                 waypoint.from_area,                             waypoint.to_area,
+                @intFromBool(waypoint.jump),                          @intFromBool(waypoint.crouch),                  @intFromBool(waypoint.ladder),
+                @intFromBool(route.blocked),                          route.progress_ms,                              route.refresh_ms,
+                brain.jump_until,                                     if (brain.control) |control| control.id else 0, @intFromBool(brain.yield_point != null),
+                if (brain.passage) |passage| passage.route.id else 0,
             }));
             if (route.blocked) if (clients.entities[index]) |entity| try @import("navigation_probe.zig").corridor(world, slots, entity, if (route.waypoint != null) waypoint.point else route.destination);
         };
@@ -132,6 +134,11 @@ pub const State = struct {
                 _ = engine.gateway.call(c.BOTLIB_USER_COMMAND, .{ @as(isize, @intCast(index)), &input });
                 continue;
             }
+            if (brain.passage) |passage| if (player.teleport_bit != passage.teleport_bit or now >= passage.until_ms) {
+                if (engine.integer("developer") > 0) engine.print(try std.fmt.bufPrintZ(&message, "dk3 bot passage: slot={d} trigger={d} teleported={d}\n", .{ index, passage.route.id, @intFromBool(player.teleport_bit != passage.teleport_bit) }));
+                brain.passage = null;
+                brain.route = .{};
+            };
             const loadout = (try world.get(entity, data.Weapons)).*;
             const eye = v.add(pose.position, .{ 0, 0, player.view_height });
             var enemy: ?ecs.Entity = null;
@@ -200,7 +207,7 @@ pub const State = struct {
             if (now < brain.yield_until) {
                 destination = brain.yield_point;
             } else brain.yield_point = null;
-            if (brain.control == null) if (destination) |goal| {
+            if (brain.control == null and brain.passage == null) if (destination) |goal| {
                 if (try routes.ridePoint(world, slots, entity, goal)) |point| destination = point;
             };
             var movement: v.Vec3 = @splat(0);
@@ -209,7 +216,9 @@ pub const State = struct {
             if (destination) |goal| {
                 // Prefer every safe route. If none exists, permit swimming out
                 // of a slime basin; actual contact still applies authored damage.
-                if (try brain.route.update(service, .{ .position = pose.position, .destination = goal, .slot = @intCast(index), .player = true, .allow_slime_escape = true }, now)) |waypoint| {
+                if (brain.passage) |passage| {
+                    movement = v.subtract(passage.route.point, pose.position);
+                } else if (try brain.route.update(service, .{ .position = pose.position, .destination = goal, .slot = @intCast(index), .player = true, .allow_slime_escape = true }, now)) |waypoint| {
                     movement = v.subtract(waypoint.point, pose.position);
                     ladder = waypoint.ladder;
                     const hull = (try world.get(entity, data.Body)).*;
@@ -227,10 +236,15 @@ pub const State = struct {
                 // Descending through a raised platform also requires its real
                 // control; the next lower AAS point can lie inside that floor.
                 const changing_floor = brain.control == null and player.ground_entity != c.ENTITYNUM_NONE and @abs(movement[2]) > 18;
-                if ((brain.route.blocked or changing_floor) and now >= brain.seek_ms) {
+                if (brain.passage == null and (brain.route.blocked or changing_floor) and now >= brain.seek_ms) {
                     brain.seek_ms = now + 500;
                     const toward = if (brain.route.waypoint) |waypoint| waypoint.point else goal;
-                    if (try routes.yieldPoint(world, slots, entity, toward)) |point| {
+                    const passage = if (brain.control == null) try routes.teleportPassage(world, projections, entity, toward, goal, service, now) else null;
+                    if (passage) |route| {
+                        brain.passage = .{ .route = route, .teleport_bit = player.teleport_bit, .until_ms = now + 5000 };
+                        brain.route = .{};
+                        movement = v.subtract(route.point, pose.position);
+                    } else if (try routes.yieldPoint(world, slots, entity, toward)) |point| {
                         brain.yield_point = point;
                         brain.yield_until = now + 1000;
                         brain.route = .{};

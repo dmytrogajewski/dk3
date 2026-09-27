@@ -5627,10 +5627,128 @@ A separate legitimate yard-checkpoint replay uses the authored side-tree detour
 and reaches the lower route with 58 health, then dies to Crox 160 in the pool.
 `factory-lower-crox/` uses the existing dry-bank encounter driver, clears that
 actual Crox, reaches the authored e1m2a exit and completes its nine-shot arrival
-alive with 58 health. A new ordinary New Game replay is running on the
-immutable `c812630…` installation. No fresh completion is claimed, and no
+alive with 58 health. The ordinary New Game replay on the immutable `c812630…`
+installation completes all 115 intro shots, marsh, bridge boss/all ten waves,
+reward contact, death/reload, north-tree resupply and first factory arrival. Disk
+save/load retains the visited bridge; an authored return verifies its progress.
+The next driver waypoint oscillates just outside tolerance and times out with
+the player alive at 75 health. The fresh gate remains failed. No fresh completion is claimed, and no
 checkpoint chain is assembled across builds as continuous acceptance.
 
 Main, preserved installation/saves and live service remain unchanged. Complete
 remaining campaign, interactions, companions, multiplayer/public rooms and release
 acceptance stay open.
+
+
+## Sequence 293 — visited-return-driver-and-authored-teleporter-diagnosis
+
+The normal-input driver's exact 32-unit waypoint boundary now uses its existing
+precise movement mode, and the loop consumes the actual forward acknowledgement
+rather than discarding it for another moving query. On immutable installation
+`57afcd9738ecb87af4e881b57edbcc2280597f76c64428c8a0868e64fa918a53`,
+`runtime-zig-293/visited-return-driver/` starts from sequence 292's legitimate
+bridge-boss reward save, uses the north health tree, verifies disk restoration
+and the actual factory→bridge→factory visited-world round trip, crosses the
+factory pipe, operates its controls, saves/restores the active monitor, rides
+both lifts, clears Crox 160 from the dry bank and reaches the authored e1m2a
+exit. All nine arrival shots complete, with Hiro alive at 89 health, 13 armor
+and 100 Ion ammo. It does not replay the boss/death encounter before its starting
+checkpoint and is not fresh campaign acceptance. The exact combined identity is
+`97ba4cb3c64e3f917322ff90f092d9a1b35efc3260ff4fe0aea1d38f6df7d9ee`;
+229 native contracts pass.
+
+The separate lift-exit geometry diagnostic establishes that westward ordinary
+walking takes the objective room's small step and authored teleporter. Its
+initial lower-floor assertion was unsuitable and remains failed; three other
+candidate directions are physically blocked. The new bounded hull-walk/trigger
+route recovery does not yet select that passage in the controlled bot scenario.
+`lift-teleporter-recovery/` on `57afcd…` and `lift-trigger-contact/` on
+`512eb1e92f29c050c0521efb9b268e46c3ef5d9f10e021f464a5938e24321905`
+both verify lift carrying but fail departure. The latter combined identity is
+`8ea7cccbe02f3c8d02410f2986836bad1c573c78fe9984f66a78550e492f08ce`.
+No capture acceptance or successful local routing is inferred from these runs.
+No further unchanged natural deathtag match is justified until that selection
+failure is diagnosed. Shared bot changes require the affected CTF replay.
+
+All evidence uses unchanged asset manifest
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+Main, the preserved playable installation/saves and live service remain untouched.
+
+
+## Sequence 294 — cinematic-skip-authored-ui-and-render-interpolation
+
+The owner reports unskippable cinematics, different menu controls, missing original
+loading art and stepped animation. The native implementation now connects the
+existing class-owned animation clocks and wire fields to per-render-frame poses;
+actor/performer/remote-player positions use snapshot interpolation, with explicit
+teleport, camera-cut, absence and restoration boundaries. Simulation speed and
+combat rules remain unchanged. Character poses, reverse animations and final
+holds share the existing sequence mechanism instead of introducing another
+animation system.
+
+Escape dispatches single-player cinematic completion before the pause menu.
+Natural completion, disabled cinematics and explicit skips share cleanup and
+authored continuation. Monitor cameras retain their separate kind and ordinary
+menu behavior. Camera cuts clear their loop/interpolation boundary while retaining
+streamed dialogue; full completion stops the reserved dialogue channels using a
+narrow addition to both bundled engine audio backends. Ordinary WAV effects keep
+automatic concurrent channels. A native contract checks that cuts retain dialogue
+and completion stops it once without stopping unrelated audio.
+
+The menu draws supplied `int_buttons` glyphs, sliders and radio markers, uses
+pressed/selected states and matches the projected side-plate hit region. Sliders
+accept direct dragging as well as existing keyboard control. Loading selects the
+worldspawn's chapter artwork or supplied connection plaque and renders the
+original six tiles, bar and blocks from actual resource-loading progress. Assets
+remain local. No artificial loading delay is introduced.
+
+Assertions and all intended roots execute: 232 contracts pass (150 runtime,
+48 actor, 24 weapon, 2 inventory, 8 item). Installation `6bf5b349…`, full identity
+and asset manifest are recorded in `docs/native-acceptance.md`. Its OpenGL1
+presentation scenario passes real New Game selection, intermediate Hiro frames,
+actual Escape skips of the intro and arrival, normal starting inventory/health,
+save/load and pause/resume. Menu and Marsh loading captures are visually inspected.
+The first held-pose probe is invalid setup; the next probe detects a compiled-out
+Escape hook. A repaired engine then exposes the driver's premature Escape during
+connection. Synchronization now requires rendered client admission, real input and
+an applied cinematic camera; the same repaired build passes that replay.
+
+OpenGL2's corresponding run reproduces a sky-buffer overflow on entering Marsh.
+The bundled renderer appended generated sky faces to the nearly full source
+polygon batch. It now reuses the buffer after visibility clipping. Final
+installation `4c250287…` changes only `bin/renderer_opengl2.so` relative to
+`6bf5b349…`; all native modules, OpenGL1 and assets are byte-identical. The
+OpenGL2 scenario passes after repair using the actual OpenAL backend with null
+audio output. This verifies backend execution, not audible sound quality.
+
+`monitor-factory-regression/` replays the legitimate before-console checkpoint:
+real authored panel use, saved active monitor restoration/release, both lifts,
+Crox 160 combat and the authored e1m2a exit. All nine arrival shots finish with
+89 health, 13 armor and 94 Ion ammo. This is checkpoint evidence, not a fresh
+opening. The full New Game/115-shot intro/campaign replay is running on the final
+installation, separately from the skip scenario. The affected real UDP client
+lifecycle passes. The affected CTF replay passes all four participants’ movement,
+pickups, fire, opponent damage and respawn, plus one contested capture. Complete
+visual/menu equivalence,
+all actor/weapon interactions, remaining campaign, deathtag/public rooms and
+release acceptance remain open. Known supplied decoration-frame warnings are
+retained as a presentation gap, not hidden by broad acceptance labels.
+
+
+The additional mouse-operated save-menu regression exposes
+`InvalidKnightAttackProjection` on actual e1m3a admission: actor lasers and knight
+attacks both used generic render tag 10006. Class-owned knight tag 10044 removes
+the ambiguity. The catalog uniqueness test first reproduces the duplicate, then
+the repaired integration passes 233 contracts. On immutable `a2f70c11…`,
+`ui-saves-paused-fixture/` passes selecting a slot and separately clicking
+Save/Load, corruption refusal, real health restoration and direct saved-map
+entry into e1m3a without loading Marsh first. Captured menu feedback/selection
+and restored gameplay are inspected. This fixture explicitly places the player,
+sets 100 health while paused and applies 30 diagnostic damage after saving; it
+is not campaign acceptance. Its first repaired-engine attempt invalidates setup
+when an actual enemy hits before health is established. The driver now observes
+admission/input and setup, records exact identity, verifies staged files and
+reports failures immediately. `ui-menus/` covers settings, binding conflict
+cancel/replace and difficulty selection; pause acceptance belongs only to the
+separate synchronized presentation scenario. Its old broad scope label is
+superseded. The full fresh route remains on its unchanged `4c2502…` installation.

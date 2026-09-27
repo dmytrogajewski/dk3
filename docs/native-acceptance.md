@@ -15,14 +15,102 @@ is inferred from class counts or test volume.
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at sequence 285; full interactions unverified | Sequences 232–243/251 have narrow fixtures; no full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 292 | **Not accepted:** fresh 291 New Game completes all intro shots, marsh, bridge controls/resupply/Crox and reaches the authored boss; driver crosses lethal barrier during combat | Earlier legitimate checkpoints reach the factory exit/e1m2a arrival. Later checkpoints defeat the boss and reach factory controls/lifts; a fresh 292 New Game replay is running. No continuous opening completion |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 294 | **Not accepted:** fresh 292 New Game completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and first factory arrival; visited bridge state restores correctly | Driver then overshoots the return waypoint, alive with 75 health. Sequence 293 checkpoint replay reaches e1m2a after C→B→C, the factory and all nine arrival shots. Sequence 294 fresh replay is running; no completion is yet claimed |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Snapshot and deadline contracts pass at 285 | Sequence 287 authored death/reload; 288 actual C→B→C after disk load retains bridge progress | Latest restoration replay is checkpointed; fresh consolidated campaign/death replay remains |
-| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 228 native contracts pass on `0bfdec…`; wire contracts at 287 remain valid | Two real UDP clients pass LAN admission/movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart. CTF contested capture and bot restart pass; controlled red lift approach reaches its objective | Natural deathtag reaches carriers but cannot complete capture. Water-jump routing now passes the explicit slime-escape query; stationary lift waiting is repaired, but actual departure still fails because the selected descent lies under the raised platform. Client-driver inputs are automated. Public admission, browser, authenticated reconnect/rooms and complete modes remain open |
+| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 228 native contracts pass on `0bfdec…`; wire contracts at 287 remain valid | Two real UDP clients pass LAN admission/movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart. CTF contested capture and bot restart pass; controlled red lift approach reaches its objective | Natural deathtag reaches carriers but cannot complete capture. Water-jump routing now passes the explicit slime-escape query; stationary lift waiting is repaired; the physical exit is an authored teleporter, but the new local passage recovery still fails to select it. Client-driver inputs are automated. Public admission, browser, authenticated reconnect/rooms and complete modes remain open |
 | World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | World policy roots pass at 285; engine effects unverified | No new campaign or visual acceptance | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
+| Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 232 native contracts include intermediate/reverse/final animation poses, discontinuities and dialogue surviving camera cuts | Sequence 294 real Escape → authored Marsh arrival → Escape → save/load/pause passes on both renderers; supplied Marsh loading art captured; factory monitor restoration and full e1m2a arrival replay pass | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
 
-## Sequence 292 integration in progress
+## Sequence 294 — current presentation integration
+
+Latest repair installation:
+`a2f70c11a6a0395d5fc6041869f100394c3cf0eac41bac4b763b2f043ac0ba98`;
+combined identity `af35d8e2c6c2e4a4d6d78065416b2d77d7fda48f11333adf448202bdefd1f22f`.
+It passes **233** native contracts (150 runtime, 49 actor, 24 weapon, 2 inventory,
+8 item). A subsequent e1m3a menu-save check exposed the laser/knight render-tag
+collision; the new catalog uniqueness regression fails on that real duplicate,
+then passes after assigning the knight policy its own tag.
+`ui-saves-paused-fixture/` passes mouse-select-then-click Save/Load, corrupt-slot
+rejection, actual health restoration and direct main-menu e1m3a load without a
+Marsh detour. This uses explicit diagnostic placement, health and damage.
+`ui-saves/` retains the renderer crash; `ui-saves-effect-tag-repaired/` invalidates
+its setup because an actual enemy hit the player before the fixture established
+its health. The final setup establishes and observes health while paused.
+The changed tag affects knight attacks and unblocks actor lasers; earlier
+all-class visual results remain unverified. The ongoing fresh opening retains
+its single immutable `4c2502…` build below; it is not assembled from these runs.
+
+`ui-menus/` on `4c2502…` also passes actual setting changes, binding conflict
+cancel/replace and difficulty selection; its final Escape captures are not pause
+acceptance, which belongs to the synchronized presentation probe. Seventeen
+input-driver/evidence contracts pass. UI probes now record installation identity,
+verify staged bytes and reject disabled assertions or existing evidence.
+
+Consolidated installation:
+`4c25028796de74cce9737556b75a39bc3292f7fdbd22c5d29103381f92f35314`.
+Combined executable/modules/assets identity:
+`1194391e024e485761e5da742dc7604d20433f37b8182a911a3996dcfd64690c`.
+Asset manifest remains
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+Evidence is under `zig-out/reports/runtime-zig-294/`.
+
+| Player outcome | State and evidence | Limits / remaining work |
+|---|---|---|
+| Select normal difficulty, skip intro and arrival with real Escape, resume with 100 health/ordinary glove, save/load and pause | Passed: `presentation-final-opengl1/`, `presentation-opengl2-sky-repaired/` | Skipped intro is a focused input regression, never full campaign acceptance |
+| Original button and slider artwork, supplied Marsh loading plaque and progress, smooth intermediate model poses | Rendered/captured in the same two runs; images inspected; actual differing frames and fractional blends observed | Covers New Game/sound menus and one authored animated Hiro shot. Full menu layout, all actors and audiovisual reference comparison remain open |
+| Restore an active factory monitor, operate both lifts, reach the authored e1m2a exit, finish its nine arrival shots | Passed: `monitor-factory-regression/`; living final state 89 health, 13 armor, 94 Ion | Legitimate sequence-293 console checkpoint; no earlier campaign acceptance transferred |
+| New Game → full intro → marsh → bridge encounter → factory → e1m2a | Running: `fresh-opening/` on the consolidated installation above | All 115 intro shots and ordinary starting inventory/difficulty required; no checkpoint substitution |
+| Actual LAN client lifecycle / contested CTF after shared rendering and bot changes | Passed: `lan-regression/` exercises two real UDP clients through admission/movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart; `ctf-regression/` records all four bots moving, picking up weapons, firing, receiving opponent damage and respawning, plus one contested capture | Does not close natural deathtag or complete multiplayer/public-room scope |
+
+The 232 contract results (150 runtime, 48 actor, 24 weapon, 2 inventory, 8 item)
+use installation
+`6bf5b349dcffd1ea4ed5dffb744021242a52886f7dfde1388672a8f549cacbac`;
+combined identity
+`65468105f6a50c4160aa6010704bfa5e9ff2242f62f6069ffa3c981147cd49da`.
+OpenGL1 presentation and the monitor checkpoint also ran there. Comparing the
+installed manifest bytes shows the final `4c2502…` changes **only**
+`bin/renderer_opengl2.so`; gameplay/client/UI, OpenGL1 and assets are identical.
+The final OpenGL2 replay uses the actual OpenAL backend with its null output
+device; this establishes execution, not listening-based sound qualification.
+
+Failures retained: `presentation/` queried held establishing poses before any
+authored animation and is invalid setup. `presentation-authored-pose/` confirms
+that the original Escape hook was compiled out and opened pause instead of
+skipping. `presentation-escape-repaired/` successfully skips the intro but the
+driver presses Escape during the next connection and cancels it; the synchronized
+replay passes on that same build. `presentation-final-opengl2/` reproduces
+`SHADER_MAX_VERTEXES hit in DrawSkySideVBO()` on entering Marsh. The repaired
+renderer reuses the source-polygon buffer after computing sky-face visibility;
+its identical scenario now passes. Assertions remain enabled and the added
+animation, interpolation and cinematic-audio roots execute.
+
+Actor/performer/scenery/remote-player rendering changed in this sequence.
+Earlier broad visual results need affected revalidation; they are not renewed
+by the single interpolated Hiro sample. Supplied decoration frames can still
+produce renderer warnings (for example `d1_swp3` frame 2 with two model frames).
+Complete weapon/actor interactions, remaining episodes, companion routes,
+multiplayer/public rooms and independent release acceptance stay open.
+
+## Sequence 293 — checkpoint progression and unresolved bot departure
+
+`runtime-zig-293/visited-return-driver/` passes legitimate bridge-reward
+checkpoint → resupply → C→B→C visited-world restoration → factory controls/pipe/
+monitor/lifts → authored e1m2a exit and all nine arrival shots. Final state:
+89 health, 13 armor, 100 Ion ammo. Installation `57afcd…`, combined identity
+`97ba4cb3c64e3f917322ff90f092d9a1b35efc3260ff4fe0aea1d38f6df7d9ee`;
+229 contracts pass. Exact full installation IDs are in the sequence-293 journal.
+This does not repeat the boss/death encounter before the checkpoint.
+
+`lift-exit-geometry/` records real westward walking through the authored
+teleporter; its requested lower-floor assertion was unsuitable, so it remains
+failed. `lift-teleporter-recovery/` on `57afcd…` and
+`lift-trigger-contact/` on `512eb1…` both carry the controlled bot on the lift
+but still fail to select the departure passage. No natural capture is accepted.
+No geometry, damage, enemy or puzzle rules were changed for driver convenience.
+
+## Sequence 292 historical integration evidence
 
 All runs retain the asset manifest below. `zig build play` continues to build and
 launch the native development installation with separate saves.
@@ -42,8 +130,12 @@ launch the native development installation with separate saves.
   `deathtag-slime-waterjump-routes/` reaches all three destinations (90/60/1
   edges) with explicit slime permission. Supplied-graph analysis confirms no
   outbound path without both permissions. This is route feasibility, not actual
-  water contact or completed traversal. `fresh-opening/` is a running ordinary
-  New Game replay on this exact installation; no result is claimed yet.
+  water contact or completed traversal. `fresh-opening/` completes all 115 intro
+  shots, marsh, bridge boss/all ten waves, reward contact, death/reload, the
+  north-tree resupply and first factory arrival. After disk save/load and an
+  authored return to the bridge, restored progress matches. The driver then
+  oscillates outside its 32-unit return waypoint and times out, alive with 75
+  health. **Fresh gate failed; driver failure, not game death or disconnection.**
 - Scheduled-lift installation
   `08642247fd1ef54fb7b40b95260b81984f7b44053e0531583d1eb7699c8f6450`
   passes 228 native contracts. Lift centering now requires actual motion or a

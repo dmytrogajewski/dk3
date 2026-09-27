@@ -2339,8 +2339,16 @@ static cvar_t *s_alCapture;
 S_AL_StopAllSounds
 =================
 */
-static
-void S_AL_StopAllSounds( void )
+static void S_AL_StopLocalSound(int channel) {
+	int i;
+	for (i = 0; i < srcCount; ++i) {
+		if (srcList[i].isActive && !srcList[i].isLooping &&
+			srcList[i].entity == -1 && srcList[i].channel == channel)
+			S_AL_SrcKill(i);
+	}
+}
+
+static void S_AL_StopAllSounds( void )
 {
 	int i;
 	S_AL_SrcShutup();
@@ -2841,6 +2849,7 @@ qboolean S_AL_Init( soundInterface_t *si )
 	si->StopBackgroundTrack = S_AL_StopBackgroundTrack;
 	si->RawSamples = S_AL_RawSamples;
 	si->StopAllSounds = S_AL_StopAllSounds;
+	si->StopLocalSound = S_AL_StopLocalSound;
 	si->ClearLoopingSounds = S_AL_ClearLoopingSounds;
 	si->AddLoopingSound = S_AL_AddLoopingSound;
 	si->AddRealLoopingSound = S_AL_AddRealLoopingSound;

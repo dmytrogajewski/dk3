@@ -1,5 +1,25 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Reviewed actor policies; authored numeric tuning remains in supplied aidata.
+test "actor presentation owners have distinct render tags" {
+    const std = @import("std");
+    const declarations = comptime std.meta.declarations(@This());
+    inline for (declarations, 0..) |declaration, index| {
+        const owner = @field(@This(), declaration.name);
+        if (@TypeOf(owner) == type) {
+            if (@typeInfo(owner) == .@"struct" and @hasDecl(owner, "render_tag")) {
+                inline for (declarations[0..index]) |earlier| {
+                    const other = @field(@This(), earlier.name);
+                    if (@TypeOf(other) == type) {
+                        if (@typeInfo(other) == .@"struct" and @hasDecl(other, "render_tag")) {
+                            if (owner.render_tag == other.render_tag) std.debug.print("Duplicate actor render tag: {s} / {s}\n", .{ declaration.name, earlier.name });
+                            try std.testing.expect(owner.render_tag != other.render_tag);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 pub const melee_cycle = @import("melee_cycle.zig");
 pub const ragemaster = @import("ragemaster.zig");
 pub const skeleton = @import("skeleton.zig");

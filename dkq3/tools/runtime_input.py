@@ -31,7 +31,7 @@ class NativeInput:
         verb = command.split()[0]
         allowed = {"weapon", "attribute", "save", "load", "use", "dk3_look", "viewpos", "screenshotJPEG",
                    "dk3_runtime_observe", "dk3_runtime_actors", "dk3_runtime_world",
-                   "dk3_runtime_items", "dk3_runtime_character", "dk3_runtime_projectiles", "dk3_runtime_beams", "dk3_runtime_ion_aim", "dk3_runtime_movers", "quit"}
+                   "dk3_runtime_items", "dk3_runtime_character", "dk3_runtime_projectiles", "dk3_runtime_beams", "dk3_runtime_ion_aim", "dk3_runtime_movers", "dk3_runtime_presentation", "quit"}
         buttons = {sign + name for sign in ("+", "-") for name in
                    ("forward", "back", "moveleft", "moveright", "moveup", "movedown", "attack", "speed")}
         if not self.diagnostic and (verb not in allowed | buttons or ";" in command or "\n" in command):

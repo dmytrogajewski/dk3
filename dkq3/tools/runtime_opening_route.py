@@ -129,13 +129,15 @@ def walk(driver, point, capture, *, combat=False, tolerance=48, floor_limit=None
     jumped = False
     swimming_up = False
     previous_motion = None
+    pending_state = None
     expected_map = driver.observe()["map"]
-    precise = tolerance < 32
+    precise = tolerance <= 32
     if precise:
         driver.issue("+speed")
     try:
         while time.monotonic() < deadline:
-            state = driver.observe()
+            state = pending_state if pending_state is not None else driver.observe()
+            pending_state = None
             if state["map"] != expected_map:
                 raise RuntimeError(f"Unexpected map change during waypoint movement: {expected_map} -> {state['map']}")
             if state["health"] <= 0:
@@ -213,7 +215,10 @@ def walk(driver, point, capture, *, combat=False, tolerance=48, floor_limit=None
                 next_combat = time.monotonic() + 1.0  # Finish the jump before stopping for diagnostics.
             if not moving:
                 driver.issue("+forward")
-                driver.until(lambda s: 0 < s["forward"] <= (64 if precise else 127), description="processed forward input")
+                # The acknowledgement already observes movement. Reuse it before
+                # another diagnostic round trip can carry us past a close target.
+                pending_state = driver.until(lambda s: 0 < s["forward"] <= (64 if precise else 127),
+                                             description="processed forward input")
                 moving = True
         raise TimeoutError(f"Route movement did not reach {point}")
     finally:

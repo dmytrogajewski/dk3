@@ -60,6 +60,9 @@ test {
     _ = @import("domain/actor_audio.zig");
     _ = @import("domain/companion_pose.zig");
     _ = @import("domain/animation.zig");
+    _ = @import("engine/animation.zig");
+    _ = @import("client/interpolation.zig");
+    _ = @import("client/cinematics.zig");
     _ = @import("domain/combat.zig");
     _ = @import("domain/pellets.zig");
     _ = @import("domain/melee.zig");

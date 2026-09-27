@@ -101,7 +101,7 @@ pub fn camera(world: *data.World, viewer: ecs.Entity, ps: *abi.c.playerState_t) 
     const entity = world.find(owner) orelse return;
     const monitor = world.get(entity, data.Monitor) catch return;
     if (monitor.viewer != try world.persistentId(viewer)) return;
-    ps.dk3CameraActive = 1;
+    ps.dk3CameraActive = 2; // A monitor is not an Escape-skippable cinematic.
     ps.dk3CameraOrigin = monitor.origin;
     ps.dk3CameraAngles = monitor.angles;
     ps.dk3CameraFov = 90; // Existing native player view uses this same FOV.

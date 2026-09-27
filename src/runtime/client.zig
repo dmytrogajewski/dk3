@@ -16,6 +16,7 @@ var inline_models: [c.MAX_MODELS]c.qhandle_t = @splat(0);
 var game: c.gameState_t = undefined;
 var display: c.glconfig_t = undefined;
 var snapshot: c.snapshot_t = undefined;
+var display_entities: @TypeOf(snapshot.entities) = undefined;
 var world: ?data.World = null;
 var predicted: ?@import("ecs/world.zig").Entity = null;
 var have_snapshot = false;
@@ -25,10 +26,18 @@ var client_number: i32 = 0;
 var view_angles: v.Vec3 = @splat(0);
 var weapon_view: @import("client/weapon_view.zig").View = .{};
 var hud: @import("client/hud.zig").Hud = .{};
+var presentation: struct { now: i32 = 0, models: usize = 0, blended: usize = 0, entity: i32 = 0, frame: i32 = 0, oldframe: i32 = 0, backlerp: f32 = 0 } = .{};
+fn loadingProgress(done: usize, total: usize) !void {
+    var value: [32]u8 = undefined;
+    const progress = try std.fmt.bufPrintZ(&value, "{d:.4}", .{@as(f32, @floatFromInt(done)) / @as(f32, @floatFromInt(@max(1, total)))});
+    _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_loading_progress"), progress.ptr });
+    _ = engine.gateway.call(c.CG_UPDATESCREEN, .{});
+}
 export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
+    @import("client/interpolation.zig").reset();
     @import("client/scoreboard.zig").reset();
     @import("client/messages.zig").reset();
     @import("client/cinematics.zig").reset();
@@ -73,22 +82,54 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     for (name) |ch| if (!std.ascii.isAlphanumeric(ch) and ch != '_') return error.InvalidMap;
     var path: [128]u8 = undefined;
     const map = try std.fmt.bufPrintZ(&path, "maps/{s}.bsp", .{name});
+    var previous_map: [64]u8 = @splat(0);
+    _ = engine.gateway.call(c.CG_CVAR_VARIABLESTRINGBUFFER, .{ @as([*:0]const u8, "dk3_loading_map"), &previous_map, @as(isize, previous_map.len) });
+    _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_loading_previous_map"), &previous_map });
+    var map_buffer: [64]u8 = undefined;
+    _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_loading_map"), (try std.fmt.bufPrintZ(&map_buffer, "{s}", .{name})).ptr });
     _ = engine.gateway.call(c.CG_GETGLCONFIG, .{&display});
+    try loadingProgress(0, 1);
     _ = engine.gateway.call(c.CG_CM_LOADMAP, .{map.ptr});
     _ = engine.gateway.call(c.CG_R_LOADWORLDMAP, .{map.ptr});
     @memset(&inline_models, 0);
     const model_count = engine.gateway.call(c.CG_CM_NUMINLINEMODELS, .{});
     if (model_count < 1 or model_count > inline_models.len) return error.InlineModelLimit;
+    var resources: usize = @intCast(model_count);
+    for (1..c.MAX_MODELS) |i| if ((try engine.config(&game, c.CS_MODELS + i)).len > 0) {
+        resources += 1;
+    };
+    for (1..c.MAX_SOUNDS) |i| if ((try engine.config(&game, c.CS_SOUNDS + i)).len > 0) {
+        resources += 1;
+    };
+    var loaded: usize = 0;
     for (1..@intCast(model_count)) |i| {
         var model_name: [20]u8 = undefined;
         const model = try std.fmt.bufPrintZ(&model_name, "*{d}", .{i});
         inline_models[i] = @intCast(engine.gateway.call(c.CG_R_REGISTERMODEL, .{model.ptr}));
+        loaded += 1;
+        if (loaded % 8 == 0) try loadingProgress(loaded, resources);
+    }
+    for (1..c.MAX_MODELS) |i| if ((try engine.config(&game, c.CS_MODELS + i)).len > 0) {
+        const model = try engine.config(&game, c.CS_MODELS + i);
+        if (std.mem.endsWith(u8, model, ".sp2")) {
+            _ = try @import("client/sprites.zig").register(model);
+        } else _ = try @import("client/models.zig").get(&game, @intCast(i));
+        loaded += 1;
+        if (loaded % 8 == 0) try loadingProgress(loaded, resources);
+    };
+    for (1..c.MAX_SOUNDS) |i| {
+        const sound = try engine.config(&game, c.CS_SOUNDS + i);
+        if (sound.len == 0) continue;
+        _ = try engine.registerSound(sound);
+        loaded += 1;
+        if (loaded % 8 == 0) try loadingProgress(loaded, resources);
     }
     const table_bytes = try @import("engine/files.zig").read(.client, &engine.gateway, std.heap.c_allocator, "dk3/tables/weapons.cfg", 4 * 1024 * 1024);
     defer std.heap.c_allocator.free(table_bytes);
     weapon_table = try weapons.Table.parse(table_bytes);
     weapon_view.init();
     try hud.init();
+    try loadingProgress(resources, resources);
     world = data.World.init(std.heap.c_allocator, 128);
     predicted = try world.?.create(null, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Health{}, data.Weapons{}, data.Character{}, data.Ailments{} });
     have_snapshot = false;
@@ -97,7 +138,7 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     snapshot_number = server_message - 1;
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "viewpos")});
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "use")});
-    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev", "attribute", "inventory", "invnext", "invprev", "attribute_next", "attribute_increase", "save", "load", "+scores", "-scores", "say", "say_team", "ready", "team", "callvote", "vote" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
+    for ([_][*:0]const u8{ "cin_skip", "dk3_runtime_presentation", "weapon", "weapnext", "weapprev", "attribute", "inventory", "invnext", "invprev", "attribute_next", "attribute_increase", "save", "load", "+scores", "-scores", "say", "say_team", "ready", "team", "callvote", "vote" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
     engine.print("dk3 zig: shared movement prediction initialized\n");
 }
 fn draw(now: i32) !void {
@@ -127,6 +168,7 @@ fn draw(now: i32) !void {
                 @import("client/scoreboard.zig").command();
                 @import("client/quake_kick.zig").command();
                 if (@import("client/commands.zig").restored()) |restored| {
+                    @import("client/interpolation.zig").reset();
                     @import("client/messages.zig").reset();
                     @import("client/models.zig").reset();
                     @import("client/objectives.zig").reset();
@@ -148,6 +190,8 @@ fn draw(now: i32) !void {
             }
         }
         _ = engine.gateway.call(c.CG_GETGAMESTATE, .{&game});
+        if (snapshot.numEntities < 0 or snapshot.numEntities > snapshot.entities.len) return error.InvalidSnapshot;
+        @import("client/interpolation.zig").ingest(&snapshot, @import("client/cinematics.zig").boundary);
     }
     if (!have_snapshot or snapshot_number < 0 or snapshot.ps.clientNum != client_number) return;
     if (snapshot.numEntities < 0 or snapshot.numEntities > snapshot.entities.len) return error.InvalidSnapshot;
@@ -155,6 +199,8 @@ fn draw(now: i32) !void {
     try @import("client/events.zig").environment(snapshot.ps.dk3SoundEnvironment);
     engine.setSnapshot(snapshot.entities[0..@intCast(snapshot.numEntities)], now);
     try @import("client/events.zig").consume(&game, snapshot.entities[0..@intCast(snapshot.numEntities)]);
+    @memcpy(display_entities[0..@intCast(snapshot.numEntities)], snapshot.entities[0..@intCast(snapshot.numEntities)]);
+    for (display_entities[0..@intCast(snapshot.numEntities)]) |*entity| @import("client/interpolation.zig").apply(entity, now);
     if (selected_weapon == 0 or snapshot.ps.dk3Inventory != inventory_mask) {
         selected_weapon = snapshot.ps.weapon;
         inventory_mask = snapshot.ps.dk3Inventory;
@@ -205,11 +251,12 @@ fn draw(now: i32) !void {
     ref.vieworg = transform.position;
     ref.vieworg[2] += player.view_height;
     if (snapshot.ps.dk3CameraActive != 0) {
-        ref.vieworg = snapshot.ps.dk3CameraOrigin;
-        ref.fov_x = snapshot.ps.dk3CameraFov;
+        const camera = @import("client/interpolation.zig").camera(now);
+        ref.vieworg = camera.position;
+        ref.fov_x = camera.fov;
         ref.fov_y = std.math.atan(@tan(ref.fov_x * std.math.pi / 360) * @as(f32, @floatFromInt(ref.height)) / @as(f32, @floatFromInt(ref.width))) * 360 / std.math.pi;
     }
-    const basis = v.basis(if (snapshot.ps.dk3CameraActive != 0) snapshot.ps.dk3CameraAngles else v.add(v.add(v.add(view_angles, @import("client/quake_kick.zig").offset(now)), .{ 0, 0, psychic.roll }), @import("client/area_effects.zig").shake(snapshot.entities[0..@intCast(snapshot.numEntities)], ref.vieworg, now)));
+    const basis = v.basis(if (snapshot.ps.dk3CameraActive != 0) @import("client/interpolation.zig").camera(now).angles else v.add(v.add(v.add(view_angles, @import("client/quake_kick.zig").offset(now)), .{ 0, 0, psychic.roll }), @import("client/area_effects.zig").shake(snapshot.entities[0..@intCast(snapshot.numEntities)], ref.vieworg, now)));
     ref.viewaxis[0] = basis.forward;
     ref.viewaxis[1] = v.scale(basis.right, -1);
     ref.viewaxis[2] = v.cross(ref.viewaxis[0], ref.viewaxis[1]);
@@ -219,10 +266,11 @@ fn draw(now: i32) !void {
     _ = engine.gateway.call(c.CG_R_CLEARSCENE, .{});
     _ = engine.gateway.call(c.CG_S_CLEARLOOPINGSOUNDS, .{@as(isize, c.qfalse)});
     var weapon_end_ms: ?i64 = null;
-    for (snapshot.entities[0..@intCast(snapshot.numEntities)]) |entity| {
+    presentation = .{ .now = now };
+    for (display_entities[0..@intCast(snapshot.numEntities)]) |entity| {
         if (entity.eType == c.ET_DK3_EFFECT) {
             if (entity.weapon == @import("weapon_catalog").metamaser.id) {
-                try @import("client/metamaser.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
+                try @import("client/metamaser.zig").draw(entity, display_entities[0..@intCast(snapshot.numEntities)], now, &ref);
                 continue;
             }
             try @import("client/weapon_effects.zig").draw(entity, now, &ref, client_number);
@@ -250,7 +298,7 @@ fn draw(now: i32) !void {
             @import("client/sprites.zig").draw(sprite, 0, @import("engine/trajectory.zig").evaluate(entity.pos, now), 1, true, &ref);
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").gunners.render_tag) {
-            try @import("client/gunner_bursts.zig").draw(&game, entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now);
+            try @import("client/gunner_bursts.zig").draw(&game, entity, display_entities[0..@intCast(snapshot.numEntities)], now);
             continue;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").sludge.render_tag) {
@@ -310,10 +358,10 @@ fn draw(now: i32) !void {
         }
         if (entity.eType == c.ET_MISSILE and try @import("client/projectiles.zig").sprite(entity, now, &ref)) continue;
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").stavros.id) try @import("client/stavros.zig").draw(entity, now, &ref);
-        if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").wyndrax.id) try @import("client/wyndrax.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
-        if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").metamaser.id) try @import("client/metamaser.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
+        if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").wyndrax.id) try @import("client/wyndrax.zig").draw(entity, display_entities[0..@intCast(snapshot.numEntities)], now, &ref);
+        if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").metamaser.id) try @import("client/metamaser.zig").draw(entity, display_entities[0..@intCast(snapshot.numEntities)], now, &ref);
         if (entity.eType == c.ET_DK3_ITEM and entity.dk3Team != 0) {
-            try @import("client/objectives.zig").draw(&game, entity, snapshot.entities[0..@intCast(snapshot.numEntities)], client_number, now);
+            try @import("client/objectives.zig").draw(&game, entity, display_entities[0..@intCast(snapshot.numEntities)], client_number, now);
             continue;
         }
         if (entity.eType == c.ET_PLAYER and entity.number == client_number) {
@@ -351,7 +399,7 @@ fn draw(now: i32) !void {
             continue;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/lightning.zig").render_tag) {
-            @import("client/lightning.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
+            @import("client/lightning.zig").draw(entity, display_entities[0..@intCast(snapshot.numEntities)], now, &ref);
             continue;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/complex_particles.zig").render_tag) {
@@ -374,8 +422,18 @@ fn draw(now: i32) !void {
         var rendered = std.mem.zeroes(c.refEntity_t);
         rendered.hModel = handle;
         if (entity.eType == c.ET_PLAYER) rendered.customSkin = try @import("client/models.zig").playerSkin(&game, entity.clientNum);
-        rendered.frame = entity.frame;
-        rendered.oldframe = entity.frame;
+        const animation = try @import("engine/animation.zig").sample(entity, now);
+        rendered.frame = animation.frame;
+        rendered.oldframe = animation.oldframe;
+        rendered.backlerp = animation.backlerp;
+        presentation.models += 1;
+        if (rendered.frame != rendered.oldframe and rendered.backlerp > 0 and rendered.backlerp < 1) {
+            presentation.blended += 1;
+            presentation.entity = entity.number;
+            presentation.frame = rendered.frame;
+            presentation.oldframe = rendered.oldframe;
+            presentation.backlerp = rendered.backlerp;
+        }
         rendered.reType = c.RT_MODEL;
         rendered.origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
         rendered.oldorigin = rendered.origin;
@@ -456,6 +514,11 @@ fn console() isize {
     _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 0), &buffer, @as(isize, buffer.len) });
     const name = std.mem.sliceTo(&buffer, 0);
     if (world == null or !have_snapshot) return 0;
+    if (std.mem.eql(u8, name, "dk3_runtime_presentation")) {
+        var message: [256]u8 = undefined;
+        engine.print(std.fmt.bufPrintZ(&message, "dk3 presentation: now={d} camera={d} models={d} blended={d} entity={d} frame={d} oldframe={d} backlerp={d:.4}\n", .{ presentation.now, snapshot.ps.dk3CameraActive, presentation.models, presentation.blended, presentation.entity, presentation.frame, presentation.oldframe, presentation.backlerp }) catch unreachable);
+        return 1;
+    }
     if (@import("client/scoreboard.zig").input(name)) return 1;
     if (hud.command(name)) return 1;
     if (std.mem.eql(u8, name, "weapon")) {

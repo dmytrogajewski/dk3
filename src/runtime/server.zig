@@ -100,6 +100,11 @@ fn init(now: i64, restart: bool) !void {
     engine.register("dm_use_skill_system", "1", c.CVAR_ARCHIVE);
     engine.register("dm_levellimit", "0", c.CVAR_SERVERINFO | c.CVAR_LATCH);
     while (try map.read(arena.?.allocator(), engine)) |object| {
+        if (std.mem.eql(u8, object.binding.classname, "worldspawn")) {
+            var loadscreen: [64]u8 = undefined;
+            const name = @import("server/properties.zig").text(object.binding, "loadscreen") orelse "";
+            engine.config(c.CS_DK3_LOADSCREEN, try std.fmt.bufPrintZ(&loadscreen, "{s}", .{name}));
+        }
         _ = try world.?.create(null, .{ object.binding, object.transform });
     }
     if (engine.integer("dk3_runtime_probe") == 2) {
@@ -575,6 +580,10 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     if (loadout.weapon == @import("weapon_catalog").c4.id and health.current > 0) {
                         _ = @import("server/c4.zig").detonate(&world.?, world.?.persistentId(entity) catch return 0, clock.now_ms, false) catch |err| runtimeFailure(err);
                     }
+                }
+            } else if (std.mem.eql(u8, client_command, "cin_skip")) {
+                if (arg0 == 0 and engine.integer("g_gametype") == c.GT_SINGLE_PLAYER and @import("server/cinematics.zig").active(&world.?)) {
+                    if (clients.entities[0]) |entity| @import("server/cinematics.zig").completePlayback(&world.?, &slots, &projection, &targets, entity, clock.now_ms) catch |err| runtimeFailure(err);
                 }
             } else if (std.mem.eql(u8, client_command, "use")) {
                 if (clients.entities[@intCast(arg0)]) |entity| @import("server/interactions.zig").use(&world.?, &slots, &projection, &targets, entity, clock.now_ms) catch |err| runtimeFailure(err);

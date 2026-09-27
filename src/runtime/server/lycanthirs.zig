@@ -47,8 +47,7 @@ pub fn revive(world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: 
     actor.think_ms = now;
     return false;
 }
-pub fn frame(actor: data.Actor, definition: @import("../domain/actors.zig").Definition, now: i64) ?u16 {
+pub fn playback(actor: data.Actor, definition: @import("../domain/actors.zig").Definition) ?@import("../domain/animation.zig").Playback {
     if (actor.mode == .dead or actor.lycanthir.phase == .living) return null;
-    const forward = definition.death.frame(now - actor.lycanthir.started_ms, false);
-    return if (actor.lycanthir.phase == .rising) definition.death.last - (forward - definition.death.first) else forward;
+    return .{ .sequence = definition.death, .started = actor.lycanthir.started_ms, .looping = false, .reverse = actor.lycanthir.phase == .rising };
 }

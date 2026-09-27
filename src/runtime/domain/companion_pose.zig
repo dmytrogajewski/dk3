@@ -3,14 +3,7 @@
 const animation = @import("animation.zig");
 const std = @import("std");
 const catalog = @import("weapon_catalog");
-pub const Playback = struct {
-    sequence: animation.Sequence,
-    started: i64,
-    looping: bool = true,
-    pub fn frame(self: Playback, now: i64) u16 {
-        return self.sequence.frame(now - self.started, self.looping);
-    }
-};
+pub const Playback = animation.Playback;
 
 test "companion cues share the published shot and jump clocks without restarting movement" {
     const poses: Set = .{

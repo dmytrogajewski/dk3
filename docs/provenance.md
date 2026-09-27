@@ -221,3 +221,50 @@ reports and map geometry remain in ignored evidence, not public assets. Lift
 waiting uses the native mover's actual motion/return deadline rather than
 assuming a requested floor schedules movement. The contract fixtures are
 project-authored; no private implementation is imported.
+
+
+Sequence 293 examines the local supplied e1dt1 BSP/AAS and its native collision
+traces. The raised objective room leaves through its authored teleporter after a
+small supported step; three apparent direct exits are obstructed. The independent
+bot recovery uses existing trigger bounds, destination lookup, player hull traces
+and navigation. No private implementation, changed map data or synthetic passage
+is admitted. This recovery remains unaccepted because the controlled bot replay
+still fails to select the passage.
+
+Sequence 294 reviews private behavior only for Escape completion and sound
+lifetime (`base/client/keys.cpp`, `base/dk_/dk_gce_main.cpp`,
+`base/dk_/dk_cin_playback.cpp`, `dlls/world/cin_playback.cpp`), loading-art layout
+(`base/client/console.cpp`, `base/client/cl_scrn.cpp`) and menu controls
+(`base/dk_/dk_menu_newgame.cpp`, `base/dk_/dk_menu_controls.cpp`,
+`base/dk_/dk_menup.h`). Native implementations are project-authored. Original
+images, font metrics, cinematic programs and animation records remain in the
+local converted packages, excluded from publication.
+
+The native completion path releases performers/viewer control and executes the
+existing authored continuation. Camera cuts stop their loop and reset camera
+interpolation while retaining streamed dialogue. Streamed MP3 entries keep their
+authored replacement channel; ordinary WAV effects retain automatic concurrent
+channels. Completion stops only the cinematic stream channels. The bundled GPL
+engine adds that narrow local-channel stop in both its existing software and
+OpenAL backends, plus Escape dispatch before the pause menu. Original notices
+remain intact; changed engine hashes are recorded in `engine/DEVELOPMENT.json`.
+
+Actor, performer, scenery and remote-player presentation now consumes the
+project's existing wire animation timing fields. Authored sequence rates and
+snapshot positions drive independent render interpolation; physics, damage and
+script clocks are unchanged. Teleports, camera cuts, missing snapshots and saved
+world restoration delimit blending. No private renderer or animation code is
+an input to compilation, conversion or testing.
+
+The same sequence repairs an observed bundled OpenGL2 sky-buffer overflow.
+`RB_ClipSkyPolygons` consumes the source geometry to compute visible face bounds;
+subsequent generated sky faces now reuse that buffer rather than appending to
+its occupied batch. The existing GPL renderer is the only implementation source.
+The before/after native Marsh scenario preserves the failure and passing replay.
+
+A subsequent native e1m3a UI-save replay exposes a project-owned presentation
+tag collision between actor lasers and knight attacks. The knight class now owns
+an unused value; its server and client already share that policy constant. A
+catalog-wide uniqueness regression first fails on the real duplicate. This is
+an independent transport correction, with no authored behavior or private code
+changes. Native build identities continue rejecting mixed module installations.

@@ -188,6 +188,7 @@ typedef enum {
     , CG_DK3_SOUND_PARAMS_V1 = 700
     , CG_DK3_SOUND_ENVIRONMENT_V1 = 701
     , CG_DK3_R_FOG_V1 = 702
+    , CG_DK3_STOP_LOCAL_SOUND_V1 = 703
 } cgameImport_t;
 
 

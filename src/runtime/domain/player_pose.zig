@@ -55,6 +55,9 @@ pub const Set = struct {
         ][@intFromEnum(pose)];
     }
     pub fn frame(self: *const Set, state: *State, input: Input, grip: Grip, now: i64) u16 {
+        return self.playback(state, input, grip, now).frame(now);
+    }
+    pub fn playback(self: *const Set, state: *State, input: Input, grip: Grip, now: i64) animation.Playback {
         const moving = @abs(input.velocity[0]) > 1 or @abs(input.velocity[1]) > 1;
         const wanted: Pose = if (input.dead) .dead else if (input.jumping) (if (moving) .moving_jump else .jump) else if (input.ducked) (if (moving) .crouch_walk else .crouch) else if (moving) .run else .idle;
         const yaw = std.math.atan2(input.velocity[1], input.velocity[0]) * 180 / std.math.pi;
@@ -79,10 +82,9 @@ pub const Set = struct {
                 .rifle, .shoulder => 2,
             };
             const attack = self.attacks[index][@intFromBool(input.ducked)];
-            if (now >= at and now - at < attack.duration()) return attack.frame(now - at, false);
+            if (now >= at and now - at < attack.duration()) return .{ .sequence = attack, .started = at, .looping = false };
         };
-        const current = sequence_value.frame(now - state.started_ms, looping);
-        return if (state.reverse) sequence_value.last - (current - sequence_value.first) else current;
+        return .{ .sequence = sequence_value, .started = state.started_ms, .looping = looping, .reverse = state.reverse };
     }
 };
 

@@ -3,6 +3,7 @@
 const std = @import("std");
 pub const muzzle_model = "models/global/me_mflash.dkm";
 pub const flash_tag: i32 = 0x52474154;
+pub const frame_period_ms = 100;
 pub const Phase = enum { disabled, passive, raising, scanning, lowering };
 pub const Burst = struct { remaining: u3 = 5, next_ms: i64 };
 pub const State = struct {
@@ -32,7 +33,7 @@ pub const State = struct {
     pub fn frame(self: State, now: i64) u16 {
         if (self.height == 0) return 0;
         const elapsed: u64 = @intCast(@max(0, now - self.pose_ms));
-        const progress: u16 = @intCast(@min(self.height, elapsed / 100));
+        const progress: u16 = @intCast(@min(self.height, elapsed / frame_period_ms));
         return if (self.raised) progress else self.height - 1 - @min(self.height - 1, progress);
     }
     pub fn startBurst(self: *State, now: i64) !void {

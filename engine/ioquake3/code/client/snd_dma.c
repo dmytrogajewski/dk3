@@ -732,6 +732,16 @@ void S_Base_ClearSoundBuffer( void ) {
 S_StopAllSounds
 ==================
 */
+static void S_Base_StopLocalSound(int channel) {
+	int i;
+	if (!s_soundStarted) return;
+	for (i = 0; i < MAX_CHANNELS; ++i) {
+		channel_t *ch = &s_channels[i];
+		if (ch->thesfx && ch->entnum == listener_number && ch->entchannel == channel)
+			S_ChannelFree(ch);
+	}
+}
+
 void S_Base_StopAllSounds(void) {
 	if ( !s_soundStarted ) {
 		return;
@@ -1620,6 +1630,7 @@ qboolean S_Base_Init( soundInterface_t *si ) {
 	si->StopBackgroundTrack = S_Base_StopBackgroundTrack;
 	si->RawSamples = S_Base_RawSamples;
 	si->StopAllSounds = S_Base_StopAllSounds;
+	si->StopLocalSound = S_Base_StopLocalSound;
 	si->ClearLoopingSounds = S_Base_ClearLoopingSounds;
 	si->AddLoopingSound = S_Base_AddLoopingSound;
 	si->AddRealLoopingSound = S_Base_AddRealLoopingSound;

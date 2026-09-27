@@ -88,7 +88,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.number = binding.slot;
     projection.state.eType = c.ET_GENERAL;
     projection.state.modelindex = binding.model;
-    projection.state.frame = state.sequence.frame(now - state.started_ms, state.looping);
+    @import("../engine/animation.zig").publish(&projection.state, .{ .sequence = state.sequence, .started = state.started_ms, .looping = state.looping }, now);
     if (state.gib != null or state.explosion) projection.state.time = @intCast(state.started_ms);
     projection.state.generic1 = if (state.explosion) policy.explosion_tag else policy.render_tag;
     projection.state.time2 = @intFromFloat(state.alpha * 255);
