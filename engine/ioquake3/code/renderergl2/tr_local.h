@@ -442,6 +442,7 @@ typedef struct {
 
 typedef struct shader_s {
 	char		name[MAX_QPATH];		// game path, including extension
+    unsigned int worldRegistration; /* scope map shader bindings */
 	int			lightmapIndex;			// for a shader to match, both name and lightmapIndex must match
 
 	int			index;					// this shader == tr.shaders[index]
@@ -1529,6 +1530,7 @@ typedef struct {
 
 	int						frameSceneNum;	// zeroed at RE_BeginFrame
 
+    unsigned int worldRegistration;
 	qboolean				worldMapLoaded;
 	qboolean				worldDeluxeMapping;
 	vec2_t                  autoExposureMinMax;
@@ -2538,6 +2540,15 @@ void RE_TakeVideoFrame( int width, int height,
 void R_ConvertTextureFormat( const byte *in, int width, int height, GLenum format, GLenum type, byte *out );
 
 
-#endif //TR_LOCAL_H
 
 void R_UpdateDkLightstyles(const refdef_t *view);
+
+/* Resident map ownership, shared by native preparation and authored travel. */
+unsigned int RE_RequestWorld(const char *name);
+int RE_PollWorld(unsigned int world);
+qboolean RE_SelectWorld(unsigned int world);
+unsigned int RE_CurrentWorld(void);
+void R_ClearResidentWorlds(void);
+qhandle_t R_WorldInlineModel(const char *name);
+
+#endif //TR_LOCAL_H

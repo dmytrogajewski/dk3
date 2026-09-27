@@ -34,7 +34,7 @@ pub fn restore(world: *data.World, allocator: std.mem.Allocator) !void {
     }
     if (selected) |path| return publish(path, volume);
     var map_name: [c.MAX_QPATH]u8 = @splat(0);
-    _ = engine.gateway.call(c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "mapname"), &map_name, @as(isize, map_name.len) });
+    _ = engine.mapName(&map_name);
     const bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, "dk3/tables/music.cfg", 65536);
     defer allocator.free(bytes);
     var reader = try @import("../domain/tables.zig").Reader.init(bytes);

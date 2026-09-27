@@ -31,18 +31,27 @@ fn Registry(comptime limit: usize, comptime base: i32) type {
         }
     };
 }
-var models: Registry(c.MAX_MODELS, c.CS_MODELS) = .{};
-var sounds: Registry(c.MAX_SOUNDS, c.CS_SOUNDS) = .{};
+pub const State = struct {
+    models: Registry(c.MAX_MODELS, c.CS_MODELS) = .{},
+    sounds: Registry(c.MAX_SOUNDS, c.CS_SOUNDS) = .{},
+};
+var initial: State = .{};
+var selected: *State = &initial;
+pub fn select(state: *State) *State {
+    const previous = selected;
+    selected = state;
+    return previous;
+}
 pub fn reset() void {
-    models = .{};
-    sounds = .{};
+    selected.models = .{};
+    selected.sounds = .{};
 }
 pub fn capture(allocator: std.mem.Allocator) !@import("../domain/snapshot.zig").Resources {
-    const model_names = try allocator.alloc([]const u8, models.count - 1);
+    const model_names = try allocator.alloc([]const u8, selected.models.count - 1);
     errdefer allocator.free(model_names);
-    const sound_names = try allocator.alloc([]const u8, sounds.count - 1);
-    for (model_names, 1..) |*name, i| name.* = std.mem.sliceTo(&models.names[i], 0);
-    for (sound_names, 1..) |*name, i| name.* = std.mem.sliceTo(&sounds.names[i], 0);
+    const sound_names = try allocator.alloc([]const u8, selected.sounds.count - 1);
+    for (model_names, 1..) |*name, i| name.* = std.mem.sliceTo(&selected.models.names[i], 0);
+    for (sound_names, 1..) |*name, i| name.* = std.mem.sliceTo(&selected.sounds.names[i], 0);
     return .{ .models = model_names, .sounds = sound_names };
 }
 pub fn restore(saved: @import("../domain/snapshot.zig").Resources) !void {
@@ -53,25 +62,25 @@ pub fn restore(saved: @import("../domain/snapshot.zig").Resources) !void {
 /// Rewinding the current resource prefix is safe without another gamestate.
 /// New or reordered identities must be admitted through map initialization.
 pub fn canRestoreInPlace(saved: @import("../domain/snapshot.zig").Resources) bool {
-    return models.contains(saved.models) and sounds.contains(saved.sounds);
+    return selected.models.contains(saved.models) and selected.sounds.contains(saved.sounds);
 }
 pub fn model(path: []const u8) !u16 {
-    return models.add(path);
+    return selected.models.add(path);
 }
 pub fn modelName(index: u16) []const u8 {
-    std.debug.assert(index > 0 and index < models.count);
-    return std.mem.sliceTo(&models.names[index], 0);
+    std.debug.assert(index > 0 and index < selected.models.count);
+    return std.mem.sliceTo(&selected.models.names[index], 0);
 }
 pub fn soundName(index: u16) []const u8 {
-    std.debug.assert(index > 0 and index < sounds.count);
-    return std.mem.sliceTo(&sounds.names[index], 0);
+    std.debug.assert(index > 0 and index < selected.sounds.count);
+    return std.mem.sliceTo(&selected.sounds.names[index], 0);
 }
 pub fn sound(path: []const u8) !u16 {
     if (path.len >= c.MAX_QPATH) return error.InvalidResourcePath;
     var normalized: [c.MAX_QPATH]u8 = undefined;
     for (path, 0..) |char, i| normalized[i] = if (char == '\\') '/' else std.ascii.toLower(char);
     const name = normalized[0..path.len];
-    return sounds.add(if (std.mem.startsWith(u8, name, "sounds/")) name[7..] else name);
+    return selected.sounds.add(if (std.mem.startsWith(u8, name, "sounds/")) name[7..] else name);
 }
 pub fn floorBounds(path: []const u8) !?@import("../domain/md3.zig").Bounds {
     if (!std.mem.endsWith(u8, path, ".dkm")) return null;

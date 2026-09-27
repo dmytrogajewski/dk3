@@ -3339,6 +3339,9 @@ void CL_InitRef( void ) {
 
 	ri.FS_ReadFile = FS_ReadFile;
 	ri.FS_FreeFile = FS_FreeFile;
+    ri.BeginBackgroundRead = FS_BeginBackgroundRead;
+    ri.PollBackgroundRead = FS_PollBackgroundRead;
+    ri.EndBackgroundRead = FS_EndBackgroundRead;
 	ri.FS_WriteFile = FS_WriteFile;
 	ri.FS_FreeFileList = FS_FreeFileList;
 	ri.FS_ListFiles = FS_ListFiles;

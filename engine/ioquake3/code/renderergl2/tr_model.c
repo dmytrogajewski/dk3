@@ -288,6 +288,8 @@ qhandle_t RE_RegisterModel( const char *name ) {
 		return 0;
 	}
 
+    if (name[0] == '*') return R_WorldInlineModel(name);
+
 	//
 	// search the currently loaded models
 	//

@@ -62,27 +62,27 @@ extern botlib_import_t botimport;
 //area flag used for weapon jumping
 #define AREA_WEAPONJUMP						8192	//valid area to weapon jump to
 //number of reachabilities of each type
-int reach_swim;			//swim
-int reach_equalfloor;	//walk on floors with equal height
-int reach_step;			//step up
-int reach_walk;			//walk of step
-int reach_barrier;		//jump up to a barrier
-int reach_waterjump;	//jump out of water
-int reach_walkoffledge;	//walk of a ledge
-int reach_jump;			//jump
-int reach_ladder;		//climb or descent a ladder
-int reach_teleport;		//teleport
-int reach_elevator;		//use an elevator
-int reach_funcbob;		//use a func bob
-int reach_grapple;		//grapple hook
-int reach_doublejump;	//double jump
-int reach_rampjump;		//ramp jump
-int reach_strafejump;	//strafe jump (just normal jump but further)
-int reach_rocketjump;	//rocket jump
-int reach_bfgjump;		//bfg jump
-int reach_jumppad;		//jump pads
+#define reach_swim (aasworld.reach_swim)
+#define reach_equalfloor (aasworld.reach_equalfloor)
+#define reach_step (aasworld.reach_step)
+#define reach_walk (aasworld.reach_walk)
+#define reach_barrier (aasworld.reach_barrier)
+#define reach_waterjump (aasworld.reach_waterjump)
+#define reach_walkoffledge (aasworld.reach_walkoffledge)
+#define reach_jump (aasworld.reach_jump)
+#define reach_ladder (aasworld.reach_ladder)
+#define reach_teleport (aasworld.reach_teleport)
+#define reach_elevator (aasworld.reach_elevator)
+#define reach_funcbob (aasworld.reach_funcbob)
+#define reach_grapple (aasworld.reach_grapple)
+#define reach_doublejump (aasworld.reach_doublejump)
+#define reach_rampjump (aasworld.reach_rampjump)
+#define reach_strafejump (aasworld.reach_strafejump)
+#define reach_rocketjump (aasworld.reach_rocketjump)
+#define reach_bfgjump (aasworld.reach_bfgjump)
+#define reach_jumppad (aasworld.reach_jumppad)
 //if true grapple reachabilities are skipped
-int calcgrapplereach;
+#define calcgrapplereach (aasworld.calcgrapplereach)
 //linked reachability
 typedef struct aas_lreachability_s
 {
@@ -97,10 +97,10 @@ typedef struct aas_lreachability_s
 	struct aas_lreachability_s *next;
 } aas_lreachability_t;
 //temporary reachabilities
-aas_lreachability_t *reachabilityheap;	//heap with reachabilities
-aas_lreachability_t *nextreachability;	//next free reachability from the heap
-aas_lreachability_t **areareachability;	//reachability links for every area
-int numlreachabilities;
+#define reachabilityheap (aasworld.reachabilityheap)
+#define nextreachability (aasworld.nextreachability)
+#define areareachability (aasworld.areareachability)
+#define numlreachabilities (aasworld.numlreachabilities)
 
 //===========================================================================
 // returns the surface area of the given face
@@ -475,6 +475,7 @@ void AAS_SetupReachabilityHeap(void)
 void AAS_ShutDownReachabilityHeap(void)
 {
 	FreeMemory(reachabilityheap);
+	reachabilityheap = nextreachability = NULL;
 	numlreachabilities = 0;
 } //end of the function AAS_ShutDownReachabilityHeap
 //===========================================================================
@@ -4484,6 +4485,7 @@ int AAS_ContinueInitReachability(float time)
 		AAS_ShutDownReachabilityHeap();
 		//
 		FreeMemory(areareachability);
+		areareachability = NULL;
 		//
 		aasworld.numreachabilityareas++;
 		//

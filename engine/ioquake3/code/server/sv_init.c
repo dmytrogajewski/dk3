@@ -36,7 +36,7 @@ static void SV_SendConfigstring(client_t *client, int index)
 	int maxChunkSize = MAX_STRING_CHARS - 24;
 	int len;
 
-	len = strlen(sv.configstrings[index]);
+	len = strlen(sv.world->configstrings[index]);
 
 	if( len >= maxChunkSize ) {
 		int		sent = 0;
@@ -54,7 +54,7 @@ static void SV_SendConfigstring(client_t *client, int index)
 			else {
 				cmd = "bcs1";
 			}
-			Q_strncpyz( buf, &sv.configstrings[index][sent],
+			Q_strncpyz( buf, &sv.world->configstrings[index][sent],
 				maxChunkSize );
 
 			SV_SendServerCommand( client, "%s %i \"%s\"\n", cmd,
@@ -66,7 +66,7 @@ static void SV_SendConfigstring(client_t *client, int index)
 	} else {
 		// standard cs, just send it
 		SV_SendServerCommand( client, "cs %i \"%s\"\n", index,
-			sv.configstrings[index] );
+			sv.world->configstrings[index] );
 	}
 }
 
@@ -116,17 +116,17 @@ void SV_SetConfigstring (int index, const char *val) {
 	}
 
 	// don't bother broadcasting an update if no change
-	if ( !strcmp( val, sv.configstrings[ index ] ) ) {
+	if ( !strcmp( val, sv.world->configstrings[ index ] ) ) {
 		return;
 	}
 
 	// change the string in sv
-	Z_Free( sv.configstrings[index] );
-	sv.configstrings[index] = CopyString( val );
+	Z_Free( sv.world->configstrings[index] );
+	sv.world->configstrings[index] = CopyString( val );
 
 	// send it to all the clients if we aren't
 	// spawning a new server
-	if ( sv.state == SS_GAME || sv.restarting ) {
+	if ( sv.world == sv.primaryWorld && (sv.state == SS_GAME || sv.restarting) ) {
 
 		// send the data to all relevant clients
 		for (i = 0, client = svs.clients; i < sv_maxclients->integer ; i++, client++) {
@@ -158,12 +158,12 @@ void SV_GetConfigstring( int index, char *buffer, int bufferSize ) {
 	if ( index < 0 || index >= MAX_CONFIGSTRINGS ) {
 		Com_Error (ERR_DROP, "SV_GetConfigstring: bad index %i", index);
 	}
-	if ( !sv.configstrings[index] ) {
+	if ( !sv.world || !sv.world->configstrings[index] ) {
 		buffer[0] = 0;
 		return;
 	}
 
-	Q_strncpyz( buffer, sv.configstrings[index], bufferSize );
+	Q_strncpyz( buffer, sv.world->configstrings[index], bufferSize );
 }
 
 
@@ -219,7 +219,7 @@ static void SV_CreateBaseline( void ) {
     /* Protocol 1338 sends new entities relative to zero. Map size therefore cannot
        inflate the initial gamestate through hundreds of unused baseline records. */
     for (entity = 0; entity < MAX_GENTITIES; ++entity)
-        memset(&sv.svEntities[entity].baseline, 0, sizeof(sv.svEntities[entity].baseline));
+        memset(&sv.world->svEntities[entity].baseline, 0, sizeof(sv.world->svEntities[entity].baseline));
 }
 
 
@@ -354,13 +354,7 @@ SV_ClearServer
 ================
 */
 static void SV_ClearServer(void) {
-	int i;
-
-	for ( i = 0 ; i < MAX_CONFIGSTRINGS ; i++ ) {
-		if ( sv.configstrings[i] ) {
-			Z_Free( sv.configstrings[i] );
-		}
-	}
+	SV_ClearWorlds();
 	Com_Memset (&sv, 0, sizeof(sv));
 }
 
@@ -452,9 +446,7 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 
 	// wipe the entire per-level structure
 	SV_ClearServer();
-	for ( i = 0 ; i < MAX_CONFIGSTRINGS ; i++ ) {
-		sv.configstrings[i] = CopyString("");
-	}
+	SV_InitWorlds();
 
 	// make sure we are not paused
 	Cvar_Set("cl_paused", "0");

@@ -7,7 +7,7 @@ const engine = @import("../engine/server.zig");
 const named = @import("names.zig").named;
 pub fn repairHazards(world: *data.World, projections: []abi.EntityProjection) !void {
     var map: [64]u8 = @splat(0);
-    _ = engine.gateway.call(abi.c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "mapname"), &map, @as(isize, map.len) });
+    _ = engine.mapName(&map);
     if (!std.mem.eql(u8, std.mem.sliceTo(&map, 0), "e1m3b")) return;
     // Shooting the supply box removes the laser buttons but the map omits a
     // final reset of their shared damage field. The disabled circuit must stay safe.

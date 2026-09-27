@@ -87,7 +87,10 @@ def connections(maps):
                     row["issues"].append("landing_not_explicit")
                 if not row["return_exit_candidates"]:
                     row["issues"].append("no_authored_return")
-                if exit["cinematic"] or exit["flags"] & 8:
+                # Authored intermission applies to an exit without a named
+                # landing. Named submap returns retain direct travel even when
+                # the intermission flag is present; map spelling is irrelevant.
+                if exit["cinematic"] or exit["flags"] & 8 or (exit["flags"] & 1 and not exit["target"]):
                     row["status"] = "authored_cut"
             result.append(row)
     return result

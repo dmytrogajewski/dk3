@@ -65,3 +65,11 @@ pub fn inPvs(a: [3]f32, b: [3]f32) bool {
 pub fn inPhs(a: [3]f32, b: [3]f32) bool {
     return gateway.call(c.G_DK3_IN_PHS, .{ &a, &b }) != 0;
 }
+
+/// Name of the explicitly selected game world, independent of connection cvars.
+pub fn mapName(buffer: []u8) []const u8 {
+    @memset(buffer, 0);
+    std.debug.assert(buffer.len > 0 and buffer.len <= c.MAX_QPATH);
+    _ = gateway.call(c.G_DK3_WORLD_NAME_V1, .{ buffer.ptr, @as(isize, @intCast(buffer.len)) });
+    return std.mem.sliceTo(buffer, 0);
+}

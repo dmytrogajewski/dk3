@@ -7,20 +7,22 @@ const rules = @import("../domain/navigation.zig");
 const c = abi.c;
 pub const Navigation = struct {
     started: bool = false,
-    pub fn init(self: *Navigation, allocator: std.mem.Allocator, now: i64, restart: bool) !void {
+    owns_library: bool = false,
+    pub fn init(self: *Navigation, allocator: std.mem.Allocator, now: i64, restart: bool, resident: bool) !void {
         if (engine.integer("bot_enable") == 0) return error.NavigationRequiresBotlib;
         // A fast VM restart retains the engine hunk and its navigation world.
         // Only full map admission may allocate/load a new bot library.
         if (restart) {
             if (engine.gateway.call(c.BOTLIB_AAS_INITIALIZED, .{}) == 0) return error.NavigationRestartUnavailable;
             self.started = true;
+            self.owns_library = true;
             for (0..c.MAX_GENTITIES) |index| _ = engine.gateway.call(c.BOTLIB_UPDATENTITY, .{ @as(isize, @intCast(index)), @as(?*c.bot_entitystate_t, null) });
             try self.frame(now);
             engine.print("dk3 zig navigation: retained engine world for match restart\n");
             return;
         }
         var map_buffer: [c.MAX_QPATH]u8 = @splat(0);
-        _ = engine.gateway.call(c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "mapname"), &map_buffer, @as(isize, map_buffer.len) });
+        _ = engine.mapName(&map_buffer);
         const map = std.mem.sliceTo(&map_buffer, 0);
         var path: [128]u8 = undefined;
         const bytes = try @import("files.zig").read(.server, &engine.gateway, allocator, try std.fmt.bufPrintZ(&path, "dk3/navigation/{s}.cfg", .{map}), 4096);
@@ -34,23 +36,33 @@ pub const Navigation = struct {
         const selected = try rules.selection(bytes, mode);
         var name: [64]u8 = undefined;
         const asset = try std.fmt.bufPrintZ(&name, "{s}", .{selected});
-        var number: [16]u8 = undefined;
-        variable("maxclients", try std.fmt.bufPrintZ(&number, "{d}", .{c.MAX_CLIENTS}));
-        variable("maxentities", try std.fmt.bufPrintZ(&number, "{d}", .{c.MAX_GENTITIES}));
-        variable("dk3_navigation", "1");
-        var checksum: [32]u8 = @splat(0);
-        _ = engine.gateway.call(c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "sv_mapChecksum"), &checksum, @as(isize, checksum.len) });
-        variable("sv_mapChecksum", checksum[0..std.mem.indexOfScalar(u8, &checksum, 0).? :0]);
-        if (engine.gateway.call(c.BOTLIB_SETUP, .{}) != 0) return error.NavigationSetup;
-        self.started = true;
-        errdefer self.deinit(false);
-        if (engine.gateway.call(c.BOTLIB_LOAD_MAP, .{asset.ptr}) != 0) return error.NavigationLoad;
+        if (resident) {
+            // The region's bot library already exists. Admit only this map's
+            // navigation, with the matching server/collision context selected.
+            if (engine.gateway.call(c.G_DK3_NAV_LOAD_V1, .{asset.ptr}) == 0) return error.NavigationLoad;
+            self.started = true;
+        } else {
+            var number: [16]u8 = undefined;
+            variable("maxclients", try std.fmt.bufPrintZ(&number, "{d}", .{c.MAX_CLIENTS}));
+            variable("maxentities", try std.fmt.bufPrintZ(&number, "{d}", .{c.MAX_GENTITIES}));
+            variable("dk3_navigation", "1");
+            var checksum: [32]u8 = @splat(0);
+            _ = engine.gateway.call(c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "sv_mapChecksum"), &checksum, @as(isize, checksum.len) });
+            variable("sv_mapChecksum", checksum[0..std.mem.indexOfScalar(u8, &checksum, 0).? :0]);
+            if (engine.gateway.call(c.BOTLIB_SETUP, .{}) != 0) return error.NavigationSetup;
+            self.started = true;
+            self.owns_library = true;
+            errdefer self.deinit(false);
+            if (engine.gateway.call(c.BOTLIB_LOAD_MAP, .{asset.ptr}) != 0) return error.NavigationLoad;
+            self.owns_library = true;
+            if (engine.gateway.call(c.G_DK3_NAV_BIND_V1, .{}) == 0) return error.NavigationWorldBinding;
+        }
         try self.frame(now);
         var message: [192]u8 = undefined;
         engine.print(try std.fmt.bufPrintZ(&message, "dk3 zig navigation: map={s} asset={s} mode={s}\n", .{ map, selected, @tagName(mode) }));
     }
     pub fn deinit(self: *Navigation, restart: bool) void {
-        if (self.started and !restart) _ = engine.gateway.call(c.BOTLIB_SHUTDOWN, .{});
+        if (self.started and self.owns_library and !restart) _ = engine.gateway.call(c.BOTLIB_SHUTDOWN, .{});
         self.started = false;
     }
     pub fn frame(self: *Navigation, now: i64) !void {

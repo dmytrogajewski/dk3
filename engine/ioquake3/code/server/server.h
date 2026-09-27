@@ -66,20 +66,19 @@ typedef enum {
 	SS_GAME				// actively running
 } serverState_t;
 
-typedef struct {
-	serverState_t	state;
-	qboolean		restarting;			// if true, send configstring changes during SS_LOADING
-	int				serverId;			// changes each server start
-	int				restartedServerId;	// serverId before a map_restart
-	int				checksumFeed;		// the feed key that we use to compute the pure checksum strings
-	// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=475
-	// the serverId associated with the current checksumFeed (always <= serverId)
-	int       checksumFeedServerId;	
-	int				snapshotCounter;	// incremented for each snapshot built
-	int				timeResidual;		// <= 1000 / sv_frame->value
-	qboolean		dk3WorldHeld;
-	qboolean		dk3ResumeFrame;
-	int				nextFrameTime;		// when time > nextFrameTime, process world
+/* All pointers in a map's spatial tree remain stable while another map is
+ * selected. Connection clocks, clients and packet history stay in server_t. */
+#define SV_WORLD_SECTORS 64
+typedef struct worldSector_s {
+    int axis;
+    float dist;
+    struct worldSector_s *children[2];
+    svEntity_t *entities;
+} worldSector_t;
+typedef struct serverWorld_s {
+    unsigned int collision;
+    worldSector_t sectors[SV_WORLD_SECTORS];
+    int numSectors;
 	char			*configstrings[MAX_CONFIGSTRINGS];
 	svEntity_t		svEntities[MAX_GENTITIES];
 
@@ -94,6 +93,25 @@ typedef struct {
 
 	playerState_t	*gameClients;
 	int				gameClientSize;		// will be > sizeof(playerState_t) due to game private data
+
+} serverWorld_t;
+
+typedef struct {
+	serverState_t	state;
+	qboolean		restarting;			// if true, send configstring changes during SS_LOADING
+	int				serverId;			// changes each server start
+	int				restartedServerId;	// serverId before a map_restart
+	int				checksumFeed;		// the feed key that we use to compute the pure checksum strings
+	// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=475
+	// the serverId associated with the current checksumFeed (always <= serverId)
+	int       checksumFeedServerId;
+	int				snapshotCounter;	// incremented for each snapshot built
+	int				timeResidual;		// <= 1000 / sv_frame->value
+	qboolean		dk3WorldHeld;
+	qboolean		dk3ResumeFrame;
+	int				nextFrameTime;		// when time > nextFrameTime, process world
+	struct serverWorld_s *world; // explicitly selected map for game/query work
+	struct serverWorld_s *primaryWorld; // connection/snapshot owner
 
 	int				restartTime;
 	int				time;
@@ -503,3 +521,11 @@ void SV_Netchan_Transmit( client_t *client, msg_t *msg);
 int SV_Netchan_TransmitNextFragment(client_t *client);
 qboolean SV_Netchan_Process( client_t *client, msg_t *msg );
 void SV_Netchan_FreeQueue(client_t *client);
+
+/* Resident game-query contexts. Selection never changes a connection or time. */
+void SV_InitWorlds(void);
+void SV_ClearWorlds(void);
+qboolean SV_AttachWorld(unsigned int collision);
+qboolean SV_SelectWorld(unsigned int collision);
+unsigned int SV_CurrentWorld(void);
+qboolean SV_ReleaseWorld(unsigned int collision);

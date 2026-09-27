@@ -33,7 +33,7 @@ void RE_LoadWorldMap( const char *name );
 
 */
 
-static	world_t		s_worldData;
+#include "../renderercommon/dk3_worlds.h"
 static	byte		*fileBase;
 
 int			c_subdivisions;
@@ -201,7 +201,7 @@ static	void R_LoadLightmaps( lump_t *l ) {
 				image[j*4+3] = 255;
 			}
 		}
-		tr.lightmaps[i] = R_CreateImage( va("*lightmap%d",i), image, 
+		tr.lightmaps[i] = R_CreateImage( va("*w%u/lightmap%d", tr.worldRegistration, i), image,
 			LIGHTMAP_SIZE, LIGHTMAP_SIZE, IMGTYPE_COLORALPHA,
 			IMGFLAG_NOLIGHTSCALE | IMGFLAG_NO_COMPRESSION | IMGFLAG_CLAMPTOEDGE, 0 );
 	}
@@ -1225,19 +1225,14 @@ void R_MovePatchSurfacesToHunk(void) {
 R_LoadSurfaces
 ===============
 */
-static	void R_LoadSurfaces( lump_t *surfs, lump_t *verts, lump_t *indexLump ) {
+static qboolean R_LoadSurfaces( lump_t *surfs, lump_t *verts, lump_t *indexLump ) {
 	dsurface_t	*in;
 	msurface_t	*out;
 	drawVert_t	*dv;
 	int			*indexes;
 	int			count;
-	int			numFaces, numMeshes, numTriSurfs, numFlares;
-	int			i;
+	int i, started = ri.Milliseconds();
 
-	numFaces = 0;
-	numMeshes = 0;
-	numTriSurfs = 0;
-	numFlares = 0;
 
 	in = (void *)(fileBase + surfs->fileofs);
 	if (surfs->filelen % sizeof(*in))
@@ -1252,32 +1247,38 @@ static	void R_LoadSurfaces( lump_t *surfs, lump_t *verts, lump_t *indexLump ) {
 	if ( indexLump->filelen % sizeof(*indexes))
 		ri.Error (ERR_DROP, "LoadMap: funny lump size in %s",s_worldData.name);
 
+    if (!s_worldData.surfaces) {
 	out = ri.Hunk_Alloc ( count * sizeof(*out), h_low );	
 
 	s_worldData.surfaces = out;
 	s_worldData.numsurfaces = count;
 
-	for ( i = 0 ; i < count ; i++, in++, out++ ) {
+    }
+    in += dkLoadingWorld->surfaceNext;
+    out = s_worldData.surfaces + dkLoadingWorld->surfaceNext;
+	for ( i = dkLoadingWorld->surfaceNext ; i < count ; i++, in++, out++ ) {
 		switch ( LittleLong( in->surfaceType ) ) {
 		case MST_PATCH:
 			ParseMesh ( in, dv, out );
-			numMeshes++;
+			dkLoadingWorld->surfaceCounts[1]++;
 			break;
 		case MST_TRIANGLE_SOUP:
 			ParseTriSurf( in, dv, out, indexes );
-			numTriSurfs++;
+			dkLoadingWorld->surfaceCounts[2]++;
 			break;
 		case MST_PLANAR:
 			ParseFace( in, dv, out, indexes );
-			numFaces++;
+			dkLoadingWorld->surfaceCounts[0]++;
 			break;
 		case MST_FLARE:
 			ParseFlare( in, dv, out, indexes );
-			numFlares++;
+			dkLoadingWorld->surfaceCounts[3]++;
 			break;
 		default:
 			ri.Error( ERR_DROP, "Bad surfaceType" );
 		}
+        dkLoadingWorld->surfaceNext = i + 1;
+        if (i + 1 < count && (ri.Milliseconds() - started >= 4 || (i & 63) == 63)) return qfalse;
 	}
 
 #ifdef PATCH_STITCHING
@@ -1291,7 +1292,8 @@ static	void R_LoadSurfaces( lump_t *surfs, lump_t *verts, lump_t *indexLump ) {
 #endif
 
 	ri.Printf( PRINT_ALL, "...loaded %d faces, %i meshes, %i trisurfs, %i flares\n", 
-		numFaces, numMeshes, numTriSurfs, numFlares );
+		dkLoadingWorld->surfaceCounts[0], dkLoadingWorld->surfaceCounts[1], dkLoadingWorld->surfaceCounts[2], dkLoadingWorld->surfaceCounts[3] );
+    return qtrue;
 }
 
 
@@ -1311,6 +1313,8 @@ static	void R_LoadSubmodels( lump_t *l ) {
 		ri.Error (ERR_DROP, "LoadMap: funny lump size in %s",s_worldData.name);
 	count = l->filelen / sizeof(*in);
 
+	if (count > DK3_WORLD_INLINE_MODELS) ri.Error(ERR_DROP, "Resident world inline model limit");
+    dkLoadingWorld->inlineCount = count;
 	s_worldData.bmodels = out = ri.Hunk_Alloc( count * sizeof(*out), h_low );
 
 	for ( i=0 ; i<count ; i++, in++, out++ ) {
@@ -1325,7 +1329,8 @@ static	void R_LoadSubmodels( lump_t *l ) {
 
 		model->type = MOD_BRUSH;
 		model->bmodel = out;
-		Com_sprintf( model->name, sizeof( model->name ), "*%d", i );
+		Com_sprintf( model->name, sizeof( model->name ), "*w%u/%d", tr.worldRegistration, i );
+        dkLoadingWorld->inlineModels[i] = model->index;
 
 		for (j=0 ; j<3 ; j++) {
 			out->bounds[0][j] = LittleFloat (in->mins[j]);
@@ -1772,11 +1777,13 @@ R_GetEntityToken
 */
 qboolean R_GetEntityToken( char *buffer, int size ) {
 	const char	*s;
+    world_t *world = dkLoadingWorld ? &dkLoadingWorld->world : tr.world;
+    if (!world) return qfalse;
 
-	s = COM_Parse( &s_worldData.entityParsePoint );
+	s = COM_Parse( &world->entityParsePoint );
 	Q_strncpyz( buffer, s, size );
-	if ( !s_worldData.entityParsePoint && !s[0] ) {
-		s_worldData.entityParsePoint = s_worldData.entityString;
+	if ( !world->entityParsePoint && !s[0] ) {
+		world->entityParsePoint = world->entityString;
 		return qfalse;
 	} else {
 		return qtrue;
@@ -1790,18 +1797,15 @@ RE_LoadWorldMap
 Called directly from cgame
 =================
 */
-void RE_LoadWorldMap( const char *name ) {
+static qboolean R_DecodeWorldMap(const char *name, void *bytes, int length) {
 	int			i;
 	dheader_t	*header;
-	union {
-		byte *b;
-		void *v;
-	} buffer;
-	byte		*startMarker;
 
-	if ( tr.worldMapLoaded ) {
-		ri.Error( ERR_DROP, "ERROR: attempted to redundantly load world map" );
-	}
+	byte *startMarker;
+    header = (dheader_t *)bytes;
+    fileBase = (byte *)bytes;
+    if (dkLoadingWorld->admission == 0) {
+
 
 	// set default sun direction to be used if it isn't
 	// overridden by a shader
@@ -1813,17 +1817,8 @@ void RE_LoadWorldMap( const char *name ) {
 
 	tr.worldMapLoaded = qtrue;
 
-	// load it
-    {
-        int dkLength = ri.FS_ReadFile(name, &buffer.v);
-        if (buffer.b && dkLength >= sizeof(dheader_t)) {
-            const dheader_t *dkHeader = (const dheader_t *)buffer.b;
-            R_LoadDkLightstyles(buffer.b, dkLength, LittleLong(dkHeader->lumps[LUMP_LIGHTMAPS].filelen) / (128*128*3));
-        } else { dkLightBlocks = NULL; dkLightBlockCount = 0; }
-    }
-	if ( !buffer.b ) {
-		ri.Error (ERR_DROP, "RE_LoadWorldMap: %s not found", name);
-	}
+    R_LoadDkLightstyles(bytes, length,
+        LittleLong(((dheader_t *)bytes)->lumps[LUMP_LIGHTMAPS].filelen) / (128*128*3));
 
 	// clear tr.world so if the level fails to load, the next
 	// try will not look at the partially loaded version
@@ -1838,7 +1833,7 @@ void RE_LoadWorldMap( const char *name ) {
 	startMarker = ri.Hunk_Alloc(0, h_low);
 	c_gridVerts = 0;
 
-	header = (dheader_t *)buffer.b;
+	header = (dheader_t *)bytes;
 	fileBase = (byte *)header;
 
 	i = LittleLong (header->version);
@@ -1852,12 +1847,26 @@ void RE_LoadWorldMap( const char *name ) {
 		((int *)header)[i] = LittleLong ( ((int *)header)[i]);
 	}
 
+        dkLoadingWorld->allocationStart = startMarker;
+        dkLoadingWorld->admission = 1;
+        return qfalse;
+    }
+    startMarker = dkLoadingWorld->allocationStart;
+    if (dkLoadingWorld->admission == 1) {
 	// load into heap
 	R_LoadShaders( &header->lumps[LUMP_SHADERS] );
 	R_LoadLightmaps( &header->lumps[LUMP_LIGHTMAPS] );
 	R_LoadPlanes (&header->lumps[LUMP_PLANES]);
 	R_LoadFogs( &header->lumps[LUMP_FOGS], &header->lumps[LUMP_BRUSHES], &header->lumps[LUMP_BRUSHSIDES] );
-	R_LoadSurfaces( &header->lumps[LUMP_SURFACES], &header->lumps[LUMP_DRAWVERTS], &header->lumps[LUMP_DRAWINDEXES] );
+        dkLoadingWorld->admission = 2;
+        return qfalse;
+    }
+    if (dkLoadingWorld->admission == 2) {
+	if (!R_LoadSurfaces( &header->lumps[LUMP_SURFACES], &header->lumps[LUMP_DRAWVERTS], &header->lumps[LUMP_DRAWINDEXES] )) return qfalse;
+        dkLoadingWorld->admission = 3;
+        return qfalse;
+    }
+
 	R_LoadMarksurfaces (&header->lumps[LUMP_LEAFSURFACES]);
 	R_LoadNodesAndLeafs (&header->lumps[LUMP_NODES], &header->lumps[LUMP_LEAFS]);
 	R_LoadSubmodels (&header->lumps[LUMP_MODELS]);
@@ -1870,6 +1879,9 @@ void RE_LoadWorldMap( const char *name ) {
 	// only set tr.world now that we know the entire level has loaded properly
 	tr.world = &s_worldData;
 
-    ri.FS_FreeFile( buffer.v );
+    fileBase = NULL;
+    return qtrue;
 }
 
+
+#include "../renderercommon/dk3_worlds.inc"

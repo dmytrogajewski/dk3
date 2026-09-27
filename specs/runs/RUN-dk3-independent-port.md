@@ -5954,3 +5954,64 @@ loads; preparation is a diagnostic entrypoint, not an advertised seamless option
 No connected seamless acceptance is claimed and no old runtime is reconnected.
 Previous full-route/encounter acceptance must be replayed after shared world changes;
 main, the preserved playable installation, user saves and live service are untouched.
+
+
+## Sequence 298 — seamless-worlds: resident renderer and gameplay owners
+
+Continues the authorized seamless-loading plan and complete native-port scope on
+`rewrite/native-zig-runtime`. This is an implementation checkpoint, not completion
+of seamless travel. No removed runtime is used.
+
+Both bundled renderers retain map geometry, lightmaps/deluxemaps, fog/visibility,
+lightstyle blocks, sun/cubemap data and inline models. Map-qualified material and
+lightmap identities prevent another map's numbered resources from aliasing the
+active map. Pending scenes complete before context selection. Surface admission
+is split into bounded batches across frames; indivisible texture work and other
+phases remain measured stalls. Held HDR data owns heap storage across frames.
+Renderer API advances from 10 to 11.
+
+Server map state now owns stable entity link trees, projections, entity parsing
+and resource configstrings. Preparation does not broadcast destination resources
+into the active connection. Native `world_context.zig` retains map ECS, class-owned
+systems, clients, projections, resource registries and restore ownership. Full
+class-owned spawning prepares destinations without ticking encounters. Map-name
+lookups use selected-world identity rather than changing the connection's cvar.
+AAS contexts retain their geometry, entity links, routing/alternative-route caches,
+reachability scratch and mover model classifications. Their allocations can be
+released independently; original botlib algorithms and notices remain. Shutdown,
+release and fast restart retain the appropriate active owner.
+
+Read-only private authoring/reference inspection established the intermission
+flag's named-landing exception; no implementation text was imported. The converted
+map inventory now reports 84 maps / 124 exits: 32 explicit cuts and 92 connections
+requiring geometry qualification. C→e1m2a is an authored intermission. Independent
+local vertex comparisons find 424, 305 and 123 coincident points near A↔B and the
+two B↔C corridors, supporting identity transforms. These are not portal acceptance.
+
+Verified build: `046e4b21e4992c3983ee9cd5a50c96bb0237341e845ead17c53a515c2d88b599`.
+Combined identity: `06da21e56dd1705e128883060e48949ce8e14144e2333016868767568ff687e8`.
+Base manifest: `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+HD SHA: `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+All evidence is local under `zig-out/reports/runtime-zig-298/`.
+
+| Scenario | State and exact scope |
+|---|---|
+| `world-contexts-contacts/` | Passed preparation isolation: B/C/e1m2a retain 518/518/455 entities; actual collision contacts hit all 27/81/65 actors in their owning trees. AAS point queries return 6098/3961/315. Actor position/health hashes remain unchanged across selection, active A movement and A save/load. Release preserves A input. No region save or crossing claim. |
+| `render-staged-opengl1/`, `render-staged-opengl2/` | Passed static map views and distinct inline handles with restoration of A's view; captures inspected. Largest measured poll steps B 26/26 ms, C 91/101 ms. **Frame-time requirement remains failed/unqualified**; staging alone does not eliminate all stalls. |
+| `presentation-opengl2/` | Passed real New Game, Escape intro skip, Marsh presentation, save/load and local pause. Full intro/campaign not replayed. |
+| `lan-regression/` | Passed two real UDP clients through movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart after shared server/AAS changes. |
+| `aggregate.log` | Passed 44/44 steps: 379 Zig tests, 79 Python tests and actual-engine collision contracts; all intended roots execute with assertions enabled. |
+
+`world-contexts-opengl1/` is an invalid setup: the literal e1m2a start point falls
+outside an AAS area. Replayed with the diagnostic sample at z=441 (area 315), without
+changing geometry or rules. `3c96d…`/`bd44be…` pre-staging/pre-contact results are
+superseded by the consolidated build above. Preparation uses developer commands
+and preview cameras, so none of this is continuous campaign acceptance.
+
+**Remaining:** client/wire map identities and readiness, activation/transfer that
+preserves ongoing actions and input, qualified portal clipping/collision/combat,
+remaining asynchronous admission work, complete connected-region manifests,
+atomic region save migration/restoration and full campaign/multiplayer acceptance.
+Ordinary exits still invoke existing map loads. `zig build play` remains available
+with default HD. Main, installed preserved game, user saves and online service are
+untouched. Continue implementation past this checkpoint.

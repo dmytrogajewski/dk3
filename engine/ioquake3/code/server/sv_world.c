@@ -22,6 +22,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // world.c -- world query functions
 
 #include "server.h"
+#include "../botlib/botlib.h"
+extern botlib_export_t *botlib_export;
 
 /*
 ================
@@ -61,18 +63,93 @@ them, which prevents having to deal with multiple fragments of a single entity.
 ===============================================================================
 */
 
-typedef struct worldSector_s {
-	int		axis;		// -1 = leaf node
-	float	dist;
-	struct worldSector_s	*children[2];
-	svEntity_t	*entities;
-} worldSector_t;
+#define AREA_DEPTH 4
+#define AREA_NODES SV_WORLD_SECTORS
+#define sv_worldSectors (sv.world->sectors)
+#define sv_numworldSectors (sv.world->numSectors)
 
-#define	AREA_DEPTH	4
-#define	AREA_NODES	64
+static serverWorld_t *sv_residentWorlds[128];
 
-worldSector_t	sv_worldSectors[AREA_NODES];
-int			sv_numworldSectors;
+void SV_ClearWorlds(void) {
+    unsigned int i, j;
+    for (i = 0; i < ARRAY_LEN(sv_residentWorlds); ++i) {
+        serverWorld_t *world = sv_residentWorlds[i];
+        if (!world) continue;
+        for (j = 0; j < MAX_CONFIGSTRINGS; ++j)
+            if (world->configstrings[j]) Z_Free(world->configstrings[j]);
+        Z_Free(world);
+        sv_residentWorlds[i] = NULL;
+    }
+    sv.world = sv.primaryWorld = NULL;
+}
+
+static serverWorld_t *SV_NewWorld(void) {
+    unsigned int i, j;
+    serverWorld_t *world;
+    for (i = 0; i < ARRAY_LEN(sv_residentWorlds); ++i) {
+        if (sv_residentWorlds[i]) continue;
+        world = Z_Malloc(sizeof(*world));
+        for (j = 0; j < MAX_CONFIGSTRINGS; ++j) world->configstrings[j] = CopyString("");
+        sv_residentWorlds[i] = world;
+        return world;
+    }
+    return NULL;
+}
+
+void SV_InitWorlds(void) {
+    SV_ClearWorlds();
+    sv.world = sv.primaryWorld = SV_NewWorld();
+}
+
+unsigned int SV_CurrentWorld(void) { return sv.world ? sv.world->collision : 0; }
+
+qboolean SV_SelectWorld(unsigned int collision) {
+    unsigned int i;
+    if (!collision) return qfalse;
+    for (i = 0; i < ARRAY_LEN(sv_residentWorlds); ++i) {
+        serverWorld_t *world = sv_residentWorlds[i];
+        if (!world || world->collision != collision) continue;
+        if (!CM_SelectWorld(collision)) return qfalse;
+        sv.world = world;
+        if (botlib_export) botlib_export->SelectWorld(collision);
+        return qtrue;
+    }
+    return qfalse;
+}
+
+qboolean SV_AttachWorld(unsigned int collision) {
+    serverWorld_t *previous = sv.world, *world;
+    unsigned int oldCollision = CM_CurrentWorld(), i;
+    if (!collision || !previous) return qfalse;
+    for (i = 0; i < ARRAY_LEN(sv_residentWorlds); ++i)
+        if (sv_residentWorlds[i] && sv_residentWorlds[i]->collision == collision) return qtrue;
+    if (!CM_SelectWorld(collision)) return qfalse;
+    world = SV_NewWorld();
+    if (world) {
+        sv.world = world;
+        SV_ClearWorld();
+        world->entityParsePoint = CM_EntityString();
+        sv.world = previous;
+    }
+    CM_SelectWorld(oldCollision);
+    return world != NULL;
+}
+
+qboolean SV_ReleaseWorld(unsigned int collision) {
+    unsigned int i, j;
+    for (i = 0; i < ARRAY_LEN(sv_residentWorlds); ++i) {
+        serverWorld_t *world = sv_residentWorlds[i];
+        if (!world || world->collision != collision) continue;
+        if (world == sv.world || world == sv.primaryWorld) return qfalse;
+        if (botlib_export && !botlib_export->ReleaseWorld(collision)) return qfalse;
+        if (!CM_ReleaseWorld(collision)) return qfalse;
+        for (j = 0; j < MAX_CONFIGSTRINGS; ++j) Z_Free(world->configstrings[j]);
+        Z_Free(world);
+        sv_residentWorlds[i] = NULL;
+        return qtrue;
+    }
+    return CM_ReleaseWorld(collision);
+}
 
 
 /*
@@ -148,6 +225,7 @@ void SV_ClearWorld( void ) {
 	clipHandle_t	h;
 	vec3_t			mins, maxs;
 
+	sv.world->collision = CM_CurrentWorld();
 	Com_Memset( sv_worldSectors, 0, sizeof(sv_worldSectors) );
 	sv_numworldSectors = 0;
 
@@ -401,7 +479,7 @@ static void SV_AreaEntities_r( worldSector_t *node, areaParms_t *ap ) {
 			return;
 		}
 
-		ap->list[ap->count] = check - sv.svEntities;
+		ap->list[ap->count] = check - sv.world->svEntities;
 		ap->count++;
 	}
 	

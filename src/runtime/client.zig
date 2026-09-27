@@ -10,6 +10,7 @@ const v = @import("domain/vector.zig");
 const c = abi.c;
 const weapons = @import("domain/weapons.zig");
 var selected_weapon: i32 = 0;
+var resident_worlds: @import("client/resident_worlds.zig").State = .{};
 var inventory_mask: i32 = 0;
 var weapon_table: weapons.Table = .{};
 var inline_models: [c.MAX_MODELS]c.qhandle_t = @splat(0);
@@ -37,6 +38,7 @@ export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
+    resident_worlds = .{};
     @import("client/interpolation.zig").reset();
     @import("client/scoreboard.zig").reset();
     @import("client/messages.zig").reset();
@@ -139,12 +141,14 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     command_sequence = sequence;
     snapshot_number = server_message - 1;
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "viewpos")});
+    _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "dk3_runtime_render_world")});
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "use")});
     for ([_][*:0]const u8{ "cin_skip", "dk3_runtime_presentation", "weapon", "weapnext", "weapprev", "attribute", "inventory", "invnext", "invprev", "attribute_next", "attribute_increase", "save", "load", "+scores", "-scores", "say", "say_team", "ready", "team", "callvote", "vote" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
     engine.print("dk3 zig: shared movement prediction initialized\n");
 }
 fn draw(now: i32) !void {
     if (world == null) return;
+    try resident_worlds.step();
     var latest: i32 = 0;
     var server_time: i32 = 0;
     _ = engine.gateway.call(c.CG_GETCURRENTSNAPSHOTNUMBER, .{ &latest, &server_time });
@@ -508,7 +512,7 @@ fn draw(now: i32) !void {
     @import("client/impacts.zig").draw(now, &ref);
     @import("client/fx_particles.zig").draw(now, &ref);
     if (player.mode == .normal and snapshot.ps.stats[c.STAT_HEALTH] > 0) try weapon_view.draw(loadout.*, character.*, &ref, client_number, now, weapon_end_ms);
-    _ = engine.gateway.call(c.CG_R_RENDERSCENE, .{&ref});
+    if (!try resident_worlds.renderPreview(&ref)) _ = engine.gateway.call(c.CG_R_RENDERSCENE, .{&ref});
     if (snapshot.ps.dk3CameraActive != 0) {
         @import("client/cinematics.zig").overlay(snapshot.ps.dk3CameraBlend, display);
     } else {
@@ -527,6 +531,13 @@ fn console() isize {
     _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 0), &buffer, @as(isize, buffer.len) });
     const name = std.mem.sliceTo(&buffer, 0);
     if (world == null or !have_snapshot) return 0;
+    if (std.mem.eql(u8, name, "dk3_runtime_render_world")) {
+        resident_worlds.command() catch |err| {
+            var message: [160]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "dk3 render world: failed {s}\n", .{@errorName(err)}) catch unreachable);
+        };
+        return 1;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_presentation")) {
         var message: [256]u8 = undefined;
         engine.print(std.fmt.bufPrintZ(&message, "dk3 presentation: now={d} camera={d} models={d} blended={d} entity={d} frame={d} oldframe={d} backlerp={d:.4} snapshot={d} ions={d} lamps={d} gibs={d} chunks={d} motion_blended={d}\n", .{ presentation.now, snapshot.ps.dk3CameraActive, presentation.models, presentation.blended, presentation.entity, presentation.frame, presentation.oldframe, presentation.backlerp, snapshot.serverTime, presentation.ions, presentation.lamps, presentation.gibs, presentation.chunks, @import("client/interpolation.zig").blendedMotion(presentation.now) }) catch unreachable);

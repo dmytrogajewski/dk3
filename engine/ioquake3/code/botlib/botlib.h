@@ -29,7 +29,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
  *****************************************************************************/
 
-#define	BOTLIB_API_VERSION		2
+#define	BOTLIB_API_VERSION		3 // dk3: resident navigation contexts
 
 struct aas_clientmove_s;
 struct aas_entityinfo_s;
@@ -424,6 +424,10 @@ typedef struct botlib_export_s
 	int (*BotLibStartFrame)(float time);
 	//load a new map in the bot library
 	int (*BotLibLoadMap)(const char *mapname);
+    int (*BindWorld)(unsigned int handle);
+    int (*SelectWorld)(unsigned int handle);
+    int (*LoadWorld)(unsigned int handle, const char *asset, int checksum);
+    int (*ReleaseWorld)(unsigned int handle);
 	//entity updates
 	int (*BotLibUpdateEntity)(int ent, bot_entitystate_t *state);
 	//just for testing

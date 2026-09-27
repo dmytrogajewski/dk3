@@ -173,6 +173,34 @@ typedef struct aas_reachabilityareas_s
 	int firstarea, numareas;
 } aas_reachabilityareas_t;
 
+//bsp entity epair
+typedef struct bsp_epair_s
+{
+	char *key;
+	char *value;
+	struct bsp_epair_s *next;
+} bsp_epair_t;
+
+//bsp data entity
+typedef struct bsp_entity_s
+{
+	bsp_epair_t *epairs;
+} bsp_entity_t;
+
+//id Software BSP data
+typedef struct bsp_s
+{
+	//true when bsp file is loaded
+	int loaded;
+	//entity data
+	int entdatasize;
+	char *dentdata;
+	//bsp entities
+	int numentities;
+	bsp_entity_t entities[2048];
+} bsp_t;
+
+
 typedef struct aas_s
 {
 	int loaded;									//true when an AAS file is loaded
@@ -263,6 +291,38 @@ typedef struct aas_s
 	//areas the reachabilities go through
 	int *reachabilityareaindex;
 	aas_reachabilityareas_t *reachabilityareas;
+
+    // Resident navigation state: no mutable map-owned globals are shared.
+    unsigned int worldHandle;
+    bsp_t bsp;
+    struct midrangearea_s *midrangeareas;
+    int *clusterareas;
+    int numclusterareas;
+    int numareacacheupdates, numportalcacheupdates;
+    int routingcachesize, max_routingcachesize, numaaslinks;
+    int modeltypes[MAX_MODELS];
+    struct aas_lreachability_s *reachabilityheap, *nextreachability;
+    struct aas_lreachability_s **areareachability;
+    int numlreachabilities, calcgrapplereach;
+    int reach_swim;
+    int reach_equalfloor;
+    int reach_step;
+    int reach_walk;
+    int reach_barrier;
+    int reach_waterjump;
+    int reach_walkoffledge;
+    int reach_jump;
+    int reach_ladder;
+    int reach_teleport;
+    int reach_elevator;
+    int reach_funcbob;
+    int reach_grapple;
+    int reach_doublejump;
+    int reach_rampjump;
+    int reach_strafejump;
+    int reach_rocketjump;
+    int reach_bfgjump;
+    int reach_jumppad;
 } aas_t;
 
 #define AASINTERN

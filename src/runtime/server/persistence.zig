@@ -10,9 +10,7 @@ const storage = @import("../engine/save_storage.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const c = abi.c;
 pub fn mapName(buffer: []u8) []const u8 {
-    @memset(buffer, 0);
-    _ = engine.gateway.call(c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "mapname"), buffer.ptr, @as(isize, @intCast(buffer.len)) });
-    return std.mem.sliceTo(buffer, 0);
+    return engine.mapName(buffer);
 }
 pub fn capture(allocator: std.mem.Allocator, bytes: []u8, world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, now: i64, visited: []const format.Archive, journey: ?@import("../domain/travel.zig").Journey) ![]const u8 {
     const player = clients.entities[0] orelse return error.NoPlayerToSave;

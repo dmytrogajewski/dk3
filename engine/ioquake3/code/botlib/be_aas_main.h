@@ -31,7 +31,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #ifdef AASINTERN
 
-extern aas_t aasworld;
+extern aas_t *aasCurrentWorld;
+#define aasworld (*aasCurrentWorld)
+int AAS_BindWorld(unsigned int handle);
+int AAS_SelectWorld(unsigned int handle);
+int AAS_LoadWorld(unsigned int handle, const char *asset, int checksum);
+int AAS_ReleaseWorld(unsigned int handle);
 
 //AAS error message
 void QDECL AAS_Error(char *fmt, ...) Q_PRINTF_FUNC(1, 2);

@@ -32,6 +32,8 @@ qboolean CM_SelectWorld(unsigned int world);
 unsigned int CM_LoadWorldBytes(const char *name, const void *bytes, int length);
 qboolean CM_ReleaseWorld(unsigned int world);
 size_t CM_WorldBytes(unsigned int world);
+int CM_WorldChecksum(unsigned int world);
+const char *CM_WorldName(unsigned int world);
 unsigned int CM_RequestWorld(const char *name);
 /* -1 failed/stale, 0 reading, 1 collision ready. Poll admits at most this world;
  * it never changes the caller's selected world. */

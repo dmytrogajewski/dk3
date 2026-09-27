@@ -1,8 +1,8 @@
 # Seamless connected worlds
 
-Sequence 297 begins the approved implementation on `rewrite/native-zig-runtime`.
+Sequences 297–298 implement the first connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary exits still perform their existing map load.**
-Preparing collision geometry is not acceptance of a seamless crossing.
+Preparing collision, rendering and dormant entities is not acceptance of a seamless crossing.
 
 ## Accepted outcome
 
@@ -54,18 +54,55 @@ dk3_runtime_resident trace e1m1b "-600 -1392 524" "-600 -1392 12"
 dk3_runtime_resident clear
 ```
 
+Sequence 298 adds:
+
+- Both renderers own separate geometry, visibility, fog, lightmaps/deluxemaps,
+  lightstyle blocks, sun/cubemap state and inline model registries. Material and
+  lightmap identities include their owning renderer context. Switching flushes
+  queued scenes before changing backend world tables. Surface admission advances
+  across frames; each batch checks elapsed work between surfaces. Individual
+  texture work and other admission phases can still stall: the measured largest
+  steps are 91 ms (OpenGL1) and 101 ms (OpenGL2), **not** frame-time acceptance.
+- Server maps own stable spatial trees, entity projections and configuration
+  tables. Preparing map resources does not publish them to the active connection.
+  Native map-owned state now resides in `server/world_context.zig`; existing
+  class-owned spawning creates each destination without stepping its encounters.
+- AAS maps own geometry, linked entities, routing/alternative-route caches,
+  temporary reachability data and mover model types. Selection follows server
+  collision selection; releasing a prepared map preserves the active navigation
+  world. Geometry uses releasable botlib allocations instead of initial-load-only
+  hunk allocations. Physics tuning and bot library services remain shared.
+- Supplied geometry around A↔B and both B↔C corridors supports identity transforms
+  (424, 305 and 123 coincident nearby vertices). This is geometric evidence, not
+  portal clipping/traversal acceptance. C→e1m2a uses an authored intermission;
+  the inventory now classifies the flag with its named-landing exception rather
+  than relying on map names: 32 cuts and 92 unreviewed connections.
+
+Additional controlled diagnostics:
+
+```
+dk3_runtime_resident prepare-game e1m1b
+dk3_runtime_resident inspect e1m1b "-600 -1392 524"
+dk3_runtime_render_world prepare e1m1b
+dk3_runtime_render_world preview e1m1b "-600 -1392 546" "0 0 0"
+dk3_runtime_render_world close
+```
+
+Prepared gameplay and render contexts remain developer diagnostics. Renderer
+allocations are retained until region/renderer shutdown; fine-grained GPU eviction
+is not implemented. No new wire protocol or save schema has been admitted.
+
 ## Remaining implementation, in dependency order
 
 1. Resolve actual seam geometry and portal transforms from the connection inventory
    and rendered/collision observations. Classify complete regions and authored cuts.
    For example, e1m1a's exit names `from_a`, which is absent in e1m1b; existing spawn
    fallback is not sufficient evidence for portal placement.
-2. Add resident renderer contexts to both renderers: scoped inline models,
-   lightmaps, fog, skies, visibility and portal clipping; shared image/model/sound
-   assets; owner-thread incremental GPU admission. Give navigation its own world
-   contexts and portal links. Remove remaining admission stalls rather than calling
-   asynchronous file reads a completed asynchronous loader.
-3. Move native server/client single-world ownership into map contexts. Add qualified
+2. Finish portal clipping, client map-owned presentation state and navigation
+   portal links on the resident renderer/navigation contexts. Remove remaining
+   admission stalls; staged surface work still contains synchronous texture and
+   map work. Asynchronous file reads do not establish an asynchronous loader.
+3. Complete native client map ownership and connect server context activation. Add qualified
    snapshot/resource identities, version the changed wire protocol, and implement
    movement/prediction, actor transfer and cross-portal combat with ordinary inputs.
    Replace `map`/module shutdown/hunk clearing for intra-region crossings only when

@@ -53,9 +53,9 @@ typedef struct midrangearea_s
 	unsigned short goaltime;
 } midrangearea_t;
 
-midrangearea_t *midrangeareas;
-int *clusterareas;
-int numclusterareas;
+#define midrangeareas (aasworld.midrangeareas)
+#define clusterareas (aasworld.clusterareas)
+#define numclusterareas (aasworld.numclusterareas)
 
 //===========================================================================
 //

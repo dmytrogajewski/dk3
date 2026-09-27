@@ -257,6 +257,11 @@ int Export_BotLibStartFrame(float time)
 // Returns:					-
 // Changes Globals:		-
 //===========================================================================
+static int Export_LoadWorld(unsigned int handle, const char *asset, int checksum) {
+    if (!botlibsetup || !AAS_LoadWorld(handle, asset, checksum)) return 0;
+    BotSetBrushModelTypes();
+    return 1;
+}
 int Export_BotLibLoadMap(const char *mapname)
 {
 #ifdef DEBUG
@@ -879,6 +884,10 @@ botlib_export_t *GetBotLibAPI(int apiVersion, botlib_import_t *import) {
 
 	be_botlib_export.BotLibStartFrame = Export_BotLibStartFrame;
 	be_botlib_export.BotLibLoadMap = Export_BotLibLoadMap;
+    be_botlib_export.BindWorld = AAS_BindWorld;
+    be_botlib_export.SelectWorld = AAS_SelectWorld;
+    be_botlib_export.LoadWorld = Export_LoadWorld;
+    be_botlib_export.ReleaseWorld = AAS_ReleaseWorld;
 	be_botlib_export.BotLibUpdateEntity = Export_BotLibUpdateEntity;
 	be_botlib_export.Test = BotExportTest;
 

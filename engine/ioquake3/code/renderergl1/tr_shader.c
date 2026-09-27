@@ -97,7 +97,7 @@ void R_RemapShader(const char *shaderName, const char *newShaderName, const char
 	COM_StripExtension(shaderName, strippedName, sizeof(strippedName));
 	hash = generateHashValue(strippedName, FILE_HASH_SIZE);
 	for (sh = hashTable[hash]; sh; sh = sh->next) {
-		if (Q_stricmp(sh->name, strippedName) == 0) {
+		if (sh->worldRegistration == tr.worldRegistration && Q_stricmp(sh->name, strippedName) == 0) {
 			if (sh != sh2) {
 				sh->remappedShader = sh2;
 			} else {
@@ -2186,6 +2186,7 @@ static void InitShader( const char *name, int lightmapIndex ) {
 
 	Q_strncpyz( shader.name, name, sizeof( shader.name ) );
 	shader.lightmapIndex = lightmapIndex;
+    shader.worldRegistration = lightmapIndex == LIGHTMAP_2D ? 0 : tr.worldRegistration;
 
 	for ( i = 0 ; i < MAX_SHADER_STAGES ; i++ ) {
 		stages[i].bundle[0].texMods = texMods[i];
@@ -2471,7 +2472,7 @@ shader_t *R_FindShaderByName( const char *name ) {
 		// then a default shader is created with lightmapIndex == LIGHTMAP_NONE, so we
 		// have to check all default shaders otherwise for every call to R_FindShader
 		// with that same strippedName a new default shader is created.
-		if (Q_stricmp(sh->name, strippedName) == 0) {
+		if (sh->worldRegistration == tr.worldRegistration && Q_stricmp(sh->name, strippedName) == 0) {
 			// match found
 			return sh;
 		}
@@ -2543,6 +2544,7 @@ shader_t *R_FindShader( const char *name, int lightmapIndex, qboolean mipRawImag
 		// have to check all default shaders otherwise for every call to R_FindShader
 		// with that same strippedName a new default shader is created.
 		if ( (sh->lightmapIndex == lightmapIndex || sh->defaultShader) &&
+             sh->worldRegistration == (lightmapIndex == LIGHTMAP_2D ? 0 : tr.worldRegistration) &&
 		     !Q_stricmp(sh->name, strippedName)) {
 			// match found
 			return sh;
@@ -2680,6 +2682,7 @@ qhandle_t RE_RegisterShaderFromImage(const char *name, int lightmapIndex, image_
 		// have to check all default shaders otherwise for every call to R_FindShader
 		// with that same strippedName a new default shader is created.
 		if ( (sh->lightmapIndex == lightmapIndex || sh->defaultShader) &&
+             sh->worldRegistration == (lightmapIndex == LIGHTMAP_2D ? 0 : tr.worldRegistration) &&
 			// index by name
 			!Q_stricmp(sh->name, name)) {
 			// match found

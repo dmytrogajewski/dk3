@@ -299,3 +299,15 @@ reference implementation is introduced. Actual engine collision tests use small
 project-authored synthetic BSPs, separately from the recorded four-map native
 diagnostic. This is not provenance or acceptance for unimplemented seamless
 rendering, navigation, cross-world gameplay or persistence.
+
+Sequence 298 continues from the bundled GPL ioquake3 renderer, server and botlib.
+World ownership, bounded surface batches, scoped registries and native preparation
+are project-authored adaptations; existing upstream notices remain. The short
+private authoring descriptions in `dlls/world/Epairs.h` and the changelevel
+intermission decision in `dlls/world/Triggers.cpp` were inspected read-only to
+establish flag behavior: a named landing retains direct single-player travel,
+whereas an intermission exit without one uses a cut. No reference implementation
+text or assets were copied into the project. The independent inventory expresses
+that observed contract and tests both cases. Nearby vertex comparisons use only
+the already-admitted converted map package and keep all generated geometry local.
+These observations do not establish full original presentation or seamless play.

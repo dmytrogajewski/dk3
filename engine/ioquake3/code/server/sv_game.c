@@ -32,7 +32,7 @@ botlib_export_t	*botlib_export;
 int	SV_NumForGentity( sharedEntity_t *ent ) {
 	int		num;
 
-	num = ( (byte *)ent - (byte *)sv.gentities ) / sv.gentitySize;
+	num = ( (byte *)ent - (byte *)sv.world->gentities ) / sv.world->gentitySize;
 
 	return num;
 }
@@ -40,7 +40,7 @@ int	SV_NumForGentity( sharedEntity_t *ent ) {
 sharedEntity_t *SV_GentityNum( int num ) {
 	sharedEntity_t *ent;
 
-	ent = (sharedEntity_t *)((byte *)sv.gentities + sv.gentitySize*(num));
+	ent = (sharedEntity_t *)((byte *)sv.world->gentities + sv.world->gentitySize*(num));
 
 	return ent;
 }
@@ -48,7 +48,7 @@ sharedEntity_t *SV_GentityNum( int num ) {
 playerState_t *SV_GameClientNum( int num ) {
 	playerState_t	*ps;
 
-	ps = (playerState_t *)((byte *)sv.gameClients + sv.gameClientSize*(num));
+	ps = (playerState_t *)((byte *)sv.world->gameClients + sv.world->gameClientSize*(num));
 
 	return ps;
 }
@@ -57,13 +57,13 @@ svEntity_t	*SV_SvEntityForGentity( sharedEntity_t *gEnt ) {
 	if ( !gEnt || gEnt->s.number < 0 || gEnt->s.number >= MAX_GENTITIES ) {
 		Com_Error( ERR_DROP, "SV_SvEntityForGentity: bad gEnt" );
 	}
-	return &sv.svEntities[ gEnt->s.number ];
+	return &sv.world->svEntities[ gEnt->s.number ];
 }
 
 sharedEntity_t *SV_GEntityForSvEntity( svEntity_t *svEnt ) {
 	int		num;
 
-	num = svEnt - sv.svEntities;
+	num = svEnt - sv.world->svEntities;
 	return SV_GentityNum( num );
 }
 
@@ -270,8 +270,8 @@ void SV_LocateEntityExt( void *exts, int count, int size ) {
 	if ( count < 0 || count > MAX_GENTITIES ) {
 		Com_Error( ERR_DROP, "SV_LocateEntityExt: bad count %d", count );
 	}
-	sv.gentityExts = exts;
-	sv.gentityExtCount = count;
+	sv.world->gentityExts = exts;
+	sv.world->gentityExtCount = count;
 }
 
 /*
@@ -284,10 +284,10 @@ The extension row of entity num, or a zero row when the game module located none
 dkq3EntityExt_t *SV_EntityExt( int num ) {
 	static dkq3EntityExt_t nullExt;
 
-	if ( !sv.gentityExts || num < 0 || num >= sv.gentityExtCount ) {
+	if ( !sv.world->gentityExts || num < 0 || num >= sv.world->gentityExtCount ) {
 		return &nullExt;
 	}
-	return &sv.gentityExts[num];
+	return &sv.world->gentityExts[num];
 }
 
 /*
@@ -298,12 +298,12 @@ SV_LocateGameData
 */
 void SV_LocateGameData( sharedEntity_t *gEnts, int numGEntities, int sizeofGEntity_t,
 					   playerState_t *clients, int sizeofGameClient ) {
-	sv.gentities = gEnts;
-	sv.gentitySize = sizeofGEntity_t;
-	sv.num_entities = numGEntities;
+	sv.world->gentities = gEnts;
+	sv.world->gentitySize = sizeofGEntity_t;
+	sv.world->num_entities = numGEntities;
 
-	sv.gameClients = clients;
-	sv.gameClientSize = sizeofGameClient;
+	sv.world->gameClients = clients;
+	sv.world->gameClientSize = sizeofGameClient;
 }
 
 
@@ -379,7 +379,25 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
     case G_DK3_WORLD_POLL_V1:
         return CM_PollWorld(args[1]);
     case G_DK3_WORLD_RELEASE_V1:
-        return CM_ReleaseWorld(args[1]);
+        return SV_ReleaseWorld(args[1]);
+    case G_DK3_WORLD_NAME_V1: {
+        const char *path = CM_WorldName(SV_CurrentWorld());
+        char name[MAX_QPATH];
+        COM_StripExtension(COM_SkipPath((char *)path), name, sizeof(name));
+        if (args[2] <= 0 || args[2] > MAX_QPATH) return 0;
+        Q_strncpyz(VMA(1), name, args[2]);
+        return 1;
+    }
+    case G_DK3_NAV_BIND_V1:
+        return botlib_export && botlib_export->BindWorld(SV_CurrentWorld());
+    case G_DK3_NAV_LOAD_V1:
+        return botlib_export && botlib_export->LoadWorld(SV_CurrentWorld(), VMA(1), CM_WorldChecksum(SV_CurrentWorld()));
+    case G_DK3_WORLD_ATTACH_V1:
+        return SV_AttachWorld(args[1]);
+    case G_DK3_WORLD_SELECT_V1:
+        return SV_SelectWorld(args[1]);
+    case G_DK3_WORLD_CURRENT_V1:
+        return SV_CurrentWorld();
     case G_DK3_WORLD_BYTES_V1:
         return CM_WorldBytes(args[1]);
     case G_DK3_WORLD_TRACE_V1: {
@@ -490,9 +508,9 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 		{
 			const char	*s;
 
-			s = COM_Parse( &sv.entityParsePoint );
+			s = COM_Parse( &sv.world->entityParsePoint );
 			Q_strncpyz( VMA(1), s, args[2] );
-			if ( !sv.entityParsePoint && !s[0] ) {
+			if ( !sv.world->entityParsePoint && !s[0] ) {
 				return qfalse;
 			} else {
 				return qtrue;
@@ -957,7 +975,7 @@ static void SV_InitGameVM( qboolean restart ) {
 	int		i;
 
 	// start the entity parsing at the beginning
-	sv.entityParsePoint = CM_EntityString();
+	sv.world->entityParsePoint = CM_EntityString();
 
 	// clear all gentity pointers that might still be set from
 	// a previous level

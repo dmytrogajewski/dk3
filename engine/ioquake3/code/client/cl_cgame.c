@@ -579,7 +579,15 @@ intptr_t CL_CgameSystemCalls( intptr_t *args ) {
 		return 0;
 	case CG_R_LOADWORLDMAP:
 		re.LoadWorld( VMA(1) );
-		return 0; 
+		return 0;
+    case CG_DK3_WORLD_REQUEST_V1:
+        return re.RequestWorld(VMA(1));
+    case CG_DK3_WORLD_POLL_V1:
+        return re.PollWorld(args[1]);
+    case CG_DK3_WORLD_SELECT_V1:
+        return re.SelectWorld(args[1]);
+    case CG_DK3_WORLD_CURRENT_V1:
+        return re.CurrentWorld();
 	case CG_R_REGISTERMODEL:
 		return re.RegisterModel( VMA(1) );
 	case CG_R_REGISTERSKIN:

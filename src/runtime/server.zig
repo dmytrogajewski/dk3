@@ -7,21 +7,13 @@ const c = abi.c;
 const component = @import("domain/components.zig");
 const map = @import("server/map.zig");
 const Pool = @import("ecs/jobs.zig").Pool;
-var targets: @import("server/targets.zig").Router = .{};
-var systems: @import("server/world_systems.zig").State = .{};
+const Context = @import("server/world_context.zig").Context;
+var initial_context: Context = .{};
+var active: *Context = &initial_context;
 var social: @import("server/social.zig").State = .{};
 var rooms: @import("server/rooms.zig").State = .{};
-var bots: @import("server/bots.zig").State = .{};
-var clients: @import("server/clients.zig").Clients = .{};
-var arena: ?std.heap.ArenaAllocator = null;
-var world: ?component.World = null;
 var pool: ?*Pool = null;
-var projection: [c.MAX_GENTITIES]abi.EntityProjection = undefined;
-var players: [c.MAX_CLIENTS]c.playerState_t = undefined;
 var clock: @import("domain/time.zig").Clock = .{ .now_ms = 0 };
-var slots: @import("engine/slots.zig").Slots = .{};
-var restored_arena: ?*std.heap.ArenaAllocator = null;
-var restore_pending: ?@import("domain/snapshot.zig").Loaded = null;
 const persistence = @import("server/persistence.zig");
 const campaign_module = @import("server/campaign.zig");
 var campaign: campaign_module.State = .{};
@@ -37,27 +29,27 @@ fn shutdown(restart: bool) void {
     resident_worlds.deinit();
     // Engine bot client slots outlive a fast VM restart. Release their input
     // owners before unloading; the new match population admits fresh bots.
-    if (restart) if (world) |*value| for (bots.brains, 0..) |brain, index| {
-        if (brain != null) bots.remove(value, &slots, &projection, &clients, index, clock.now_ms) catch |err| runtimeFailure(err);
+    if (restart) if (active.world) |*value| for (active.bots.brains, 0..) |brain, index| {
+        if (brain != null) active.bots.remove(value, &active.slots, &active.projection, &active.clients, index, clock.now_ms) catch |err| runtimeFailure(err);
     };
-    if (world) |*value| rooms.checkpoint(value, &clients) catch |err| runtimeFailure(err);
+    if (active.world) |*value| rooms.checkpoint(value, &active.clients) catch |err| runtimeFailure(err);
     campaign.deinit();
     restoring_visit = false;
     checkpoint = .{};
-    if (restore_pending) |*saved| saved.deinit(std.heap.c_allocator);
-    restore_pending = null;
-    systems.deinit(restart);
+    if (active.restore_pending) |*saved| saved.deinit(std.heap.c_allocator);
+    active.restore_pending = null;
+    active.systems.deinit(restart);
     if (pool) |workers| workers.destroy();
     pool = null;
-    if (world) |*value| value.deinit();
-    world = null;
-    if (restored_arena) |strings| {
+    if (active.world) |*value| value.deinit();
+    active.world = null;
+    if (active.restored_arena) |strings| {
         strings.deinit();
         std.heap.c_allocator.destroy(strings);
     }
-    restored_arena = null;
-    if (arena) |*value| value.deinit();
-    arena = null;
+    active.restored_arena = null;
+    if (active.arena) |*value| value.deinit();
+    active.arena = null;
 }
 fn init(now: i64, restart: bool) !void {
     shutdown(restart);
@@ -68,33 +60,34 @@ fn init(now: i64, restart: bool) !void {
     engine.register("dk3_jobs", worker_default, c.CVAR_ARCHIVE | c.CVAR_LATCH);
     const jobs = engine.integer("dk3_jobs");
     if (jobs < 0 or jobs > 8) return error.WorkerLimit;
-    arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    active.arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     errdefer shutdown(false);
-    world = component.World.init(std.heap.c_allocator, 1024);
+    active.world = component.World.init(std.heap.c_allocator, 1024);
     pool = try Pool.create(std.heap.c_allocator, @intCast(jobs));
-    @memset(std.mem.asBytes(&projection), 0);
-    @memset(std.mem.asBytes(&players), 0);
-    for (&projection, 0..) |*entity, i| {
+    @memset(std.mem.asBytes(&active.projection), 0);
+    @memset(std.mem.asBytes(&active.players), 0);
+    for (&active.projection, 0..) |*entity, i| {
         entity.state.number = @intCast(i);
         entity.shared.ownerNum = c.ENTITYNUM_NONE;
     }
     clock = .{ .now_ms = now };
-    slots = .{};
-    clients = .{};
-    bots = .{};
+    active.slots = .{};
+    active.clients = .{};
+    active.bots = .{};
     social = .{};
-    systems = .{};
-    targets = .{};
+    active.systems = .{};
+    active.targets = .{};
+    _ = @import("server/resources.zig").select(&active.resources);
     @import("server/resources.zig").reset();
     if (engine.integer("dk3_runtime_probe") == 2) {
         const bytes = try @import("engine/files.zig").read(.server, &engine.gateway, std.heap.c_allocator, "dk3/tables/weapons.cfg", 4 * 1024 * 1024);
         defer std.heap.c_allocator.free(bytes);
-        clients.weapon_table = try @import("domain/weapons.zig").Table.parse(bytes);
+        active.clients.weapon_table = try @import("domain/weapons.zig").Table.parse(bytes);
         var map_name: [c.MAX_QPATH]u8 = @splat(0);
-        _ = engine.gateway.call(c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "mapname"), &map_name, @as(isize, map_name.len) });
-        if (map_name[0] == 'e' and map_name[1] >= '1' and map_name[1] <= '4') clients.episode = map_name[1] - '0';
+        _ = engine.mapName(&map_name);
+        if (map_name[0] == 'e' and map_name[1] >= '1' and map_name[1] <= '4') active.clients.episode = map_name[1] - '0';
     }
-    engine.locate(&projection, &players);
+    engine.locate(&active.projection, &active.players);
     engine.config(c.CS_GAME_VERSION, @import("engine/player_state.zig").version);
     engine.config(c.CS_DK3_SKY, "1");
     engine.register("g_gametype", "2", c.CVAR_SERVERINFO);
@@ -105,40 +98,40 @@ fn init(now: i64, restart: bool) !void {
     engine.register("dm_weapons_stay", "0", c.CVAR_SERVERINFO | c.CVAR_LATCH);
     engine.register("dm_use_skill_system", "1", c.CVAR_ARCHIVE);
     engine.register("dm_levellimit", "0", c.CVAR_SERVERINFO | c.CVAR_LATCH);
-    while (try map.read(arena.?.allocator(), engine)) |object| {
+    while (try map.read(active.arena.?.allocator(), engine)) |object| {
         if (std.mem.eql(u8, object.binding.classname, "worldspawn")) {
             var loadscreen: [64]u8 = undefined;
             const name = @import("server/properties.zig").text(object.binding, "loadscreen") orelse "";
             engine.config(c.CS_DK3_LOADSCREEN, try std.fmt.bufPrintZ(&loadscreen, "{s}", .{name}));
         }
-        _ = try world.?.create(null, .{ object.binding, object.transform });
+        _ = try active.world.?.create(null, .{ object.binding, object.transform });
     }
     if (engine.integer("dk3_runtime_probe") == 2) {
-        try systems.spawn(arena.?.allocator(), &world.?, &slots, &projection, now, clients.episode, &clients.weapon_table, restart);
-        targets.scripts = &systems.scripts;
-        targets.cinematics = &systems.cinematics;
-        targets.actors = &systems.actors;
+        try active.systems.spawn(active.arena.?.allocator(), &active.world.?, &active.slots, &active.projection, now, active.clients.episode, &active.clients.weapon_table, restart, false);
+        active.targets.scripts = &active.systems.scripts;
+        active.targets.cinematics = &active.systems.cinematics;
+        active.targets.actors = &active.systems.actors;
         if (engine.integer("dk3_resume") == 1) {
             _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_resume"), @as([*:0]const u8, "0") });
             var loaded = try persistence.prepare("dk3-resume-internal", false);
             errdefer loaded.deinit(std.heap.c_allocator);
             var name: [64]u8 = undefined;
             if (!std.mem.eql(u8, loaded.map, persistence.mapName(&name))) return error.SaveMapMismatch;
-            try persistence.admit(&loaded, &systems);
-            restore_pending = loaded;
+            try persistence.admit(&loaded, &active.systems);
+            active.restore_pending = loaded;
         } else if (engine.integer("dk3_travel_pending") == 1) {
             _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_travel_pending"), @as([*:0]const u8, "0") });
             var transfer = try persistence.prepare("dk3-travel-internal", false);
             defer transfer.deinit(std.heap.c_allocator);
             var name: [64]u8 = undefined;
-            var prepared = try campaign_module.prepare(&transfer, persistence.mapName(&name), now, &clients.weapon_table);
+            var prepared = try campaign_module.prepare(&transfer, persistence.mapName(&name), now, &active.clients.weapon_table);
             errdefer {
                 prepared.state.deinit();
                 if (prepared.world) |*saved| saved.deinit(std.heap.c_allocator);
             }
-            if (prepared.world) |*saved| try persistence.admit(saved, &systems);
+            if (prepared.world) |*saved| try persistence.admit(saved, &active.systems);
             campaign = prepared.state;
-            restore_pending = prepared.world;
+            active.restore_pending = prepared.world;
             restoring_visit = true;
         }
     }
@@ -146,9 +139,9 @@ fn init(now: i64, restart: bool) !void {
     // Publish the saved resource registry while the engine is still loading the
     // map. The initial gamestate must contain these identities; replacing them
     // at ClientBegin can overflow reliable commands before any acknowledgement.
-    if (restore_pending) |saved| try @import("server/resources.zig").restore(saved.header.resources);
+    if (active.restore_pending) |saved| try @import("server/resources.zig").restore(saved.header.resources);
     var text: [160]u8 = undefined;
-    engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: isolated bootstrap, {d} map entities, {d} workers; gameplay not qualified\n", .{ world.?.count(), jobs }));
+    engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: isolated bootstrap, {d} map entities, {d} workers; gameplay not qualified\n", .{ active.world.?.count(), jobs }));
 }
 /// Ownership transfers only after all admission/rebasing checks have succeeded.
 fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
@@ -156,31 +149,31 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
     // default from authored metadata without replacing an already saved latch.
     try campaign_module.spawn(&loaded.world);
     try @import("server/monitors.zig").spawn(&loaded.world);
-    try persistence.admit(loaded, &systems);
+    try persistence.admit(loaded, &active.systems);
     try loaded.rebase(clock.now_ms);
     var staged_campaign = if (!visit) try campaign_module.State.fromArchives(loaded.visited) else null;
     errdefer if (staged_campaign) |*state| state.deinit();
-    for (&projection) |*entity| if (entity.shared.linked != 0) engine.unlink(entity);
-    world.?.deinit();
-    if (restored_arena) |strings| {
+    for (&active.projection) |*entity| if (entity.shared.linked != 0) engine.unlink(entity);
+    active.world.?.deinit();
+    if (active.restored_arena) |strings| {
         strings.deinit();
         std.heap.c_allocator.destroy(strings);
     }
-    world = loaded.world;
-    restored_arena = loaded.arena;
+    active.world = loaded.world;
+    active.restored_arena = loaded.arena;
     const header = loaded.header;
     loaded.* = undefined;
     // Remaining work publishes admitted state; unexpected invariant failures are
     // runtime errors, never a partially successful load reported to the player.
     @import("server/resources.zig").restore(header.resources) catch |err| runtimeFailure(err);
-    targets = .{ .pending = header.pending, .scripts = &systems.scripts, .cinematics = &systems.cinematics, .actors = &systems.actors };
-    persistence.project(&world.?, &slots, &projection, &clients, &players, &systems, header, clock.now_ms) catch |err| runtimeFailure(err);
+    active.targets = .{ .pending = header.pending, .scripts = &active.systems.scripts, .cinematics = &active.systems.cinematics, .actors = &active.systems.actors };
+    persistence.project(&active.world.?, &active.slots, &active.projection, &active.clients, &active.players, &active.systems, header, clock.now_ms) catch |err| runtimeFailure(err);
     if (staged_campaign) |state| {
         campaign.deinit();
         campaign = state;
     }
     if (!visit) {
-        if (persistence.save(&world.?, &clients, &targets, &systems, checkpoint_rules.slot, clock.now_ms, campaign.visited)) |_| {
+        if (persistence.save(&active.world.?, &active.clients, &active.targets, &active.systems, checkpoint_rules.slot, clock.now_ms, campaign.visited)) |_| {
             checkpoint.saved();
             engine.print("dk3 checkpoint: ready\n");
         } else |err| {
@@ -188,13 +181,13 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
             checkpoint = .{ .pending = false };
         }
     }
-    const restored_loadout = (try world.?.get(world.?.find(header.player_id).?, component.Weapons)).*;
+    const restored_loadout = (try active.world.?.get(active.world.?.find(header.player_id).?, component.Weapons)).*;
     var restoration: [128]u8 = undefined;
     if (restored_loadout.weaponstate == @import("weapon_catalog").transitions.state.firing and restored_loadout.last_fire_ms != null) {
         engine.send(0, try std.fmt.bufPrintZ(&restoration, "dk3_restored {d} {d} {d}", .{ restored_loadout.weapon, restored_loadout.event_sequence -% 1, restored_loadout.last_fire_ms.? }));
     } else engine.send(0, "dk3_restored");
     var restored_message: [96]u8 = undefined;
-    engine.print(try std.fmt.bufPrintZ(&restored_message, "dk3 zig: saved world restored health={d}\n", .{(try world.?.get(world.?.find(header.player_id).?, component.Health)).current}));
+    engine.print(try std.fmt.bufPrintZ(&restored_message, "dk3 zig: saved world restored health={d}\n", .{(try active.world.?.get(active.world.?.find(header.player_id).?, component.Health)).current}));
 }
 fn saveCommand(command: []const u8) !bool {
     const saving = std.mem.eql(u8, command, "save");
@@ -205,7 +198,7 @@ fn saveCommand(command: []const u8) !bool {
     const slot = engine.argv(1, &argument);
     if (!@import("domain/snapshot.zig").validName(slot) or std.mem.startsWith(u8, slot, "dk3-")) return error.InvalidSaveSlot;
     if (saving) {
-        try persistence.save(&world.?, &clients, &targets, &systems, slot, clock.now_ms, campaign.visited);
+        try persistence.save(&active.world.?, &active.clients, &active.targets, &active.systems, slot, clock.now_ms, campaign.visited);
         rememberCheckpoint(slot, false) catch |err| saveFeedback(err);
         engine.print("dk3 zig: world saved\n");
     } else {
@@ -254,13 +247,13 @@ fn rememberCheckpoint(slot: []const u8, previous: bool) !void {
     engine.print("dk3 checkpoint: ready\n");
 }
 fn recovery() !void {
-    if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER or restore_pending != null or campaign.departing or targets.travel != null) return;
-    const entity = clients.entities[0] orelse return;
-    const player = (try world.?.get(entity, component.Player)).*;
-    const alive = (try world.?.get(entity, component.Health)).current > 0;
-    if (checkpoint.pending and alive and player.mode == .normal and player.command_ms > 0 and !@import("server/cinematics.zig").active(&world.?)) {
+    if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER or active.restore_pending != null or campaign.departing or active.targets.travel != null) return;
+    const entity = active.clients.entities[0] orelse return;
+    const player = (try active.world.?.get(entity, component.Player)).*;
+    const alive = (try active.world.?.get(entity, component.Health)).current > 0;
+    if (checkpoint.pending and alive and player.mode == .normal and player.command_ms > 0 and !@import("server/cinematics.zig").active(&active.world.?)) {
         // A fresh playable arrival becomes a checkpoint; user save slots are untouched.
-        try persistence.save(&world.?, &clients, &targets, &systems, checkpoint_rules.slot, clock.now_ms, campaign.visited);
+        try persistence.save(&active.world.?, &active.clients, &active.targets, &active.systems, checkpoint_rules.slot, clock.now_ms, campaign.visited);
         try rememberCheckpoint(checkpoint_rules.slot, false);
     }
     var input: c.usercmd_t = undefined;
@@ -276,11 +269,11 @@ fn recovery() !void {
 }
 fn probeMotion() !void {
     const movement = @import("server/motion.zig");
-    const w = if (world) |*value| value else return error.NotInitialized;
+    const w = if (active.world) |*value| value else return error.NotInitialized;
     var created: [128]@import("ecs/world.zig").Entity = undefined;
     var count: usize = 0;
     defer for (created[0..count]) |entity| {
-        if (slots.find(entity)) |slot| slots.release(slot, entity) catch unreachable;
+        if (active.slots.find(entity)) |slot| active.slots.release(slot, entity) catch unreachable;
         w.destroy(entity) catch unreachable;
     };
     for (&created, 0..) |*entity, i| {
@@ -293,7 +286,7 @@ fn probeMotion() !void {
             component.Binding{ .slot = c.ENTITYNUM_NONE },
         });
         count += 1;
-        (try w.get(entity.*, component.Binding)).slot = try slots.acquire(entity.*, null);
+        (try w.get(entity.*, component.Binding)).slot = try active.slots.acquire(entity.*, null);
     }
     for (0..20) |_| try movement.step(w, pool.?, engine.collisionService(), 50);
     var hash = std.hash.Wyhash.init(0);
@@ -312,20 +305,20 @@ fn consoleCommand() isize {
         return 1;
     }
     if (@import("server/multiplayer.zig").enabled() and std.mem.eql(u8, command, "addbot")) {
-        bots.add(&world.?, &slots, &projection, &players, &clients, clock.now_ms) catch |err| runtimeFailure(err);
+        active.bots.add(&active.world.?, &active.slots, &active.projection, &active.players, &active.clients, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_observe")) {
-        @import("server/observation.zig").report(&world.?, clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
+        @import("server/observation.zig").report(&active.world.?, active.clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_match")) {
-        bots.report(&world.?, &slots, &clients) catch |err| runtimeFailure(err);
-        @import("server/observation.zig").match(&world.?, clock.now_ms) catch |err| runtimeFailure(err);
+        active.bots.report(&active.world.?, &active.slots, &active.clients) catch |err| runtimeFailure(err);
+        @import("server/observation.zig").match(&active.world.?, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_pickup_routes")) {
-        @import("server/navigation_probe.zig").pickupRoutes(&world.?, &slots, systems.navigation.service()) catch |err| runtimeFailure(err);
+        @import("server/navigation_probe.zig").pickupRoutes(&active.world.?, &active.slots, active.systems.navigation.service()) catch |err| runtimeFailure(err);
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_route")) {
@@ -336,10 +329,10 @@ fn consoleCommand() isize {
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_route_controls")) {
-        for (clients.entities) |maybe| if (maybe) |entity| {
-            const pose = (world.?.get(entity, component.Transform) catch continue).*;
+        for (active.clients.entities) |maybe| if (maybe) |entity| {
+            const pose = (active.world.?.get(entity, component.Transform) catch continue).*;
             const toward = @import("domain/vector.zig").add(pose.position, @import("domain/vector.zig").scale(@import("domain/vector.zig").basis(pose.angles).forward, 80));
-            @import("server/bot_routes.zig").diagnose(&world.?, &slots, &projection, entity, toward, systems.navigation.service(), clock.now_ms) catch |err| runtimeFailure(err);
+            @import("server/bot_routes.zig").diagnose(&active.world.?, &active.slots, &active.projection, entity, toward, active.systems.navigation.service(), clock.now_ms) catch |err| runtimeFailure(err);
         };
         engine.print("dk3 route controls complete\n");
         return 1;
@@ -350,21 +343,21 @@ fn consoleCommand() isize {
     }) return 1;
     if (engine.integer("dk3_runtime_probe") == 2) {
         if (std.mem.eql(u8, command, "dk3_runtime_chase")) {
-            if (clients.entities[0]) |player| @import("server/navigation_probe.zig").chase(&world.?, player, clock.now_ms) catch |err| {
+            if (active.clients.entities[0]) |player| @import("server/navigation_probe.zig").chase(&active.world.?, player, clock.now_ms) catch |err| {
                 var message: [128]u8 = undefined;
                 engine.print(std.fmt.bufPrintZ(&message, "dk3 zig navigation fixture failed: {s}\n", .{@errorName(err)}) catch unreachable);
             };
             return 1;
         }
         if (std.mem.eql(u8, command, "dk3_runtime_world")) {
-            @import("server/world_probe.zig").diagnostics(&world.?, &slots, &projection) catch |err| runtimeFailure(err);
+            @import("server/world_probe.zig").diagnostics(&active.world.?, &active.slots, &active.projection) catch |err| runtimeFailure(err);
             return 1;
         }
         if (std.mem.eql(u8, command, "dk3_runtime_actors")) {
-            @import("server/actors.zig").diagnostics(&systems.actors, &world.?, &slots, clock.now_ms) catch |err| runtimeFailure(err);
+            @import("server/actors.zig").diagnostics(&active.systems.actors, &active.world.?, &active.slots, clock.now_ms) catch |err| runtimeFailure(err);
             return 1;
         }
-        if (@import("server/combat_probe.zig").command(command, &world.?, &slots, &projection, clients.entities[0], &clients.weapon_table, clock.now_ms) catch |err| blk: {
+        if (@import("server/combat_probe.zig").command(command, &active.world.?, &active.slots, &active.projection, active.clients.entities[0], &active.clients.weapon_table, clock.now_ms) catch |err| blk: {
             var message: [128]u8 = undefined;
             engine.print(std.fmt.bufPrintZ(&message, "dk3 zig combat probe failed: {s}\n", .{@errorName(err)}) catch unreachable);
             break :blk true;
@@ -378,124 +371,124 @@ fn consoleCommand() isize {
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_items")) {
-        for (slots.occupants) |occupant| {
+        for (active.slots.occupants) |occupant| {
             const entity = occupant orelse continue;
-            const pickup = world.?.get(entity, component.Pickup) catch continue;
-            const object = (world.?.get(entity, component.MapObject) catch unreachable).*;
-            const transform = (world.?.get(entity, component.Transform) catch unreachable).*;
-            const motion = (world.?.get(entity, component.ItemMotion) catch unreachable).*;
+            const pickup = active.world.?.get(entity, component.Pickup) catch continue;
+            const object = (active.world.?.get(entity, component.MapObject) catch unreachable).*;
+            const transform = (active.world.?.get(entity, component.Transform) catch unreachable).*;
+            const motion = (active.world.?.get(entity, component.ItemMotion) catch unreachable).*;
             var message: [256]u8 = undefined;
-            engine.print(std.fmt.bufPrintZ(&message, "zig item id={d} class={s} visible={d} ground={?d} pos={d:.2},{d:.2},{d:.2}\n", .{ world.?.persistentId(entity) catch unreachable, object.classname, @intFromBool(pickup.visible), motion.ground, transform.position[0], transform.position[1], transform.position[2] }) catch unreachable);
+            engine.print(std.fmt.bufPrintZ(&message, "zig item id={d} class={s} visible={d} ground={?d} pos={d:.2},{d:.2},{d:.2}\n", .{ active.world.?.persistentId(entity) catch unreachable, object.classname, @intFromBool(pickup.visible), motion.ground, transform.position[0], transform.position[1], transform.position[2] }) catch unreachable);
         }
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_damage")) {
-        const entity = clients.entities[0] orelse return 1;
+        const entity = active.clients.entities[0] orelse return 1;
         var argument: [64]u8 = undefined;
         const amount = std.fmt.parseInt(i32, engine.argv(1, &argument), 10) catch return 1;
         if (amount <= 0 or amount > 10000) return 1;
-        const result = @import("server/damage.zig").apply(&world.?, entity, amount, clock.now_ms, .{}) catch |err| runtimeFailure(err);
+        const result = @import("server/damage.zig").apply(&active.world.?, entity, amount, clock.now_ms, .{}) catch |err| runtimeFailure(err);
         var message: [128]u8 = undefined;
         engine.print(std.fmt.bufPrintZ(&message, "zig damage blood={d} armor={d} killed={d}\n", .{ result.blood, result.armor, @intFromBool(result.killed) }) catch unreachable);
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_character")) {
-        const entity = clients.entities[0] orelse return 1;
-        const state = (world.?.get(entity, component.Character) catch unreachable).*;
+        const entity = active.clients.entities[0] orelse return 1;
+        const state = (active.world.?.get(entity, component.Character) catch unreachable).*;
         var message: [256]u8 = undefined;
         engine.print(std.fmt.bufPrintZ(&message, "zig character time={d} speed={d} boost_until={d} invincible={d} environment={d} gems={d} level={d} points={d}\n", .{ clock.now_ms, state.attribute(.speed, clock.now_ms), state.boost_until[2], state.invincible_until, state.environment_until, state.save_gems, state.level, state.points }) catch unreachable);
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_inventory")) {
-        const entity = clients.entities[0] orelse return 1;
-        const loadout = (world.?.get(entity, component.Weapons) catch unreachable).*;
-        const keys = (world.?.get(entity, component.Keys) catch unreachable).*;
-        const health = (world.?.get(entity, component.Health) catch unreachable).*;
+        const entity = active.clients.entities[0] orelse return 1;
+        const loadout = (active.world.?.get(entity, component.Weapons) catch unreachable).*;
+        const keys = (active.world.?.get(entity, component.Keys) catch unreachable).*;
+        const health = (active.world.?.get(entity, component.Health) catch unreachable).*;
         var message: [256]u8 = undefined;
         engine.print(std.fmt.bufPrintZ(&message, "zig inventory keys={x} quest={x} owned={x} weapon={d} health={d} armor={d}\n", .{ keys.mask, keys.quest, @as(u32, @bitCast(loadout.dk3Inventory)), loadout.weapon, health.current, health.armor }) catch unreachable);
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_movers")) {
-        for (slots.occupants) |occupant| {
+        for (active.slots.occupants) |occupant| {
             const entity = occupant orelse continue;
-            const mover = world.?.get(entity, component.Mover) catch continue;
-            const object = (world.?.get(entity, component.MapObject) catch unreachable).*;
-            const transform = (world.?.get(entity, component.Transform) catch unreachable).*;
+            const mover = active.world.?.get(entity, component.Mover) catch continue;
+            const object = (active.world.?.get(entity, component.MapObject) catch unreachable).*;
+            const transform = (active.world.?.get(entity, component.Transform) catch unreachable).*;
             var message: [320]u8 = undefined;
-            engine.print(std.fmt.bufPrintZ(&message, "zig mover id={d} group={d} class={s} name={s} state={s} pos={d:.1},{d:.1},{d:.1} end={d:.1},{d:.1},{d:.1}\n", .{ world.?.persistentId(entity) catch unreachable, mover.group, object.classname, object.targetname, @tagName(mover.state), transform.position[0], transform.position[1], transform.position[2], mover.opened[0], mover.opened[1], mover.opened[2] }) catch unreachable);
+            engine.print(std.fmt.bufPrintZ(&message, "zig mover id={d} group={d} class={s} name={s} state={s} pos={d:.1},{d:.1},{d:.1} end={d:.1},{d:.1},{d:.1}\n", .{ active.world.?.persistentId(entity) catch unreachable, mover.group, object.classname, object.targetname, @tagName(mover.state), transform.position[0], transform.position[1], transform.position[2], mover.opened[0], mover.opened[1], mover.opened[2] }) catch unreachable);
         }
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_special")) {
-        for (slots.occupants) |occupant| {
+        for (active.slots.occupants) |occupant| {
             const entity = occupant orelse continue;
-            const secret = world.?.get(entity, component.Secret) catch null;
-            const rotation = world.?.get(entity, component.Rotation) catch null;
+            const secret = active.world.?.get(entity, component.Secret) catch null;
+            const rotation = active.world.?.get(entity, component.Rotation) catch null;
             if (secret == null and rotation == null) continue;
-            const transform = (world.?.get(entity, component.Transform) catch unreachable).*;
+            const transform = (active.world.?.get(entity, component.Transform) catch unreachable).*;
             var message: [256]u8 = undefined;
-            engine.print(std.fmt.bufPrintZ(&message, "zig special id={d} phase={s} pos={d:.1},{d:.1},{d:.1} angles={d:.1},{d:.1},{d:.1}\n", .{ world.?.persistentId(entity) catch unreachable, if (secret) |value| @tagName(value.phase) else if (rotation.?.active) "rotating" else "stopped", transform.position[0], transform.position[1], transform.position[2], transform.angles[0], transform.angles[1], transform.angles[2] }) catch unreachable);
+            engine.print(std.fmt.bufPrintZ(&message, "zig special id={d} phase={s} pos={d:.1},{d:.1},{d:.1} angles={d:.1},{d:.1},{d:.1}\n", .{ active.world.?.persistentId(entity) catch unreachable, if (secret) |value| @tagName(value.phase) else if (rotation.?.active) "rotating" else "stopped", transform.position[0], transform.position[1], transform.position[2], transform.angles[0], transform.angles[1], transform.angles[2] }) catch unreachable);
         }
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_trains")) {
-        for (slots.occupants) |occupant| {
+        for (active.slots.occupants) |occupant| {
             const entity = occupant orelse continue;
-            const train = world.?.get(entity, component.Train) catch continue;
-            const object = (world.?.get(entity, component.MapObject) catch unreachable).*;
-            const transform = (world.?.get(entity, component.Transform) catch unreachable).*;
+            const train = active.world.?.get(entity, component.Train) catch continue;
+            const object = (active.world.?.get(entity, component.MapObject) catch unreachable).*;
+            const transform = (active.world.?.get(entity, component.Transform) catch unreachable).*;
             var message: [320]u8 = undefined;
-            engine.print(std.fmt.bufPrintZ(&message, "zig train id={d} name={s} phase={s} corner={d} wait={d} due={?d} start={d} duration={d} endz={d:.1} pos={d:.1},{d:.1},{d:.1}\n", .{ world.?.persistentId(entity) catch unreachable, object.targetname, @tagName(train.phase), train.destination, train.departure_wait_ms, train.action.at_ms, train.position.start_ms, train.position.duration_ms, train.position.end[2], transform.position[0], transform.position[1], transform.position[2] }) catch unreachable);
+            engine.print(std.fmt.bufPrintZ(&message, "zig train id={d} name={s} phase={s} corner={d} wait={d} due={?d} start={d} duration={d} endz={d:.1} pos={d:.1},{d:.1},{d:.1}\n", .{ active.world.?.persistentId(entity) catch unreachable, object.targetname, @tagName(train.phase), train.destination, train.departure_wait_ms, train.action.at_ms, train.position.start_ms, train.position.duration_ms, train.position.end[2], transform.position[0], transform.position[1], transform.position[2] }) catch unreachable);
         }
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_place")) {
-        const player_entity = clients.entities[0] orelse return 1;
+        const player_entity = active.clients.entities[0] orelse return 1;
         var point: component.Vec3 = undefined;
         for (&point, 0..) |*axis, i| {
             var argument: [64]u8 = undefined;
             axis.* = std.fmt.parseFloat(f32, engine.argv(@intCast(i + 1), &argument)) catch return 1;
             if (!std.math.isFinite(axis.*) or @abs(axis.*) > 1000000) return 1;
         }
-        (world.?.get(player_entity, component.Transform) catch unreachable).position = point;
-        (world.?.get(player_entity, component.Velocity) catch unreachable).linear = @splat(0);
-        (world.?.get(player_entity, component.Player) catch unreachable).ground_entity = c.ENTITYNUM_NONE;
-        clients.publish(&world.?, &projection, &players, 0, clock.now_ms) catch |err| runtimeFailure(err);
+        (active.world.?.get(player_entity, component.Transform) catch unreachable).position = point;
+        (active.world.?.get(player_entity, component.Velocity) catch unreachable).linear = @splat(0);
+        (active.world.?.get(player_entity, component.Player) catch unreachable).ground_entity = c.ENTITYNUM_NONE;
+        active.clients.publish(&active.world.?, &active.projection, &active.players, 0, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_board")) {
         var argument: [32]u8 = undefined;
         const id = std.fmt.parseInt(u32, engine.argv(1, &argument), 10) catch return 1;
-        const player_entity = clients.entities[0] orelse return 1;
-        const entity = world.?.find(id) orelse return 1;
-        const binding = world.?.get(entity, component.Binding) catch return 1;
-        const brush = &projection[binding.slot];
-        const transform = world.?.get(player_entity, component.Transform) catch unreachable;
+        const player_entity = active.clients.entities[0] orelse return 1;
+        const entity = active.world.?.find(id) orelse return 1;
+        const binding = active.world.?.get(entity, component.Binding) catch return 1;
+        const brush = &active.projection[binding.slot];
+        const transform = active.world.?.get(player_entity, component.Transform) catch unreachable;
         const candidate: component.Vec3 = .{ (brush.shared.absmin[0] + brush.shared.absmax[0]) * 0.5, (brush.shared.absmin[1] + brush.shared.absmax[1]) * 0.5, brush.shared.absmax[2] + 24.125 };
-        const body = (world.?.get(player_entity, component.Body) catch unreachable).*;
+        const body = (active.world.?.get(player_entity, component.Body) catch unreachable).*;
         const clear = engine.collisionService().trace(.{ .start = candidate, .end = candidate, .mins = body.mins, .maxs = body.maxs, .slot = 0, .mask = c.MASK_PLAYERSOLID }) catch |err| runtimeFailure(err);
         if (clear.start_solid) {
             engine.print("zig probe: brush centre is obstructed; choose a known walkable position with dk3_runtime_place.\n");
             return 1;
         }
         transform.position = candidate;
-        (world.?.get(player_entity, component.Velocity) catch unreachable).linear = @splat(0);
-        clients.publish(&world.?, &projection, &players, 0, clock.now_ms) catch |err| runtimeFailure(err);
+        (active.world.?.get(player_entity, component.Velocity) catch unreachable).linear = @splat(0);
+        active.clients.publish(&active.world.?, &active.projection, &active.players, 0, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_activate")) {
         var argument: [32]u8 = undefined;
         const id = std.fmt.parseInt(u32, engine.argv(1, &argument), 10) catch return 1;
         var owner: u32 = 0;
-        if (std.mem.eql(u8, engine.argv(2, &argument), "player")) if (clients.entities[0]) |player| {
-            owner = world.?.persistentId(player) catch unreachable;
+        if (std.mem.eql(u8, engine.argv(2, &argument), "player")) if (active.clients.entities[0]) |player| {
+            owner = active.world.?.persistentId(player) catch unreachable;
         };
-        if (world.?.find(id)) |entity| targets.activate(&world.?, &slots, &projection, entity, owner, clock.now_ms) catch |err| runtimeFailure(err);
+        if (active.world.?.find(id)) |entity| active.targets.activate(&active.world.?, &active.slots, &active.projection, entity, owner, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
     if (!std.mem.eql(u8, command, "dk3_runtime_status")) return 0;
     var text: [160]u8 = undefined;
-    engine.print(std.fmt.bufPrintZ(&text, "dk3 zig: entities={d} frames={d} time={d} workers={d}\n", .{ if (world) |*value| value.count() else 0, clock.frame, clock.now_ms, if (pool) |value| value.thread_count else 0 }) catch unreachable);
+    engine.print(std.fmt.bufPrintZ(&text, "dk3 zig: entities={d} frames={d} time={d} workers={d}\n", .{ if (active.world) |*value| value.count() else 0, clock.frame, clock.now_ms, if (pool) |value| value.thread_count else 0 }) catch unreachable);
     return 1;
 }
 export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, arg6: isize, arg7: isize, arg8: isize, arg9: isize, arg10: isize, arg11: isize) callconv(.c) isize {
@@ -513,35 +506,35 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             _ = engine.gateway.call(c.G_GET_USERINFO, .{ arg0, &userinfo, @as(isize, userinfo.len) });
             const identity = @import("engine/info.zig").get(std.mem.sliceTo(&userinfo, 0), "dk3_runtime_build") orelse "";
             if (!std.mem.eql(u8, identity, @import("engine/player_state.zig").version)) return @intCast(@intFromPtr(@as([*:0]const u8, "Zig runtime build mismatch. Install matching server, client and UI modules.")));
-            if (rooms.connect(&clients, @intCast(arg0), arg2 != 0) catch |err| runtimeFailure(err)) |reason| return @intCast(@intFromPtr(reason.ptr));
+            if (rooms.connect(&active.clients, @intCast(arg0), arg2 != 0) catch |err| runtimeFailure(err)) |reason| return @intCast(@intFromPtr(reason.ptr));
             return 0;
         },
         c.GAME_CLIENT_BEGIN => {
-            clients.begin(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms, if (arg0 == 0 and campaign.arrival != null) campaign.arrival.?.journey else null) catch |err| runtimeFailure(err);
-            if (arg0 == 0 and restore_pending == null) @import("server/companions.zig").start(&systems.actors, &world.?, &slots, &projection, clients.entities[0].?, if (campaign.arrival) |arrival| arrival.journey.spawn else "", if (campaign.arrival) |arrival| if (arrival.journey.kind == .submap) arrival.journey.companions else null else null, clock.now_ms) catch |err| runtimeFailure(err);
-            if (arg0 == 0) if (restore_pending) |value| {
+            active.clients.begin(&active.world.?, &active.slots, &active.projection, &active.players, @intCast(arg0), clock.now_ms, if (arg0 == 0 and campaign.arrival != null) campaign.arrival.?.journey else null) catch |err| runtimeFailure(err);
+            if (arg0 == 0 and active.restore_pending == null) @import("server/companions.zig").start(&active.systems.actors, &active.world.?, &active.slots, &active.projection, active.clients.entities[0].?, if (campaign.arrival) |arrival| arrival.journey.spawn else "", if (campaign.arrival) |arrival| if (arrival.journey.kind == .submap) arrival.journey.companions else null else null, clock.now_ms) catch |err| runtimeFailure(err);
+            if (arg0 == 0) if (active.restore_pending) |value| {
                 var saved = value;
-                restore_pending = null;
+                active.restore_pending = null;
                 restore(&saved, restoring_visit) catch |err| {
                     saved.deinit(std.heap.c_allocator);
                     runtimeFailure(err);
                 };
             };
             if (arg0 == 0) if (campaign.arrival) |arrival| {
-                clients.arrive(&world.?, &slots, &projection, &players, arrival, &systems.actors, clock.now_ms) catch |err| runtimeFailure(err);
+                active.clients.arrive(&active.world.?, &active.slots, &active.projection, &active.players, arrival, &active.systems.actors, clock.now_ms) catch |err| runtimeFailure(err);
                 campaign.arrival = null;
                 restoring_visit = false;
             };
         },
-        c.GAME_CLIENT_USERINFO_CHANGED => clients.userinfo(&world.?, @intCast(arg0)) catch |err| runtimeFailure(err),
-        c.GAME_CLIENT_THINK => clients.think(&world.?, &slots, &projection, &players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err),
+        c.GAME_CLIENT_USERINFO_CHANGED => active.clients.userinfo(&active.world.?, @intCast(arg0)) catch |err| runtimeFailure(err),
+        c.GAME_CLIENT_THINK => active.clients.think(&active.world.?, &active.slots, &active.projection, &active.players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err),
         c.GAME_CLIENT_DISCONNECT => {
-            rooms.disconnect(&world.?, &clients, @intCast(arg0)) catch |err| runtimeFailure(err);
-            clients.disconnect(&world.?, &slots, &projection, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err);
-            bots.brains[@intCast(arg0)] = null;
+            rooms.disconnect(&active.world.?, &active.clients, @intCast(arg0)) catch |err| runtimeFailure(err);
+            active.clients.disconnect(&active.world.?, &active.slots, &active.projection, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err);
+            active.bots.brains[@intCast(arg0)] = null;
             social.chat_ready[@intCast(arg0)] = 0;
             social.score_ready[@intCast(arg0)] = 0;
-            clients.returning[@intCast(arg0)] = null;
+            active.clients.returning[@intCast(arg0)] = null;
             engine.config(c.CS_PLAYERS + @as(i32, @intCast(arg0)), "");
         },
         c.GAME_RUN_FRAME => {
@@ -549,27 +542,27 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 engine.fatal("Native runtime: invalid engine frame time");
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
-                if (campaign.departing or restore_pending != null) return 0;
-                resident_worlds.step() catch |err| runtimeFailure(err);
-                rooms.tick(&world.?, &clients, clock.now_ms) catch |err| runtimeFailure(err);
-                systems.multiplayer.warmup = rooms.warmup_ms != 0;
-                campaign_module.endings(&world.?, &targets, clock.now_ms) catch |err| runtimeFailure(err);
-                systems.cinematics.step(&world.?, &slots, &projection, &targets, clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
-                bots.step(&world.?, &slots, &projection, &players, &clients, &targets, systems.navigation.service(), clock.now_ms) catch |err| runtimeFailure(err);
-                systems.step(&world.?, &slots, &projection, &targets, clock.now_ms, elapsed, &clients.weapon_table) catch |err| runtimeFailure(err);
-                @import("server/player_damage.zig").step(&world.?, &slots, &projection, clients.episode, &clients.weapon_table, clock.now_ms) catch |err| runtimeFailure(err);
-                for (clients.entities, 0..) |entity, index| if (entity != null) {
-                    clients.publish(&world.?, &projection, &players, index, clock.now_ms) catch |err| runtimeFailure(err);
-                    systems.cinematics.camera(&world.?, &players[index], clock.now_ms) catch |err| runtimeFailure(err);
-                    @import("server/monitors.zig").camera(&world.?, entity.?, &players[index]) catch |err| runtimeFailure(err);
-                    @import("server/companions.zig").camera(&world.?, entity.?, &players[index]) catch |err| runtimeFailure(err);
-                    campaign_module.camera(&world.?, entity.?, &players[index]) catch |err| runtimeFailure(err);
+                if (campaign.departing or active.restore_pending != null) return 0;
+                resident_worlds.step(clock.now_ms, &active.clients.weapon_table) catch |err| runtimeFailure(err);
+                rooms.tick(&active.world.?, &active.clients, clock.now_ms) catch |err| runtimeFailure(err);
+                active.systems.multiplayer.warmup = rooms.warmup_ms != 0;
+                campaign_module.endings(&active.world.?, &active.targets, clock.now_ms) catch |err| runtimeFailure(err);
+                active.systems.cinematics.step(&active.world.?, &active.slots, &active.projection, &active.targets, active.clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
+                active.bots.step(&active.world.?, &active.slots, &active.projection, &active.players, &active.clients, &active.targets, active.systems.navigation.service(), clock.now_ms) catch |err| runtimeFailure(err);
+                active.systems.step(&active.world.?, &active.slots, &active.projection, &active.targets, clock.now_ms, elapsed, &active.clients.weapon_table) catch |err| runtimeFailure(err);
+                @import("server/player_damage.zig").step(&active.world.?, &active.slots, &active.projection, active.clients.episode, &active.clients.weapon_table, clock.now_ms) catch |err| runtimeFailure(err);
+                for (active.clients.entities, 0..) |entity, index| if (entity != null) {
+                    active.clients.publish(&active.world.?, &active.projection, &active.players, index, clock.now_ms) catch |err| runtimeFailure(err);
+                    active.systems.cinematics.camera(&active.world.?, &active.players[index], clock.now_ms) catch |err| runtimeFailure(err);
+                    @import("server/monitors.zig").camera(&active.world.?, entity.?, &active.players[index]) catch |err| runtimeFailure(err);
+                    @import("server/companions.zig").camera(&active.world.?, entity.?, &active.players[index]) catch |err| runtimeFailure(err);
+                    campaign_module.camera(&active.world.?, entity.?, &active.players[index]) catch |err| runtimeFailure(err);
                 };
                 recovery() catch |err| saveFeedback(err);
-                if (targets.travel) |request| {
-                    targets.travel = null;
-                    if (@import("server/cinematics.zig").active(&world.?)) @import("server/cinematics.zig").finish(&world.?, &slots, &projection, &targets, clients.entities[0].?, clock.now_ms) catch |err| runtimeFailure(err);
-                    campaign_module.depart(&campaign, &world.?, &clients, &targets, &systems, &projection, request, clock.now_ms) catch |err| {
+                if (active.targets.travel) |request| {
+                    active.targets.travel = null;
+                    if (@import("server/cinematics.zig").active(&active.world.?)) @import("server/cinematics.zig").finish(&active.world.?, &active.slots, &active.projection, &active.targets, active.clients.entities[0].?, clock.now_ms) catch |err| runtimeFailure(err);
+                    campaign_module.depart(&campaign, &active.world.?, &active.clients, &active.targets, &active.systems, &active.projection, request, clock.now_ms) catch |err| {
                         var message: [160]u8 = undefined;
                         engine.print(std.fmt.bufPrintZ(&message, "dk3 travel: exit {d} refused: {s}\n", .{ request.exit, @errorName(err) }) catch unreachable);
                     };
@@ -587,23 +580,23 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             })) return 0;
             if (@import("server/multiplayer.zig").enabled()) {
                 const index: usize = @intCast(arg0);
-                if (social.command(&world.?, &clients, &players, @intCast(arg0), client_command, clock.now_ms) catch |err| runtimeFailure(err)) return 0;
-                if (rooms.command(&world.?, &clients, @intCast(arg0), client_command, clock.now_ms) catch |err| runtimeFailure(err)) return 0;
-                if (clients.entities[index]) |entity| {
+                if (social.command(&active.world.?, &active.clients, &active.players, @intCast(arg0), client_command, clock.now_ms) catch |err| runtimeFailure(err)) return 0;
+                if (rooms.command(&active.world.?, &active.clients, @intCast(arg0), client_command, clock.now_ms) catch |err| runtimeFailure(err)) return 0;
+                if (active.clients.entities[index]) |entity| {
                     if (std.mem.eql(u8, client_command, "team")) {
                         var argument: [32]u8 = undefined;
                         const name = engine.argv(1, &argument);
                         const team: ?@import("domain/multiplayer.zig").Team = if (std.ascii.eqlIgnoreCase(name, "red")) .red else if (std.ascii.eqlIgnoreCase(name, "blue")) .blue else if (std.ascii.eqlIgnoreCase(name, "spectator") or std.ascii.eqlIgnoreCase(name, "s")) .spectator else if (std.ascii.eqlIgnoreCase(name, "free")) .free else null;
                         if (team) |selected| {
                             if ((selected == .red or selected == .blue) != @import("server/multiplayer.zig").teams() and selected != .spectator) return 0;
-                            rooms.unready(&world.?, &clients, @intCast(arg0));
-                            (world.?.get(entity, component.Session) catch unreachable).team = selected;
-                            clients.begin(&world.?, &slots, &projection, &players, index, clock.now_ms, null) catch |err| runtimeFailure(err);
+                            rooms.unready(&active.world.?, &active.clients, @intCast(arg0));
+                            (active.world.?.get(entity, component.Session) catch unreachable).team = selected;
+                            active.clients.begin(&active.world.?, &active.slots, &active.projection, &active.players, index, clock.now_ms, null) catch |err| runtimeFailure(err);
                         }
                         return 0;
                     }
                     if (std.mem.eql(u8, client_command, "kill")) {
-                        _ = @import("server/damage.zig").apply(&world.?, entity, 100000, clock.now_ms, .{ .source = world.?.persistentId(entity) catch unreachable, .bypass_armor = true, .bypass_protection = true }) catch |err| runtimeFailure(err);
+                        _ = @import("server/damage.zig").apply(&active.world.?, entity, 100000, clock.now_ms, .{ .source = active.world.?.persistentId(entity) catch unreachable, .bypass_armor = true, .bypass_protection = true }) catch |err| runtimeFailure(err);
                         return 0;
                     }
                 }
@@ -613,13 +606,13 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 var order_buffer: [32]u8 = undefined;
                 const who = engine.argv(1, &who_buffer);
                 const order = engine.argv(2, &order_buffer);
-                if (clients.entities[@intCast(arg0)]) |player| {
-                    const pose = (world.?.get(player, component.Transform) catch unreachable).*;
+                if (active.clients.entities[@intCast(arg0)]) |player| {
+                    const pose = (active.world.?.get(player, component.Transform) catch unreachable).*;
                     const v = @import("domain/vector.zig");
                     const origin = v.add(pose.position, .{ 0, 0, 22 });
                     const trace = engine.collisionService().trace(.{ .start = origin, .end = v.add(origin, v.scale(v.basis(pose.angles).forward, 2000)), .mins = @splat(0), .maxs = @splat(0), .slot = @intCast(arg0), .mask = c.MASK_SHOT | c.CONTENTS_TRIGGER }) catch |err| runtimeFailure(err);
-                    const target = if (trace.entity < slots.occupants.len) if (slots.occupants[trace.entity]) |entity| world.?.persistentId(entity) catch unreachable else 0 else 0;
-                    const changed = @import("server/companions.zig").order(&systems.actors, &world.?, clock.now_ms, player, who, order, target, trace.end) catch |err| runtimeFailure(err);
+                    const target = if (trace.entity < active.slots.occupants.len) if (active.slots.occupants[trace.entity]) |entity| active.world.?.persistentId(entity) catch unreachable else 0 else 0;
+                    const changed = @import("server/companions.zig").order(&active.systems.actors, &active.world.?, clock.now_ms, player, who, order, target, trace.end) catch |err| runtimeFailure(err);
                     engine.send(@intCast(arg0), if (changed) "cp \"Companion order received\"" else "cp \"Companion order unavailable\"");
                 }
                 return 0;
@@ -627,24 +620,24 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             if (std.mem.eql(u8, client_command, "attribute")) {
                 var argument: [64]u8 = undefined;
                 const attribute = @import("domain/character.zig").attributeNamed(engine.argv(1, &argument)) orelse return 0;
-                if (clients.entities[@intCast(arg0)]) |entity| {
-                    const state = world.?.get(entity, component.Character) catch return 0;
+                if (active.clients.entities[@intCast(arg0)]) |entity| {
+                    const state = active.world.?.get(entity, component.Character) catch return 0;
                     _ = state.spend(attribute);
                 }
             } else if (std.mem.eql(u8, client_command, "detonate")) {
-                if (clients.entities[@intCast(arg0)]) |entity| {
-                    const loadout = world.?.get(entity, component.Weapons) catch return 0;
-                    const health = world.?.get(entity, component.Health) catch return 0;
+                if (active.clients.entities[@intCast(arg0)]) |entity| {
+                    const loadout = active.world.?.get(entity, component.Weapons) catch return 0;
+                    const health = active.world.?.get(entity, component.Health) catch return 0;
                     if (loadout.weapon == @import("weapon_catalog").c4.id and health.current > 0) {
-                        _ = @import("server/c4.zig").detonate(&world.?, world.?.persistentId(entity) catch return 0, clock.now_ms, false) catch |err| runtimeFailure(err);
+                        _ = @import("server/c4.zig").detonate(&active.world.?, active.world.?.persistentId(entity) catch return 0, clock.now_ms, false) catch |err| runtimeFailure(err);
                     }
                 }
             } else if (std.mem.eql(u8, client_command, "cin_skip")) {
-                if (arg0 == 0 and engine.integer("g_gametype") == c.GT_SINGLE_PLAYER and @import("server/cinematics.zig").active(&world.?)) {
-                    if (clients.entities[0]) |entity| @import("server/cinematics.zig").completePlayback(&world.?, &slots, &projection, &targets, entity, clock.now_ms) catch |err| runtimeFailure(err);
+                if (arg0 == 0 and engine.integer("g_gametype") == c.GT_SINGLE_PLAYER and @import("server/cinematics.zig").active(&active.world.?)) {
+                    if (active.clients.entities[0]) |entity| @import("server/cinematics.zig").completePlayback(&active.world.?, &active.slots, &active.projection, &active.targets, entity, clock.now_ms) catch |err| runtimeFailure(err);
                 }
             } else if (std.mem.eql(u8, client_command, "use")) {
-                if (clients.entities[@intCast(arg0)]) |entity| @import("server/interactions.zig").use(&world.?, &slots, &projection, &targets, entity, clock.now_ms) catch |err| runtimeFailure(err);
+                if (active.clients.entities[@intCast(arg0)]) |entity| @import("server/interactions.zig").use(&active.world.?, &active.slots, &active.projection, &active.targets, entity, clock.now_ms) catch |err| runtimeFailure(err);
             }
         },
         c.BOTAI_START_FRAME => {},

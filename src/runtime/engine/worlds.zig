@@ -41,3 +41,13 @@ pub fn trace(handle: Handle, start: [3]f32, end: [3]f32, mins: [3]f32, maxs: [3]
     if (engine.gateway.call(c.G_DK3_WORLD_TRACE_V1, .{ @as(isize, @intFromEnum(handle)), &result, &start, &end, &mins, &maxs, @as(isize, model), @as(isize, mask) }) == 0) return error.WorldNotReady;
     return result;
 }
+
+pub fn current() Handle {
+    return @enumFromInt(@as(u32, @intCast(engine.gateway.call(c.G_DK3_WORLD_CURRENT_V1, .{}))));
+}
+pub fn attach(handle: Handle) !void {
+    if (engine.gateway.call(c.G_DK3_WORLD_ATTACH_V1, .{@as(isize, @intFromEnum(handle))}) == 0) return error.WorldNotReady;
+}
+pub fn select(handle: Handle) !void {
+    if (engine.gateway.call(c.G_DK3_WORLD_SELECT_V1, .{@as(isize, @intFromEnum(handle))}) == 0) return error.WorldNotAttached;
+}

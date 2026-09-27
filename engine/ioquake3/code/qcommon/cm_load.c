@@ -166,6 +166,16 @@ qboolean CM_ReleaseWorld(unsigned int handle) {
     return qtrue;
 }
 
+const char *CM_WorldName(unsigned int handle) {
+    cmWorld_t *world = CM_World(handle);
+    return !world ? "" : world == &cm_worlds[cm_selected] ? cm.name : world->map.name;
+}
+
+int CM_WorldChecksum(unsigned int handle) {
+    cmWorld_t *world = CM_World(handle);
+    return world ? world->checksum : 0;
+}
+
 size_t CM_WorldBytes(unsigned int handle) {
     cmWorld_t *world = CM_World(handle);
     return world ? world->bytes : 0;

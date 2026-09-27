@@ -44,7 +44,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "be_interface.h"
 #include "be_aas_def.h"
 
-aas_t aasworld;
+static aas_t aasDefaultWorld;
+aas_t *aasCurrentWorld = &aasDefaultWorld;
+static aas_t *aasResidents[128];
 
 libvar_t *saveroutingcache;
 
@@ -297,7 +299,7 @@ int AAS_Setup(void)
 	saveroutingcache = LibVar("saveroutingcache", "0");
 	//allocate memory for the entities
 	if (aasworld.entities) FreeMemory(aasworld.entities);
-	aasworld.entities = (aas_entity_t *) GetClearedHunkMemory(aasworld.maxentities * sizeof(aas_entity_t));
+	aasworld.entities = (aas_entity_t *) GetClearedMemory(aasworld.maxentities * sizeof(aas_entity_t));
 	//invalidate all the entities
 	AAS_InvalidateEntities();
 	//force some recalculations
@@ -312,8 +314,10 @@ int AAS_Setup(void)
 // Returns:					-
 // Changes Globals:		-
 //===========================================================================
-void AAS_Shutdown(void)
+static void AAS_ShutdownCurrent(void)
 {
+    if (aasworld.reachabilityheap) FreeMemory(aasworld.reachabilityheap);
+    if (aasworld.areareachability) FreeMemory(aasworld.areareachability);
 	AAS_ShutdownAlternativeRouting();
 	//
 	AAS_DumpBSPData();
@@ -336,3 +340,85 @@ void AAS_Shutdown(void)
 	//print shutdown
 	botimport.Print(PRT_MESSAGE, "AAS shutdown.\n");
 } //end of the function AAS_Shutdown
+
+/* Native resident navigation uses the existing AAS algorithms with explicit
+ * map ownership. Calls are owner-thread only, with matching server collision
+ * selected by the caller for BSP/trace imports. */
+int AAS_BindWorld(unsigned int handle) {
+    unsigned int i;
+    if (!handle || !aasworld.loaded) return 0;
+    if (aasworld.worldHandle) return aasworld.worldHandle == handle;
+    for (i = 0; i < ARRAY_LEN(aasResidents); ++i) {
+        if (aasResidents[i]) continue;
+        aasworld.worldHandle = handle;
+        aasResidents[i] = aasCurrentWorld;
+        return 1;
+    }
+    return 0;
+}
+int AAS_SelectWorld(unsigned int handle) {
+    unsigned int i;
+    for (i = 0; i < ARRAY_LEN(aasResidents); ++i) {
+        if (aasResidents[i] && aasResidents[i]->worldHandle == handle) {
+            aasCurrentWorld = aasResidents[i];
+            return 1;
+        }
+    }
+    return 0;
+}
+int AAS_LoadWorld(unsigned int handle, const char *asset, int checksum) {
+    aas_t *previous = aasCurrentWorld, *world;
+    char savedChecksum[64], nextChecksum[64];
+    int error;
+    unsigned int i;
+    if (!handle || !LibVarGetValue("dk3_navigation")) return 0;
+    if (AAS_SelectWorld(handle)) return 1;
+    for (i = 0; i < ARRAY_LEN(aasResidents) && aasResidents[i]; ++i) {}
+    if (i == ARRAY_LEN(aasResidents)) return 0;
+    world = GetClearedMemory(sizeof(*world));
+    aasCurrentWorld = world;
+    Q_strncpyz(savedChecksum, LibVarGetString("sv_mapChecksum"), sizeof(savedChecksum));
+    Com_sprintf(nextChecksum, sizeof(nextChecksum), "%i", checksum);
+    LibVarSet("sv_mapChecksum", nextChecksum);
+    error = AAS_Setup();
+    if (!error) error = AAS_LoadMap(asset);
+    LibVarSet("sv_mapChecksum", savedChecksum);
+    if (error) {
+        AAS_ShutdownCurrent();
+        FreeMemory(world);
+        aasCurrentWorld = previous;
+        return 0;
+    }
+    world->worldHandle = handle;
+    aasResidents[i] = world;
+    return 1;
+}
+int AAS_ReleaseWorld(unsigned int handle) {
+    unsigned int i;
+    aas_t *previous = aasCurrentWorld;
+    for (i = 0; i < ARRAY_LEN(aasResidents); ++i) {
+        aas_t *world = aasResidents[i];
+        if (!world || world->worldHandle != handle) continue;
+        if (world == previous || world == &aasDefaultWorld) return 0;
+        aasCurrentWorld = world;
+        AAS_ShutdownCurrent();
+        FreeMemory(world);
+        aasResidents[i] = NULL;
+        aasCurrentWorld = previous;
+        return 1;
+    }
+    return 1;
+}
+void AAS_Shutdown(void) {
+    unsigned int i;
+    for (i = 0; i < ARRAY_LEN(aasResidents); ++i) {
+        aas_t *world = aasResidents[i];
+        if (!world || world == &aasDefaultWorld) continue;
+        aasCurrentWorld = world;
+        AAS_ShutdownCurrent();
+        FreeMemory(world);
+    }
+    memset(aasResidents, 0, sizeof(aasResidents));
+    aasCurrentWorld = &aasDefaultWorld;
+    AAS_ShutdownCurrent();
+}

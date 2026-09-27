@@ -17,7 +17,7 @@ pub const State = struct {
     pub fn deinit(self: *State, restart: bool) void {
         self.navigation.deinit(restart);
     }
-    pub fn spawn(self: *State, allocator: @import("std").mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8, table: *const @import("../domain/weapons.zig").Table, restart: bool) !void {
+    pub fn spawn(self: *State, allocator: @import("std").mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8, table: *const @import("../domain/weapons.zig").Table, restart: bool, resident: bool) !void {
         {
             var query = world.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
             defer query.deinit();
@@ -48,7 +48,7 @@ pub const State = struct {
         try self.multiplayer.spawn(world, slots, projections, episode, now);
         try self.cinematics.spawn(allocator, world);
         try self.scripts.init(allocator, world);
-        try self.navigation.init(allocator, now, restart);
+        try self.navigation.init(allocator, now, restart, resident);
     }
     pub fn step(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, targets: *Router, now: i64, elapsed: u32, table: *const @import("../domain/weapons.zig").Table) !void {
         try @import("events.zig").expire(world, slots, projections, now);

@@ -24,7 +24,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "tr_types.h"
 
-#define	REF_API_VERSION		10
+#define	REF_API_VERSION		11
+struct fsReadJob_s;
 
 //
 // these are the functions exported by the refresh module
@@ -102,6 +103,12 @@ typedef struct {
 
 	// linear distance fog for the next world scene; cleared with the scene
 	void	(*SetDk3Fog)( const vec3_t color, float start, float end, float skyEnd );
+    /* Region-owned worlds stay resident until renderer shutdown. Poll reports
+     * render readiness, not collision/navigation/gameplay readiness. */
+    unsigned int (*RequestWorld)(const char *name);
+    int (*PollWorld)(unsigned int world);
+    qboolean (*SelectWorld)(unsigned int world);
+    unsigned int (*CurrentWorld)(void);
 } refexport_t;
 
 //
@@ -158,6 +165,9 @@ typedef struct {
 	int		(*FS_FileIsInPAK)( const char *name, int *pCheckSum );
 	long		(*FS_ReadFile)( const char *name, void **buf );
 	void	(*FS_FreeFile)( void *buf );
+    struct fsReadJob_s *(*BeginBackgroundRead)(const char *name, int maximum);
+    int (*PollBackgroundRead)(struct fsReadJob_s *job, const void **bytes, int *length);
+    void (*EndBackgroundRead)(struct fsReadJob_s *job);
 	char **	(*FS_ListFiles)( const char *name, const char *extension, int *numfilesfound );
 	void	(*FS_FreeFileList)( char **filelist );
 	void	(*FS_WriteFile)( const char *qpath, const void *buffer, int size );

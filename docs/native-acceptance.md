@@ -14,7 +14,7 @@ is inferred from class counts or test volume.
 
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
-| Seamless connected regions | Sequence 297 adds asynchronous BSP reads and resident collision contexts; **seamless traversal is not implemented** | Engine collision contracts exercise real loaders/traces, inline models, ownership and stale handles | Four maps prepare while e1m1a movement/save/load continues; diagnostic only | Resident rendering/navigation, seam qualification, map ECS ownership, cross-boundary combat and region persistence remain. See [implementation status](seamless-worlds.md). |
+| Seamless connected regions | Sequence 298 retains collision, renderer, server entity/resource and AAS contexts; **seamless traversal is not implemented** | Real collision contracts plus authored-cut inventory rules; aggregate below | Prepared B/C/e1m2a actors remain dormant while A movement/save/load continues; both renderer context previews and LAN regression pass | Qualified seams, client/wire identities, uninterrupted handoff, cross-boundary combat, remaining admission stalls and region persistence are open. [Exact evidence and limitations](#sequence-298--resident-rendering-and-gameplay-ownership). |
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at 296; full interactions unverified | 296 verifies rendered Ion flight/light; earlier narrow controller fixtures do not establish full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
 | Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 296; connected coverage needs revalidation | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
@@ -23,6 +23,31 @@ is inferred from class counts or test volume.
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. Earlier factory arrival replay needs revalidation after shared changes | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 298 — resident rendering and gameplay ownership
+
+Verified installation `046e4b21e4992c3983ee9cd5a50c96bb0237341e845ead17c53a515c2d88b599`,
+combined identity `06da21e56dd1705e128883060e48949ce8e14144e2333016868767568ff687e8`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD SHA `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+Evidence below is under `zig-out/reports/runtime-zig-298/`.
+
+| Evidence | Verified outcome | Limits |
+|---|---|---|
+| `world-contexts-contacts/passed.json` | A retains input and save/load while B/C/e1m2a retain 518/518/455 entities. All 27/81/65 actors return actual dynamic collision contacts in their owning world; navigation queries return 6098/3961/315. Dormant actor health/position hashes survive repeated selection, A movement and A restoration. Releasing all three preserves A. | Controlled preparation, not traversal or region-save restoration. |
+| `render-staged-opengl1/`, `render-staged-opengl2/` | Both neighboring static maps render with distinct inline handles; original A view restores. Captures inspected. Surface preparation yields across frames. | No portal clipping, actor transfer or frame-time acceptance. Largest steps: B 26 ms in both; C 91/101 ms. |
+| `lan-regression/result.json` | Two actual UDP clients retain movement, fire, death/respawn, spectator/rejoin, reconnect and fast restart after server/AAS ownership changes. | Existing arenas; full modes remain open. |
+| `presentation-opengl2/passed.json` | Real New Game, intro skip, native Marsh presentation, save/load and pause pass on the same build. | Full intro and connected campaign were not replayed. |
+| `aggregate.log` | 44/44 steps, 379 Zig tests, 79 Python tests and actual-engine collision executable pass with assertions active. | Supporting contracts, not campaign acceptance. |
+| `connections.json`, `seam-vertex-evidence.json` | All 84 maps inventoried; 32 authored cuts, 92 geometry-unreviewed exits. Opening corridor geometry supports identity transforms. | Four missing named landings remain; no seamless portal qualified. |
+
+The initial `world-contexts-opengl1/` failed a navigation setup assertion: the
+literal e1m2a start sample was outside an AAS area. Its replay uses z=441, inside
+area 315; this changes only the diagnostic sample. Earlier `3c96d…` renderer and
+`bd44be…` gameplay-context results are superseded by the consolidated identity above.
+Existing full campaign results require replay after these shared ownership changes.
+Ordinary exits still load maps. Player/world transfer, qualified snapshot/resource
+identities, portal rendering/combat and atomic region persistence remain unimplemented.
 
 ## Sequence 297 — resident collision preparation
 

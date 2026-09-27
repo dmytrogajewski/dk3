@@ -400,6 +400,12 @@ typedef enum {
     , G_DK3_WORLD_TRACE_V1 = 707
     , G_DK3_WORLD_ENTITIES_V1 = 708
     , G_DK3_WORLD_BYTES_V1 = 709
+    , G_DK3_WORLD_ATTACH_V1 = 710
+    , G_DK3_WORLD_SELECT_V1 = 711
+    , G_DK3_WORLD_CURRENT_V1 = 712
+    , G_DK3_NAV_BIND_V1 = 713
+    , G_DK3_NAV_LOAD_V1 = 714
+    , G_DK3_WORLD_NAME_V1 = 715
 } gameImport_t;
 
 

@@ -77,12 +77,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #ifdef ROUTING_DEBUG
-int numareacacheupdates;
-int numportalcacheupdates;
+#define numareacacheupdates (aasworld.numareacacheupdates)
+#define numportalcacheupdates (aasworld.numportalcacheupdates)
 #endif //ROUTING_DEBUG
 
-int routingcachesize;
-int max_routingcachesize;
+#define routingcachesize (aasworld.routingcachesize)
+#define max_routingcachesize (aasworld.max_routingcachesize)
 
 //===========================================================================
 //

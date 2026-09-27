@@ -31,3 +31,12 @@ class Connections(unittest.TestCase):
         struct.pack_into("<ii", data, 8, 140, 10)
         with self.assertRaisesRegex(ValueError, "invalid BSP lump 0"):
             read_map("e1m1a", bytes(data))
+
+    def test_intermission_requires_no_named_landing(self):
+        exits = [dict(entity=i, destination="destination", target=target, cinematic="", flags=1)
+                 for i, target in ((2, ""), (3, "corridor"))]
+        maps = {"source": dict(exits=exits, starts=[]),
+                "destination": dict(exits=[], starts=[dict(entity=1, targetname="corridor")])}
+        rows = connections(maps)
+        self.assertEqual(rows[0]["status"], "authored_cut")
+        self.assertEqual(rows[1]["status"], "geometry_unreviewed")

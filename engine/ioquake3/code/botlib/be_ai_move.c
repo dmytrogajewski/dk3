@@ -41,6 +41,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "be_aas.h"
 #include "be_aas_funcs.h"
 #include "be_interface.h"
+#include "be_aas_def.h"
 
 #include "be_ea.h"
 #include "be_ai_goal.h"
@@ -112,7 +113,7 @@ libvar_t *offhandgrapple;
 libvar_t *cmd_grappleoff;
 libvar_t *cmd_grappleon;
 //type of model, func_plat or func_bobbing
-int modeltypes[MAX_MODELS];
+#define modeltypes (aasworld.modeltypes)
 
 bot_movestate_t *botmovestates[MAX_CLIENTS+1];
 
