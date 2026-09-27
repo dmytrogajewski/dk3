@@ -23,7 +23,7 @@ class NativeInput:
         verb = command.split()[0]
         allowed = {"weapon", "save", "load", "use", "dk3_look", "viewpos", "screenshotJPEG",
                    "dk3_runtime_observe", "dk3_runtime_actors", "dk3_runtime_world",
-                   "dk3_runtime_projectiles", "dk3_runtime_beams", "quit"}
+                   "dk3_runtime_projectiles", "dk3_runtime_beams", "dk3_runtime_ion_aim", "quit"}
         buttons = {sign + name for sign in ("+", "-") for name in
                    ("forward", "back", "moveleft", "moveright", "moveup", "movedown", "attack")}
         if not self.diagnostic and (verb not in allowed | buttons or ";" in command or "\n" in command):
@@ -78,6 +78,28 @@ class NativeInput:
     def select(self, weapon):
         self.issue(f"weapon {weapon}")
         return self.ready(weapon)
+
+    def stop_forward(self):
+        """Release acknowledgement precedes physical stopping under friction."""
+        self.issue("-forward")
+        previous = self.until(lambda s: s["forward"] == 0, description="processed forward release")
+
+        def stationary(state):
+            nonlocal previous
+            if state["map"] != previous["map"]:
+                raise RuntimeError("Unexpected map transition while stopping")
+            # A released swimmer can still be carried by authored currents.
+            # Steering resumes from the observed moving position in that case.
+            if state.get("water", 0) > 1:
+                return state["forward"] == 0
+            elapsed = state["cmd"] - previous["cmd"]
+            if elapsed < 50:
+                return False
+            distance = sum((state["pos"][i] - previous["pos"][i]) ** 2 for i in range(2)) ** 0.5
+            previous = state
+            return state["forward"] == 0 and distance * 1000 / elapsed < 1
+
+        return self.until(stationary, seconds=3, description="horizontal motion settled after release")
 
     def aim(self, yaw, pitch):
         limit = 16000 * 360 / 65536  # Authoritative movement short-angle clamp.

@@ -57,6 +57,16 @@ def run(args):
                 wait(process, log, lambda text: "dk3 zig client: first snapshot applied" in text, 45)
                 if args.checkpoint:
                     driver.load("intro_resume")
+                if args.checkpoint_map == "e1m1b":
+                    from runtime_bridge_route import bridge_route
+                    driver.until(lambda s: s["map"] == "e1m1b" and s["mode"] == "normal", description="legitimate bridge checkpoint restored")
+                    capture("bridge-checkpoint-start")
+                    bridge = bridge_route(driver, capture, args.report, args.checkpoint_phase)
+                    (args.report / "result.json").write_text(json.dumps({"identity": identity, "checkpoint": str(args.checkpoint), "scope": "Development replay from a legitimate checkpoint; not fresh campaign acceptance.", "bridge": bridge}, indent=2) + "\n")
+                    driver.issue("quit")
+                    if process.wait(timeout=15) != 0:
+                        raise RuntimeError("Campaign shutdown failed")
+                    return
                 state = driver.until(lambda s: (s["map"] == "intro" and s["cinematic"] and s["mode"] == "frozen") or (args.checkpoint and args.checkpoint_map == "e1m1a" and s["map"] == "e1m1a" and s["mode"] == "normal"), description="authored intro or legitimate arrival checkpoint ready")
                 if state["skill"] != 3 or (args.checkpoint_phase == "arrival" and (state["health"] != 100 or state["weapon"] != 1)):
                     raise RuntimeError(f"New Game did not start with ordinary normal-difficulty state: {state}")
@@ -118,12 +128,15 @@ def main():
     parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--opening", action="store_true", help="Continue with ordinary-input opening route development")
-    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle"), default="arrival")
-    parser.add_argument("--checkpoint-map", choices=("intro", "e1m1a"), default="intro")
+    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle", "marsh-late", "marsh-exit", "bridge-arrival", "bridge-control", "bridge-river", "bridge-ford"), default="arrival")
+    parser.add_argument("--checkpoint-map", choices=("intro", "e1m1a", "e1m1b"), default="intro")
     parser.add_argument("--checkpoint", type=Path, help="Legitimate checkpoint for development replay; never fresh campaign acceptance")
     args = parser.parse_args()
-    if args.checkpoint_phase != "arrival" and not (args.checkpoint and args.checkpoint_map == "e1m1a" and args.opening):
-        parser.error("A later route phase requires a legitimate e1m1a checkpoint and --opening")
+    phase_map = "e1m1b" if args.checkpoint_phase.startswith("bridge-") else "e1m1a"
+    if args.checkpoint_phase != "arrival" and not (args.checkpoint and args.checkpoint_map == phase_map and args.opening):
+        parser.error("A later route phase requires a legitimate checkpoint in its map and --opening")
+    if args.checkpoint_map == "e1m1b" and not args.checkpoint_phase.startswith("bridge-"):
+        parser.error("A bridge checkpoint requires its bridge phase")
     args.engine, args.prefix, args.report = args.engine.resolve(), args.prefix.resolve(), args.report.resolve()
     run(args)
 

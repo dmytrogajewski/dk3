@@ -5,6 +5,7 @@ pub const Spec = @import("profiles.zig").Spec;
 pub const ballistics = @import("ballistics.zig");
 pub const melee = @import("melee.zig");
 pub const affliction = @import("affliction.zig");
+pub const ion = @import("descriptions/ion.zig");
 pub const c4 = @import("descriptions/c4.zig");
 pub const hammer = @import("descriptions/hammer.zig");
 pub const shockwave = @import("descriptions/shockwave.zig");

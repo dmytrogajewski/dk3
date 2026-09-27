@@ -1,190 +1,79 @@
 # Native port acceptance
 
-Current work: `rewrite/native-zig-runtime`. Main, the installed playable runtime,
-user saves and the online service are preserved. Historical results from the removed
-runtime are not evidence for this runtime. The complete four-episode campaign,
-multiplayer modes/bots, persistence, UI and release requirements remain in scope.
+Development stays on `rewrite/native-zig-runtime`. Main, the installed game, user
+saves and the online service are preserved. Full four-episode campaign, companions,
+multiplayer modes/bots, persistence, UI and release remain in scope. Removed-runtime
+results never transfer to native acceptance.
 
-## Current milestones
+## Current outcome matrix
 
-| Outcome | Implementation and contracts | Native engine / connected gameplay | Evidence and limits |
+| Milestone | Implemented / contract-tested | Running native engine / connected authored gameplay | Blockers and evidence limits |
 |---|---|---|---|
-| Finish weapon controllers | Audit completed: 28 class-owned policies are connected, including Zeus, Wyndrax, Nightmare and Metamaser. Counts describe dispatch coverage only. | Several focused interactions exercised; no complete weapon acceptance. | Journal sequences 232–243. Diagnostic inventory, placement and sometimes health changes invalidate these as continuous campaign evidence. |
-| Fresh opening campaign | Intro, pod/skeet/frog/Thunderskeet policies, opening action programs and health trees implemented. Cambot, Crox and Rockgat now have connected policies; remaining interaction/behavior gaps are listed below. | **Unrun as a complete route:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. No verified consolidated build yet. | Must use ordinary starting inventory, normal difficulty, one build and asset manifest. Include combat, pickups, controls, death/reload, save/load and visited worlds. |
-| Native save and visited-world restoration | Typed native snapshots and visited archives implemented; focused contracts execute. | Historical sequence 241 travel diagnostic requires revalidation after trigger projection changes. Connected campaign persistence unrun. | `zig-out/reports/runtime-zig-241/travel-regression/`; diagnostic placements, no companion/cinematic qualification. |
-| Remaining campaign and multiplayer | Most actors, companion/cinematic progression and native multiplayer behaviors remain. | Unrun in this runtime. | Opening milestone is an integration gate, not completion of this scope. |
+| Weapon controllers | All 28 class-owned policies connected; Zeus, Wyndrax, Nightmare and Metamaser included. | Focused interactions passed in sequences 232–243. Sequence 251 repairs and exercises close Ion aiming. | Dispatch coverage does not establish all weapon interactions. Most fixtures grant equipment/health or place targets. Trident merge setup and Sunflare bright sprite edges remain open. |
+| Fresh opening campaign | Intro, opening actors, action programs, world controls and native saves connected. | **Full gate unrun:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. | No coherent full-route build accepted. Current checkpoint development reaches e1m1b and destroys its first turret through the authored control. Bridge river/encounter, e1m1c and e1m2a exit remain. |
+| Native restoration | Typed snapshots, controller state and visited archives have executing contracts. | Actor/action restoration has focused engine evidence. Arrival save/load exercised. | Connected death/reload and visited-world persistence remain unrun. Sequence-241 travel is historical and needs replay after trigger-bounds changes. |
+| Remaining campaign and multiplayer | Partial native implementations; no legacy backend. | Unrun as complete native outcomes. | Most later actors, companions/cinematic progression, four episodes, multiplayer modes/bots, network and release acceptance remain open. |
 
-## Recorded build identities
+## Exact verified segments
 
-Sequence 243 controller diagnostics use identity
-`821eb42549316cb8e2dfb45134911c56ed76b372ecaa118127f815eb4b21302f`,
-recorded in `zig-out/reports/runtime-zig-243/controllers-integrated/identity.json`.
-This includes the executable, three native modules, shader and every asset package.
-Wyndrax active/fading damage and saved target links, Nightmare casting/reaping saves
-and two marked worker kills, and Metamaser arming/tracking/destruction saves and
-expiry pass in that running build. Equipment, position and health are diagnostic.
-Screenshots show the reaper and cube; full effects/audio comparison remains open.
-The initial Nightmare visibility failure and erroneous six-charge fixture remain
-in `controllers-first/` and `controllers-sight/`; neither is acceptance.
+Every cited `identity.json` records executable, all three modules, renderer, shaders
+and the complete local package manifest. Different-build checkpoints are development
+replays, never a fresh combined playthrough. Private reference contracts were reviewed;
+these results do **not** claim comparison through reference playback.
 
-
-Sequence 242 isolated Zeus evidence: `zig-out/reports/runtime-zig-242/identity.json`
-records module/package SHA-256 values. Modules: qagame
-`754a2da49592d5edc2b8c01bb96c3028640d51d38e976d0fd0c1c55d8c8cdd25`,
-cgame `ba42dbea6e7b591efc17a98b859b3aa38061042b0e7330a3b6f3b3055aa2b493`,
-ui `d04f6b23ffcd0b76fc33d74b4afbd6ed4a2e670410e9fef40ef21593778ab521`.
-Asset-package manifest digest:
-`769468848b5a2e75bb40afcb6e9116c24bbd55650f88c3000ddcb6c5552935bc`.
-Source base `e3bf72a` plus the recorded Zeus changes. ReleaseSafe keeps assertions
-enabled. `build/runtime.zig` explicitly executes domain/ECS and separately imported
-actor, weapon, inventory and item roots. Sequence 243 aggregate executes 224 Zig and 47 Python checks successfully. The
-formatting gate initially failed, was corrected and separately replayed successfully.
-Three native modules and 86 focused checks compile/pass. These counts do not
-measure port completeness.
-
-Zeus: pending strike and active-chain saves, two worker kills, ammo charge, closure
-and free single-player miss exercised in `runtime-zig-242/zeus-first/`. Capture shows
-blue lightning/flare; full sound/presentation comparison remains open. Twenty-target,
-water and multiplayer interactions are not certified by this narrow scenario.
-
-## Evidence rules and revalidation
-
-Track independently: implemented; contract-tested; running native engine; connected
-authored gameplay; reference behavior/presentation compared. Reference source review
-alone is not a running comparison. Failed setup invalidates a scenario. Observe
-connection, input processing, weapon readiness, actual attacks/contact, water level,
-controller existence, save completion and restoration; commands issued are not proof.
-
-Keep focused diagnostics separate from ordinary-input progression. The campaign
-driver must use bounded event-based synchronization. Change an ineffective driving
-strategy or use legitimate resupply/checkpoints without modifying game rules.
-
-Shared pitched-muzzle Venom/status coverage replays successfully in sequence 243
-`status-events/`. The prior driver missed flight because the restored projectile
-hit before its second observation; the corrected check validates a pending saved
-release and actual flight or confirmed contact. Personal-action cleanup and Ballista motion ownership need
-the applicable active-action travel/actor regressions; sequence 241's narrow travel
-replay does not close those permutations. Sunflare close-range bright sprite edges
-remain an observed presentation defect. Trident merge setup failed and is open.
-Earlier retired-runtime campaign rows in the roadmap are historical only.
-
-After any change affecting an earlier route segment, record affected coverage,
-replay that regression, then rerun the complete milestone on the consolidated build.
-Run applicable aggregate checks at integration checkpoints, without duplicate suites.
-
-## Current opening integration batch (244–245)
-
-Fresh intro runs found two authored cue cases, corrected against private reference
-contracts: class fallback for queued actor IDs and ignoring absent animation cues.
-A development replay from a legitimate earlier-build shot-20 checkpoint passed the
-remaining intro and authored exit, then failed before e1m1a arrival because the
-observation endpoint crashed during reconnect. The endpoint/driver correction is
-implemented and awaiting replay. This is neither a fresh playthrough nor arrival
-acceptance. Exact executable/modules/assets are recorded in
-`zig-out/reports/runtime-zig-245/intro-checkpoint/identity.json`; its source is now
-superseded by the handoff and frog additions. First failure logs/captures are retained
-under `runtime-zig-244/intro-first/` and `intro-queue-lookup/`.
-
-Protopod, Slaughterskeet and Froginator are implemented with class-owned behavior and
-supplied tuning. Native interactions, saves during their actions and connected
-encounters are unverified. Remaining opening classes and bridge scripts are blockers;
-full cinematic task/presentation parity and further campaign/MP remain open. No
-legacy acceptance transfers. Actor/component changes require affected combat,
-body-control/status and persistence replay at the consolidated checkpoint.
-
-The handoff correction passes a limited replay in
-`runtime-zig-245/handoff-replay/identity.json`, identity
-`254909c3925ff64a9907a99c33053fe7021153677a8b4ec80004208bda34de48`:
-remaining intro from the old shot-80 checkpoint → authored e1m1a arrival → normal
-control → save/load. Arrival remains health 100, Disruptor, normal difficulty.
-Restored frame inspected. No connected combat/traversal and no fresh New Game claim.
-Three modules/91 focused contracts pass on that build. Subsequent action/path changes
-require revalidation. Sequence 246 connects actor action programs and paths; native
-bridge verification is pending. Missing health trees were identified as a normal
-resupply blocker; Cambot/Thunderskeet/Crox/Rockgat remain actor blockers. Ambient
-fireflies and finer effects remain separately tracked presentation work.
-
-Sequence 246 consolidated actor/action/resupply build passes three modules and 94
-focused checks. Applicable aggregate passes 232 Zig + 48 Python checks and formatting
-(`/tmp/dk3-runtime-246-aggregate.log`). The fresh run in `runtime-zig-246/fresh-opening/` completed all intro and arrival shots,
-arrival save/load and Ion pickup, then failed its guessed navigation waypoint.
-No full campaign gate passed.
-Health trees now provide the finite authored campaign resupply with saved fruit state;
-live use/restoration remain unverified. Scope beyond the opening gate is unchanged.
-
-## Current connected coverage (247)
-
-| Player outcome | Exact build/assets | Remaining blocker / limits | Evidence |
+| Player outcome / subcase | Verified identity | Evidence | Setup limits / supersession |
 |---|---|---|---|
-| Fresh New Game, full intro and e1m1a arrival; arrival save/load and ordinary Ion pickup | Sequence 246 `fresh-opening/identity.json` contains every executable/module/package digest | Route failed at a driver waypoint against rock; full opening gate remains failed/incomplete. Subsequent actor/spawn changes require replay. | `runtime-zig-246/fresh-opening/` logs, inputs, captures and failure record |
-| Ordinary first Slaughterskeet encounter, rock-step jump and first marsh checkpoint, health 100 | `b1a868d39f0d0e0c2242551e7b8deef800dc5a1691679b5a524640a5f741cf88`; full asset manifest in `opening-jump/identity.json` | Development replay from legitimate sequence-246 arrival save; not a fresh route. Missing classes are not retroactively inserted into old saves. No complete map traversal yet. | `runtime-zig-247/opening-jump/result.json`, inputs, captures and checkpoint |
-| Bridge's ten authored skeets plus Thunderskeet, paths, aggression and restoration after fresh map initialization | Same sequence-247 identity; `bridge-first/identity.json` | Controlled activation and health 10000. Combat, death outputs and connected bridge traversal unverified. | `runtime-zig-247/bridge-first/result.json` and saved `bridge_paths.sav` |
+| Fresh New Game, all 115 intro shots, arrival cinematic/save-load and ordinary Ion pickup | Full manifest: `runtime-zig-246/fresh-opening/identity.json` | `zig-out/reports/runtime-zig-246/fresh-opening/` | Route then failed a navigation waypoint. Later actor, script and Ion changes require relevant replay and ultimately a fresh consolidated gate. |
+| Close skeet takes two ordinary Ion hits and dies; authored e1m1a exit reaches e1m1b | `fcec9367951d0aa5a7619003e8d32df28de584fc759a4ab3f05bce633eff376f` | `runtime-zig-251/marsh-ion-fixed/` result, traces, capture, `opening_bridge_arrival.sav` | Legitimate old marsh checkpoint, health 67 before the segment. Old saves lack actors admitted later. Subsequent build adds read-only attack-time diagnostics; full fresh replay remains required. |
+| First bridge control takes four ordinary distant Ion hits, breaks and removes its linked Rockgat; close Ion skeet kill also observed | `35d1e516f54aca675bf7230a64f4364c23dfd6f513ea43405ebc1322d3f1e260` | `runtime-zig-251/bridge-fire-window/` inputs, control/encounter captures | **Narrow subcases only. Overall route failed** at low health before resupply. Latest `bridge-resupply-priority/` also failed a ledge-obstructed tree use. Neither is bridge traversal acceptance. |
+| Normal health pickup and river approach | `fcec9367951d0aa5a7619003e8d32df28de584fc759a4ab3f05bce633eff376f` | `runtime-zig-251/bridge-resupply/`, `bridge_health_pickup.sav` | Legitimate checkpoint, ordinary inventory/input. River route failed while the driver waited for stillness in a current; later attempt stopped at low health after Crox contact. |
+| Cambot acquisition/alarm restoration and four observed ten-health tree uses, partial/empty restoration | `7398a5842fa26b90bf0c52012167b8a910824c5c2037d003648d759f39a11496` | `runtime-zig-249/opening-actors-heal/` | Diagnostic placement/health. Alarm/dodge permutations and full presentation remain open. |
+| Crox actual water level 3/swimming displacement, pending melee restoration/contact; Rockgat popup, burst restoration, lowering and lethal Ion contact/removal restoration | `282dd04dbfffddac553b953267f7575711f125a62d3f9d0e9c98237b4df08cd1` | `runtime-zig-250/crox-consolidated/`, `rockgat-contact/` | Diagnostic placement/equipment/health. Crox transitions/steering/avoidance, Rockgat authored toggle/death outputs and full presentation unqualified. |
+| Bridge factory creates ten skeets plus Thunderskeet; paths/aggression restore | `b1a868d39f0d0e0c2242551e7b8deef800dc5a1691679b5a524640a5f741cf88` | `runtime-zig-247/bridge-first/` | Controlled activation and health 10000. No bridge combat, boss death outputs or connected traversal acceptance. |
+| Remote angled-trigger rejection before/after load; actual exit contact works | `02a5fcdaf9752fbcfe8a91801ced0639e35ab6b07ab6d1ca986a3f664fba172c` | `runtime-zig-248/trigger-before/`, `trigger-after/` | Defective build fails the regression. Diagnostic placement; prior angled-trigger travel requires revalidation. |
 
-Sequence 247 connects the single-use authored monster factory, unique IDs, inherited
-flags, deathtarget and item spawnname. Saved dynamically created actors now admit their
-animation metadata before publication. Three modules and 96 focused checks pass in
-`/tmp/dk3-runtime-247-bridge-rebuild.log`. Full aggregate is pending this integration
-batch; earlier aggregate remains historical. Actor death output changes require
-civilian/guard and applicable weapon/body-control regressions. Thunderskeet spray,
-frog spit, health tree use/restoration and dynamic navigation need live qualification.
-Reference contracts were reviewed, not compared through reference playback. Spray's
-unsafe twelve-entry cycle is intentionally bounded at twelve; complete visual/audio
-parity and all remaining campaign/multiplayer scope stay open.
+Paths above are under `zig-out/reports/`. Historical detail and older identities stay
+in [the journal](../specs/runs/RUN-dk3-independent-port.md), sequences 232–251.
 
-Sequence 248 repaired a premature e1m1a exit caused by projecting a trigger's authored
-angle as brush rotation. `runtime-zig-248/trigger-before/` detects the defect on the
-previous build. `trigger-after/` passes remote-point rejection before/after save-load
-and valid contact with the real exit, using identity
-`02a5fcdaf9752fbcfe8a91801ced0639e35ab6b07ab6d1ca986a3f664fba172c`
-(full executable/module/asset manifest alongside the result). Diagnostic placement
-excludes connected traversal acceptance. Preserve previous angled-trigger travel rows
-as historical and **requiring revalidation**. Aggregate passes 235 Zig + 48 Python
-checks, formatting and all three native modules. The ordinary marsh replay is underway
-in `runtime-zig-248/marsh-trigger-fixed/`; a fresh consolidated full gate remains open.
+## Current defects, limits and revalidation
 
-## Current integration checkpoint (249)
+- Sequence 251 close Ion defect: the old forward-direction guard discarded crosshair
+  contact behind the muzzle. `marsh-exit/` captures the failing trace and undamaged
+  target. Ion now owns direct convergence on that contact; the captured geometry has
+  a contract regression. Other weapon aiming policies are unchanged. The existing
+  muzzle-clearance trace remains; this is not a claim of full reference launch parity.
+- Driver acknowledgements distinguish processed release from friction settling, and
+  submerged current motion from a stationary player. Actual attack time remaining is
+  read-only. Holding ordinary automatic fire during an observed pause is implemented,
+  **awaiting replay**; no new campaign coverage is inferred from this driver change.
+- Next connected work: clear/resupply the e1m1b river approach, traverse and fight the
+  authored bridge encounter, verify boss death outputs, then e1m1c and e1m2a. The first
+  right-side tree approach is obstructed by a ledge; issuing `use` did not heal and
+  invalidates that resupply setup. No geometry/damage/AI change is justified by it.
+- Crox amphibious steering/avoidance, floor orientation and all attack poses; Cambot
+  search cone, vertical avoidance, post-death wandering and inertia; Thunderskeet
+  combat/death outputs; actor pain/gibs and complete audiovisual parity remain open.
+  Rockgat fractional damage, death effects, tracers/sparks and authored toggle are open.
+- Explicit compatibility departures: Cambot alarm recipients use PVS instead of PHS,
+  dodge uses crosshair contact pending auto-aim; Thunderskeet's unsafe twelve-entry
+  cycle is bounded. Reference source review is distinct from playback comparison.
+- Pod shell monster/experience classification, triggered cinematics, earthquake/debris
+  presentation and later campaign classes remain implementation gaps. Shared action
+  cleanup/body-control, death outputs, perception and travel need applicable regressions.
+- Aggregate checkpoint `/tmp/dk3-runtime-251-aggregate.log`: 240 Zig + 50 Python checks,
+  formatting and three modules passed. This precedes the final read-only observation
+  and driver refinements. Three modules subsequently rebuild successfully and all eight
+  focused input checks pass. Refresh applicable aggregate at the next integration checkpoint.
 
-| Outcome | Exact build/assets | Remaining blocker / setup limits | Evidence |
-|---|---|---|---|
-| Cambot acquires player, raises alarm and retains acquired/alarmed state after load | `7398a5842fa26b90bf0c52012167b8a910824c5c2037d003648d759f39a11496`; complete executable/module/package hashes in `opening-actors-heal/identity.json` | Focused placement fixture on normal difficulty. Alarm recipient and dodge permutations, search cone, vertical avoidance, post-death wandering and full presentation remain open. | `runtime-zig-249/opening-actors-heal/result.json`, inputs, restored capture |
-| Four ten-health fruit uses; partial and empty tree saves restore | Same identity | Focused placement/damage fixture, not connected resupply. One observed six-damage skeet hit between uses is recorded separately from healing. | Same result and exhausted-tree capture |
-| Ordinary marsh progression | Same identity for sequence-249 runs | Incomplete. Sequence-248 replay reached legitimate `opening_marsh_8.sav`, then missed a frog. Sequence-249 driver observed moving/hatching targets and is being corrected to wait for attack pauses. Old checkpoints lack newly admitted Cambot actors. | `runtime-zig-248/marsh-trigger-fixed/`; `runtime-zig-249/marsh-sight/`, `marsh-approach/`, `marsh-pauses/` |
+## Acceptance rules
 
-Cambot uses supplied sight overrides and class-owned facing/alarm/flight policy.
-Compatibility departures: alarm recipients use available PVS instead of reference
-PHS; dodge uses actual crosshair contact until native auto-aim exists. These narrower
-contracts are not full reference parity. The patrol scheduler initially postponed
-sensing every frame; `opening-actors-first/` failed acquisition and the corrected
-build acquires in `opening-actors-heal/`. Early tree probes also failed unsupported
-`+use` input and an invalid static-health assertion; neither is acceptance.
+Track **implemented**, **contract-tested**, **running engine**, **connected authored
+play**, and **reference comparison** separately. Failed setup invalidates its scenario.
+Observe connection/restoration, input processing, weapon readiness, actual attacks and
+contact, water levels, controller existence and save completion. Preserve first useful
+failure evidence. Do not certify whole weapons/maps/restoration from narrower tests.
 
-Three modules and 98 focused contracts pass with assertions
-(`/tmp/dk3-runtime-249-camera-sensing.log`). The last aggregate is sequence 248;
-refresh at the next coherent integration checkpoint. Shared authored sight changes
-require affected actor/perception regression replay. Full fresh opening gate,
-remaining campaign, companions, multiplayer and release remain open.
-
-## Current actor/progression checkpoint (250)
-
-| Outcome | Exact build/assets | Remaining blocker / setup limits | Evidence |
-|---|---|---|---|
-| Authored Crox swims under observed water level 3 and resumes a saved pending melee attack with real contact | Consolidated `282dd04dbfffddac553b953267f7575711f125a62d3f9d0e9c98237b4df08cd1`; `crox-consolidated/identity.json` | Diagnostic placement/health. Dry/wet pose choices, height-based disengagement and node wandering are connected; full transitions, swimming steering/avoidance, floor orientation, pain/gibs and all attack poses need live/reference qualification. | `runtime-zig-250/crox-first/`, `crox-consolidated/` |
-| Rockgat raises, fires, restores live bursts, lowers, takes ten ordinary Ion contacts and remains removed after lethal damage/save-load | `282dd04dbfffddac553b953267f7575711f125a62d3f9d0e9c98237b4df08cd1`; all executable/module/package digests in `rockgat-contact/identity.json` | Diagnostic placement, equipment and health. Toggle has a policy contract; authored toggle, death effects, tracer/sparks, fractional damage and complete audiovisual parity remain open. | `runtime-zig-250/rockgat-contact/result.json`, inputs, raising/firing saves and captures |
-| Ordinary marsh route advances beyond the previously missed frog, clears multiple encounters and reaches checkpoint 17 | `eb52b82e4153a236ecee0535ceafd915d42f456cb597b58c7d7320af7f7f60c3`; `marsh-middle/identity.json` | Legitimate sequence-248 checkpoint, normal inventory/input. Still failed at a close overhead skeet shot near the final climb; no e1m1a exit acceptance. Old checkpoint lacks newly admitted actors. | `runtime-zig-250/marsh-middle/`, `opening_marsh_17.sav`, failure frame and full observations |
-
-Rockgat preserves the reviewed class-owned popup timing, asymmetric upward firing
-bound, six-shot chains, supplied/map sound choices and additional pain deduction.
-A focused shared-damage contract checks this applies only to Rockgat, with Crox and
-player damage unchanged. Typed snapshots cover pending Crox attacks/swim state and
-Rockgat burst/deployment deadlines with rebasing. All three native modules and the
-coherent aggregate pass: **239 Zig + 49 Python checks**, assertions enabled, named
-roots executed (`/tmp/dk3-runtime-250-aggregate.log`). The first compile rejected an
-oversized diagnostic format; the split output keeps one complete actor record.
-
-Driver failures at -90 and -89 degrees established the actual movement pitch clamp
-(16000 short-angle units). The driver now observes that reachable angle. Grounded
-frog attack pauses are distinguished from the gravity remainder in velocity. These
-changes improve setup; they do not alter damage, authored geometry or AI rules.
-Close overhead Ion contact remains under investigation against reference launch
-behavior. Crox also passes on this consolidated build in `crox-consolidated/`. Fresh New Game through e1m2a, bridge traversal/combat/death outputs, connected
-resupply/persistence, later episodes, companions and multiplayer remain open.
+ReleaseSafe/Debug assertions are enabled. `build/runtime.zig` explicitly executes the
+runtime root and separately imported actor, weapon, inventory and item test roots.
+After material shared changes, mark affected coverage for replay; run affected checks
+and the applicable aggregate at coherent checkpoints, without duplicate broad suites.

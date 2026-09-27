@@ -9,6 +9,26 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_ion_aim")) {
+        const owner = player orelse return error.MissingPlayer;
+        const pose = (try world.get(owner, data.Transform)).*;
+        const eye = v.add(pose.position, .{ 0, 0, (try world.get(owner, data.Player)).view_height });
+        const slot = (try world.get(owner, data.Binding)).slot;
+        const ion = @import("weapon_catalog").ion;
+        const tuning = table.entries[ion.id];
+        const radius = ion.spec.combat.ion.radius;
+        const forward = v.basis(pose.angles).forward;
+        const service = engine.collisionService();
+        const muzzle = try service.trace(.{ .start = eye, .end = @import("../domain/combat.zig").muzzle(eye, pose.angles, tuning.muzzle), .mins = @splat(-radius), .maxs = @splat(radius), .slot = slot, .mask = c.MASK_SHOT });
+        const aim = try service.trace(.{ .start = eye, .end = v.add(eye, v.scale(forward, 2000)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+        const direction = ion.launchDirection(muzzle.end, aim.end);
+        const flight = try service.trace(.{ .start = muzzle.end, .end = v.add(muzzle.end, v.scale(direction, tuning.speed * 0.05)), .mins = @splat(-radius), .maxs = @splat(radius), .slot = slot, .mask = c.MASK_SHOT | c.MASK_WATER });
+        const hit_id = if (aim.entity < slots.occupants.len) if (slots.occupants[aim.entity]) |entity| try world.persistentId(entity) else 0 else 0;
+        const flight_id = if (flight.entity < slots.occupants.len) if (slots.occupants[flight.entity]) |entity| try world.persistentId(entity) else 0 else 0;
+        var output: [512]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&output, "dk3 ion aimtrace: now={d} target={d} muzzle={d:.3},{d:.3},{d:.3} aim={d:.3},{d:.3},{d:.3} dot={d:.3} direction={d:.3},{d:.3},{d:.3} muzzle_solid={d} flight_target={d} flight_fraction={d:.3} flight_solid={d}\n", .{ now, hit_id, muzzle.end[0], muzzle.end[1], muzzle.end[2], aim.end[0], aim.end[1], aim.end[2], v.dot(v.subtract(aim.end, muzzle.end), forward), direction[0], direction[1], direction[2], @intFromBool(muzzle.start_solid), flight_id, flight.fraction, @intFromBool(flight.start_solid) }));
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_beams")) {
         if (player) |owner| {
             const loadout = (try world.get(owner, data.Weapons)).*;

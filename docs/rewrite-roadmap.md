@@ -3,7 +3,7 @@
 ## Current completion state
 
 The current native outcome matrix is [native acceptance](native-acceptance.md).
-Finish the remaining weapon controllers, then prioritize the fresh continuous
+All 28 weapon policies are connected; interaction acceptance remains open. Prioritize the fresh continuous
 New Game → full intro → e1m1a → e1m1b bridge → e1m1c → e1m2a milestone.
 Historical pre-rewrite implementation/acceptance rows below are not transferred
 to the native runtime. This integration gate does not reduce the complete-port scope.

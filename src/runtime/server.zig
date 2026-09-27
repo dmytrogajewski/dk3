@@ -246,7 +246,7 @@ fn consoleCommand() isize {
             return 1;
         }
         if (std.mem.eql(u8, command, "dk3_runtime_actors")) {
-            @import("server/actors.zig").diagnostics(&world.?, &slots, clock.now_ms) catch |err| runtimeFailure(err);
+            @import("server/actors.zig").diagnostics(&systems.actors, &world.?, &slots, clock.now_ms) catch |err| runtimeFailure(err);
             return 1;
         }
         if (@import("server/combat_probe.zig").command(command, &world.?, &slots, &projection, clients.entities[0], &clients.weapon_table, clock.now_ms) catch |err| blk: {

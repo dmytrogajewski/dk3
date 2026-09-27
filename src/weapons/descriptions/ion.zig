@@ -30,6 +30,27 @@ pub const spec: profiles.Spec = .{
 };
 pub const identity = .{ .classname = "weapon_ionblaster", .label = "Ion blaster", .episode = 1, .interval = 500 };
 
+const v = @import("../vector.zig");
+/// Close crosshair contact may be behind the offset muzzle. Preserve that aim;
+/// forcing the view direction sends the bolt below/alongside a nearby target.
+pub fn launchDirection(muzzle: v.Vec, crosshair: v.Vec) v.Vec {
+    return v.normal(v.sub(crosshair, muzzle));
+}
+
+test "ion converges on close crosshair contact even behind the muzzle" {
+    const std = @import("std");
+    // Captured ordinary e1m1a skeet encounter: the old forward-only guard missed.
+    const start: v.Vec = .{ -691.340, -1397.472, 516.076 };
+    const hit: v.Vec = .{ -690.139, -1401.486, 523.946 };
+    const forward: v.Vec = .{ -0.995, 0.012, 0.104 };
+    const direction = launchDirection(start, hit);
+    try std.testing.expect(v.dot(direction, forward) < 0);
+    try std.testing.expectApproxEqAbs(@as(f32, 1), v.length(direction), 0.0001);
+    try std.testing.expect(v.distance(hit, v.madd(start, v.distance(start, hit), direction)) < 0.001);
+    try std.testing.expectEqual(v.Vec{ 1, 0, 0 }, launchDirection(.{ 20, 4, 16 }, .{ 2000, 4, 16 }));
+    try std.testing.expectEqual(v.zero, launchDirection(start, start));
+}
+
 pub fn impact(context: @import("../impact.zig").Context) @import("../impact.zig").Cue {
     const sparks = [_][:0]const u8{ "global/e_electronsprka.wav", "global/e_electronsprke.wav", "global/e_electronsprkg.wav", "global/e_electronsprkh.wav" };
     const explosions = [_][:0]const u8{ "e1/we_ionexplodea.wav", "e1/we_ionexplodea.wav", "e1/we_ionexplodeb.wav", "e1/we_ionexplodeb.wav", "e1/we_ionexplodec.wav" };

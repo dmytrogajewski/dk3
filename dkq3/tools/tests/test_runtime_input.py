@@ -3,9 +3,22 @@ import unittest
 from unittest.mock import patch
 
 from runtime_input import NativeInput
+from runtime_opening_route import firing_pause
 
 
 class NativeInputTests(unittest.TestCase):
+    def test_firing_window_excludes_expiring_attacks_and_hatching(self):
+        row = {"class": "monster_slaughterskeet", "skeeter": "attack", "velocity": (0, 0, 0), "attack_left": "599"}
+        self.assertFalse(firing_pause(row))
+        row["attack_left"] = "900"
+        self.assertTrue(firing_pause(row))
+        row["skeeter"] = "hatching"
+        self.assertFalse(firing_pause(row))
+        row.update({"class": "monster_froginator", "frog": "bite", "ground": "2046", "velocity": (0, 0, -40)})
+        self.assertTrue(firing_pause(row))
+        row["ground"] = "2047"
+        self.assertFalse(firing_pause(row))
+
     def test_campaign_driver_rejects_mutation_and_command_chaining(self):
         driver = NativeInput(None, None, None, None, [])
         with patch("runtime_input.send") as send:
@@ -29,6 +42,12 @@ class NativeInputTests(unittest.TestCase):
         ]) as observe:
             self.assertEqual(driver.ready(2)["weapon"], 2)
             self.assertEqual(observe.call_count, 4)
+
+    def test_water_current_does_not_require_a_stationary_world_position(self):
+        driver = NativeInput(None, None, None, None, [])
+        state = {"processed": 1, "forward": 0, "water": 2, "map": "e1m1b", "cmd": 100, "pos": (0, 0, 0)}
+        with patch.object(driver, "issue"), patch.object(driver, "observe", return_value=state):
+            self.assertEqual(driver.stop_forward(), state)
 
     def test_failed_attack_still_releases_input_and_does_not_pass(self):
         driver = NativeInput(None, None, None, None, [])
@@ -58,3 +77,15 @@ class NativeInputTests(unittest.TestCase):
             predicate = until.call_args.args[0]
             self.assertFalse(predicate({"angles": (0, 0, 0)}))
             self.assertTrue(predicate({"angles": (-87.891, 0, 0)}))
+
+    def test_release_does_not_acknowledge_a_player_still_sliding(self):
+        driver = NativeInput(None, None, None, None, [])
+        observations = [
+            {"processed": 1, "forward": 0, "map": "e1m1b", "cmd": 100, "pos": (0, 0, 0)},
+            {"processed": 1, "forward": 0, "map": "e1m1b", "cmd": 150, "pos": (12, 0, 0)},
+            {"processed": 1, "forward": 0, "map": "e1m1b", "cmd": 200, "pos": (16, 0, 0)},
+            {"processed": 1, "forward": 0, "map": "e1m1b", "cmd": 250, "pos": (16, 0, 0)},
+        ]
+        with patch.object(driver, "issue"), patch.object(driver, "observe", side_effect=observations) as observe:
+            self.assertEqual(driver.stop_forward()["cmd"], 250)
+            self.assertEqual(observe.call_count, 4)

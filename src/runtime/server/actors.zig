@@ -320,7 +320,7 @@ pub const Actors = struct {
         }
     }
 };
-pub fn diagnostics(world: *data.World, slots: *const Slots, now: i64) !void {
+pub fn diagnostics(self: *const Actors, world: *data.World, slots: *const Slots, now: i64) !void {
     for (slots.occupants) |occupant| {
         const entity = occupant orelse continue;
         const actor = world.get(entity, data.Actor) catch continue;
@@ -335,13 +335,21 @@ pub fn diagnostics(world: *data.World, slots: *const Slots, now: i64) !void {
             sight = !trace.start_solid and (trace.fraction == 1 or trace.entity == (try world.get(entity, data.Binding)).slot);
         }
         const velocity = (try world.get(entity, data.Velocity)).linear;
+        const definition = self.table.definitions[actor.definition];
+        const attack_until: i64 = switch (catalog.entries[actor.definition].kind) {
+            .skeeter => if (actor.skeeter.phase == .attack) actor.skeeter.until_ms else 0,
+            .froginator => if (actor.frog.phase == .spit or actor.frog.phase == .bite) actor.frog.started_ms + definition.attacks[actor.frog.pose()].duration() else 0,
+            .crox => if (actor.crox.attacking) actor.crox.started_ms + definition.attacks[actor.crox.pose].duration() else 0,
+            .thunderskeet => if (actor.thunder.phase == .attack) actor.thunder.started_ms + definition.attacks[0].duration() else 0,
+            else => 0,
+        };
         var pending: usize = 0;
         for (actor.rockgat.bursts) |burst| if (burst != null) {
             pending += 1;
         };
         var text: [768]u8 = undefined;
         engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig actor: id={d} state={s} health={d} pos={d:.3},{d:.3},{d:.3} threat={d} witness={d} class={s} unique={s} path={d} ignore={d} sight={d} aim={d:.3},{d:.3},{d:.3} velocity={d:.3},{d:.3},{d:.3} frog={s} skeeter={s} ground={d} camera_seen={d} camera_alarm={d} ", .{ try world.persistentId(entity), @tagName(actor.mode), (try world.get(entity, data.Health)).current, pose.position[0], pose.position[1], pose.position[2], actor.threat, actor.witness_ms, catalog.entries[actor.definition].classname, actor.unique, actor.path, @intFromBool(actor.ignore_player), @intFromBool(sight), aim[0], aim[1], aim[2], velocity[0], velocity[1], velocity[2], @tagName(actor.frog.phase), @tagName(actor.skeeter.phase), actor.ground_entity, @intFromBool(actor.cambot.seen), actor.cambot.alarmed }));
-        engine.print(try std.fmt.bufPrintZ(&text, "crox_water={d} crox_swim={d} crox_wander={d} crox_pose={d} crox_struck={d} gun={s} gun_shots={d} gun_pending={d} gun_frame={d} now={d} angles={d:.3},{d:.3},{d:.3}\n", .{ actor.crox.water, @intFromBool(actor.crox.swimming), @intFromBool(actor.crox.wandering), actor.crox.pose, @intFromBool(actor.crox.struck), @tagName(actor.rockgat.phase), actor.rockgat.shots, pending, actor.rockgat.frame(now), now, pose.angles[0], pose.angles[1], pose.angles[2] }));
+        engine.print(try std.fmt.bufPrintZ(&text, "crox_water={d} crox_swim={d} crox_wander={d} crox_pose={d} crox_struck={d} gun={s} gun_shots={d} gun_pending={d} gun_frame={d} now={d} attack_left={d} angles={d:.3},{d:.3},{d:.3}\n", .{ actor.crox.water, @intFromBool(actor.crox.swimming), @intFromBool(actor.crox.wandering), actor.crox.pose, @intFromBool(actor.crox.struck), @tagName(actor.rockgat.phase), actor.rockgat.shots, pending, actor.rockgat.frame(now), now, @max(0, attack_until - now), pose.angles[0], pose.angles[1], pose.angles[2] }));
     }
     engine.print("dk3 zig actor states complete\n");
 }

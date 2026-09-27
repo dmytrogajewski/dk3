@@ -97,7 +97,7 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             const aimed = (try trace(eye, v.add(eye, v.scale(forward, 2000)), slot, 0, c.MASK_SHOT)).end;
             const speed_factor = if (world.get(owner, data.Character)) |state| 1 + 0.3 * @as(f32, @floatFromInt(state.attribute(.attack, now))) else |_| 1;
             const model = try @import("resources.zig").model(entry.spec.visual.projectile_model);
-            const bolt = try world.create(null, .{ data.Transform{ .position = start, .angles = shot.angles }, data.Velocity{ .linear = v.scale(rules.aim(start, aimed, forward), tuning.speed * speed_factor) }, data.Projectile{ .owner = owner_id, .weapon = shot.weapon, .damage = tuning.damage, .born_ms = now, .stepped_ms = now } });
+            const bolt = try world.create(null, .{ data.Transform{ .position = start, .angles = shot.angles }, data.Velocity{ .linear = v.scale(catalog.ion.launchDirection(start, aimed), tuning.speed * speed_factor) }, data.Projectile{ .owner = owner_id, .weapon = shot.weapon, .damage = tuning.damage, .born_ms = now, .stepped_ms = now } });
             errdefer world.destroy(bolt) catch unreachable;
             const bolt_slot = try slots.acquire(bolt, null);
             errdefer slots.release(bolt_slot, bolt) catch unreachable;

@@ -3298,3 +3298,36 @@ movement bound and covered by a meaningful acknowledgement regression. Actor sam
 include phase, actual sight, velocity, grounded state and complete record boundary.
 The campaign gap remains the whole coherent New Game→e1m2a gate; diagnostics and old
 checkpoint development do not close it. Full campaign/multiplayer scope remains.
+
+
+## runtime-zig — sequence 251 (Ion convergence and ordinary bridge approach)
+
+The failed ordinary `marsh-exit/` trace established the close Ion defect: crosshair
+contact was skeet 393, but the muzzle-to-hit dot product was negative. The generic
+forward-only guard sent the bolt past it. Private projectile-launch contract review
+established direct normalized convergence even for this close contact. Ion now owns
+that direction policy; other weapons keep their existing behavior. Captured geometry
+is a contract regression. Existing muzzle clearance remains a separate compatibility
+behavior; this repair does not certify auto-aim or all launch/weapon interactions.
+
+| Scenario | State | Evidence / limits |
+|---|---|---|
+| Defective close Ion contact | Failed product case | `runtime-zig-251/marsh-exit/`, identity `c2ccfe4604cdfe9313d144848741a16570b4bae2d28abac4131ba7a14f86627e`: crosshair names 393, forward-only first-flight trace misses, actual shot leaves target at 50 health. |
+| Repaired close contact and authored exit | Passed narrow connected segment | `marsh-ion-fixed/`, identity `fcec9367951d0aa5a7619003e8d32df28de584fc759a4ab3f05bce633eff376f`: two confirmed hits kill 393; normal touch reaches e1m1b, bridge arrival saved. Legitimate earlier-build marsh checkpoint, not fresh campaign. |
+| First bridge turret control | Passed narrow connected subcase | `bridge-control/` and later `bridge-fire-window/`: four distant ordinary Ion contacts break control 91 and remove turret 92. Latest identity `35d1e516f54aca675bf7230a64f4364c23dfd6f513ea43405ebc1322d3f1e260` includes complete modules/assets manifest. Overall route fails later. |
+| Bridge health pickup | Passed narrow pickup, route failed | `bridge-resupply/` records normal item 256 health gain and a legitimate river checkpoint; driver then waited for stillness in a water current. Later `bridge-ford/` stops after Crox contact at low health. |
+| East resupply route | Failed setup | `bridge-resupply-priority/`: tree 139 remains at three fruit; lower approach is occluded by a ledge. No healing inferred from `use`. |
+| Integrated checks | Passed before final observation/driver refinements | `/tmp/dk3-runtime-251-aggregate.log`: 240 Zig + 50 Python, formatting, three modules. `/tmp/dk3-runtime-251-attack-observation.log`: subsequent three-module build passes; `/tmp/dk3-runtime-251-input-tests.log`: eight focused driver checks pass. |
+
+The driver now waits for physical horizontal stopping after release, except observed
+submerged currents. A safer final waypoint prevents losing an aim command during
+exit reconnection. Actor diagnostics expose actual remaining attack time; expiring
+pauses are not valid firing windows. Ordinary held automatic fire across such a pause
+is implemented but not yet replayed. Low-health encounters defer toward authored
+resupply; no damage, geometry or enemy rules changed to help the driver.
+
+Fresh New Game through e1m2a remains unrun on one consolidated build. Old saves lack
+later-admitted actors. River combat, bridge destruction/combat/death outputs, e1m1c,
+connected death/reload and visited-world persistence remain open, along with the whole
+remaining campaign/multiplayer/release scope. Current compact matrix is
+`docs/native-acceptance.md`; the historical journal is not aggregate acceptance.
