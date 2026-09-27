@@ -15,12 +15,65 @@ is inferred from class counts or test volume.
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at sequence 285; full interactions unverified | Sequences 232–243/251 have narrow fixtures; no full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 291 | **Not accepted:** fresh 291 New Game completes all intro shots, marsh, bridge controls/resupply/Crox and reaches the authored boss; driver crosses lethal barrier during combat | Earlier legitimate checkpoints reach the factory exit/e1m2a arrival. A revised boss checkpoint replay avoids the barrier but dies under boss spray. No continuous opening completion |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 292 | **Not accepted:** fresh 291 New Game completes all intro shots, marsh, bridge controls/resupply/Crox and reaches the authored boss; driver crosses lethal barrier during combat | Earlier legitimate checkpoints reach the factory exit/e1m2a arrival. Later checkpoints defeat the boss and reach factory controls/lifts; a fresh 292 New Game replay is running. No continuous opening completion |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Snapshot and deadline contracts pass at 285 | Sequence 287 authored death/reload; 288 actual C→B→C after disk load retains bridge progress | Latest restoration replay is checkpointed; fresh consolidated campaign/death replay remains |
-| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 228 native contracts pass on `0bfdec…`; wire contracts at 287 remain valid | Two real UDP clients pass LAN admission/movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart. CTF contested capture and bot restart pass; controlled red lift approach reaches its objective | Natural deathtag reaches carriers but cannot complete capture: its outbound route excludes required water-jump edges. Client-driver inputs are automated. Public admission, browser, authenticated reconnect/rooms and complete modes remain open |
+| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 228 native contracts pass on `0bfdec…`; wire contracts at 287 remain valid | Two real UDP clients pass LAN admission/movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart. CTF contested capture and bot restart pass; controlled red lift approach reaches its objective | Natural deathtag reaches carriers but cannot complete capture. Water-jump routing now passes the explicit slime-escape query; stationary lift waiting is repaired, but actual departure still fails because the selected descent lies under the raised platform. Client-driver inputs are automated. Public admission, browser, authenticated reconnect/rooms and complete modes remain open |
 | World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | World policy roots pass at 285; engine effects unverified | No new campaign or visual acceptance | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 292 integration in progress
+
+All runs retain the asset manifest below. `zig build play` continues to build and
+launch the native development installation with separate saves.
+
+- Water-jump installation
+  `de45755964a5b0c6cc489ee4d7036c07be80b5461dd6ce787e24ab34382d2f22`
+  passes 228 native contracts; combined identity
+  `17b3120f52ffb5788525f65ca1d20e46eeff95249db099cb9b169e0d71235ba1`.
+  `runtime-zig-292/ctf-waterjump-regression/` passes all four bots' movement,
+  pickups, attack, opponent damage and respawn, plus one contested capture.
+  `deathtag-waterjump/` still fails capture after carriers appear. The outbound
+  path requires damaging slime as well as water-jump travel; the first read-only
+  route diagnostic omitted that explicit permission and remains failed.
+- Read-only route-observation installation
+  `c81263026da2d17e2bfe5cbc8d7f9143f8321d05bf4b26446681c296f46bbab9`, combined
+  identity `9372e4fc48deab295c802c877fdabb3108aad82f8cf6f8d4e248243881dd7596`:
+  `deathtag-slime-waterjump-routes/` reaches all three destinations (90/60/1
+  edges) with explicit slime permission. Supplied-graph analysis confirms no
+  outbound path without both permissions. This is route feasibility, not actual
+  water contact or completed traversal. `fresh-opening/` is a running ordinary
+  New Game replay on this exact installation; no result is claimed yet.
+- Scheduled-lift installation
+  `08642247fd1ef54fb7b40b95260b81984f7b44053e0531583d1eb7699c8f6450`
+  passes 228 native contracts. Lift centering now requires actual motion or a
+  scheduled return that approaches the requested floor. The added stationary
+  carrier regression rejects the former indefinite wait. `lift-departure-before/` reproduces the carrier waiting on the raised lift.
+  `lift-departure-after/` selects the real lower route but still cannot depart;
+  `deathtag-scheduled-lift/` remains a failed natural match. No departure/capture
+  acceptance is claimed. Campaign behavior is unaffected.
+- Descent-observation installation
+  `da72b58b1c975b939f5118988f11654ab253d772155beaeec13e9c308176e647`
+  passes 228 native contracts and its affected `ctf-lift-regression/` passes.
+  Downward floor changes now seek a physical controller, preserving the vertical
+  trace when standing on a mover. `lift-departure-floor-trace/` still fails:
+  the controller search selects a remote prerequisite behind the same descent.
+  The observed AAS waypoint lies beneath the raised platform. A locally clear
+  route off its edge must be established before further natural deathtag replay.
+  The intermediate `8496ea…` build was contract-tested only. Seventeen driver/
+  evidence checks pass. The fresh campaign retains its unchanged `c81263…`
+  installation; these later bot-only changes do not alter its gameplay.
+- `factory-walking-takeoff/` fails because it jumps before reaching the raised
+  pipe joint. `factory-joint-takeoff/` observes the supported joint, crosses the
+  pipe, opens the gate, traverses the yard, operates/restores the monitor and
+  rides both lifts, then dies to a Froginator near the lower landing. Both use
+  legitimate checkpoints on `0bfdec…`, not fresh acceptance. `factory-side-tree/`
+  starts from the legitimate yard checkpoint on `c81263…`, successfully uses
+  authored tree 428 and rides both lifts with 58 health, then dies to Crox 160
+  in the lower pool. `factory-lower-crox/` clears that Crox from the dry bank
+  with actual contact, reaches the authored e1m2a exit and completes all nine
+  arrival shots alive with 58 health. These are checkpoint results. No damage/
+  geometry/enemy/puzzle rules were changed for these driver corrections.
 
 ## Build and asset identity
 

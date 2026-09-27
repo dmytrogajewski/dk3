@@ -88,7 +88,7 @@ pub const Navigation = struct {
         if (from == 0 or to == 0) return null;
         if (from == to) return .{ .point = request.destination, .from_area = @intCast(from), .to_area = @intCast(to) };
         // Only the shared player/companion motor supports these additional travels.
-        var flags = c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR | (if (request.player) @as(i32, c.TFL_CROUCH | c.TFL_LADDER | c.TFL_SWIM | c.TFL_WATER | c.TFL_WALKOFFLEDGE | c.TFL_TELEPORT | c.TFL_ELEVATOR | c.TFL_FUNCBOB) else 0);
+        var flags = c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR | (if (request.player) @as(i32, c.TFL_CROUCH | c.TFL_LADDER | c.TFL_SWIM | c.TFL_WATER | c.TFL_WATERJUMP | c.TFL_WALKOFFLEDGE | c.TFL_TELEPORT | c.TFL_ELEVATOR | c.TFL_FUNCBOB) else 0);
         var route = std.mem.zeroes(c.aas_predictroute_t);
         _ = engine.gateway.call(c.BOTLIB_AAS_PREDICT_ROUTE, .{ &route, from, &request.position, to, @as(isize, flags), @as(isize, 1), @as(isize, 0), @as(isize, c.RSE_USETRAVELTYPE), @as(isize, 0), @as(isize, flags), @as(isize, 0) });
         if (route.stopevent == c.RSE_NOROUTE and request.allow_slime_escape) {

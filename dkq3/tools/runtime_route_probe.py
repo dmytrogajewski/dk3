@@ -21,7 +21,8 @@ def run(args):
     args.report.mkdir(parents=True, exist_ok=True)
     identity = record_identity(args.engine, args.prefix, args.report, require_installation=not args.diagnostic_runtime)
     result = {"identity": identity, "dedicated_sha256": hashlib.sha256((args.engine / "bin/dk3ded").read_bytes()).hexdigest(),
-              "scope": f"Read-only {args.map} AAS edge traversal; no actor placement or campaign/match acceptance.", "routes": []}
+              "scope": f"Read-only {args.map} AAS edge traversal; no actor placement or campaign/match acceptance.",
+              "allow_slime_escape": args.slime_escape, "routes": []}
     log = args.report / "server.log"
     with tempfile.TemporaryDirectory(prefix="dk3-native-route-contract-") as temporary:
         home = Path(temporary)
@@ -44,7 +45,7 @@ def run(args):
                 # and non-portal starts retain unaffected routing coverage.
                 for start, goal in args.route or ((39, 330), (4683, 4714), (1973, 5396), (39, 357), (357, 39), (6483, 1863)):
                     offset = log.stat().st_size
-                    send(pipe, f"dk3_runtime_route {start} {goal}")
+                    send(pipe, f"dk3_runtime_route {start} {goal}" + (" slime" if args.slime_escape else ""))
                     text = wait(process, log, lambda text: "dk3 route complete:" in text[offset:], 10)[offset:]
                     row = re.search(r"dk3 route complete: from=(\d+) goal=(\d+) end=(\d+) edges=(\d+) status=(\w+)", text)
                     if row is None or (int(row[1]), int(row[2])) != (start, goal):
@@ -74,6 +75,7 @@ def main():
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--map", default="e1ctf1")
     parser.add_argument("--mode", type=int, choices=(0, 4, 8), default=4)
+    parser.add_argument("--slime-escape", action="store_true", help="Include the damaging-fluid routes allowed by the bot's escape fallback")
     parser.add_argument("--route", type=int, nargs=2, action="append", metavar=("FROM", "GOAL"))
     args = parser.parse_args()
     if not re.fullmatch(r"[a-zA-Z0-9_]+", args.map) or (args.map != "e1ctf1" and not args.route):

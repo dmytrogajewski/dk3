@@ -28,10 +28,11 @@ pub fn route() !void {
     var argument: [32]u8 = undefined;
     const from = try std.fmt.parseInt(i32, engine.argv(1, &argument), 10);
     const goal = try std.fmt.parseInt(i32, engine.argv(2, &argument), 10);
+    const slime_escape = std.mem.eql(u8, engine.argv(3, &argument), "slime");
     var origin = std.mem.zeroes(c.aas_areainfo_t);
     var target = std.mem.zeroes(c.aas_areainfo_t);
     if (from <= 0 or goal <= 0 or engine.gateway.call(c.BOTLIB_AAS_AREA_INFO, .{ @as(isize, from), &origin }) == 0 or engine.gateway.call(c.BOTLIB_AAS_AREA_INFO, .{ @as(isize, goal), &target }) == 0) return error.InvalidNavigationAreas;
-    const flags = c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR | c.TFL_CROUCH | c.TFL_LADDER | c.TFL_SWIM | c.TFL_WATER | c.TFL_WALKOFFLEDGE | c.TFL_TELEPORT | c.TFL_ELEVATOR | c.TFL_FUNCBOB;
+    const flags = c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR | c.TFL_CROUCH | c.TFL_LADDER | c.TFL_SWIM | c.TFL_WATER | c.TFL_WATERJUMP | c.TFL_WALKOFFLEDGE | c.TFL_TELEPORT | c.TFL_ELEVATOR | c.TFL_FUNCBOB | (if (slime_escape) @as(i32, c.TFL_SLIME) else 0);
     var seen: [1024]i32 = undefined;
     var count: usize = 0;
     var area = from;

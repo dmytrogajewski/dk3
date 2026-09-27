@@ -5594,3 +5594,43 @@ checks pass. Asset manifest remains
 `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
 Fresh opening completion, remaining episodes/interactions, complete multiplayer,
 public rooms and independent release acceptance remain open.
+
+
+## Sequence 292 — water-jump-routes-scheduled-lifts-and-fresh-opening
+
+The exact installation/asset identities and current evidence states are recorded
+in `docs/native-acceptance.md`. Native player/companion navigation now admits the
+water-jump travel supported by its existing motor. Read-only AAS diagnosis also
+accepts explicit slime permission, corresponding to the bot's existing escape
+fallback. Supplied graph analysis confirms that the deathtag carrier path needs
+both permissions; a first strict query correctly remains unreachable. The
+explicit-slime replay reaches all three goals. Actual water contact/traversal is
+not inferred from this graph result.
+
+CTF replays successfully with movement, pickups, fire, opponent damage and respawn
+by all four bots plus one contested capture. Natural deathtag still fails capture:
+a red carrier returns to a stationary raised lift and waits despite no scheduled
+movement. The centering policy now considers only actual travel or a scheduled
+return that approaches the requested floor. Its stationary/wrong-direction
+regression and the 228 native contracts pass. Controlled departure fails before and after: centering is repaired, but the
+actual lower AAS waypoint lies under the raised platform. Preserving a downward
+obstacle trace selects a remote prerequisite behind that same descent, so the
+`lift-departure-floor-trace/` scenario also remains failed. The natural
+`deathtag-scheduled-lift/` run has no capture. `ctf-lift-regression/` passes on
+`da72b58…`; 228 native contracts and 17 driver/evidence checks pass. Next diagnosis
+must establish a physically clear local departure before another natural match.
+
+The factory driver now accepts the supported straight pipe approach and starts
+its jump from the actual raised joint. The checkpoint reaches the gate, yard,
+monitor restoration and both lifts, then dies to the lower-route Froginator.
+A separate legitimate yard-checkpoint replay uses the authored side-tree detour
+and reaches the lower route with 58 health, then dies to Crox 160 in the pool.
+`factory-lower-crox/` uses the existing dry-bank encounter driver, clears that
+actual Crox, reaches the authored e1m2a exit and completes its nine-shot arrival
+alive with 58 health. A new ordinary New Game replay is running on the
+immutable `c812630…` installation. No fresh completion is claimed, and no
+checkpoint chain is assembled across builds as continuous acceptance.
+
+Main, preserved installation/saves and live service remain unchanged. Complete
+remaining campaign, interactions, companions, multiplayer/public rooms and release
+acceptance stay open.

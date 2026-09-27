@@ -51,7 +51,9 @@ pub fn ridePoint(world: *data.World, slots: *const Slots, actor: ecs.Entity, des
     const rider = (try world.get(actor, data.Transform)).position;
     if (@abs(destination[2] - rider[2]) <= 18) return null;
     const pose = (try world.get(platform, data.Transform)).position;
-    const endpoint = if (@abs(destination[2] - (rider[2] + mover.closed[2] - pose[2])) < @abs(destination[2] - (rider[2] + mover.opened[2] - pose[2]))) mover.closed else mover.opened;
+    // Only wait for real travel. A stationary upper landing does not promise
+    // another descent merely because the final objective lies on a lower floor.
+    const endpoint = if (mover.moving()) mover.motion.end else if (mover.return_at.at_ms != null) (if (mover.state == .open) mover.closed else mover.opened) else return null;
     if (@abs(destination[2] - (rider[2] + endpoint[2] - pose[2])) >= @abs(destination[2] - rider[2]) - 18) return null;
     var point = try center(world, platform);
     point[2] = rider[2];
@@ -96,7 +98,13 @@ fn seekInternal(world: *data.World, slots: *Slots, projections: []const @import(
     const body = (try world.get(actor, data.Body)).*;
     const slot = (try world.get(actor, data.Binding)).slot;
     var direction = v.subtract(toward, pose.position);
-    direction[2] = 0;
+    const ground = (try world.get(actor, data.Player)).ground_entity;
+    const platform = if (ground < slots.occupants.len) slots.occupants[ground] else null;
+    const descending_lift = direction[2] < -18 and (if (platform) |entity| (world.get(entity, data.Mover) catch null) != null else false);
+    // The next AAS descent can be underneath the platform we stand on. Keep
+    // that trace's vertical component so the actual lift, not an imaginary
+    // horizontal wall, owns the request for its authored control.
+    if (!descending_lift) direction[2] = 0;
     direction = v.normalize(direction);
     const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, 80)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_PLAYERSOLID });
     if (hit.fraction == 1 or hit.entity >= slots.occupants.len) return null;
@@ -275,7 +283,7 @@ test "a lift rider centers below the landing and resumes its route at landing he
     var world = data.World.init(t.allocator, 4);
     defer world.deinit();
     var slots: Slots = .{};
-    const platform = try world.create(337, .{ data.Transform{ .position = .{ 0, 0, -98 } }, data.Body{ .mins = .{ 616, 1264, -144 }, .maxs = .{ 712, 1344, 96 } }, data.Mover{ .closed = @splat(0), .opened = .{ 0, 0, -98 }, .motion = .{}, .state = .open } });
+    const platform = try world.create(337, .{ data.Transform{ .position = .{ 0, 0, -98 } }, data.Body{ .mins = .{ 616, 1264, -144 }, .maxs = .{ 712, 1344, 96 } }, data.Mover{ .closed = @splat(0), .opened = .{ 0, 0, -98 }, .motion = .{}, .state = .open, .return_at = .{ .at_ms = 1000 } } });
     const slot = try slots.acquire(platform, null);
     const actor = try world.create(1, .{ data.Player{ .ground_entity = slot }, data.Transform{ .position = .{ 631, 1300, 22 } } });
     const goal: v.Vec3 = .{ 272, 1304, 120 };
@@ -287,5 +295,20 @@ test "a lift rider centers below the landing and resumes its route at landing he
     (try world.get(actor, data.Player)).ground_entity = slot;
     (try world.get(platform, data.Transform)).position[2] = 0;
     (try world.get(actor, data.Transform)).position[2] = 120;
+    const mover = try world.get(platform, data.Mover);
+    mover.state = .closed;
+    mover.return_at = .{};
     try t.expectEqual(@as(?v.Vec3, null), try ridePoint(&world, &slots, actor, goal));
+    // Reproduce the actual carrier at a stopped upper endpoint. Its capture
+    // volume is below both lift endpoints; no descent is currently scheduled.
+    const lower_goal: v.Vec3 = .{ 936, -48, -108 };
+    try t.expectEqual(@as(?v.Vec3, null), try ridePoint(&world, &slots, actor, lower_goal));
+    mover.state = .opening;
+    mover.motion.end = mover.opened;
+    try t.expectEqual(@as(?v.Vec3, .{ 664, 1304, 120 }), try ridePoint(&world, &slots, actor, lower_goal));
+    mover.state = .closing;
+    mover.motion.end = mover.closed;
+    (try world.get(platform, data.Transform)).position[2] = -98;
+    (try world.get(actor, data.Transform)).position[2] = 22;
+    try t.expectEqual(@as(?v.Vec3, null), try ridePoint(&world, &slots, actor, lower_goal));
 }

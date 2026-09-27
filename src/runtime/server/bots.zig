@@ -224,8 +224,10 @@ pub const State = struct {
                 // movement alone is not proof that the next floor is reachable.
                 // Inspect the actual obstructing mover before trying that ascent;
                 // seek still requires a collision and its authored real control.
-                const ascent = brain.control == null and player.ground_entity != c.ENTITYNUM_NONE and movement[2] > 18;
-                if ((brain.route.blocked or ascent) and now >= brain.seek_ms) {
+                // Descending through a raised platform also requires its real
+                // control; the next lower AAS point can lie inside that floor.
+                const changing_floor = brain.control == null and player.ground_entity != c.ENTITYNUM_NONE and @abs(movement[2]) > 18;
+                if ((brain.route.blocked or changing_floor) and now >= brain.seek_ms) {
                     brain.seek_ms = now + 500;
                     const toward = if (brain.route.waypoint) |waypoint| waypoint.point else goal;
                     if (try routes.yieldPoint(world, slots, entity, toward)) |point| {

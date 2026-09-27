@@ -168,10 +168,10 @@ def shoot_control(driver, capture, identity, removed_actor=None):
     raise RuntimeError(f"Control {identity} did not break within the observed shot budget")
 
 
-def clear_ford(driver, capture, report, identities=(387, 419)):
+def clear_ford(driver, capture, report, identities=(387, 419), label="bridge"):
     if driver.observe()["water"] != 0:
         raise RuntimeError("Ford firing position is not on dry land")
-    checkpoint(driver, capture, report, "bridge_ford_bank")
+    checkpoint(driver, capture, report, f"{label}_ford_bank")
     contacts = []
     observed = actors(driver)
     position = driver.observe()["pos"]
@@ -189,7 +189,7 @@ def clear_ford(driver, capture, report, identities=(387, 419)):
                     raise RuntimeError(f"Close Crox {identity} received no tracked fire; inspect its lane")
             if actors(driver)[identity]["health"] > 0:
                 raise RuntimeError(f"Close Crox {identity} survived the tracked engagement")
-            checkpoint(driver, capture, report, f"bridge_crox_{identity}_cleared")
+            checkpoint(driver, capture, report, f"{label}_crox_{identity}_cleared")
             continue
         for shot in range(18):
             row = actors(driver)[identity]
@@ -223,7 +223,7 @@ def clear_ford(driver, capture, report, identities=(387, 419)):
             contacts.append({"target": identity, "before": previous["health"], "after": row["health"], "water": previous["crox_water"]})
         if actors(driver)[identity]["health"] > 0:
             raise RuntimeError(f"Crox {identity} survived the ford engagement budget")
-        checkpoint(driver, capture, report, f"bridge_crox_{identity}_cleared")
+        checkpoint(driver, capture, report, f"{label}_crox_{identity}_cleared")
     driver.inputs.append({"ford_contacts": contacts})
 
 

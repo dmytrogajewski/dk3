@@ -59,7 +59,8 @@ def run(args):
                 lower = driver.until(lambda s: s['ground'] != 2047 and 15 < s['pos'][2] < 35 and 616 < s['pos'][0] < 712
                                      and (1264 < s['pos'][1] < 1344 if args.phase == 'ride' else 1344 < s['pos'][1] < 1390),
                                      description='bot standing at the declared lift fixture')
-                raised, carried = False, False
+                raised, carried, departed = False, False, False
+                pickup = None
                 deadline = time.monotonic() + 22
                 while time.monotonic() < deadline:
                     state = driver.observe()
@@ -71,10 +72,19 @@ def run(args):
                     match = driver.diagnostics('dk3_runtime_match', 'dk3 match complete:')
                     if re.search(rf'id=37 team=red phase=carried carrier={state["player_id"]}\b', match):
                         carried = True
-                        break
-                if not raised or not carried:
-                    raise RuntimeError(f'Lift route did not reach the objective: raised={raised}, carried={carried}, last={state}')
-                result.update(status='passed', lower=lower, final_state=state, carried=carried)
+                        if pickup is None:
+                            pickup = state
+                            if args.phase == 'departure':
+                                deadline = time.monotonic() + 20
+                        # Reaching the objective is insufficient for departure:
+                        # the previous carrier returned to the raised lift and
+                        # waited forever. Observe it outside the south shaft.
+                        departed = state['pos'][1] < 1200
+                        if args.phase != 'departure' or departed:
+                            break
+                if not raised or not carried or (args.phase == 'departure' and not departed):
+                    raise RuntimeError(f'Lift route incomplete: raised={raised}, carried={carried}, departed={departed}, last={state}')
+                result.update(status='passed', lower=lower, pickup=pickup, final_state=state, carried=carried, departed=departed)
                 driver.issue('quit')
                 if process.wait(timeout=15) != 0:
                     raise RuntimeError('Diagnostic shutdown failed')
@@ -94,7 +104,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--engine', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
-    parser.add_argument('--phase', choices=('ride', 'approach'), default='ride')
+    parser.add_argument('--phase', choices=('ride', 'approach', 'departure'), default='ride')
     args = parser.parse_args()
     args.engine, args.report = args.engine.resolve(), args.report.resolve()
     run(args)

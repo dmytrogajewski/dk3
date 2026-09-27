@@ -5,7 +5,7 @@ import math
 import re
 import time
 
-from runtime_bridge_route import aim_at, checkpoint, resupply, shoot_control, world_rows
+from runtime_bridge_route import aim_at, checkpoint, clear_ford, resupply, shoot_control, world_rows
 from runtime_opening_route import actors, walk
 
 
@@ -46,6 +46,8 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
             return factory_exit(driver, capture, report)
         if phase == "factory-departure":
             return factory_departure(driver, capture, report)
+        if phase == "factory-lower":
+            return factory_lower(driver, capture, report)
         if phase in ("factory-interior", "factory-switch"):
             return factory_interior(driver, capture, report, phase)
         if phase in ("factory-arrival", "factory-outside"):
@@ -176,6 +178,17 @@ def factory_interior(driver, capture, report, phase="factory-interior"):
                   (2215, 1900, 824), (2401, 1737, 806)):
         if phase != "factory-switch":
             walk(driver, point, capture, combat=True, tolerance=20)
+            if point == (1944, 1920, 792) and driver.observe()["health"] < 100:
+                # Authored ground connection 1 -> 119 reaches the side tree.
+                # Collect its real fruit before the console and upper passage.
+                for supply in ((1725.5, 1840.625, 792), (1712, 1876, 792)):
+                    walk(driver, supply, capture, combat=True, tolerance=16)
+                uses = resupply(driver, 428)
+                if not uses or driver.observe()["health"] <= 0:
+                    raise RuntimeError("Factory side-tree detour did not heal a living player")
+                checkpoint(driver, capture, report, "factory_tree_428")
+                for supply in ((1725.5, 1840.625, 792), point):
+                    walk(driver, supply, capture, combat=True, tolerance=20)
     if phase != "factory-switch":
         # Operate the inset panel from in front of the console. Its button is
         # within use reach across the counter; walking to its Y enters solid art.
@@ -219,12 +232,19 @@ def factory_departure(driver, capture, report):
     # Leave before its authored return. No wait, damage or puzzle timing changes.
     walk(driver, (1653, 1596, 680), capture, tolerance=20)
     checkpoint(driver, capture, report, "factory_lower_lift")
+    return {"scope": "Platform ascent, upper passage, liftmaster descent and lower route to the exit.",
+            "arrival": factory_lower(driver, capture, report)}
+
+
+def factory_lower(driver, capture, report):
     for point in ((1592, 1384, 680), (1574, 1286, 664), (1511, 1232, 581),
                   (1748, 1202, 537), (1824, 981, 495), (1710, 973, 511),
                   (1783, 769, 472), (1645, 672, 472)):
         walk(driver, point, capture, combat=True, tolerance=24)
+        if point == (1710, 973, 511):
+            clear_ford(driver, capture, report, identities=(160,), label="factory")
     checkpoint(driver, capture, report, "factory_before_authored_exit")
-    return {"scope": "Platform ascent, upper passage, liftmaster descent and lower route to the exit.",
+    return {"scope": "Lower route, dry-bank Crox encounter and authored exit.",
             "arrival": factory_exit(driver, capture, report)}
 
 
@@ -250,11 +270,15 @@ def pipe_jump(driver, capture, destination):
     state = driver.stop_forward()
     start = state["pos"]
     aim_at(driver, (destination[0], destination[1], start[2] + 22))
-    driver.issue("-speed")
+    # A full-speed launch carries Hiro across the narrow sloping landing even
+    # after releasing forward. Approach at walking speed, then accelerate in
+    # the air; retain the actual height and supported-landing checks below.
+    driver.issue("+speed")
     driver.issue("+forward")
     try:
-        state = driver.until(lambda s: s["forward"] == 127 and math.dist(s["pos"][:2], start[:2]) >= 6,
-                             seconds=2, description="running takeoff on the pipe")
+        state = driver.until(lambda s: 0 < s["forward"] <= 64 and s["ground"] != 2047
+                             and s["pos"][2] >= start[2] + 7,
+                             seconds=2, description="walking takeoff reaches the raised pipe joint")
         launch_height = state["pos"][2]
         driver.issue("+moveup")
         try:
@@ -262,11 +286,13 @@ def pipe_jump(driver, capture, destination):
                          seconds=2, description="actual running pipe jump")
         finally:
             driver.issue("-moveup")
+            driver.issue("-speed")
         driver.until(lambda s: math.dist(s["pos"][:2], destination[:2]) < 32 and s["pos"][2] > destination[2] - 32,
                      seconds=3, description="airborne crossing reaches the upper pipe")
     finally:
+        driver.issue("-speed")
         state = driver.stop_forward(settle_vertical=True)
-    if state["pos"][2] < destination[2] - 32:
+    if state["ground"] == 2047 or state["pos"][2] < destination[2] - 32:
         capture("pipe-jump-failed")
         raise RuntimeError("Pipe jump landed below the authored upper route")
 

@@ -212,3 +212,12 @@ before the next match. Full map admission still sets up and loads navigation.
 The new LAN and bot diagnostics are project-authored; no private implementation
 or assets are admitted. Lift approach routing uses actual collision and existing
 authored controls, without changes to map geometry, damage or mover timings.
+
+Sequence 292 compares supplied AAS reachability types and liquid contents with
+the bundled botlib travel flags and the native player's existing swim/ledge
+motor. Navigation now permits that supported water-jump operation; the existing
+slime-escape policy and actual liquid damage remain unchanged. Local graph
+reports and map geometry remain in ignored evidence, not public assets. Lift
+waiting uses the native mover's actual motion/return deadline rather than
+assuming a requested floor schedules movement. The contract fixtures are
+project-authored; no private implementation is imported.
