@@ -937,6 +937,51 @@ Earlier fragment, collision, restoration and shared particle scenarios need affe
 replay. Earthquake/lighting/particle/weather behavior and the remaining full-port
 campaign/multiplayer/release work continue. Main, install, saves and service untouched.
 
+## Sequence 275 — authored-quakes-and-lighting (implemented; unverified)
+
+Earthquakes now use the authored radius/severity/duration/damage aliases, 100 ms
+player-only pulses, per-player view-kick messages, 50/100 ms view envelope, random
+loop sound and terminal source removal. They do not apply generic actor impulses.
+Loop sound and active deadlines persist; restoration clears stale client kicks and
+resumes server pulses. The damage path retains normal protection/armor accounting.
+
+`target_spotlight` resolves/tracks its target, traces through actors without damage,
+and toggles two sixteen-sided translucent cones and their endpoint light. Endpoint,
+activation, target and timing survive native saves. A narrow compatibility correction
+uses the computed endpoint in native presentation: the reviewed target_spotlight
+source writes mins while its renderer reads render_scale. The two intro instances
+still require actual engine/reference comparison; written geometry is not cinematic
+acceptance. No arbitrary beam dwell, damage or obstacle bypass was introduced.
+
+Switchable lights, authored lightstyle strings, shared-style update precedence and
+reversible ramps now drive the existing bundled DKLS renderer interface. Previously
+native cgame supplied all-one lightstyle values. Flare and episode flame sprites use
+the supplied frame assets and per-axis scales; flames animate as two crossed planes
+and apply their class's two damage on actual contact with damageable entities. The
+native flame callback does not reproduce the reference assignment that makes arbitrary
+non-damageable objects damageable. Plain inert lights stay authored metadata, as their
+runtime reference instances are removed. Ambient-sound fields remain preload-only,
+matching the reviewed no-op reference AmbientSound; no invented loop was added.
+
+The earlier approximate default flicker samples are replaced by the thirteen public
+GPL Quake II animation strings. Admission, pinned source/hash and attribution are in
+`docs/provenance.md`; no private implementation was imported. Converter and native
+policy now use those exact public samples. Custom pattern phases, lamp state and
+in-progress ramp clocks persist. Built-in periodic styles still follow engine time;
+full visual phase restoration/comparison remains to qualify.
+
+Three modules linked in `/tmp/dk3-runtime-275-lighting-quake-link-fixed.log` (exit 0)
+after correcting two compile errors recorded in the original
+`/tmp/dk3-runtime-275-lighting-quake-link.log`. That link precedes the final public
+sample-table replacement and added restoration regression. Policy/clock regressions
+are written but unrun; no suite, engine scenario, connected route or reference visual
+comparison ran. No current verified build/asset identity exists. Authoring inventories:
+`/tmp/dk3-runtime-275-lights-authored.json` and sequence-272 world properties, on local
+manifest `ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
+Regenerated assets/shaders and coherent build/replay remain required. Dynamic lights,
+lightning/attractors, particle/weather emitters and the remaining full-port campaign,
+multiplayer and release work continue. Main, installation, saves and service untouched.
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data finds no unregistered names in

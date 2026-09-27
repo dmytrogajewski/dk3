@@ -59,7 +59,11 @@ pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").Stat
         if (loaded.world.get(entity, data.Actor) catch null) |actor| try systems.actors.ensure(actor.definition);
         if (loaded.world.get(entity, data.Binding) catch null) |binding| {
             if ((loaded.world.get(entity, data.Hammer) catch null) != null or (loaded.world.get(entity, data.Shockwave) catch null) != null or (loaded.world.get(entity, data.Nova) catch null) != null or (loaded.world.get(entity, data.Flashlight) catch null) != null or (loaded.world.get(entity, data.Zeus) catch null) != null or (loaded.world.get(entity, data.ZeusBolt) catch null) != null or (loaded.world.get(entity, data.Nightmare) catch null) != null or (loaded.world.get(entity, data.MetaRing) catch null) != null or (loaded.world.get(entity, data.MetaLaser) catch null) != null) continue;
-            if (loaded.world.get(entity, data.WorldControl) catch null) |control| if (control.action == .speaker or control.action == .laser or control.action == .healer) {
+            if (loaded.world.get(entity, data.WorldControl) catch null) |control| if (control.action == .light or control.action == .spotlight or control.action == .earthquake or control.action == .speaker or control.action == .laser or control.action == .healer) {
+                if (control.action == .light) {
+                    if (binding.model == 0 or binding.model > loaded.header.resources.models.len or !std.mem.eql(u8, loaded.header.resources.models[binding.model - 1], control.action.light.model)) return error.InvalidSavedLight;
+                    continue;
+                }
                 if (control.action == .healer) {
                     if (binding.model == 0 or binding.model > loaded.header.resources.models.len or !std.mem.eql(u8, loaded.header.resources.models[binding.model - 1], @import("item_catalog").hosportal.definition(control.action.healer.kind).model)) return error.InvalidSavedHealer;
                     continue;
@@ -117,6 +121,18 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
             try clients.publish(world, projections, states, 0, now);
             continue;
         }
+        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .light) {
+            try @import("lights.zig").publish(world, entity, projections);
+            continue;
+        };
+        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .spotlight) {
+            try @import("spotlights.zig").publish(world, entity, projections);
+            continue;
+        };
+        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .earthquake) {
+            try @import("earthquakes.zig").publish(world, entity, projections);
+            continue;
+        };
         if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .debris) {
             try @import("debris.zig").publish(world, entity, slots, projections);
             continue;
@@ -243,5 +259,6 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         if (hidden) projection.shared.svFlags |= c.SVF_NOCLIENT;
         engine.link(projection);
     };
+    @import("lights.zig").styles(world, now);
     try @import("music.zig").restore(world, @import("std").heap.c_allocator);
 }

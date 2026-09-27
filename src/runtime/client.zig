@@ -44,6 +44,7 @@ fn shutdown() void {
     @import("client/nharre_reaper.zig").reset();
     @import("client/fx_particles.zig").reset();
     @import("client/gibs.zig").reset();
+    @import("client/quake_kick.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
     world = null;
@@ -118,12 +119,14 @@ fn draw(now: i32) !void {
                 try @import("client/events.zig").command();
                 @import("client/messages.zig").command(now);
                 @import("client/scoreboard.zig").command();
+                @import("client/quake_kick.zig").command();
                 if (@import("client/commands.zig").restored()) |restored| {
                     @import("client/messages.zig").reset();
                     @import("client/models.zig").reset();
                     @import("client/objectives.zig").reset();
                     @import("client/held_weapons.zig").reset();
                     @import("client/events.zig").reset();
+                    @import("client/quake_kick.zig").reset();
                     weapon_view.init();
                     if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
                     selected_weapon = snapshot.ps.weapon;
@@ -194,12 +197,13 @@ fn draw(now: i32) !void {
         ref.fov_x = snapshot.ps.dk3CameraFov;
         ref.fov_y = std.math.atan(@tan(ref.fov_x * std.math.pi / 360) * @as(f32, @floatFromInt(ref.height)) / @as(f32, @floatFromInt(ref.width))) * 360 / std.math.pi;
     }
-    const basis = v.basis(if (snapshot.ps.dk3CameraActive != 0) snapshot.ps.dk3CameraAngles else v.add(v.add(view_angles, .{ 0, 0, psychic.roll }), @import("client/area_effects.zig").shake(snapshot.entities[0..@intCast(snapshot.numEntities)], ref.vieworg, now)));
+    const basis = v.basis(if (snapshot.ps.dk3CameraActive != 0) snapshot.ps.dk3CameraAngles else v.add(v.add(v.add(view_angles, @import("client/quake_kick.zig").offset(now)), .{ 0, 0, psychic.roll }), @import("client/area_effects.zig").shake(snapshot.entities[0..@intCast(snapshot.numEntities)], ref.vieworg, now)));
     ref.viewaxis[0] = basis.forward;
     ref.viewaxis[1] = v.scale(basis.right, -1);
     ref.viewaxis[2] = v.cross(ref.viewaxis[0], ref.viewaxis[1]);
     ref.areamask = snapshot.areamask;
-    ref.dk3Lightstyles = @splat(1);
+    const lightstyles = try engine.config(&game, c.CS_DK3_LIGHTSTYLES);
+    ref.dk3Lightstyles = if (lightstyles.len > 0) try @import("domain/lightstyles.zig").decode(lightstyles) else @splat(1);
     _ = engine.gateway.call(c.CG_R_CLEARSCENE, .{});
     _ = engine.gateway.call(c.CG_S_CLEARLOOPINGSOUNDS, .{@as(isize, c.qfalse)});
     var weapon_end_ms: ?i64 = null;
@@ -320,6 +324,14 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/laser.zig").render_tag) {
             try @import("client/events.zig").loop(&game, entity, @import("engine/trajectory.zig").evaluate(entity.pos, now));
             @import("client/lasers.zig").draw(entity, now, &ref);
+            continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/lightstyles.zig").render_tag) {
+            try @import("client/lights.zig").draw(&game, entity, now, &ref);
+            continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/spotlight.zig").render_tag) {
+            @import("client/spotlights.zig").draw(entity, now);
             continue;
         }
         var handle: c.qhandle_t = 0;

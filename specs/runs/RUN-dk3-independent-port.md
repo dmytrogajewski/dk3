@@ -3808,3 +3808,15 @@ reference FL_NOSAVE. Detailed scope/remaining contact and water parity in
 `docs/native-acceptance.md`. Three modules (including sequence 273) linked successfully:
 `/tmp/dk3-runtime-274-debris-link.log`; no test/engine/connected acceptance. Continue
 authored world effects and full campaign/multiplayer/release coding pass.
+
+## Sequence 275 — authored-quakes-and-lighting
+
+Connected player-specific authored earthquakes, target spotlights, switchable light
+styles/ramps and flare/episode-flame sprites and contacts through native transport and
+saves. Corrects cgame's constant full-brightness lightstyle projection. Exact default
+style strings admitted from pinned public GPL Quake II source; docs/provenance.md
+records license, scope and hash. No private implementation import. Native-module link
+fixed log exit 0, before final table replacement/clock regression; all new tests and
+engine scenarios remain unrun. Intentional spotlight endpoint and flame-damageability
+corrections and remaining qualification are explicit in docs/native-acceptance.md.
+Continue the broad full-port coding pass; no new campaign/multiplayer acceptance.

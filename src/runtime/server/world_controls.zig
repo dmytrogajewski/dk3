@@ -12,7 +12,8 @@ const prop = @import("properties.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const Router = @import("targets.zig").Router;
 pub fn owns(name: []const u8) bool {
-    for ([_][]const u8{ "func_gib", "func_debris", "func_debris_visible", "trigger_change_sfx", "target_laser", "misc_hosportal", "misc_fountain", "target_speaker", "sound_ambient", "func_timer", "trigger_push", "trigger_teleport", "trigger_secret", "trigger_toggle", "trigger_changemusic", "trigger_console", "trigger_remove_inventory_item" }) |item| if (std.mem.eql(u8, name, item)) return true;
+    if (@import("lights.zig").owns(name)) return true;
+    for ([_][]const u8{ "target_lightramp", "target_spotlight", "target_earthquake", "func_gib", "func_debris", "func_debris_visible", "trigger_change_sfx", "target_laser", "misc_hosportal", "misc_fountain", "target_speaker", "sound_ambient", "func_timer", "trigger_push", "trigger_teleport", "trigger_secret", "trigger_toggle", "trigger_changemusic", "trigger_console", "trigger_remove_inventory_item" }) |item| if (std.mem.eql(u8, name, item)) return true;
     return false;
 }
 pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
@@ -28,8 +29,18 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     }
     for (ids[0..count]) |entity| {
         const object = (try world.get(entity, data.MapObject)).*;
+        if (std.mem.eql(u8, object.classname, "light") and object.targetname.len == 0 and object.flags & 2 == 0) continue;
+        if (std.mem.eql(u8, object.classname, "target_lightramp") and @import("multiplayer.zig").enabled()) { try world.destroy(entity); continue; }
         var action: rules.Action = undefined;
-        if (std.mem.eql(u8, object.classname, "func_gib")) {
+        if (@import("lights.zig").owns(object.classname)) {
+            action = .{ .light = try @import("lights.zig").initialize(object, try world.persistentId(entity), now) };
+        } else if (std.mem.eql(u8, object.classname, "target_lightramp")) {
+            action = .{ .light_ramp = try @import("lights.zig").ramp(object) };
+        } else if (std.mem.eql(u8, object.classname, "target_spotlight")) {
+            action = .{ .spotlight = try @import("spotlights.zig").initialize(object, (try world.get(entity, data.Transform)).*, now) };
+        } else if (std.mem.eql(u8, object.classname, "target_earthquake")) {
+            action = .{ .earthquake = try @import("earthquakes.zig").initialize(world, entity) };
+        } else if (std.mem.eql(u8, object.classname, "func_gib")) {
             action = .{ .gib_emitter = try @import("gib_emitters.zig").initialize(world, entity, now) };
         } else if (@import("debris.zig").owns(object.classname)) {
             action = .{ .debris = try @import("debris.zig").initialize(world, entity, projections, now) };
@@ -78,6 +89,15 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             action = .{ .remove_item = prop.text(object, "item") orelse return error.MissingRemovedItem };
         }
         try world.put(entity, data.WorldControl{ .action = action });
+        if (action == .light) try @import("lights.zig").bind(world, slots, projections, entity);
+        if (action == .spotlight) {
+            try @import("weapon_entities.zig").bind(world, slots, projections, entity, "");
+            try @import("spotlights.zig").publish(world, entity, projections);
+        }
+        if (action == .earthquake) {
+            try @import("weapon_entities.zig").bind(world, slots, projections, entity, "");
+            try @import("earthquakes.zig").publish(world, entity, projections);
+        }
         if (action == .debris) try @import("debris.zig").publish(world, entity, slots, projections);
         if (action == .laser) {
             try @import("weapon_entities.zig").bind(world, slots, projections, entity, "");
@@ -89,7 +109,9 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             try @import("speakers.zig").publish(world, entity, projections);
         }
     }
+    @import("lights.zig").styles(world, now);
 }
+
 fn sound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, sample: []const u8, now: i64) !void {
     if (sample.len == 0) return;
     try @import("events.zig").sound(world, slots, projections, sample, (try world.get(entity, data.Transform)).position, if (slots.find(entity)) |slot| slot else c.ENTITYNUM_WORLD, c.CHAN_AUTO, now);
@@ -99,6 +121,10 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     if (now < control.ready_ms) return;
     const object = (try world.get(entity, data.MapObject)).*;
     switch (control.action) {
+        .light => try @import("lights.zig").use(world, entity, projections),
+        .light_ramp => try @import("lights.zig").rampUse(world, entity, now),
+        .spotlight => try @import("spotlights.zig").use(world, slots, projections, entity, now),
+        .earthquake => try @import("earthquakes.zig").use(world, entity, projections, now),
         .gib_emitter => |*state| state.use(now),
         .debris => try @import("debris.zig").use(world, slots, projections, entity, activator, now),
         .room => {}, // Touch-only room control.
@@ -183,8 +209,10 @@ pub fn touches(world: *data.World, entity: ecs.Entity, other: ecs.Entity) !bool 
     const player = (world.get(other, data.Player) catch null) != null;
     const companion = (world.get(other, data.Companion) catch null) != null;
     return switch (control.action) {
+        .light => |state| state.kind == .flame and (world.get(other, data.Health) catch null) != null,
+        .light_ramp => false,
         .debris => |state| state.active and (player or companion or (world.get(other, data.Actor) catch null) != null),
-        .timer, .speaker, .healer, .laser, .gib_emitter => false,
+        .timer, .speaker, .healer, .laser, .gib_emitter, .earthquake, .spotlight => false,
         .teleport => |state| state.named_subject.len == 0 and object.targetname.len == 0 and (player or (companion and object.flags & 1 == 0)),
         .toggle => if (object.flags & 8 != 0) companion else player or (companion and object.flags & 4 != 0),
         .music => (player and object.flags & 1 == 0) or (world.get(other, data.Performer) catch null) != null,
@@ -195,6 +223,7 @@ pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     const control = try world.get(entity, data.WorldControl);
     if (now < control.ready_ms or !@import("keys.zig").allows(world, (try world.get(entity, data.MapObject)).*, try world.persistentId(other))) return;
     switch (control.action) {
+        .light => { _ = try @import("damage.zig").apply(world, other, 2, now, .{ .source = try world.persistentId(entity) }); },
         .debris => try @import("debris.zig").contact(world, slots, projections, entity, other, now),
         .room => |preset| (try world.get(other, data.Character)).sound_environment = preset + 1,
         .push => |push| {
@@ -235,6 +264,9 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (!world.alive(entity)) continue;
         const control = try world.get(entity, data.WorldControl);
         switch (control.action) {
+            .light_ramp => try @import("lights.zig").rampStep(world, entity, now),
+            .spotlight => try @import("spotlights.zig").step(world, slots, projections, entity, now),
+            .earthquake => try @import("earthquakes.zig").step(world, slots, projections, entity, now),
             .gib_emitter => try @import("gib_emitters.zig").step(world, slots, projections, entity, now),
             .debris => try @import("debris.zig").step(world, slots, projections, entity, now),
             .laser => try @import("lasers.zig").step(world, slots, projections, entity, now),
@@ -256,6 +288,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             else => {},
         }
     }
+    @import("lights.zig").styles(world, now);
 }
 
 fn fireTimer(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *Router, entity: ecs.Entity, now: i64) !void {

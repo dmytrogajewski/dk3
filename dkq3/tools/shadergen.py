@@ -210,11 +210,24 @@ LIGHTSTYLE_DIVISOR = ord(LIGHTSTYLE_FULL_CHAR) - ord(LIGHTSTYLE_BASE_CHAR)      
 LIGHTSTYLE_FRAME_MS = 100                                                       # CL_FRAME_MILLISECONDS
 LIGHTSTYLE_HZ = 1000.0 / LIGHTSTYLE_FRAME_MS                                    # ten characters per second
 LIGHTSTYLE_UNSET_VALUE = 1.0                                                    # a style with no string (cl_fx.cpp:53)
-# Original periodic/flicker samples; custom authored styles are read from user assets.
+# Default light samples: Copyright (C) 1997-2001 Id Software, Inc.
+# GPL-2.0-or-later, Quake-2 game/g_spawn.c at 372afde46e7defc9dd2d719a1732b8ace1fa096e.
+# Public upstream data admission and source hash: docs/provenance.md, sequence 275.
+# Custom authored styles are read from user assets.
 DEFAULT_LIGHTSTYLES = {
-    0: 'm', 1: 'mlkpmn', 2: 'acegikmoqsuwywu sqomkigeca'.replace(' ', ''),
-    3: 'jkmkijlm', 4: 'am', 5: 'jlnprpnlj', 6: 'lokmpn', 7: 'kmljkm',
-    8: 'lmjklmk', 9: 'aaaammmm', 10: 'mmmlammk', 11: 'gikmoqomkig', 63: 'a',
+    0: 'm',
+    1: 'mmnmmommommnonmmonqnmmo',
+    2: 'abcdefghijklmnopqrstuvwxyzyxwvutsrqponmlkjihgfedcba',
+    3: 'mmmmmaaaaammmmmaaaaaabcdefgabcdefg',
+    4: 'mamamamamama',
+    5: 'jklmnopqrstuvwxyzyxwvutsrqponmlkj',
+    6: 'nmonqnmomnmomomno',
+    7: 'mmmaaaabcdefgmmmmaaaammmaamm',
+    8: 'mmmaaammmaaammmabcdefaaaammmmabcdefmmmaaaa',
+    9: 'aaaaaaaazzzzzzzz',
+    10: 'mmamammmmammamamaaamammma',
+    11: 'abcdefghijklmnopqrrqponmlkjihgfedcba',
+    63: 'a',
 }
 LIGHTSTYLE_CUSTOM_FIRST = 12        # LIGHT.CPP:637
 LIGHTSTYLE_SWITCHABLE_FIRST = 32    # LIGHT.CPP:211

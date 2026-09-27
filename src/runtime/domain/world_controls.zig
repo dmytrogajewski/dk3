@@ -16,6 +16,10 @@ pub const Timer = struct {
     }
 };
 pub const Action = union(enum) {
+    light: @import("lightstyles.zig").Light,
+    light_ramp: @import("lightstyles.zig").Ramp,
+    spotlight: @import("spotlight.zig").State,
+    earthquake: @import("earthquake.zig").State,
     gib_emitter: @import("gib_emitter.zig").State,
     debris: @import("debris.zig").State,
     room: u8,

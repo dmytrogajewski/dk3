@@ -129,3 +129,21 @@ no private physics or implementation is imported. Authored nitro is separate fro
 swimming mask. The updated header digest is recorded in `engine/DEVELOPMENT.json`.
 Independent liquid/fall policies were written after reviewing private client/AI/artifact
 behavior; that source remains outside the checkout and is not a build input.
+
+## Sequence 275 — public default light animation samples
+
+Reviewed and admitted only the thirteen default light animation strings (styles 0–11
+and 63) from id Software's public GPL Quake II `game/g_spawn.c`. These replace the
+project's earlier approximations in the converter and native lightstyle policy.
+No private reference implementation or private patterns file is imported. The native
+switch/ramp controllers and transport are independently written.
+
+- Upstream: [id-Software/Quake-2, pinned g_spawn.c](https://raw.githubusercontent.com/id-Software/Quake-2/372afde46e7defc9dd2d719a1732b8ace1fa096e/game/g_spawn.c).
+- Commit: `372afde46e7defc9dd2d719a1732b8ace1fa096e`.
+- Source SHA-256: `4c401dfb37076aa1186bf1b321d4606a997a1324fd4c2c3afb933d0a045a0eff`.
+- Copyright (C) 1997-2001 Id Software, Inc.; GPL version 2 or later, as stated in
+  the source header. Copyright attribution accompanies both admitted tables; the
+  project's [GPL text](../LICENSE) remains distributed.
+- Review scope: the default strings only. No Quake II runtime, game assets, headers
+  or unrelated code was admitted. Public data matches the reviewed behavioral
+  pattern contract; rendered native/reference comparison is still pending.

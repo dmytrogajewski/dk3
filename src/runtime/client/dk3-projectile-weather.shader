@@ -338,3 +338,13 @@ dk3/fx/authored-laser
    alphaGen vertex
  }
 }
+
+dk3/fx/spotlight
+{
+ cull disable
+ { map $whiteimage
+   blendFunc GL_SRC_ALPHA GL_ONE
+   rgbGen vertex
+   alphaGen vertex
+ }
+}

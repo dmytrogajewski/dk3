@@ -26,6 +26,16 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             switch (value.action) {
                 .timer => |*timer| try deadline(&timer.next_ms, delta),
                 .speaker => |*speaker| try deadline(&speaker.next_ms, delta),
+                .light => |*state| try shift(&state.phase_ms, delta),
+                .light_ramp => |*state| {
+                    try shift(&state.started_ms, delta);
+                    try deadline(&state.next_ms, delta);
+                },
+                .spotlight => |*state| try shift(&state.next_ms, delta),
+                .earthquake => |*state| {
+                    try deadline(&state.next_ms, delta);
+                    try shift(&state.until_ms, delta);
+                },
                 .gib_emitter => |*state| {
                     try deadline(&state.next_ms, delta);
                     try shift(&state.until_ms, delta);
@@ -441,4 +451,21 @@ test "authored speaker and healing station deadlines retain remaining time" {
     try t.expectEqual(@as(?i64, 10000), healer.action.healer.effect_ms);
     try t.expectEqual(@as(u32, 42), healer.action.healer.charge);
     try t.expectEqual(@as(u32, 8), healer.action.healer.recipient);
+}
+
+test "authored earthquake and light restoration retain pending pulses, ramp progress and pattern phase" {
+    const t = std.testing;
+    var quake: data.WorldControl = .{ .action = .{ .earthquake = .{ .next_ms = 1300, .until_ms = 6100 } } };
+    var light: data.WorldControl = .{ .action = .{ .light = .{ .kind = .light, .pattern = "amb", .phase_ms = 700, .revision = 42 } } };
+    var ramp: data.WorldControl = .{ .action = .{ .light_ramp = .{ .from = 0, .to = 25, .started_ms = 900, .next_ms = 1300, .target = 14 } } };
+    const before = ramp.action.light_ramp.sample(1250);
+    const phase = @import("lightstyles.zig").sample(light.action.light.pattern, 1250 - light.action.light.phase_ms);
+    try rebase(.world_control, &quake, 9000);
+    try rebase(.world_control, &light, 9000);
+    try rebase(.world_control, &ramp, 9000);
+    try t.expectEqual(@as(i64, 50), quake.action.earthquake.next_ms.? - 10250);
+    try t.expectEqual(@as(i64, 4850), quake.action.earthquake.until_ms - 10250);
+    try t.expectEqual(before, ramp.action.light_ramp.sample(10250));
+    try t.expectEqual(phase, @import("lightstyles.zig").sample(light.action.light.pattern, 10250 - light.action.light.phase_ms));
+    try t.expectEqual(@as(u64, 42), light.action.light.revision);
 }
