@@ -80,6 +80,8 @@ class NativeInput:
         return self.ready(weapon)
 
     def aim(self, yaw, pitch):
+        limit = 16000 * 360 / 65536  # Authoritative movement short-angle clamp.
+        pitch = max(-limit, min(limit, pitch))
         self.issue(f"dk3_look {yaw} {pitch}")
         def close(a, b):
             return abs((a - b + 180) % 360 - 180) < 0.03

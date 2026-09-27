@@ -12,6 +12,8 @@ pub const State = struct {
     frog: catalog.froginator.State = .{},
     thunder: catalog.thunderskeet.State = .{},
     cambot: catalog.cambot.State = .{},
+    crox: catalog.crox.State = .{},
+    rockgat: catalog.rockgat.State = .{},
     think_ms: i64 = 0,
     unique: []const u8 = "",
     ignore_player: bool = false,
@@ -55,11 +57,16 @@ pub const Definition = struct {
     idle: animation.Sequence = .{},
     run: animation.Sequence = .{},
     death: animation.Sequence = .{},
-    attacks: [3]animation.Sequence = @splat(.{}),
-    strikes: [3]u16 = @splat(1),
-    second_strikes: [3]?u16 = @splat(null),
-    attack_sounds: [3][]const u8 = @splat(""),
-    attack_sound_ms: [3]i64 = @splat(0),
+    attacks: [4]animation.Sequence = @splat(.{}),
+    strikes: [4]u16 = @splat(1),
+    second_strikes: [4]?u16 = @splat(null),
+    attack_sounds: [4][]const u8 = @splat(""),
+    attack_sound_ms: [4]i64 = @splat(0),
+    second_attack_sounds: [4][]const u8 = @splat(""),
+    second_sound_ms: [4]?i64 = @splat(null),
+    swim: animation.Sequence = .{},
+    walk: animation.Sequence = .{},
+    death_b: animation.Sequence = .{},
     hatch_sound: []const u8 = "",
     reload: animation.Sequence = .{},
     hatch: animation.Sequence = .{},
@@ -75,7 +82,7 @@ pub const Definition = struct {
     scale: v.Vec3 = @splat(1),
     pub fn guardTiming(self: Definition) catalog.mishima.Timing {
         var result: catalog.mishima.Timing = undefined;
-        for (self.attacks, self.strikes, 0..) |sequence, strike, i| {
+        for (self.attacks[0..3], self.strikes[0..3], 0..) |sequence, strike, i| {
             result.attack_ms[i] = @divTrunc(@as(i64, sequence.last - sequence.first + 1) * 1000, sequence.fps);
             result.strike_ms[i] = @divTrunc(@as(i64, strike) * 1000, sequence.fps);
         }
@@ -95,6 +102,16 @@ pub const Table = struct {
             if (entry.loaded) return error.DuplicateActorClass;
             entry.model = row.field("model_name") orelse return error.MissingActorModel;
             if (entry.model.len == 0 or entry.model.len >= 64) return error.InvalidActorModel;
+            if (catalog.entries[id].kind == .rockgat) {
+                // This class reads only its model from aidata; map epairs own the
+                // turret tuning. Its hull, mass and default health are class values.
+                entry.health = 500;
+                entry.mass = 1;
+                entry.mins = @splat(-16);
+                entry.maxs = @splat(16);
+                entry.loaded = true;
+                continue;
+            }
             const health = try row.number("health", 0);
             entry.speed = try row.number("run_speed", 0);
             entry.walk_speed = try row.number("walk_speed", 0);

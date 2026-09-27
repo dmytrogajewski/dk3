@@ -26,6 +26,13 @@ pub const Router = struct {
         defer self.depth -= 1;
         const object = (try world.get(entity, data.MapObject)).*;
         if (!@import("keys.zig").allows(world, object, activator)) return;
+        if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .rockgat) {
+            if ((try world.get(entity, data.Health)).current > 0) {
+                actor.rockgat.use();
+                actor.think_ms = now + 100;
+            }
+            return;
+        };
         if (std.mem.eql(u8, object.classname, "target_monster_spawn")) return @import("actor_spawns.zig").use(self.actors orelse return error.MissingActorDefinitions, world, slots, projections, entity, source, now);
         if ((world.get(entity, data.HealthTree) catch null) != null) return @import("healthtrees.zig").use(world, slots, projections, entity, activator, now);
         if (std.mem.eql(u8, object.classname, "trigger_script")) {

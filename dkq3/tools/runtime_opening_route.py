@@ -62,7 +62,8 @@ def fight(driver, capture, expected_map):
             if state["health"] < 25:
                 raise RuntimeError("Low health while waiting for a firing opportunity")
             paused = row.get("frog") in ("bite", "spit") if row["class"] == "monster_froginator" else row.get("skeeter") == "attack"
-            if paused and math.dist(row["velocity"], (0, 0, 0)) < 1:
+            settled = (math.hypot(*row["velocity"][:2]) < 1 and row.get("ground") != "2047") if row["class"] == "monster_froginator" else math.dist(row["velocity"], (0, 0, 0)) < 1
+            if paused and settled:
                 break
             if time.monotonic() >= deadline:
                 driver.inputs.append({"engagement_deferred": identity, "reason": "no attack pause; continue approach", "actor": row})
@@ -157,8 +158,8 @@ def walk(driver, point, capture, *, combat=False):
 
 
 def opening_route(driver, capture, report, phase="arrival"):
-    if phase == "first-encounter":
-        return marsh_exit(driver, capture, report)
+    if phase in ("first-encounter", "marsh-middle"):
+        return marsh_exit(driver, capture, report, start_index=9 if phase == "marsh-middle" else 0)
     state = driver.observe()
     if state["map"] != "e1m1a" or state["health"] != 100 or state["weapon"] != 1:
         raise RuntimeError(f"Opening setup is not ordinary arrival: {state}")
@@ -182,7 +183,7 @@ def opening_route(driver, capture, report, phase="arrival"):
         raise
 
 
-def marsh_exit(driver, capture, report):
+def marsh_exit(driver, capture, report, start_index=0):
     state = driver.observe()
     if state["map"] != "e1m1a" or state["health"] <= 0 or state["weapon"] != 2:
         raise RuntimeError(f"First-encounter checkpoint setup invalid: {state}")
@@ -198,6 +199,8 @@ def marsh_exit(driver, capture, report):
              (-648, -1416, 503))
     try:
         for index, point in enumerate(route):
+            if index < start_index:
+                continue
             walk(driver, point, capture, combat=True)
             if index in (8, 17, 26):
                 checkpoint = driver.save(f"opening_marsh_{index}")

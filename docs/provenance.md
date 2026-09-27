@@ -114,3 +114,11 @@ and supplied tuning/model metadata. Native policy, ECS state, collision services
 client tag rendering are independently written. PVS alarm admission and direct
 crosshair dodge qualification are explicit narrower compatibility departures, not
 claimed reference equivalence. No private implementation is a project dependency.
+
+Sequence 250 independently implements Crox and Rockgat class contracts established
+from private behavior review and supplied authoring/model/event data. This includes
+water sampling/attack variants, height-band wandering, turret deployment and shot
+chains, and the class's extra pain deduction. Generic engine collision/navigation,
+typed snapshots and native ECS remain the implementation mechanisms. No reference
+source or runtime is admitted. Incomplete steering/effects and integer-versus-float
+damage parity are explicit acceptance gaps.

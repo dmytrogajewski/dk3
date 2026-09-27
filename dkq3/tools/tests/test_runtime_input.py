@@ -49,3 +49,12 @@ class NativeInputTests(unittest.TestCase):
             event = wait.call_args.args[2]
             self.assertFalse(event(" " * 40 + "loading"))
             self.assertTrue(event(" " * 40 + "dk3 zig: player entered isolated movement runtime"))
+
+    def test_vertical_aim_waits_for_the_reachable_movement_pitch(self):
+        driver = NativeInput(None, None, None, None, [])
+        with patch.object(driver, "issue") as issue, patch.object(driver, "until") as until:
+            driver.aim(0, -90)
+            self.assertEqual(issue.call_args.args[0], "dk3_look 0 -87.890625")
+            predicate = until.call_args.args[0]
+            self.assertFalse(predicate({"angles": (0, 0, 0)}))
+            self.assertTrue(predicate({"angles": (-87.891, 0, 0)}))

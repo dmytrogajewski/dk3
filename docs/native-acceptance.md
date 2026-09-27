@@ -10,7 +10,7 @@ multiplayer modes/bots, persistence, UI and release requirements remain in scope
 | Outcome | Implementation and contracts | Native engine / connected gameplay | Evidence and limits |
 |---|---|---|---|
 | Finish weapon controllers | Audit completed: 28 class-owned policies are connected, including Zeus, Wyndrax, Nightmare and Metamaser. Counts describe dispatch coverage only. | Several focused interactions exercised; no complete weapon acceptance. | Journal sequences 232–243. Diagnostic inventory, placement and sometimes health changes invalidate these as continuous campaign evidence. |
-| Fresh opening campaign | Intro, pod/skeet/frog/Thunderskeet policies, opening action programs and health trees implemented. Cambot acquisition/alarm is connected; Crox/Rockgat remain missing classes. | **Unrun as a complete route:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. No verified consolidated build yet. | Must use ordinary starting inventory, normal difficulty, one build and asset manifest. Include combat, pickups, controls, death/reload, save/load and visited worlds. |
+| Fresh opening campaign | Intro, pod/skeet/frog/Thunderskeet policies, opening action programs and health trees implemented. Cambot, Crox and Rockgat now have connected policies; remaining interaction/behavior gaps are listed below. | **Unrun as a complete route:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. No verified consolidated build yet. | Must use ordinary starting inventory, normal difficulty, one build and asset manifest. Include combat, pickups, controls, death/reload, save/load and visited worlds. |
 | Native save and visited-world restoration | Typed native snapshots and visited archives implemented; focused contracts execute. | Historical sequence 241 travel diagnostic requires revalidation after trigger projection changes. Connected campaign persistence unrun. | `zig-out/reports/runtime-zig-241/travel-regression/`; diagnostic placements, no companion/cinematic qualification. |
 | Remaining campaign and multiplayer | Most actors, companion/cinematic progression and native multiplayer behaviors remain. | Unrun in this runtime. | Opening milestone is an integration gate, not completion of this scope. |
 
@@ -163,3 +163,28 @@ Three modules and 98 focused contracts pass with assertions
 refresh at the next coherent integration checkpoint. Shared authored sight changes
 require affected actor/perception regression replay. Full fresh opening gate,
 remaining campaign, companions, multiplayer and release remain open.
+
+## Current actor/progression checkpoint (250)
+
+| Outcome | Exact build/assets | Remaining blocker / setup limits | Evidence |
+|---|---|---|---|
+| Authored Crox swims under observed water level 3 and resumes a saved pending melee attack with real contact | Consolidated `282dd04dbfffddac553b953267f7575711f125a62d3f9d0e9c98237b4df08cd1`; `crox-consolidated/identity.json` | Diagnostic placement/health. Dry/wet pose choices, height-based disengagement and node wandering are connected; full transitions, swimming steering/avoidance, floor orientation, pain/gibs and all attack poses need live/reference qualification. | `runtime-zig-250/crox-first/`, `crox-consolidated/` |
+| Rockgat raises, fires, restores live bursts, lowers, takes ten ordinary Ion contacts and remains removed after lethal damage/save-load | `282dd04dbfffddac553b953267f7575711f125a62d3f9d0e9c98237b4df08cd1`; all executable/module/package digests in `rockgat-contact/identity.json` | Diagnostic placement, equipment and health. Toggle has a policy contract; authored toggle, death effects, tracer/sparks, fractional damage and complete audiovisual parity remain open. | `runtime-zig-250/rockgat-contact/result.json`, inputs, raising/firing saves and captures |
+| Ordinary marsh route advances beyond the previously missed frog, clears multiple encounters and reaches checkpoint 17 | `eb52b82e4153a236ecee0535ceafd915d42f456cb597b58c7d7320af7f7f60c3`; `marsh-middle/identity.json` | Legitimate sequence-248 checkpoint, normal inventory/input. Still failed at a close overhead skeet shot near the final climb; no e1m1a exit acceptance. Old checkpoint lacks newly admitted actors. | `runtime-zig-250/marsh-middle/`, `opening_marsh_17.sav`, failure frame and full observations |
+
+Rockgat preserves the reviewed class-owned popup timing, asymmetric upward firing
+bound, six-shot chains, supplied/map sound choices and additional pain deduction.
+A focused shared-damage contract checks this applies only to Rockgat, with Crox and
+player damage unchanged. Typed snapshots cover pending Crox attacks/swim state and
+Rockgat burst/deployment deadlines with rebasing. All three native modules and the
+coherent aggregate pass: **239 Zig + 49 Python checks**, assertions enabled, named
+roots executed (`/tmp/dk3-runtime-250-aggregate.log`). The first compile rejected an
+oversized diagnostic format; the split output keeps one complete actor record.
+
+Driver failures at -90 and -89 degrees established the actual movement pitch clamp
+(16000 short-angle units). The driver now observes that reachable angle. Grounded
+frog attack pauses are distinguished from the gravity remainder in velocity. These
+changes improve setup; they do not alter damage, authored geometry or AI rules.
+Close overhead Ion contact remains under investigation against reference launch
+behavior. Crox also passes on this consolidated build in `crox-consolidated/`. Fresh New Game through e1m2a, bridge traversal/combat/death outputs, connected
+resupply/persistence, later episodes, companions and multiplayer remain open.

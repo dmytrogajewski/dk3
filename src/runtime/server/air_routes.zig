@@ -10,13 +10,19 @@ pub const Routes = struct {
     nodes: []const Node = &.{},
     indices: [4096]?u16 = @splat(null),
     pub fn init(self: *Routes, allocator: std.mem.Allocator) !void {
+        try self.initKind(allocator, .air);
+    }
+    pub fn initGround(self: *Routes, allocator: std.mem.Allocator) !void {
+        try self.initKind(allocator, .ground);
+    }
+    fn initKind(self: *Routes, allocator: std.mem.Allocator, kind: enum { air, ground }) !void {
         var map_buffer: [64]u8 = undefined;
         const map = @import("persistence.zig").mapName(&map_buffer);
         var path: [96]u8 = undefined;
         const bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, try std.fmt.bufPrintZ(&path, "dk3/routes/{s}.json", .{map}), 4 * 1024 * 1024);
-        const graphs = try std.json.parseFromSliceLeaky(struct { air: []const Node = &.{} }, allocator, bytes, .{ .ignore_unknown_fields = true, .allocate = .alloc_always });
-        if (graphs.air.len > 4096) return error.AirNodeCapacity;
-        self.nodes = graphs.air;
+        const graphs = try std.json.parseFromSliceLeaky(struct { air: []const Node = &.{}, ground: []const Node = &.{} }, allocator, bytes, .{ .ignore_unknown_fields = true, .allocate = .alloc_always });
+        self.nodes = if (kind == .air) graphs.air else graphs.ground;
+        if (self.nodes.len > 4096) return error.AuthoredNodeCapacity;
         for (self.nodes, 0..) |node, i| {
             if (node.index >= self.indices.len or self.indices[node.index] != null or node.links.len > 6) return error.InvalidAirNode;
             for (node.position) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidAirNode;

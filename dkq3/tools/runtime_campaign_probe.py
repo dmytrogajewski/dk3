@@ -118,7 +118,7 @@ def main():
     parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--opening", action="store_true", help="Continue with ordinary-input opening route development")
-    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter"), default="arrival")
+    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle"), default="arrival")
     parser.add_argument("--checkpoint-map", choices=("intro", "e1m1a"), default="intro")
     parser.add_argument("--checkpoint", type=Path, help="Legitimate checkpoint for development replay; never fresh campaign acceptance")
     args = parser.parse_args()

@@ -222,6 +222,7 @@ fn draw(now: i32) !void {
         try @import("client/events.zig").loop(&game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
         if (entity.eType == c.ET_GENERAL and (entity.time2 == @import("actor_catalog").cambot.idle_tag or entity.time2 == @import("actor_catalog").cambot.alert_tag)) try @import("client/cambot.zig").draw(&rendered, entity.time2 == @import("actor_catalog").cambot.alert_tag, &ref);
+        if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").rockgat.flash_tag) try @import("client/rockgat.zig").draw(&rendered);
         if (entity.eType == c.ET_GENERAL and entity.generic1 > 0 and entity.generic1 <= 1000) try @import("client/status_visuals.zig").frost(rendered, @as(f32, @floatFromInt(entity.generic1)) / 1000);
     }
     if (snapshot.ps.dk3CameraActive != 0) @import("client/cinematics.zig").audio(ref.vieworg);

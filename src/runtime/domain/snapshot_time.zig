@@ -126,6 +126,15 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.think_ms, delta);
             try shift(&value.scripted_ms, delta);
             try shift(&value.frog.started_ms, delta);
+            try shift(&value.rockgat.pose_ms, delta);
+            try shift(&value.rockgat.next_attack_ms, delta);
+            try shift(&value.rockgat.next_sound_ms, delta);
+            for (&value.rockgat.bursts) |*burst| if (burst.*) |*shot| {
+                try shift(&shot.next_ms, delta);
+            };
+            try shift(&value.crox.started_ms, delta);
+            try shift(&value.crox.cycle_ms, delta);
+            try shift(&value.crox.wander_until_ms, delta);
             try shift(&value.thunder.started_ms, delta);
             try shift(&value.skeeter.started_ms, delta);
             try shift(&value.skeeter.until_ms, delta);

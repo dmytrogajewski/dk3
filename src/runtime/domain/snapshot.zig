@@ -294,6 +294,11 @@ pub fn validate(snapshot: *Loaded) !void {
         }
         if (world.get(entity, data.Actor) catch null) |actor| {
             if (actor.definition >= @import("actor_catalog").entries.len or actor.guard.pose >= 3 or actor.guard.rounds > 8 or actor.cambot.wave >= 12 or actor.cambot.back_direction < -1 or actor.cambot.back_direction > 1) return error.InvalidSavedActor;
+            const gun = actor.rockgat;
+            if (gun.height > 1024 or gun.fire_ms < 10 or gun.fire_ms > 3600000 or gun.range <= 0 or gun.range > 65536 or gun.damage < 0 or gun.damage > 1000000 or gun.random_damage < 0 or gun.random_damage > 1000000) return error.InvalidSavedRockgat;
+            for (gun.bursts) |burst| if (burst) |shot| {
+                if (shot.remaining == 0 or shot.remaining > 5) return error.InvalidSavedRockgatBurst;
+            };
             try require(world, entity, .{ data.Velocity, data.Body, data.Health, data.Hurt, data.Binding, data.MapObject });
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
         }
@@ -582,6 +587,11 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = try world.create(68, .{ data.Transform{}, data.Binding{ .slot = 85 }, data.MetaRing{ .owner = 7, .cube = 67, .damage = 40, .born_ms = 900, .next_ms = 1050 } });
     _ = try world.create(69, .{ data.Transform{}, data.Binding{ .slot = 86 }, data.Random{ .state = 30 }, data.MetaLaser{ .owner = 7, .cube = 67, .damage = 40, .next_ms = 1100, .expires_ms = 5900 } });
     _ = try world.create(73, .{ data.Transform{}, data.MapObject{ .classname = "info_aiscript" }, data.Script{ .name = "Skeet1Path", .active = true, .index = 2, .due_ms = 1800, .next_ms = 1050, .revision = 4 } });
+    _ = try world.create(76, .{ data.Transform{}, data.MapObject{ .classname = "monster_crox" }, data.Actor{ .definition = @import("actor_catalog").find("monster_crox").?, .crox = .{ .swimming = true, .water = 3, .attacking = true, .pose = 1, .started_ms = 500, .cycle_ms = 1800, .wander_until_ms = 3000, .destination = .{ 10, 20, 30 } } }, data.Body{}, data.Binding{ .slot = 91, .model = 1 }, data.Velocity{}, data.Health{}, data.Hurt{}, data.Random{ .state = 3 } });
+    var gun: @import("actor_catalog").rockgat.State = .{ .phase = .scanning, .raised = true, .pose_ms = 700, .next_attack_ms = 1150, .next_sound_ms = 1200 };
+    try gun.startBurst(950);
+    gun.bursts[0].?.remaining = 3;
+    _ = try world.create(77, .{ data.Transform{}, data.MapObject{ .classname = "monster_rockgat" }, data.Actor{ .definition = @import("actor_catalog").find("monster_rockgat").?, .rockgat = gun }, data.Body{}, data.Binding{ .slot = 92, .model = 1 }, data.Velocity{}, data.Health{}, data.Hurt{}, data.Random{ .state = 4 } });
     _ = try world.create(75, .{ data.Transform{}, data.Body{ .mins = @splat(-1), .maxs = @splat(1) }, data.Binding{ .slot = 90, .model = 1 }, data.Velocity{ .linear = .{ 180, 0, 0 } }, data.Lifetime{ .expires_ms = 15500 }, data.ThunderSpray{ .owner = 7, .alternate = true, .born_ms = 500, .stepped_ms = 950, .next_ms = 1000, .phase = 11, .scale = 0.4, .delta = 0.25 } });
     _ = try world.create(74, .{ data.Transform{}, data.MapObject{ .classname = "misc_healthtree" }, data.Body{}, data.Binding{ .slot = 89, .model = 1 }, data.Velocity{}, data.Health{ .current = 100, .maximum = 100 }, data.Random{ .state = 8 }, data.HealthTree{ .fruit = 2, .previous = 3, .ready_ms = 1800, .changed_ms = 800 } });
     _ = try world.create(72, .{ data.Transform{}, data.Body{ .mins = @splat(-3), .maxs = @splat(3) }, data.Binding{ .slot = 88, .model = 1 }, data.Velocity{ .linear = .{ 400, 0, 0 } }, data.Lifetime{ .expires_ms = 5500 }, data.FrogSpit{ .owner = 7, .damage = 7, .born_ms = 500, .stepped_ms = 950 } });
@@ -651,6 +661,18 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expectEqual(@as(u16, 2), script.index);
     try std.testing.expectEqual(@as(i64, 9800), script.due_ms);
     try std.testing.expectEqual(@as(i64, 9050), script.next_ms);
+    const crox = (try loaded.world.get(loaded.world.find(76).?, data.Actor)).crox;
+    try std.testing.expect(crox.swimming and crox.attacking and crox.water == 3 and crox.pose == 1);
+    try std.testing.expectEqual(@as(i64, 8500), crox.started_ms);
+    try std.testing.expectEqual(@as(i64, 9800), crox.cycle_ms);
+    try std.testing.expectEqual(@as(i64, 11000), crox.wander_until_ms);
+    try std.testing.expectEqual([3]f32{ 10, 20, 30 }, crox.destination.?);
+    const turret = (try loaded.world.get(loaded.world.find(77).?, data.Actor)).rockgat;
+    try std.testing.expectEqual(@as(i64, 8960), turret.bursts[0].?.next_ms);
+    try std.testing.expectEqual(@as(u3, 3), turret.bursts[0].?.remaining);
+    try std.testing.expectEqual(@as(i64, 9150), turret.next_attack_ms);
+    try std.testing.expectEqual(@as(i64, 9200), turret.next_sound_ms);
+    try std.testing.expectEqual(@as(i64, 8700), turret.pose_ms);
     const spray = (try loaded.world.get(loaded.world.find(75).?, data.ThunderSpray)).*;
     try std.testing.expectEqual(@as(i64, 8500), spray.born_ms);
     try std.testing.expectEqual(@as(i64, 8950), spray.stepped_ms);

@@ -5,8 +5,10 @@ pub const protopod = @import("protopod.zig");
 pub const skeeter = @import("skeeter.zig");
 pub const froginator = @import("froginator.zig");
 pub const thunderskeet = @import("thunderskeet.zig");
+pub const rockgat = @import("rockgat.zig");
+pub const crox = @import("crox.zig");
 pub const cambot = @import("cambot.zig");
-pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot };
+pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat };
 pub const Definition = struct {
     kind: Kind = .civilian,
     classname: []const u8,
@@ -27,6 +29,8 @@ pub const entries = [_]Definition{
     .{ .classname = "monster_froginator", .kind = .froginator },
     .{ .classname = "monster_thunderskeet", .kind = .thunderskeet, .run = "flya" },
     .{ .classname = "monster_cambot", .kind = .cambot, .run = "flya" },
+    .{ .classname = "monster_crox", .kind = .crox },
+    .{ .classname = "monster_rockgat", .kind = .rockgat, .idle = "up", .run = "up", .death = "up" },
 };
 pub fn find(name: []const u8) ?u8 {
     for (entries, 0..) |entry, i| if (@import("std").mem.eql(u8, name, entry.classname)) return @intCast(i);
@@ -40,4 +44,6 @@ test {
     _ = froginator;
     _ = thunderskeet;
     _ = cambot;
+    _ = crox;
+    _ = rockgat;
 }

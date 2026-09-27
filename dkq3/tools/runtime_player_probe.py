@@ -1546,7 +1546,7 @@ def run(args):
         command = [str(args.guard), "--headless", "--screen", "960x540",
                    "--timeout", "180s" if args.scenario == "controllers" else "90s", "--mem", "8G", "--", str(args.engine / "bin/dk3")]
         settings = client_settings(args.engine, home, args.renderer, args.workers)
-        if args.scenario in ("opening-actors", "bridge", "trigger-bounds"):
+        if args.scenario in ("opening-actors", "bridge", "trigger-bounds", "crox", "rockgat"):
             settings["g_spSkill"] = "3"
         for name, value in settings.items():
             command += ["+set", name, value]
@@ -1568,9 +1568,13 @@ def run(args):
 
             try:
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
-                if args.scenario in ("controllers", "bridge", "trigger-bounds", "opening-actors"):
+                if args.scenario in ("controllers", "bridge", "trigger-bounds", "opening-actors", "crox", "rockgat"):
                     from runtime_input import NativeInput
-                    if args.scenario == "opening-actors":
+                    if args.scenario == "rockgat":
+                        from runtime_rockgat_probe import scenario
+                    elif args.scenario == "crox":
+                        from runtime_crox_probe import scenario
+                    elif args.scenario == "opening-actors":
                         from runtime_opening_actors_probe import scenario
                     elif args.scenario == "trigger-bounds":
                         from runtime_trigger_bounds_probe import scenario
@@ -1652,7 +1656,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "meteors", "zeus", "controllers", "bridge", "trigger-bounds", "opening-actors", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "meteors", "zeus", "controllers", "bridge", "trigger-bounds", "opening-actors", "crox", "rockgat", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -1683,6 +1687,8 @@ def main():
         "bridge": ("e1m1b", "runtime-zig-247/bridge"),
         "trigger-bounds": ("e1m1a", "runtime-zig-248/trigger-bounds"),
         "opening-actors": ("e1m1a", "runtime-zig-249/opening-actors"),
+        "crox": ("e1m1b", "runtime-zig-250/crox"),
+        "rockgat": ("e1m1b", "runtime-zig-250/rockgat"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

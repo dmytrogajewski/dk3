@@ -3265,3 +3265,36 @@ phase; complete diagnostic batches are recorded. Two more misses identified a mo
 frog and vertically rising hatch pose, so the driver waits for an actual attack pause
 or keeps approaching. No gameplay tuning changed to accommodate these failures.
 Old checkpoint saves lack newly admitted actors and cannot establish fresh acceptance.
+
+## runtime-zig — sequence 250 (Crox and Rockgat opening actors)
+
+Crox connects all four supplied attack poses and event frames, weapon range/damage,
+water samples at feet/origin/top, animation-boundary walk/swim transition, height
+band disengagement, supplied-node wandering and saved state. `crox-first/` observes
+water level 3, swimming displacement after load, and a pending dry melee pose restored
+before contact (31.41 damage). Identity `aa848b46b7bf8eb7aa8168e68b37ca9c59359752c7c5bf2eb8c2b1081374ff63`.
+Full amphibious steering/avoidance, transition permutations, floor orientation and
+pain/gib presentation remain unqualified. No reference runtime/source imported.
+
+Rockgat uses class defaults and epair overrides rather than unused AI table weapons.
+Reviewed contracts include 0..10 popup frames, one-second initial firing delay,
+0.13 plus random 0..0.03-second firing interval, six-shot chains, asymmetric pitch
+admission, slot-order targets and the extra deduction in its own pain callback.
+Native snapshot preserves live chains and all deadlines. Muzzle uses supplied
+hr_muzzle/model. Removal follows lethal damage; death explosion/gibs and bullet
+tracers/sparks remain missing presentation. Integer health rounding is not full
+reference fractional-damage parity.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Crox contact/swim/save | Passed focused | `runtime-zig-250/crox-first/`; diagnostic placement/health. Consolidated replay also passes in `crox-consolidated/`, identity `282dd04dbfffddac553b953267f7575711f125a62d3f9d0e9c98237b4df08cd1`. |
+| Rockgat popup/contact/restoration | Passed focused | `rockgat-first/`; development build identity `eb52b82e4153a236ecee0535ceafd915d42f456cb597b58c7d7320af7f7f60c3`. |
+| Rockgat burst and lethal contact restoration | Passed focused | `rockgat-contact/`, coherent identity `282dd04dbfffddac553b953267f7575711f125a62d3f9d0e9c98237b4df08cd1`; actual pending controller required, ten Ion contacts remove 500 health through class pain accounting, save/load does not recreate turret. Diagnostic equipment/health/placement. |
+| Ordinary marsh progression | Failed after new checkpoint | `marsh-middle/` starts from legitimate old checkpoint 8, kills frog 204 and several skeets, reaches checkpoint 17, then misses overhead skeet 395 near final climb. Health 49 at stop. No repeated shots or death loop, no full traversal acceptance. |
+| Coherent aggregate | Passed | `/tmp/dk3-runtime-250-aggregate.log`: 239 Zig + 49 Python checks, all three modules and formatting. Assertions enabled. |
+
+Pitch driver failures (-90 rejected, -89 clamped) were corrected to actual 16000-unit
+movement bound and covered by a meaningful acknowledgement regression. Actor samples
+include phase, actual sight, velocity, grounded state and complete record boundary.
+The campaign gap remains the whole coherent New Game→e1m2a gate; diagnostics and old
+checkpoint development do not close it. Full campaign/multiplayer scope remains.
