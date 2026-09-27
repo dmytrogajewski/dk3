@@ -13,18 +13,30 @@ const Entry = struct {
     gameplay: bool = false,
     context: ?*Context = null,
     ready: bool = false,
+    publication: ?@import("world_publication.zig").State = null,
+    client_failed: bool = false,
 };
 pub const State = struct {
     entries: [127]?Entry = @splat(null),
     cursor: usize = 0,
+    pub fn destination(self: *State, name: []const u8) !*Context {
+        for (&self.entries) |*maybe| if (maybe.*) |*entry| {
+            if (!std.mem.eql(u8, name, std.mem.sliceTo(&entry.name, 0))) continue;
+            if (!entry.ready or entry.client_failed or entry.publication == null or !entry.publication.?.ready) return error.WorldNotAdmitted;
+            return entry.context orelse error.WorldNotPrepared;
+        };
+        return error.WorldNotRequested;
+    }
     pub fn deinit(self: *State) void {
-        for (self.entries) |maybe| if (maybe) |entry| {
+        for (&self.entries) |*maybe| if (maybe.*) |*entry| {
+            if (entry.publication) |*publication| publication.deinit(entry.handle);
             if (entry.context) |context| context.destroy();
             _ = worlds.release(entry.handle);
         };
         self.* = .{};
     }
     pub fn request(self: *State, name: []const u8, gameplay: bool) !void {
+        if (gameplay and engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return error.CampaignPreparationRequiresSinglePlayer;
         if (!@import("../domain/snapshot.zig").validName(name) or name.len >= 64) return error.InvalidWorldName;
         var active: usize = 0;
         for (self.entries) |maybe| if (maybe) |entry| {
@@ -47,11 +59,16 @@ pub const State = struct {
             const index = self.cursor;
             self.cursor = (index + 1) % self.entries.len;
             const entry = if (self.entries[index]) |*value| value else continue;
+            if (entry.ready and !entry.client_failed) {
+                if (entry.publication == null) entry.publication = try @import("world_publication.zig").State.capture(entry.handle);
+                try entry.publication.?.step(entry.handle, std.mem.sliceTo(&entry.name, 0));
+                continue;
+            }
             if (entry.status == .collision_ready and entry.gameplay and !entry.ready) {
                 const before = engine.gateway.call(c.G_MILLISECONDS, .{});
                 if (entry.context == null) {
                     try worlds.attach(entry.handle);
-                    entry.context = Context.prepare(entry.handle, now, table) catch |err| {
+                    entry.context = Context.prepare(entry.handle, @intCast(index + 1), now, table) catch |err| {
                         entry.status = .failed;
                         _ = worlds.release(entry.handle);
                         var failure: [192]u8 = undefined;
@@ -80,10 +97,37 @@ pub const State = struct {
             return;
         }
     }
+    pub fn clientCommand(self: *State, client: usize, command_name: []const u8) !bool {
+        const failed = std.mem.eql(u8, command_name, "dk3_world_failed");
+        if (!failed and !std.mem.eql(u8, command_name, "dk3_world_ack")) return false;
+        if (client != 0 or engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return true;
+        var argument: [96]u8 = undefined;
+        const handle = std.fmt.parseInt(u32, engine.argv(1, &argument), 10) catch return true;
+        for (&self.entries) |*maybe| if (maybe.*) |*entry| {
+            if (@intFromEnum(entry.handle) != handle or entry.publication == null) continue;
+            if (failed) {
+                entry.client_failed = true;
+                var message: [192]u8 = undefined;
+                engine.print(try std.fmt.bufPrintZ(&message, "dk3 resident: map={s} client_failed={s}\n", .{ std.mem.sliceTo(&entry.name, 0), engine.argv(2, &argument) }));
+                return true;
+            }
+            const offset = std.fmt.parseInt(usize, engine.argv(2, &argument), 10) catch return true;
+            const ready = std.mem.eql(u8, engine.argv(3, &argument), "ready");
+            const was_ready = entry.publication.?.ready;
+            entry.publication.?.acknowledge(offset, ready) catch return true;
+            if (ready and !was_ready) {
+                var message: [192]u8 = undefined;
+                engine.print(try std.fmt.bufPrintZ(&message, "dk3 resident: map={s} stage=client_ready handle={d} definitions={d}\n", .{ std.mem.sliceTo(&entry.name, 0), handle, offset }));
+            }
+            return true;
+        };
+        return true; // A cancelled generation may still have reliable replies in flight.
+    }
     pub fn command(self: *State) !void {
         var verb_buffer: [32]u8 = undefined;
         const verb = engine.argv(1, &verb_buffer);
         if (std.mem.eql(u8, verb, "clear")) {
+            for (self.entries) |maybe| if (maybe) |entry| if (entry.handle == worlds.current()) return error.CannotReleaseActiveWorld;
             self.deinit();
             engine.print("dk3 resident: cleared\n");
             return;

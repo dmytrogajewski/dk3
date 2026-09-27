@@ -527,5 +527,6 @@ void SV_InitWorlds(void);
 void SV_ClearWorlds(void);
 qboolean SV_AttachWorld(unsigned int collision);
 qboolean SV_SelectWorld(unsigned int collision);
+qboolean SV_ActivateWorld(unsigned int collision);
 unsigned int SV_CurrentWorld(void);
 qboolean SV_ReleaseWorld(unsigned int collision);

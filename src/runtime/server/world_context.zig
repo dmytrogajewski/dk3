@@ -21,10 +21,13 @@ pub const Context = struct {
     restore_pending: ?@import("../domain/snapshot.zig").Loaded = null,
     resources: @import("resources.zig").State = .{},
     prepared_at: i64 = 0,
+    handle: ?worlds.Handle = null,
+    network_id: u32 = 0,
+    activated: bool = false,
 
     /// Creates authored entities without stepping encounters or admitting players.
     /// The caller owns the matching engine context and releases it on failure.
-    pub fn prepare(handle: worlds.Handle, now: i64, table: *const @import("../domain/weapons.zig").Table) !*Context {
+    pub fn prepare(handle: worlds.Handle, namespace: u7, now: i64, table: *const @import("../domain/weapons.zig").Table) !*Context {
         const self = try std.heap.c_allocator.create(Context);
         self.* = .{};
         errdefer self.destroy();
@@ -34,8 +37,10 @@ pub const Context = struct {
         const previous_resources = resources.select(&self.resources);
         defer _ = resources.select(previous_resources);
         self.prepared_at = now;
+        self.handle = handle;
+        self.network_id = @intFromEnum(handle);
         self.arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-        self.world = component.World.init(std.heap.c_allocator, 1024);
+        self.world = component.World.initNamespaced(std.heap.c_allocator, 1024, namespace);
         @memset(std.mem.asBytes(&self.projection), 0);
         @memset(std.mem.asBytes(&self.players), 0);
         for (&self.projection, 0..) |*entity, i| {
@@ -61,6 +66,18 @@ pub const Context = struct {
         self.targets.cinematics = &self.systems.cinematics;
         self.targets.actors = &self.systems.actors;
         return self;
+    }
+    pub fn awaken(self: *Context, now: i64) !void {
+        if (self.activated) return;
+        const delta = try std.math.sub(i64, now, self.prepared_at);
+        var query = self.world.?.queryAccess(0, 0, 0);
+        defer query.deinit();
+        while (query.next()) |view| for (view.entities()) |entity| {
+            inline for (std.meta.fields(component.Component)) |field| if (self.world.?.get(entity, field.type) catch null) |value| {
+                try @import("../domain/snapshot_time.zig").rebase(@field(component.ComponentId, field.name), value, delta);
+            };
+        };
+        self.activated = true;
     }
     pub fn destroy(self: *Context) void {
         self.systems.deinit(false);

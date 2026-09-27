@@ -38,7 +38,7 @@ export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
-    resident_worlds = .{};
+    resident_worlds.deinit();
     @import("client/interpolation.zig").reset();
     @import("client/scoreboard.zig").reset();
     @import("client/messages.zig").reset();
@@ -133,6 +133,7 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     weapon_table = try weapons.Table.parse(table_bytes);
     weapon_view.init();
     try hud.init();
+    try resident_worlds.captureInitial(&game, &inline_models);
     try loadingProgress(resources, resources);
     world = data.World.init(std.heap.c_allocator, 128);
     predicted = try world.?.create(null, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Health{}, data.Weapons{}, data.Character{}, data.Ailments{} });
@@ -147,6 +148,11 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     engine.print("dk3 zig: shared movement prediction initialized\n");
 }
 fn draw(now: i32) !void {
+    const prior_collision = engine.gateway.call(c.CG_DK3_COLLISION_CURRENT_V1, .{});
+    defer if (prior_collision != 0) {
+        _ = engine.gateway.call(c.CG_DK3_COLLISION_SELECT_V1, .{prior_collision});
+    };
+    if (resident_worlds.initial != null and engine.gateway.call(c.CG_DK3_COLLISION_SELECT_V1, .{@as(isize, try resident_worlds.collision())}) == 0) return error.PredictionWorldUnavailable;
     if (world == null) return;
     try resident_worlds.step();
     var latest: i32 = 0;
@@ -168,6 +174,8 @@ fn draw(now: i32) !void {
         while (command_sequence < snapshot.serverCommandSequence) {
             command_sequence += 1;
             if (engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)}) != 0) {
+                try resident_worlds.serverCommand();
+                _ = try resident_worlds.enter(&inline_models);
                 try @import("client/cinematics.zig").command();
                 try @import("client/events.zig").command();
                 @import("client/messages.zig").command(now);
@@ -196,6 +204,7 @@ fn draw(now: i32) !void {
             }
         }
         _ = engine.gateway.call(c.CG_GETGAMESTATE, .{&game});
+        if (@as(u32, @bitCast(snapshot.ps.dk3World)) != resident_worlds.active_id) return error.SnapshotWorldMismatch;
         if (snapshot.numEntities < 0 or snapshot.numEntities > snapshot.entities.len) return error.InvalidSnapshot;
         @import("client/interpolation.zig").ingest(&snapshot, @import("client/cinematics.zig").boundary);
     }

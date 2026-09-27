@@ -40,12 +40,18 @@ const Track = struct {
 var entities: [c.MAX_GENTITIES]Track = @splat(.{});
 var camera_track: Track = .{};
 var prior_time: i32 = 0;
+var world_id: i32 = 0;
 pub fn reset() void {
     @memset(&entities, .{});
     camera_track = .{};
     prior_time = 0;
+    world_id = 0;
 }
 pub fn ingest(snapshot: *const c.snapshot_t, boundary: u32) void {
+    if (snapshot.ps.dk3World != world_id) {
+        @memset(&entities, .{});
+        world_id = snapshot.ps.dk3World;
+    }
     for (snapshot.entities[0..@intCast(snapshot.numEntities)]) |entity| {
         if (entity.number < 0 or entity.number >= entities.len) continue;
         const key = @as(u64, @intCast(entity.modelindex)) | (@as(u64, @intCast(entity.eType)) << 16) | (@as(u64, @intCast(entity.eFlags & c.EF_TELEPORT_BIT)) << 32);

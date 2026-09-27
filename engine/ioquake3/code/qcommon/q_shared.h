@@ -1205,6 +1205,7 @@ typedef struct playerState_s {
     int dk3Attributes[5];
     int dk3BoostUntil[5];
     int dk3Episode;
+    int dk3World; // snapshot/resource namespace; zero is the connection's first world
     int dk3SwordExperience;
     int dk3Keys;
     int dk3Quest;

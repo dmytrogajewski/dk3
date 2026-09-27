@@ -5,11 +5,118 @@ const std = @import("std");
 const engine = @import("../engine/client.zig");
 const c = @import("../engine/abi.zig").c;
 const v = @import("../domain/vector.zig");
-pub const Entry = struct { name: [64]u8 = @splat(0), handle: u32, ready: bool = false, failed: bool = false, total_ms: isize = 0, max_step_ms: isize = 0, polls: usize = 0 };
+const Admission = @import("world_admission.zig").State;
+const wire = @import("../domain/world_admission.zig");
+pub const Entry = struct { name: [64]u8 = @splat(0), handle: u32, ready: bool = false, failed: bool = false, total_ms: isize = 0, max_step_ms: isize = 0, polls: usize = 0, admission: ?*Admission = null };
 pub const State = struct {
     entries: [128]?Entry = @splat(null),
     cursor: usize = 0,
     preview: ?struct { handle: u32, origin: [3]f32, angles: [3]f32 } = null,
+    initial: ?*Initial = null,
+    active_id: u32 = 0,
+    const Initial = struct {
+        render: u32,
+        collision: u32,
+        game: c.gameState_t,
+        inline_models: [c.MAX_MODELS]c.qhandle_t,
+        sky: @import("sky.zig").State,
+    };
+    const View = struct { render: u32, collision: u32, game: *c.gameState_t, inline_models: *[c.MAX_MODELS]c.qhandle_t, sky: *@import("sky.zig").State };
+    pub fn captureInitial(self: *State, game: *const c.gameState_t, inline_models: *const [c.MAX_MODELS]c.qhandle_t) !void {
+        const initial = try std.heap.c_allocator.create(Initial);
+        initial.* = .{ .render = @intCast(engine.gateway.call(c.CG_DK3_WORLD_CURRENT_V1, .{})), .collision = @intCast(engine.gateway.call(c.CG_DK3_COLLISION_CURRENT_V1, .{})), .game = game.*, .inline_models = inline_models.*, .sky = @import("sky.zig").current() };
+        self.initial = initial;
+    }
+    fn view(self: *State, id: u32) !View {
+        if (id == 0) {
+            const initial = self.initial orelse return error.InitialWorldUnavailable;
+            return .{ .render = initial.render, .collision = initial.collision, .game = &initial.game, .inline_models = &initial.inline_models, .sky = &initial.sky };
+        }
+        for (&self.entries) |*maybe| if (maybe.*) |*entry| if (entry.admission) |admission| {
+            if (admission.server_id != id) continue;
+            if (!entry.ready or !admission.ready or admission.failed) return error.WorldNotAdmitted;
+            return .{ .render = entry.handle, .collision = admission.collision, .game = &admission.game, .inline_models = &admission.inline_models, .sky = &admission.sky };
+        };
+        return error.WorldNotAdmitted;
+    }
+    pub fn collision(self: *State) !u32 {
+        return (try self.view(self.active_id)).collision;
+    }
+    pub fn enter(self: *State, inline_models: *[c.MAX_MODELS]c.qhandle_t) !bool {
+        var buffer: [64]u8 = undefined;
+        if (!std.mem.eql(u8, arg(0, &buffer), "dk3_world_enter")) return false;
+        const id = try std.fmt.parseInt(u32, arg(1, &buffer), 10);
+        const destination = try self.view(id);
+        const source = try self.view(self.active_id);
+        _ = engine.gateway.call(c.CG_GETGAMESTATE, .{source.game});
+        source.sky.* = @import("sky.zig").current();
+        if (engine.gateway.call(c.CG_DK3_GAMESTATE_SELECT_V1, .{destination.game}) == 0) return error.WorldConfigActivation;
+        if (engine.gateway.call(c.CG_DK3_WORLD_SELECT_V1, .{@as(isize, destination.render)}) == 0) return error.WorldRenderActivation;
+        if (engine.gateway.call(c.CG_DK3_COLLISION_SELECT_V1, .{@as(isize, destination.collision)}) == 0) return error.WorldCollisionActivation;
+        inline_models.* = destination.inline_models.*;
+        _ = @import("sky.zig").exchange(destination.sky.*);
+        self.active_id = id;
+        self.preview = null;
+        @import("events.zig").reset();
+        var message: [96]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&message, "dk3 world presentation: entered={d} render={d} collision={d}\n", .{ id, destination.render, destination.collision }));
+        return true;
+    }
+    pub fn deinit(self: *State) void {
+        for (self.entries) |maybe| if (maybe) |entry| if (entry.admission) |admission| admission.destroy();
+        if (self.initial) |initial| std.heap.c_allocator.destroy(initial);
+        self.* = .{};
+    }
+    pub fn serverCommand(self: *State) !void {
+        var buffer: [96]u8 = undefined;
+        const command_name = arg(0, &buffer);
+        if (std.mem.eql(u8, command_name, "dk3_world_begin")) {
+            if (try std.fmt.parseInt(u32, arg(1, &buffer), 10) != wire.version) return error.WorldAdmissionVersion;
+            const server_id = try std.fmt.parseInt(u32, arg(2, &buffer), 10);
+            var name_buffer: [64]u8 = undefined;
+            const name = arg(3, &name_buffer);
+            const checksum = try std.fmt.parseInt(u32, arg(4, &buffer), 10);
+            const length = try std.fmt.parseInt(usize, arg(5, &buffer), 10);
+            const digest = try std.fmt.parseInt(u64, arg(6, &buffer), 10);
+            const handle = self.request(name) catch |err| {
+                Admission.failure(server_id, err);
+                return;
+            };
+            for (&self.entries) |*maybe| if (maybe.*) |*entry| {
+                if (entry.handle != handle) continue;
+                if (entry.admission) |previous| {
+                    if (previous.server_id == server_id) {
+                        try previous.acknowledge();
+                        return;
+                    }
+                    previous.destroy();
+                    entry.admission = null;
+                }
+                entry.admission = Admission.create(server_id, name, checksum, length, digest) catch |err| {
+                    Admission.failure(server_id, err);
+                    return;
+                };
+                try entry.admission.?.acknowledge();
+                return;
+            };
+            return error.WorldAdmissionOwner;
+        }
+        const cancel = std.mem.eql(u8, command_name, "dk3_world_cancel");
+        if (!cancel and !std.mem.eql(u8, command_name, "dk3_world_data")) return;
+        const server_id = try std.fmt.parseInt(u32, arg(1, &buffer), 10);
+        for (&self.entries) |*maybe| if (maybe.*) |*entry| if (entry.admission) |admission| {
+            if (admission.server_id != server_id) continue;
+            if (cancel) {
+                admission.destroy();
+                entry.admission = null;
+                return;
+            }
+            const offset = try std.fmt.parseInt(usize, arg(2, &buffer), 10);
+            var encoded: [wire.chunk_size * 2 + 1]u8 = undefined;
+            admission.accept(offset, arg(3, &encoded)) catch |err| admission.fail(err);
+            return;
+        };
+    }
     pub fn request(self: *State, name: []const u8) !u32 {
         if (!@import("../domain/snapshot.zig").validName(name) or name.len >= 64) return error.InvalidWorldName;
         for (self.entries) |maybe| if (maybe) |entry| {
@@ -31,7 +138,15 @@ pub const State = struct {
             const index = self.cursor;
             self.cursor = (index + 1) % self.entries.len;
             const entry = if (self.entries[index]) |*value| value else continue;
-            if (entry.ready or entry.failed) continue;
+            if (entry.failed) continue;
+            if (entry.ready) {
+                if (entry.admission) |admission| {
+                    if (admission.ready or admission.failed) continue;
+                    admission.step(entry.handle, std.mem.sliceTo(&entry.name, 0)) catch |err| admission.fail(err);
+                    return;
+                }
+                continue;
+            }
             const before = engine.gateway.call(c.CG_MILLISECONDS, .{});
             const status = engine.gateway.call(c.CG_DK3_WORLD_POLL_V1, .{@as(isize, entry.handle)});
             const elapsed = engine.gateway.call(c.CG_MILLISECONDS, .{}) - before;
@@ -41,6 +156,7 @@ pub const State = struct {
             if (status == 0) return;
             entry.ready = status == 1;
             entry.failed = status < 0;
+            if (entry.failed) if (entry.admission) |admission| admission.fail(error.RenderWorldUnavailable);
             var buffer: [192]u8 = undefined;
             engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 render world: map={s} handle={d} ready={d} admission_ms={d} max_step_ms={d} polls={d}\n", .{ std.mem.sliceTo(&entry.name, 0), entry.handle, @intFromBool(entry.ready), entry.total_ms, entry.max_step_ms, entry.polls }));
             return;

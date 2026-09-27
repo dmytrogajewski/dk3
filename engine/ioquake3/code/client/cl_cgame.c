@@ -580,6 +580,55 @@ intptr_t CL_CgameSystemCalls( intptr_t *args ) {
 	case CG_R_LOADWORLDMAP:
 		re.LoadWorld( VMA(1) );
 		return 0;
+    case CG_DK3_COLLISION_REQUEST_V1:
+        return CM_RequestWorld(VMA(1));
+    case CG_DK3_COLLISION_POLL_V1:
+        return CM_PollWorld(args[1]);
+    case CG_DK3_COLLISION_RELEASE_V1:
+        return CM_ReleaseWorld(args[1]);
+    case CG_DK3_COLLISION_CHECKSUM_V1:
+        return CM_WorldChecksum(args[1]);
+    case CG_DK3_COLLISION_SELECT_V1:
+        return CM_SelectWorld(args[1]);
+    case CG_DK3_COLLISION_CURRENT_V1:
+        return CM_CurrentWorld();
+    case CG_DK3_GAMESTATE_SELECT_V1: {
+        const gameState_t *source = VMA(1);
+        gameState_t *next;
+        int i;
+        if (!source || source->dataCount < 1 || source->dataCount > MAX_GAMESTATE_CHARS || source->stringData[0]) return 0;
+        for (i = 0; i < MAX_CONFIGSTRINGS; ++i) {
+            int offset = source->stringOffsets[i];
+            if (offset < 0 || offset >= source->dataCount ||
+                !memchr(source->stringData + offset, 0, source->dataCount - offset)) return 0;
+        }
+        next = Z_Malloc(sizeof(*next));
+        next->dataCount = 1;
+        for (i = 0; i < MAX_CONFIGSTRINGS; ++i) {
+            const gameState_t *owner = source;
+            const char *value;
+            int length;
+            if (i == CS_SERVERINFO || i == CS_SYSTEMINFO || (i >= CS_PLAYERS && i < CS_PLAYERS + MAX_CLIENTS)) owner = &cl.gameState;
+            value = owner->stringData + owner->stringOffsets[i];
+            length = strlen(value);
+            if (!length) continue;
+            if (next->dataCount + length + 1 > MAX_GAMESTATE_CHARS) { Z_Free(next); return 0; }
+            next->stringOffsets[i] = next->dataCount;
+            memcpy(next->stringData + next->dataCount, value, length + 1);
+            next->dataCount += length + 1;
+        }
+        cl.gameState = *next;
+        Z_Free(next);
+        return 1;
+    }
+    case CG_DK3_COLLISION_MODELS_V1: {
+        unsigned int previous = CM_CurrentWorld();
+        int count;
+        if (!CM_SelectWorld(args[1])) return 0;
+        count = CM_NumInlineModels();
+        CM_SelectWorld(previous);
+        return count;
+    }
     case CG_DK3_WORLD_REQUEST_V1:
         return re.RequestWorld(VMA(1));
     case CG_DK3_WORLD_POLL_V1:

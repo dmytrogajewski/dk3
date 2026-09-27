@@ -27,6 +27,8 @@ pub fn World(comptime Components: anytype) type {
         archetypes: std.ArrayList(Archetype) = .empty,
         ids: std.AutoHashMapUnmanaged(u32, Entity) = .empty,
         next_id: u32 = 1,
+        id_first: u32 = 1,
+        id_last: u32 = std.math.maxInt(u32) - 1,
         query_depth: usize = 0,
         epoch: u64 = 0,
         chunk_count: usize = 0,
@@ -34,6 +36,12 @@ pub fn World(comptime Components: anytype) type {
 
         pub fn init(allocator: std.mem.Allocator, max_chunks: usize) Self {
             return .{ .allocator = allocator, .max_chunks = max_chunks };
+        }
+        /// Region-local allocation never consumes another world's namespace.
+        /// An imported entity retains its birth identity, including on return.
+        pub fn initNamespaced(allocator: std.mem.Allocator, max_chunks: usize, namespace: u7) Self {
+            const first = (@as(u32, namespace) << 24) | 1;
+            return .{ .allocator = allocator, .max_chunks = max_chunks, .id_first = first, .id_last = first | 0xffffff, .next_id = first };
         }
         pub fn deinit(self: *Self) void {
             std.debug.assert(self.query_depth == 0);
@@ -124,13 +132,6 @@ pub fn World(comptime Components: anytype) type {
             if (self.query_depth != 0) return error.StructuralMutation;
         }
         pub fn create(self: *Self, requested_id: ?u32, bundle: anytype) Error!Entity {
-            try self.editable();
-            const id = requested_id orelse self.next_id;
-            if (id == 0 or id == std.math.maxInt(u32)) return error.Capacity;
-            if (self.ids.contains(id)) return error.DuplicateId;
-            var index: usize = 0;
-            while (index < max_entities and (self.slots[index].id != 0 or self.slots[index].generation == 0)) : (index += 1) {}
-            if (index == max_entities) return error.Capacity;
             const bits = comptime blk: {
                 var value: Mask = 0;
                 for (@typeInfo(@TypeOf(bundle)).@"struct".fields) |field| {
@@ -140,6 +141,21 @@ pub fn World(comptime Components: anytype) type {
                 }
                 break :blk value;
             };
+            const entity = try self.reserveEntity(requested_id, bits);
+            const s = self.slots[entity.index];
+            const a = &self.archetypes.items[s.archetype];
+            const chunk = a.chunks.items[s.chunk];
+            inline for (std.meta.fields(@TypeOf(bundle))) |field| column(field.type, a, chunk)[s.row] = @field(bundle, field.name);
+            return entity;
+        }
+        fn reserveEntity(self: *Self, requested_id: ?u32, bits: Mask) Error!Entity {
+            try self.editable();
+            const id = requested_id orelse self.next_id;
+            if (id == 0 or id == std.math.maxInt(u32) or (requested_id == null and id > self.id_last)) return error.Capacity;
+            if (self.ids.contains(id)) return error.DuplicateId;
+            var index: usize = 0;
+            while (index < max_entities and (self.slots[index].id != 0 or self.slots[index].generation == 0)) : (index += 1) {}
+            if (index == max_entities) return error.Capacity;
             try self.ids.ensureUnusedCapacity(self.allocator, 1);
             const ai = try self.archetype(bits);
             const row = try self.reserveRow(ai);
@@ -147,12 +163,24 @@ pub fn World(comptime Components: anytype) type {
             const a = &self.archetypes.items[ai];
             const chunk = a.chunks.items[row.chunk];
             handles(chunk)[row.row] = entity;
-            inline for (std.meta.fields(@TypeOf(bundle))) |field| column(field.type, a, chunk)[row.row] = @field(bundle, field.name);
             self.slots[index] = .{ .generation = entity.generation, .id = id, .archetype = ai, .chunk = row.chunk, .row = row.row };
             self.ids.putAssumeCapacity(id, entity);
-            self.next_id = @max(self.next_id, id + 1);
+            if (id >= self.id_first and id <= self.id_last) self.next_id = @max(self.next_id, id + 1);
             self.epoch += 1;
             return entity;
+        }
+        /// Stage a complete transfer without mutating the source. The caller
+        /// commits ownership only after destination projection admission succeeds.
+        pub fn cloneInto(self: *Self, entity: Entity, destination: *Self) Error!Entity {
+            const source_slot = try self.slot(entity);
+            const source = &self.archetypes.items[source_slot.archetype];
+            const result = try destination.reserveEntity(source_slot.id, source.mask);
+            const target_slot = destination.slots[result.index];
+            const target = &destination.archetypes.items[target_slot.archetype];
+            inline for (Components, 0..) |T, i| if (source.mask & (@as(Mask, 1) << i) != 0) {
+                column(T, target, target.chunks.items[target_slot.chunk])[target_slot.row] = column(T, source, source.chunks.items[source_slot.chunk])[source_slot.row];
+            };
+            return result;
         }
         pub fn get(self: *Self, entity: Entity, comptime T: type) Error!*T {
             const s = try self.slot(entity);
@@ -324,4 +352,35 @@ test "structural relocation preserves tagged unions without zero initialization"
     try std.testing.expectEqualStrings("key", (try world.get(entity, Value)).label);
     try world.put(entity, Value{ .count = 17 });
     try std.testing.expectEqual(@as(u32, 17), (try world.get(entity, Value)).count);
+}
+
+test "resident transfers retain birth IDs and never consume a destination namespace" {
+    const t = std.testing;
+    var first = TestWorld.initNamespaced(t.allocator, 4, 0);
+    defer first.deinit();
+    var second = TestWorld.initNamespaced(t.allocator, 4, 1);
+    defer second.deinit();
+    const traveler = try first.create(null, .{ Position{ .x = 7, .y = 8, .z = 9 }, Health{ .value = 41 } });
+    const local = try second.create(null, .{Health{ .value = 100 }});
+    const identity = try first.persistentId(traveler);
+    const moved = try first.cloneInto(traveler, &second);
+    try t.expectEqual(identity, try second.persistentId(moved));
+    try t.expectEqual(@as(i32, 41), (try second.get(moved, Health)).value);
+    try t.expectEqual(@as(f32, 7), (try second.get(moved, Position)).x);
+    try t.expect(first.alive(traveler));
+    try t.expectError(error.DuplicateId, first.cloneInto(traveler, &second));
+    try first.destroy(traveler);
+    const returned = try second.cloneInto(moved, &first);
+    try t.expectEqual(identity, try first.persistentId(returned));
+    _ = try second.cloneInto(local, &first);
+    const next = try first.create(null, .{Health{ .value = 2 }});
+    try t.expectEqual(identity + 1, try first.persistentId(next));
+    try t.expectEqual(@as(u32, 0x1000002), second.next_id);
+    first.next_id = first.id_last + 1;
+    try t.expectError(error.Capacity, first.create(null, .{Health{ .value = 0 }}));
+    var full = TestWorld.initNamespaced(t.allocator, 0, 2);
+    defer full.deinit();
+    try t.expectError(error.Capacity, second.cloneInto(moved, &full));
+    try t.expect(second.alive(moved));
+    try t.expectEqual(@as(usize, 0), full.count());
 }

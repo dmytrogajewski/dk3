@@ -6015,3 +6015,35 @@ atomic region save migration/restoration and full campaign/multiplayer acceptanc
 Ordinary exits still invoke existing map loads. `zig build play` remains available
 with default HD. Main, installed preserved game, user saves and online service are
 untouched. Continue implementation past this checkpoint.
+
+## Sequence 299 — resident-client-admission-and-player-transfer
+
+**Implemented:** bounded acknowledged world-config streaming with order, length,
+digest, version and actual BSP-checksum validation; actual client collision/media/sky
+readiness; map-qualified allocation and transactional full-component player copying;
+server/client world activation without reconnecting or spawning; protocol 1348 world
+identity in both message codecs and no cross-world snapshot delta baseline. Prepared
+encounter deadlines are rebased on first exposure. Initial map ownership remains
+available for return. `zig build play` remains available with HD textures by default.
+
+**Verified build:** installation `3647922bc510e353c08ae9c595919a33685146e3eb6dbe8607e1c35fe533c429`;
+combined identity `ba5b77659ac22f9925c747c93c75521af2079ca766d12f90741ba8c3c615a114`;
+base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+Evidence: `zig-out/reports/runtime-zig-299/`.
+
+| Scenario | State and exact scope |
+|---|---|
+| `transfer-initial/`, `transfer-opengl2/` | Passed controlled A→B→A→B transfer in both renderers after actual readiness. Player 341, health 100, weapon/ammunition and command clock survive. Position is copied; ordinary gravity continues. Normal movement/prediction works afterward with no server initialization or ClientBegin. Captures inspected. Explicit placement and transfer commands; not authored traversal, combat or region-save acceptance. |
+| `lan-regression/` | Passed two actual UDP clients: movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart on protocol 1348. Remaining mode/bot requirements stay open. |
+| `aggregate.log` | Passed 44/44 steps, 381 Zig tests, 79 Python tests and actual-engine collision contracts. Assertions enabled; intended roots execute. |
+| `admission-initial/` | Earlier B/C/e1m2a preparation passes on `e3a84ae…`; superseded for wire/transfer claims. Not part of the coherent transfer result. |
+
+**Remaining:** qualified geometry, automatic region admission and authored seam
+activation, portal rendering/collision, connected actors/projectiles/hitscan/sound,
+complete map-owned presentation, asynchronous admission stalls, atomic region
+save/migration/death restoration and campaign/multiplayer acceptance. Ordinary exits
+still load maps. Previously passing shared-system scenarios require applicable replay.
+No new private reference implementation was consulted or copied for this sequence.
+Main, preserved installation, user saves and live service remain unchanged.
+Continue implementation past this checkpoint.

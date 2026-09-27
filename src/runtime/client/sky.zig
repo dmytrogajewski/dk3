@@ -24,27 +24,44 @@ pub const Binding = struct {
         @memcpy(out[0..value.len], value);
     }
 };
-var binding: ?Binding = null;
-var selected: ?usize = null;
+pub const State = struct {
+    binding: ?Binding = null,
+    selected: ?usize = null,
+    pub fn init(self: *State, map: []const u8, game: *const c.gameState_t) !void {
+        self.binding = null;
+        self.selected = null;
+        var path: [128]u8 = undefined;
+        const bytes = try @import("../engine/files.zig").readOptional(.client, &engine.gateway, std.heap.c_allocator, try std.fmt.bufPrintZ(&path, "dk3/skies/{s}.cfg", .{map}), 1024) orelse return;
+        defer std.heap.c_allocator.free(bytes);
+        self.binding = try Binding.parse(bytes);
+        try self.update(game);
+    }
+    pub fn update(self: *State, game: *const c.gameState_t) !void {
+        const active = self.binding orelse return;
+        const number = std.fmt.parseInt(i32, try engine.config(game, c.CS_DK3_SKY), 10) catch 1;
+        const index: usize = @intCast(std.math.clamp(number, 1, 5) - 1);
+        if (self.selected == index) return;
+        _ = engine.gateway.call(c.CG_R_REGISTERSHADER, .{&active.variants[index]});
+        _ = engine.gateway.call(c.CG_R_REMAP_SHADER, .{ &active.original, &active.variants[index], @as([*:0]const u8, "0") });
+        self.selected = index;
+        var text: [192]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&text, "dk3 sky: {s} -> {s}\n", .{ std.mem.sliceTo(&active.original, 0), std.mem.sliceTo(&active.variants[index], 0) }));
+    }
+};
+var active_state: State = .{};
+pub fn exchange(next: State) State {
+    const previous = active_state;
+    active_state = next;
+    return previous;
+}
+pub fn current() State {
+    return active_state;
+}
 pub fn init(map: []const u8, game: *const c.gameState_t) !void {
-    binding = null;
-    selected = null;
-    var path: [128]u8 = undefined;
-    const bytes = try @import("../engine/files.zig").readOptional(.client, &engine.gateway, std.heap.c_allocator, try std.fmt.bufPrintZ(&path, "dk3/skies/{s}.cfg", .{map}), 1024) orelse return;
-    defer std.heap.c_allocator.free(bytes);
-    binding = try Binding.parse(bytes);
-    try update(game);
+    try active_state.init(map, game);
 }
 pub fn update(game: *const c.gameState_t) !void {
-    const active = binding orelse return;
-    const number = std.fmt.parseInt(i32, try engine.config(game, c.CS_DK3_SKY), 10) catch 1;
-    const index: usize = @intCast(std.math.clamp(number, 1, 5) - 1);
-    if (selected == index) return;
-    _ = engine.gateway.call(c.CG_R_REGISTERSHADER, .{&active.variants[index]});
-    _ = engine.gateway.call(c.CG_R_REMAP_SHADER, .{ &active.original, &active.variants[index], @as([*:0]const u8, "0") });
-    selected = index;
-    var text: [192]u8 = undefined;
-    engine.print(try std.fmt.bufPrintZ(&text, "dk3 sky: {s} -> {s}\n", .{ std.mem.sliceTo(&active.original, 0), std.mem.sliceTo(&active.variants[index], 0) }));
+    try active_state.update(game);
 }
 test "sky bindings preserve all authored variants and reject incomplete data" {
     const t = std.testing;

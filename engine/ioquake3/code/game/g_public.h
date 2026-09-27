@@ -406,6 +406,8 @@ typedef enum {
     , G_DK3_NAV_BIND_V1 = 713
     , G_DK3_NAV_LOAD_V1 = 714
     , G_DK3_WORLD_NAME_V1 = 715
+    , G_DK3_WORLD_CHECKSUM_V1 = 716
+    , G_DK3_WORLD_ACTIVATE_V1 = 717
 } gameImport_t;
 
 

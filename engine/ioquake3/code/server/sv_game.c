@@ -380,6 +380,8 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
         return CM_PollWorld(args[1]);
     case G_DK3_WORLD_RELEASE_V1:
         return SV_ReleaseWorld(args[1]);
+    case G_DK3_WORLD_CHECKSUM_V1:
+        return CM_WorldChecksum(SV_CurrentWorld());
     case G_DK3_WORLD_NAME_V1: {
         const char *path = CM_WorldName(SV_CurrentWorld());
         char name[MAX_QPATH];
@@ -396,6 +398,8 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
         return SV_AttachWorld(args[1]);
     case G_DK3_WORLD_SELECT_V1:
         return SV_SelectWorld(args[1]);
+    case G_DK3_WORLD_ACTIVATE_V1:
+        return SV_ActivateWorld(args[1]);
     case G_DK3_WORLD_CURRENT_V1:
         return SV_CurrentWorld();
     case G_DK3_WORLD_BYTES_V1:

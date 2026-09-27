@@ -1370,6 +1370,7 @@ netField_t	playerStateFields[] =
 { PSF(dk3BoostUntil[3]), 32 },
 { PSF(dk3BoostUntil[4]), 32 },
 { PSF(dk3Episode), 3 },
+{ PSF(dk3World), 32 },
 { PSF(dk3SwordExperience), 32 },
 { PSF(dk3Keys), 32 },
 { PSF(dk3Quest), 16 },

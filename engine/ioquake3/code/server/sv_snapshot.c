@@ -225,6 +225,12 @@ static void SV_WriteSnapshotToClient( client_t *client, msg_t *msg ) {
 		}
 	}
 
+	/* Local entity numbers only have meaning in their owning world. Never
+	 * delta against another world's entities, including after packet loss. */
+	if (oldframe && oldframe->ps.dk3World != frame->ps.dk3World) {
+		oldframe = NULL;
+		lastframe = 0;
+	}
 	MSG_WriteByte (msg, svc_snapshot);
 
 	// NOTE, MRE: now sent at the start of every message from server to client

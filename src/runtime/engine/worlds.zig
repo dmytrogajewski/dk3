@@ -51,3 +51,6 @@ pub fn attach(handle: Handle) !void {
 pub fn select(handle: Handle) !void {
     if (engine.gateway.call(c.G_DK3_WORLD_SELECT_V1, .{@as(isize, @intFromEnum(handle))}) == 0) return error.WorldNotAttached;
 }
+pub fn activate(handle: Handle) !void {
+    if (engine.gateway.call(c.G_DK3_WORLD_ACTIVATE_V1, .{@as(isize, @intFromEnum(handle))}) == 0) return error.WorldActivationFailed;
+}

@@ -26,13 +26,16 @@ export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown(restart: bool) void {
-    resident_worlds.deinit();
     // Engine bot client slots outlive a fast VM restart. Release their input
     // owners before unloading; the new match population admits fresh bots.
     if (restart) if (active.world) |*value| for (active.bots.brains, 0..) |brain, index| {
         if (brain != null) active.bots.remove(value, &active.slots, &active.projection, &active.clients, index, clock.now_ms) catch |err| runtimeFailure(err);
     };
     if (active.world) |*value| rooms.checkpoint(value, &active.clients) catch |err| runtimeFailure(err);
+    active = &initial_context;
+    if (active.handle) |handle| @import("engine/worlds.zig").select(handle) catch {};
+    _ = @import("server/resources.zig").select(&active.resources);
+    resident_worlds.deinit();
     campaign.deinit();
     restoring_visit = false;
     checkpoint = .{};
@@ -50,6 +53,7 @@ fn shutdown(restart: bool) void {
     active.restored_arena = null;
     if (active.arena) |*value| value.deinit();
     active.arena = null;
+    active.handle = null;
 }
 fn init(now: i64, restart: bool) !void {
     shutdown(restart);
@@ -62,7 +66,10 @@ fn init(now: i64, restart: bool) !void {
     if (jobs < 0 or jobs > 8) return error.WorkerLimit;
     active.arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     errdefer shutdown(false);
-    active.world = component.World.init(std.heap.c_allocator, 1024);
+    active.world = component.World.initNamespaced(std.heap.c_allocator, 1024, 0);
+    active.handle = @import("engine/worlds.zig").current();
+    active.network_id = 0;
+    active.activated = true;
     pool = try Pool.create(std.heap.c_allocator, @intCast(jobs));
     @memset(std.mem.asBytes(&active.projection), 0);
     @memset(std.mem.asBytes(&active.players), 0);
@@ -297,6 +304,13 @@ fn probeMotion() !void {
 fn consoleCommand() isize {
     var buffer: [128]u8 = undefined;
     const command = engine.argv(0, &buffer);
+    if (std.mem.eql(u8, command, "dk3_runtime_enter_world")) {
+        enterWorld(engine.argv(1, &buffer)) catch |err| {
+            var message: [160]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "dk3 world transfer: failed={s}\n", .{@errorName(err)}) catch unreachable);
+        };
+        return 1;
+    }
     if (std.mem.eql(u8, command, "dk3_runtime_resident")) {
         resident_worlds.command() catch |err| {
             var message: [128]u8 = undefined;
@@ -491,6 +505,19 @@ fn consoleCommand() isize {
     engine.print(std.fmt.bufPrintZ(&text, "dk3 zig: entities={d} frames={d} time={d} workers={d}\n", .{ if (active.world) |*value| value.count() else 0, clock.frame, clock.now_ms, if (pool) |value| value.thread_count else 0 }) catch unreachable);
     return 1;
 }
+fn enterWorld(name: []const u8) !void {
+    if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER or engine.integer("sv_cheats") == 0) return error.DiagnosticRequiresSinglePlayerCheats;
+    const destination = if (std.mem.eql(u8, name, "initial")) &initial_context else try resident_worlds.destination(name);
+    try @import("server/world_transfer.zig").player(active, destination, clock.now_ms);
+    active = destination;
+    try @import("engine/worlds.zig").select(active.handle.?);
+    _ = @import("server/resources.zig").select(&active.resources);
+    var map_buffer: [c.MAX_QPATH]u8 = undefined;
+    var message: [256]u8 = undefined;
+    const entity = active.clients.entities[0].?;
+    const pose = (try active.world.?.get(entity, component.Transform)).*;
+    engine.print(try std.fmt.bufPrintZ(&message, "dk3 world transfer: map={s} world={d} player={d} position={d:.3},{d:.3},{d:.3} command={d}\n", .{ engine.mapName(&map_buffer), active.network_id, try active.world.?.persistentId(entity), pose.position[0], pose.position[1], pose.position[2], (try active.world.?.get(entity, component.Player)).command_ms }));
+}
 export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, arg6: isize, arg7: isize, arg8: isize, arg9: isize, arg10: isize, arg11: isize) callconv(.c) isize {
     _ = .{ arg1, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11 };
     switch (command) {
@@ -574,6 +601,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             if (arg0 < 0 or arg0 >= c.MAX_CLIENTS) return 0;
             var command_buffer: [64]u8 = undefined;
             const client_command = engine.argv(0, &command_buffer);
+            if (resident_worlds.clientCommand(@intCast(arg0), client_command) catch |err| runtimeFailure(err)) return 0;
             if (arg0 == 0 and (saveCommand(client_command) catch |err| {
                 saveFeedback(err);
                 return 0;

@@ -14,7 +14,7 @@ is inferred from class counts or test volume.
 
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
-| Seamless connected regions | Sequence 298 retains collision, renderer, server entity/resource and AAS contexts; **seamless traversal is not implemented** | Real collision contracts plus authored-cut inventory rules; aggregate below | Prepared B/C/e1m2a actors remain dormant while A movement/save/load continues; both renderer context previews and LAN regression pass | Qualified seams, client/wire identities, uninterrupted handoff, cross-boundary combat, remaining admission stalls and region persistence are open. [Exact evidence and limitations](#sequence-298--resident-rendering-and-gameplay-ownership). |
+| Seamless connected regions | Sequence 299 connects acknowledged client admission and player ownership transfer to resident contexts; automatic seamless traversal remains incomplete | Admission corruption/order/completion and identity-transfer contracts; 381 Zig tests pass | Controlled A→B→A→B preserves player identity, health, weapon/ammo and command time in both renderers, with ordinary movement afterward | Qualified seams/portal views, cross-boundary combat, remaining admission stalls and atomic region persistence remain open. [Exact evidence and limitations](#sequence-299--resident-client-admission-and-player-transfer). |
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at 296; full interactions unverified | 296 verifies rendered Ion flight/light; earlier narrow controller fixtures do not establish full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
 | Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 296; connected coverage needs revalidation | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
@@ -23,6 +23,36 @@ is inferred from class counts or test volume.
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. Earlier factory arrival replay needs revalidation after shared changes | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 299 — resident client admission and player transfer
+
+Verified installation `3647922bc510e353c08ae9c595919a33685146e3eb6dbe8607e1c35fe533c429`,
+combined identity `ba5b77659ac22f9925c747c93c75521af2079ca766d12f90741ba8c3c615a114`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD SHA `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+Evidence is under `zig-out/reports/runtime-zig-299/`.
+
+- `transfer-initial/passed.json` (OpenGL1) and `transfer-opengl2/passed.json`:
+  actual checksum/media readiness precedes three transfers. Player 341 retains
+  health 100, weapon/ammunition and monotonic command time. Position is copied
+  without a landing teleport; gravity continues normally during observations.
+  Client prediction and ordinary movement work in B, without server initialization
+  or ClientBegin. Captures inspected. Controlled placement and explicit transfer
+  commands make these subsystem diagnostics, not authored campaign acceptance.
+- `aggregate.log`: 44/44 steps, 381 Zig tests, 79 Python tests and actual engine
+  collision contracts pass with assertions enabled and all intended roots executed.
+- `lan-regression/result.json`: two actual UDP clients pass movement, firing,
+  death/respawn, spectator/rejoin, reconnect and fast restart on protocol 1348.
+- Earlier `admission-initial/` verifies B/C/e1m2a admission on installation
+  `e3a84ae8830e937d778531ca931a8d0f31d3cba4096103598a19e909176437e4`.
+  It predates the wire/transfer changes and does not extend the coherent transfer
+  result to all three destinations.
+
+Protocol 1348 explicitly qualifies the active snapshot world and forbids cross-world
+delta baselines. Live service is unchanged. Full campaign, remaining multiplayer modes,
+restoration and effects require applicable replay after these shared changes.
+Region save/restore and active encounters across boundaries remain unimplemented;
+the diagnostic transfer is not exposed as ordinary travel yet.
 
 ## Sequence 298 — resident rendering and gameplay ownership
 

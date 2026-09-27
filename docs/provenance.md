@@ -311,3 +311,13 @@ text or assets were copied into the project. The independent inventory expresses
 that observed contract and tests both cases. Nearby vertex comparisons use only
 the already-admitted converted map package and keep all generated geometry local.
 These observations do not establish full original presentation or seamless play.
+
+Sequence 299 implements resident admission and ownership transfer using this project's
+existing component, resource, snapshot, renderer and collision contracts. Bounded
+reliable configstring transport checks its digest and the supplied BSP checksum;
+player copying retains birth identity and complete component values. Protocol 1348
+adds the active map identity consistently to bundled-engine and independent Zig
+message codecs. This is original integration code over the admitted engine, with
+no additional private implementation consultation or import. Controlled A↔B transfer
+in both renderers is distinct from authored seam, cross-map combat and region-save
+acceptance; see `native-acceptance.md` for the exact build and local evidence.

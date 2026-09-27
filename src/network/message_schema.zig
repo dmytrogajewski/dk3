@@ -184,6 +184,7 @@ pub const player = [_]Field{
     Field.of(c.playerState_t, "dk3BoostUntil[3]", 32),
     Field.of(c.playerState_t, "dk3BoostUntil[4]", 32),
     Field.of(c.playerState_t, "dk3Episode", 3),
+    Field.of(c.playerState_t, "dk3World", 32),
     Field.of(c.playerState_t, "dk3SwordExperience", 32),
     Field.of(c.playerState_t, "dk3Keys", 32),
     Field.of(c.playerState_t, "dk3Quest", 16),

@@ -1,6 +1,6 @@
 # Seamless connected worlds
 
-Sequences 297–298 implement the first connected owners on `rewrite/native-zig-runtime`.
+Sequences 297–299 implement connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary exits still perform their existing map load.**
 Preparing collision, rendering and dormant entities is not acceptance of a seamless crossing.
 
@@ -88,9 +88,26 @@ dk3_runtime_render_world preview e1m1b "-600 -1392 546" "0 0 0"
 dk3_runtime_render_world close
 ```
 
+Sequence 299 adds acknowledged, bounded reliable admission of actual map-owned
+configstrings. Digest/order/completion validation and exact BSP checksums precede
+client readiness; inline models, class-registered models/sounds and sky are admitted
+before transfer. Renderer and prediction selections remain scoped to their owner.
+
+Resident transfer copies every player component and preserves its birth ID, position,
+command state, weapon action and inventory. Map-local ID allocation cannot consume
+another namespace. Server spatial ownership, configstrings, renderer and prediction
+switch without disconnecting or initializing a new game. Protocol 1348 carries the
+active world identity and rejects cross-world snapshot delta bases. The independent
+Zig codec and compatibility manifest use the same protocol; no service was deployed.
+
+`dk3_runtime_enter_world e1m1b` and `dk3_runtime_enter_world initial` exercise this
+handoff after client admission, with single-player cheats required. These are
+controlled diagnostics, not an automatic authored seam implementation. Player
+transfer does not yet qualify cross-map attacks, entity-local effects or region saves.
+
 Prepared gameplay and render contexts remain developer diagnostics. Renderer
 allocations are retained until region/renderer shutdown; fine-grained GPU eviction
-is not implemented. No new wire protocol or save schema has been admitted.
+is not implemented. Region save schema/migration has not yet been admitted.
 
 ## Remaining implementation, in dependency order
 

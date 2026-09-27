@@ -135,6 +135,41 @@ qboolean SV_AttachWorld(unsigned int collision) {
     return world != NULL;
 }
 
+/* Change only the map owner. The connection, reliable stream, input history,
+ * server clock and snapshot sequence remain live. Cgame admits resources before
+ * native gameplay calls this; its enter command precedes new config updates. */
+qboolean SV_ActivateWorld(unsigned int collision) {
+    serverWorld_t *previous = sv.primaryWorld;
+    char info[MAX_INFO_STRING], name[MAX_QPATH];
+    unsigned int i;
+    if (!previous || !SV_SelectWorld(collision)) return qfalse;
+    if (!sv.world->gentities || !sv.world->gameClients) {
+        SV_SelectWorld(previous->collision);
+        return qfalse;
+    }
+    if (sv.world == previous) return qtrue;
+    for (i = 0; i < MAX_CONFIGSTRINGS; ++i) {
+        if (i != CS_SERVERINFO && i != CS_SYSTEMINFO &&
+            !(i >= CS_PLAYERS && i < CS_PLAYERS + MAX_CLIENTS)) continue;
+        Z_Free(sv.world->configstrings[i]);
+        sv.world->configstrings[i] = CopyString(previous->configstrings[i]);
+    }
+    sv.primaryWorld = sv.world;
+    COM_StripExtension(COM_SkipPath((char *)CM_WorldName(collision)), name, sizeof(name));
+    Q_strncpyz(info, sv.world->configstrings[CS_SERVERINFO], sizeof(info));
+    Info_SetValueForKey(info, "mapname", name);
+    Cvar_Set("mapname", name);
+    Cvar_Set("sv_mapChecksum", va("%u", CM_WorldChecksum(collision)));
+    SV_SetConfigstring(CS_SERVERINFO, info);
+    for (i = 0; i < sv_maxclients->integer; ++i) {
+        client_t *client = &svs.clients[i];
+        if (client->state < CS_CONNECTED) continue;
+        client->gentity = SV_GentityNum(i);
+        client->deltaMessage = -1;
+    }
+    return qtrue;
+}
+
 qboolean SV_ReleaseWorld(unsigned int collision) {
     unsigned int i, j;
     for (i = 0; i < ARRAY_LEN(sv_residentWorlds); ++i) {
@@ -761,5 +796,4 @@ int SV_PointContents( const vec3_t p, int passEntityNum ) {
 
 	return contents;
 }
-
 
