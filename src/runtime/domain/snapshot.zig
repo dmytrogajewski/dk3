@@ -336,6 +336,12 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
             if (attack.owner == 0 or attack.stepped_ms < attack.born_ms) return error.InvalidSavedActorAttack;
             switch (attack.attack) {
+                .summon_effect => |effect| {
+                    for (effect.scale ++ effect.spin ++ [_]f32{ effect.alpha, effect.alpha_multiplier }) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedActorAttack;
+                    if (effect.alpha < 0 or effect.alpha > 1 or effect.alpha_multiplier <= 0 or effect.alpha_multiplier > 1 or effect.expires_ms < attack.born_ms or effect.expires_ms > attack.born_ms + 2000 or effect.next_ms <= attack.stepped_ms or effect.next_ms > attack.stepped_ms + 100) return error.InvalidSavedActorAttack;
+                    for (effect.scale) |axis| if (axis <= 0 or axis > 10) return error.InvalidSavedActorAttack;
+                    for (effect.spin) |axis| if (@abs(axis) > 360) return error.InvalidSavedActorAttack;
+                },
                 .meteor => |meteor| {
                     try require(world, entity, .{data.Random});
                     for ([_]f32{ meteor.damage, meteor.radius, meteor.speed, meteor.glow, meteor.bounce_max, meteor.delta }) |value| if (!std.math.isFinite(value)) return error.InvalidSavedActorAttack;
@@ -462,6 +468,18 @@ pub fn validate(snapshot: *Loaded) !void {
             for (actor.dragon.breath_direction) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1.001) return error.InvalidSavedActor;
             for (actor.medusa.retreat) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedActor;
             for (actor.wyndrax.destination ++ actor.wyndrax.start_position) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedActor;
+            for ([_]f32{ actor.kage.alpha, actor.kage.base_health, actor.kage.health_fraction, actor.ghost.alpha }) |value| if (!std.math.isFinite(value)) return error.InvalidSavedActor;
+            if (actor.kage.alpha < 0 or actor.kage.alpha > 1 or actor.kage.base_health <= 0 or actor.kage.base_health > 10000000 or actor.kage.health_fraction < 0 or actor.kage.health_fraction >= 1 or actor.kage.charges > 10 or actor.kage.escapes > 8 or actor.kage.protectors > 12 or actor.kage.return_steps > 5 or actor.kage.voice_pose > 2 or actor.ghost.alpha < 0 or actor.ghost.alpha > 1) return error.InvalidSavedActor;
+            if (actor.kage.suspended) |phase| if (!actor.kage.recharging() or (phase != .smoke and phase != .hidden and phase != .returning)) return error.InvalidSavedActor;
+            if (@import("actor_catalog").entries[actor.definition].kind == .kage) {
+                if (actor.kage.recharging() and actor.kage.charges == 0) return error.InvalidSavedActor;
+                if (actor.kage.invulnerable() and actor.kage.escapes == 0) return error.InvalidSavedActor;
+                if (actor.kage.phase == .charging and actor.kage.protectors != 12) return error.InvalidSavedActor;
+            }
+            if (@import("actor_catalog").entries[actor.definition].kind == .ghost and actor.ghost.owner != 0) if (world.find(actor.ghost.owner)) |owner| {
+                const parent = world.get(owner, data.Actor) catch return error.InvalidSavedActor;
+                if (@import("actor_catalog").entries[parent.definition].kind != .kage) return error.InvalidSavedActor;
+            };
             if (actor.mikiko.voice_pose > 2 or !std.math.isFinite(actor.mikiko.light_red) or actor.mikiko.light_red < 1 or actor.mikiko.light_red > 2 or (actor.mikiko.aura and !actor.mikiko.awakened)) return error.InvalidSavedActor;
             if (!std.math.isFinite(actor.buboid.alpha) or actor.buboid.alpha < 0 or actor.buboid.alpha > 1) return error.InvalidSavedActor;
             if (actor.chaingang.strafe > 5 or actor.chaingang.burst > 22) return error.InvalidSavedActor;
@@ -942,4 +960,39 @@ test "monitor restoration retains camera and remaining duration and rejects deta
     try std.testing.expectEqual(data.Vec3{ 0, 45, 0 }, (try loaded.world.get(loaded.world.find(1).?, data.Transform)).angles);
     (try loaded.world.get(loaded.world.find(1).?, data.Body)).motion_owner = null;
     try std.testing.expectError(error.InvalidSavedMonitor, validate(&loaded));
+}
+
+test "Kage interrupted smoke, Ghost wake and summon effects restore against one clock" {
+    const t = std.testing;
+    const catalog = @import("actor_catalog");
+    var world = data.World.init(t.allocator, 8);
+    defer world.deinit();
+    _ = try world.create(1, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{}, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    var kage = catalog.kage.initialize(1200, 2);
+    kage.phase = .charging;
+    kage.suspended = .hidden;
+    kage.suspended_next_ms = 5500;
+    kage.protectors = 12;
+    kage.next_ms = 1100;
+    kage.alpha = 0;
+    _ = try world.create(2, .{ data.Transform{}, data.Velocity{}, data.Body{}, data.Health{ .current = 250, .maximum = 1200 }, data.Hurt{}, data.Random{ .state = 2 }, data.Binding{ .slot = 64 }, data.MapObject{ .classname = "monster_kage" }, data.Actor{ .definition = catalog.find("monster_kage").?, .kage = kage, .threat = 1, .ignore_player = true } });
+    _ = try world.create(3, .{ data.Transform{}, data.Velocity{}, data.Body{}, data.Health{ .current = 50, .maximum = 50 }, data.Hurt{}, data.Random{ .state = 3 }, data.Binding{ .slot = 65 }, data.MapObject{ .classname = "monster_ghost" }, data.Actor{ .definition = catalog.find("monster_ghost").?, .ghost = .{ .phase = .waking, .started_ms = 0, .owner = 2, .alpha = 0.2 }, .threat = 1 } });
+    _ = try world.create(4, .{ data.Transform{}, data.Velocity{}, data.Body{}, data.Binding{ .slot = 66 }, data.ActorAttack{ .owner = 3, .born_ms = 900, .stepped_ms = 1000, .attack = .{ .summon_effect = .{ .kind = .red, .next_ms = 1100, .expires_ms = 2400, .scale = .{ 0.75, 5, 10 } } } } });
+    var bytes: [65536]u8 = undefined;
+    const encoded = try capture(t.allocator, &bytes, &world, "e4m6c", 2, .{ .at_ms = 1000, .episode = 4, .player_id = 1, .next_id = world.next_id });
+    var loaded = try decode(t.allocator, encoded);
+    defer loaded.deinit(t.allocator);
+    try loaded.rebase(9000);
+    const saved_boss = (try loaded.world.get(loaded.world.find(2).?, data.Actor)).kage;
+    try t.expect(saved_boss.recharging() and saved_boss.invulnerable());
+    try t.expectEqual(@as(i64, 9100), saved_boss.next_ms);
+    try t.expectEqual(@as(i64, 13500), saved_boss.suspended_next_ms);
+    const ghost = (try loaded.world.get(loaded.world.find(3).?, data.Actor)).ghost;
+    try t.expectEqual(@as(i64, 8000), ghost.started_ms);
+    try t.expectEqual(@as(u32, 2), ghost.owner);
+    const flare = (try loaded.world.get(loaded.world.find(4).?, data.ActorAttack)).attack.summon_effect;
+    try t.expectEqual(@as(i64, 9100), flare.next_ms);
+    try t.expectEqual(@as(i64, 10400), flare.expires_ms);
+    (try loaded.world.get(loaded.world.find(3).?, data.Actor)).ghost.owner = 1;
+    try t.expectError(error.InvalidSavedActor, validate(&loaded));
 }

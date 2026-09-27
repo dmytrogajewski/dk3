@@ -40,6 +40,7 @@ fn shutdown() void {
     @import("client/wisps.zig").reset();
     @import("client/wyndrax_actor.zig").reset();
     @import("client/actor_meteors.zig").reset();
+    @import("client/summon_effects.zig").reset();
     @import("client/fx_particles.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
@@ -287,6 +288,10 @@ fn draw(now: i32) !void {
             try @import("client/events.zig").loop(&game, entity, @import("engine/trajectory.zig").evaluate(entity.pos, now));
             continue;
         }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").summon_effect.render_tag) {
+            try @import("client/summon_effects.zig").draw(entity, now, &ref);
+            continue;
+        }
         var handle: c.qhandle_t = 0;
         if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
             handle = inline_models[@intCast(entity.modelindex)];
@@ -317,6 +322,8 @@ fn draw(now: i32) !void {
             rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
             if (entity.clientNum > 0) rendered.customShader = try @import("client/models.zig").firstMaterial(&game, entity.clientNum, if (rendered.shaderRGBA[3] < 255) .alpha else .ordinary);
         }
+        if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").kage.fade_tag) rendered.shaderRGBA[3] = @min(rendered.shaderRGBA[3], @as(u8, @intFromFloat(std.math.clamp(entity.origin2[0], 0, 1) * 255)));
+        if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").sword_aura_tag and entity.legsAnim == 1) rendered.shaderRGBA[3] = @min(rendered.shaderRGBA[3], @as(u8, @intCast(@divTrunc(std.math.clamp(entity.torsoAnim, 0, 1000) * 255, 1000))));
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").buboid.melt_tag) {
             rendered.shaderRGBA[3] = @intFromFloat(std.math.clamp(entity.origin2[0], 0, 1) * 255);
         }

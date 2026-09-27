@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–263): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–264): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -526,10 +526,48 @@ petrification/death, converter attachments and save paths on the consolidated bu
 Main, installed play, user saves and live service remain unchanged.
 
 
+## Sequence 264 implementation checkpoint
+
+Kage now connects sword strikes based on the victim's remaining health, authored
+animation/sound events, finite smoke escapes, node-based return, twelve protector
+summons, difficulty-owned recharge and damage refunds, sword aura and death inventory
+removal. Recharge can suspend and resume a smoke task. Fractional refund health is
+retained; lethal recharge hits do not dispatch a false death. Removing the first
+player's sword ownership preserves its selected identity until normal weapon switching,
+matching the reviewed inventory unlink; native ownership prevents further firing.
+
+Summoned Ghosts connect wake/fade animation, aerial pursuit, their direct strike,
+player-hit pain deduction, owner-phase cleanup and corpse-content collision. They
+respect ordinary actor scripts and freeze ownership, cannot gib and suppress blood
+particles while retaining weapon-owned impact audio/effects. Their supplied model
+has no death sequence or CSV attack row; class-owned fading uses `flya` and the
+reviewed default first+1 strike. The inactive, commented-out spiral task is not queued.
+Rotating boss flares and smoke use persistent typed attack effects, with restored
+clocks and client emission serials. No private implementation/assets were imported.
+
+Narrow compatibility corrections reject blocked Ghost spawn hulls and Kage's snapped
+return destination rather than embedding actors. A rejected protector still consumes
+its authored summon attempt. Ghost ownership also bounds cleanup when summoned without
+an enemy. Ghost sight audio retains the four-second same-class limit; the reference's
+shared five-species sound-cache eviction is not reproduced. Fade/flare geometry,
+particle scale, sound attenuation and overlapping hum/charge-loop mixing remain
+presentation qualifications. The named sword/eye attachments still require the
+sequence-263 asset rebuild.
+
+**Implemented; unverified.** Three-module link evidence is
+`/tmp/dk3-runtime-264-kage-consolidated-link.log`; the earlier declaration-shadow failure
+is retained in `/tmp/dk3-runtime-264-kage-final-link.log`. New recharge, pain, immunity
+and restoration regressions are written but unexecuted. No engine, connected campaign,
+multiplayer or reference-playback acceptance was performed and no verified gameplay
+build/asset identity is added. Revalidate damage/death, ordinary impact effects,
+actor scripts, saved controllers, sword ownership and the new boss encounter on the
+consolidated build. Main, installed gameplay, saves and online service remain preserved.
+
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data (including monster factories/death
-spawns) still finds these unimplemented classes at this checkpoint: Kage and Nharre. The script-created Ghost used by Kage is also unimplemented; other dynamic classes and boss phases remain part of the full audit.
+spawns) still finds these unimplemented class at this checkpoint: Nharre. Kage and its script-created Ghost now have connected controllers; Nharre’s summoned reaper and the broader dynamic-class/boss-phase audit remain open.
 This inventory is a coding work list, not campaign-load or traversal acceptance.
 
 ## Acceptance rules

@@ -19,6 +19,7 @@ pub const State = struct {
         npc_wisp: @import("actor_catalog").wyndrax.Wisp,
         wyndrax_zap: @import("actor_catalog").wyndrax.Zap,
         wyndrax_bolt: @import("actor_catalog").wyndrax.Bolt,
+        summon_effect: @import("actor_catalog").summon_effect.State,
         psyclaw_sphere: @import("actor_catalog").psyclaw.Sphere,
     },
 };

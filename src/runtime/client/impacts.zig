@@ -41,7 +41,8 @@ pub fn consume(entity: c.entityState_t) !void {
     if (serial == 0 or seen[slot] == serial) return;
     seen[slot] = serial;
     const kind: catalog.impact_rules.Kind = @enumFromInt(entity.eventParm);
-    const cue = catalog.impact(@intCast(entity.weapon), .{ .kind = kind, .serial = serial, .charged = entity.frame & 1 != 0, .detonation = entity.frame & 2 != 0, .sequence = entity.generic1, .trail = entity.frame & 4 != 0 });
+    var cue = catalog.impact(@intCast(entity.weapon), .{ .kind = kind, .serial = serial, .charged = entity.frame & 1 != 0, .detonation = entity.frame & 2 != 0, .sequence = entity.generic1, .trail = entity.frame & 4 != 0 });
+    if (entity.frame & 8 != 0 and std.mem.indexOf(u8, cue.particle_shader, "blood") != null) cue.particles = 0;
     if (cue.sound) |name| {
         const sound = try engine.registerSound(name);
         if (sound != 0) _ = engine.gateway.call(c.CG_S_STARTSOUND, .{ &entity.pos.trBase, @as(isize, entity.number), @as(isize, c.CHAN_AUTO), @as(isize, sound) });

@@ -17,6 +17,7 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
     if (world.get(entity, data.Body) catch null) |body| if (body.motion_owner) |owner_id| if (world.find(owner_id)) |owner| if (world.get(owner, data.Exit) catch null) |exit| if (exit.ending_started != null) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .lycanthir and actor.lycanthir.phase != .living and options.weapon != @import("weapon_catalog").silverclaw.id) return .{};
     if (world.get(entity, data.ActorAttack) catch null) |attack| if (attack.attack == .npc_wisp and attack.attack.npc_wisp.fading) return .{};
+    if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .kage and actor.kage.invulnerable()) return .{};
     const health = world.get(entity, data.Health) catch return .{};
     const participant = world.get(entity, data.Session) catch null;
     if (participant) |session| {
@@ -27,6 +28,18 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
     }
     const character: ?data.Character = if (world.get(entity, data.Character)) |value| value.* else |_| null;
     var result = rules.apply(health, character, amount, now, options);
+    if (result.blood > 0) if (world.get(entity, data.Actor) catch null) |actor| {
+        const kind = @import("actor_catalog").entries[actor.definition].kind;
+        if (kind == .kage and actor.kage.recharging()) {
+            actor.kage.refund(&health.current, amount);
+            result.killed = false;
+        }
+        if (kind == .ghost and !result.killed) if (world.find(options.source)) |source| if ((world.get(source, data.Player) catch null) != null) {
+            health.current -= amount;
+            result.blood += amount;
+            result.killed = health.current <= 0;
+        };
+    };
     if (result.killed) if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .lycanthir and options.weapon != @import("weapon_catalog").silverclaw.id) {
         actor.lycanthir.collapse(now, @import("../engine/server.zig").integer("g_spSkill"));
         health.current = 1;
@@ -142,4 +155,43 @@ test "NPC Wisp pain repeats damage then disables damage during its owned fade" {
     try t.expectEqual(@as(i64, 300), attack.attack.npc_wisp.next_ms);
     try t.expectEqual(@as(i32, 0), (try apply(&world, entity, 20, 210, .{ .source = 2 })).blood);
     try t.expectEqual(@as(u32, 1), (try world.get(entity, data.Hurt)).revision);
+}
+
+test "Kage recharge prevents lethal dispatch, smoke prevents receipts, other bosses still die" {
+    const t = @import("std").testing;
+    const catalog = @import("actor_catalog");
+    var world = data.World.init(t.allocator, 3);
+    defer world.deinit();
+    var state = catalog.kage.initialize(1200, 2);
+    state.phase = .charging;
+    const boss = try world.create(1, .{ data.Actor{ .definition = catalog.find("monster_kage").?, .kage = state }, data.Health{ .current = 100, .maximum = 1200 }, data.Hurt{} });
+    const other = try world.create(2, .{ data.Actor{ .definition = catalog.find("monster_mikiko").? }, data.Health{ .current = 100, .maximum = 100 }, data.Hurt{} });
+    const result = try apply(&world, boss, 200, 100, .{ .source = 3 });
+    try t.expect(!result.killed);
+    try t.expectEqual(@as(i32, 500), (try world.get(boss, data.Health)).current);
+    try t.expect((try world.get(boss, data.Actor)).kage.feedback);
+    try t.expect((try apply(&world, other, 200, 100, .{ .source = 3 })).killed);
+    const actor = try world.get(boss, data.Actor);
+    actor.kage.phase = .smoke;
+    const receipt = (try world.get(boss, data.Hurt)).*;
+    try t.expectEqual(@as(i32, 0), (try apply(&world, boss, 1000, 200, .{ .source = 3 })).blood);
+    try t.expectEqualDeep(receipt, (try world.get(boss, data.Hurt)).*);
+    actor.kage.phase = .combat;
+    try t.expect((try apply(&world, boss, 1000, 300, .{ .source = 3 })).killed);
+}
+
+test "Ghost pain doubles surviving player hits, not monster damage or already lethal hits" {
+    const t = @import("std").testing;
+    const catalog = @import("actor_catalog");
+    var world = data.World.init(t.allocator, 3);
+    defer world.deinit();
+    _ = try world.create(1, .{data.Player{}});
+    const ghost = try world.create(2, .{ data.Actor{ .definition = catalog.find("monster_ghost").? }, data.Health{ .current = 50, .maximum = 50 }, data.Hurt{} });
+    const monster = try apply(&world, ghost, 10, 100, .{ .source = 3 });
+    try t.expectEqual(@as(i32, 10), monster.blood);
+    const player = try apply(&world, ghost, 20, 200, .{ .source = 1 });
+    try t.expectEqual(@as(i32, 40), player.blood);
+    try t.expect(player.killed);
+    (try world.get(ghost, data.Health)).current = 10;
+    try t.expectEqual(@as(i32, 10), (try apply(&world, ghost, 10, 300, .{ .source = 1 })).blood);
 }

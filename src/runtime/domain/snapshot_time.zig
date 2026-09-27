@@ -173,6 +173,10 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
             switch (value.attack) {
+                .summon_effect => |*effect| {
+                    try shift(&effect.next_ms, delta);
+                    try shift(&effect.expires_ms, delta);
+                },
                 .meteor => |*meteor| try shift(&meteor.next_ms, delta),
                 .npc_wisp => |*wisp| {
                     try shift(&wisp.next_ms, delta);
@@ -219,6 +223,14 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try active(&value.dragon.ambient_ms, delta);
             try deadline(&value.dragon.breath_until_ms, delta);
             try active(&value.wyndrax.until_ms, delta);
+            if (value.kage.phase == .combat) try active(&value.kage.next_ms, delta) else try shift(&value.kage.next_ms, delta);
+            try active(&value.kage.suspended_next_ms, delta);
+            try active(&value.kage.recharge_ready_ms, delta);
+            try active(&value.kage.dodge_ready_ms, delta);
+            try active(&value.kage.feedback_ready_ms, delta);
+            try active(&value.kage.aura_started_ms, delta);
+            if (value.ghost.phase == .dormant) try active(&value.ghost.started_ms, delta) else try shift(&value.ghost.started_ms, delta);
+            try active(&value.ghost.sound_ready_ms, delta);
             try active(&value.mikiko.aura_started_ms, delta);
             try active(&value.medusa.until_ms, delta);
             try active(&value.medusa.flash_until_ms, delta);
