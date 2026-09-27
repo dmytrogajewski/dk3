@@ -904,6 +904,39 @@ shared native fragment response is not asserted identical to the private callbac
 Fresh campaign, restoration and multiplayer verification remain required. Continue
 moving authored debris, gib emitters and the remaining world/campaign/full-port work.
 
+## Sequence 274 — moving-debris-and-gib-emitters (implemented; unverified)
+
+Authored `func_debris` and `func_debris_visible` now own their initial visibility,
+delayed target/owner resolution, launch, momentum damage, angular motion, delayed hull
+expansion, impact audio and finite settling. Moving inline models render independently
+of their bounding-box collision representation. Activator/drop/water launch contracts
+and the authored fan exception follow private behavioral review. The class's effective
+momentum-damage divisor is three, including its reference assignment quirk; unused
+quarter-size/no-rotation-adjust flags are not given invented behavior. Persistent
+state retains launch/expansion clocks, destination, spin, activator and stopped pose.
+
+`func_gib` now resolves its target after the authored randomized startup, clamps count
+and speed, emits finite 800 ms bursts, and respects use/no-toggle scheduling. Start-on
+scheduling remains distinct from the reference's initially clear toggle flag. Bone and
+robotic bounce, supplied torso/bone models, sound variants/attenuation, global fragment
+cap, violence preference and fragment fade use native services. Fragment visuals add
+travel-sampled diminishing blood trails and bone smoke. Native saves intentionally
+retain emitters and pending bursts instead of the reference's FL_NOSAVE exclusion.
+No private implementation was imported. Reference review covered MISC.CPP debris,
+physics bounce/masks, gib.cpp generator/lifecycle and cl_fx.cpp diminishing trails.
+
+The three native modules, including sequence 273, link successfully in
+`/tmp/dk3-runtime-274-debris-link.log` (exit 0), under `zig-out/native-dev`.
+Written targeted policy regressions are unrun. No contract suite or engine scenario
+ran, and no verified build/asset identity is issued. The local authoring inventory
+remains `/tmp/dk3-runtime-272-world-properties.json` on manifest
+`ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
+Remaining contact splats/sounds and precise fragment water/presentation behavior need
+completion/comparison; a compiling emitter is not torture-rack cinematic acceptance.
+Earlier fragment, collision, restoration and shared particle scenarios need affected
+replay. Earthquake/lighting/particle/weather behavior and the remaining full-port
+campaign/multiplayer/release work continue. Main, install, saves and service untouched.
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data finds no unregistered names in

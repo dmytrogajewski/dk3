@@ -338,7 +338,7 @@ pub fn validate(snapshot: *Loaded) !void {
                 try require(world, entity, .{data.Random});
                 if (!scenery.fragment or scenery.breakable or scenery.explosion or scenery.movement != .bounce) return error.InvalidSavedScenery;
                 const skin = scenery.gib.?.skin_model;
-                if (scenery.gib.?.robotic != (skin.len > 0) or skin.len >= 64 or (skin.len > 0 and (!std.mem.startsWith(u8, skin, "models/") or std.mem.indexOf(u8, skin, "..") != null))) return error.InvalidSavedScenery;
+                if ((!scenery.gib.?.robotic and skin.len > 0) or skin.len >= 64 or (skin.len > 0 and (!std.mem.startsWith(u8, skin, "models/") or std.mem.indexOf(u8, skin, "..") != null))) return error.InvalidSavedScenery;
             }
             if (scenery.breakable) try require(world, entity, .{ data.Health, data.Hurt });
             if (scenery.broken and (!scenery.breakable or (try world.get(entity, data.Health)).current > 0 or (try world.get(entity, data.Body)).contents != 0)) return error.InvalidSavedScenery;
@@ -539,6 +539,8 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Transform });
             const classname = (try world.get(entity, data.MapObject)).classname;
             const expected = switch (control.action) {
+                .gib_emitter => "func_gib",
+                .debris => if (std.mem.eql(u8, classname, "func_debris_visible")) "func_debris_visible" else "func_debris",
                 .room => "trigger_change_sfx",
                 .laser => "target_laser",
                 .healer => |state| if (state.kind == .fountain) "misc_fountain" else "misc_hosportal",
@@ -549,6 +551,16 @@ pub fn validate(snapshot: *Loaded) !void {
             };
             if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
             switch (control.action) {
+                .gib_emitter => |state| {
+                    try require(world, entity, .{data.Random});
+                    if (!state.parameters.valid() or state.count < 1 or state.count > 10 or !std.math.isFinite(state.spread) or !std.math.isFinite(state.speed) or state.speed < 1 or state.speed > 600 or !std.math.isFinite(state.scale) or state.scale < 0.01 or state.scale > 200 or (state.on and !state.initialized)) return error.InvalidSavedGibEmitter;
+                    for (state.direction) |value| if (!std.math.isFinite(value)) return error.InvalidSavedGibEmitter;
+                },
+                .debris => |state| {
+                    try require(world, entity, .{ data.Binding, data.Body, data.Velocity, data.Random });
+                    if (!state.parameters.valid() or (state.active and (!state.visible or state.stopped)) or (state.stopped and !state.visible)) return error.InvalidSavedDebris;
+                    for (state.destination ++ state.spin) |value| if (!std.math.isFinite(value)) return error.InvalidSavedDebris;
+                },
                 .room => |preset| if (preset > 25) return error.InvalidSavedRoom,
                 .laser => |laser| {
                     try require(world, entity, .{data.Binding});

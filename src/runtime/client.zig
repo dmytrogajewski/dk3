@@ -43,6 +43,7 @@ fn shutdown() void {
     @import("client/summon_effects.zig").reset();
     @import("client/nharre_reaper.zig").reset();
     @import("client/fx_particles.zig").reset();
+    @import("client/gibs.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
     world = null;
@@ -322,7 +323,7 @@ fn draw(now: i32) !void {
             continue;
         }
         var handle: c.qhandle_t = 0;
-        if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
+        if ((entity.solid == c.SOLID_BMODEL or (entity.eType == c.ET_MOVER and entity.generic1 == @import("domain/debris.zig").render_tag)) and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
             handle = inline_models[@intCast(entity.modelindex)];
         } else if (entity.eType == c.ET_PLAYER or entity.eType == c.ET_DK3_ITEM or entity.eType == c.ET_MISSILE or entity.eType == c.ET_GENERAL) handle = try @import("client/models.zig").get(&game, entity.modelindex);
         if (handle == 0) continue;
@@ -349,6 +350,7 @@ fn draw(now: i32) !void {
             rendered.skinNum = 3;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/scenery.zig").render_tag) {
+            if (entity.weapon & 1 != 0) @import("client/gibs.zig").emit(entity, rendered.origin, now);
             rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
             if (entity.clientNum > 0) rendered.customShader = try @import("client/models.zig").firstMaterial(&game, entity.clientNum, if (rendered.shaderRGBA[3] < 255) .alpha else .ordinary);
         }

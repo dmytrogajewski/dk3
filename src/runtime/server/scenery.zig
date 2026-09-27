@@ -89,10 +89,11 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.eType = c.ET_GENERAL;
     projection.state.modelindex = binding.model;
     projection.state.frame = state.sequence.frame(now - state.started_ms, state.looping);
-    if (state.explosion) projection.state.time = @intCast(state.started_ms);
+    if (state.gib != null or state.explosion) projection.state.time = @intCast(state.started_ms);
     projection.state.generic1 = if (state.explosion) policy.explosion_tag else policy.render_tag;
     projection.state.time2 = @intFromFloat(state.alpha * 255);
     projection.state.clientNum = if (state.gib) |gib| if (gib.skin_model.len > 0) try @import("resources.zig").model(gib.skin_model) else 0 else 0;
+    projection.state.weapon = if (state.gib) |gib| @as(i32, 1) | (if (gib.no_blood) @as(i32, 2) else 0) | (if (gib.bone) @as(i32, 4) else 0) else 0;
     projection.state.angles2 = state.scale;
     projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
     projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);

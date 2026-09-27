@@ -117,6 +117,10 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
             try clients.publish(world, projections, states, 0, now);
             continue;
         }
+        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .debris) {
+            try @import("debris.zig").publish(world, entity, slots, projections);
+            continue;
+        };
         if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .healer or control.action == .laser or control.action == .speaker) {
             if (control.action == .laser) {
                 try @import("lasers.zig").publish(world, entity, projections);

@@ -73,6 +73,6 @@ pub fn contact(world: *data.World, entity: ecs.Entity, state: *data.Scenery, vel
     const random = try world.get(entity, data.Random);
     const speed = v.length(velocity);
     for (&state.spin) |*spin| spin.* = (random.next() * 2 - 1) * speed;
-    const reflected = v.scale(v.subtract(velocity, v.scale(normal, 2 * v.dot(velocity, normal))), if (state.gib.?.robotic) 0.45 else 0.85);
+    const reflected = v.scale(v.subtract(velocity, v.scale(normal, 2 * v.dot(velocity, normal))), if (state.gib.?.robotic or state.gib.?.bone) 0.45 else 0.85);
     return if (normal[2] > 0.7 and @abs(reflected[2]) < 60) @splat(0) else reflected;
 }

@@ -55,8 +55,9 @@ pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             } else exit.latched = false;
             continue;
         }
-        if ((world.get(entity, data.WorldControl) catch null) != null) {
-            if (projection.shared.contents & c.CONTENTS_TRIGGER == 0) continue;
+        if (world.get(entity, data.WorldControl) catch null) |control| {
+            const debris = control.action == .debris and control.action.debris.active;
+            if (!debris and projection.shared.contents & c.CONTENTS_TRIGGER == 0) continue;
             for (occupants) |candidate| {
                 const other = candidate orelse continue;
                 if (!world.alive(entity) or !world.alive(other)) break;
@@ -64,7 +65,7 @@ pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProject
                 if ((world.get(other, data.Health) catch continue).current <= 0) continue;
                 if ((world.get(other, data.Player) catch null)) |player| if (player.mode != .normal) continue;
                 const body = &projections[(try world.get(other, data.Binding)).slot];
-                if (overlap(body, projection, 0)) try @import("world_controls.zig").touch(world, slots, projections, router, entity, other, now);
+                if (overlap(body, projection, if (debris) 1 else 0)) try @import("world_controls.zig").touch(world, slots, projections, router, entity, other, now);
             }
             continue;
         }

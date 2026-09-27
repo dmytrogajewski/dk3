@@ -5,7 +5,7 @@ const c = @import("../engine/abi.zig").c;
 const engine = @import("../engine/client.zig");
 const v = @import("../domain/vector.zig");
 const Random = @import("../domain/components.zig").Random;
-pub const Kind = enum { fire, smoke, bits, spark };
+pub const Kind = enum { fire, smoke, bits, spark, blood1, blood2, blood3, blood4 };
 pub const Particle = struct { born_ms: i32, position: v.Vec3, velocity: v.Vec3, acceleration: v.Vec3, color: v.Vec3, alpha: f32, fade: f32, size: f32, kind: Kind };
 var particles: [4096]?Particle = @splat(null);
 var cursor: usize = 0;
@@ -31,8 +31,8 @@ pub fn cloud(point: v.Vec3, direction: v.Vec3, color: v.Vec3, alpha: v.Vec3, siz
     }
 }
 pub fn draw(now: i32, ref: *const c.refdef_t) void {
-    var shaders: [4]isize = undefined;
-    inline for (.{ "dk3/fx/dragon-fire", "dk3/fx/dragon-smoke", "dk3/fx/jet-bits", "dk3/fx/jet-spark" }, 0..) |name, i| shaders[i] = engine.gateway.call(c.CG_R_REGISTERSHADER, .{@as([*:0]const u8, name)});
+    var shaders: [8]isize = undefined;
+    inline for (.{ "dk3/fx/dragon-fire", "dk3/fx/dragon-smoke", "dk3/fx/jet-bits", "dk3/fx/jet-spark", "dk3/particle/blood1", "dk3/particle/blood2", "dk3/particle/blood3", "dk3/particle/blood4" }, 0..) |name, i| shaders[i] = engine.gateway.call(c.CG_R_REGISTERSHADER, .{@as([*:0]const u8, name)});
     for (&particles) |*maybe| if (maybe.*) |particle| {
         const seconds = @as(f32, @floatFromInt(now - particle.born_ms)) * 0.001;
         const alpha = particle.alpha - seconds * particle.fade;

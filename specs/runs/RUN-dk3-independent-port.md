@@ -3798,3 +3798,13 @@ No compilation, test suite or engine scenario was run for this checkpoint; conti
 the coding pass with moving debris and gib emitters before consolidated verification.
 The previous sequence's engine/modules link remains compilation evidence for its
 exact earlier source. Main, playable installation, saves and service remain untouched.
+
+## Sequence 274 — moving-debris-and-gib-emitters
+
+Implemented native launched brush debris and finite gib emitters with authored launch,
+timing, sound and toggle contracts; persistent state and fragment visuals connected.
+Private behavioral review only. Emitters intentionally survive native saves despite
+reference FL_NOSAVE. Detailed scope/remaining contact and water parity in
+`docs/native-acceptance.md`. Three modules (including sequence 273) linked successfully:
+`/tmp/dk3-runtime-274-debris-link.log`; no test/engine/connected acceptance. Continue
+authored world effects and full campaign/multiplayer/release coding pass.

@@ -16,6 +16,8 @@ pub const Timer = struct {
     }
 };
 pub const Action = union(enum) {
+    gib_emitter: @import("gib_emitter.zig").State,
+    debris: @import("debris.zig").State,
     room: u8,
     laser: @import("laser.zig").State,
     healer: @import("item_catalog").hosportal.State,
