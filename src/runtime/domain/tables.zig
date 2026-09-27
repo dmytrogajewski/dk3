@@ -26,7 +26,7 @@ pub const Reader = struct {
         if (!std.mem.eql(u8, try self.token() orelse return error.TableHeader, "dk3_table") or !std.mem.eql(u8, try self.token() orelse return error.TableHeader, "1")) return error.TableHeader;
         return self;
     }
-    fn token(self: *Reader) !?[]const u8 {
+    pub fn token(self: *Reader) !?[]const u8 {
         while (self.cursor < self.bytes.len and std.ascii.isWhitespace(self.bytes[self.cursor])) self.cursor += 1;
         if (self.cursor == self.bytes.len) return null;
         const start = self.cursor;

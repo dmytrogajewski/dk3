@@ -252,6 +252,29 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Binding, data.Body });
             if (!std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "trigger_changelevel")) return error.InvalidSavedExit;
         }
+        if (world.get(entity, data.HealthTree) catch null) |tree| {
+            try require(world, entity, .{ data.MapObject, data.Binding, data.Body, data.Transform, data.Velocity, data.Random, data.Health });
+            if (tree.maximum > 5 or tree.fruit > tree.maximum or tree.previous > 5 or !std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "misc_healthtree")) return error.InvalidSavedHealthTree;
+        }
+        if (world.get(entity, data.Script) catch null) |script| {
+            if (script.name.len == 0 or script.name.len > 64 or script.remaining < -1 or script.remaining > 10000) return error.InvalidSavedScript;
+        }
+        if (world.get(entity, data.FrogSpit) catch null) |spit| {
+            try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding, data.Lifetime });
+            if (spit.owner == 0 or spit.damage <= 0 or spit.damage > 1000000 or spit.stepped_ms < spit.born_ms) return error.InvalidSavedFrogSpit;
+        }
+        if (world.get(entity, data.Cinematic) catch null) |playback| {
+            if (!validName(playback.name) or (playback.active and playback.finished)) return error.InvalidSavedCinematic;
+            try require(world, entity, .{data.MapObject});
+        }
+        if (world.get(entity, data.Performer) catch null) |performer| {
+            try require(world, entity, .{ data.Binding, data.Body });
+            if (performer.count > performer.queue.len or performer.unique.len == 0 or performer.unique.len > 32 or performer.walk_speed < 0 or performer.walk_speed > 2000 or performer.run_speed < 0 or performer.run_speed > 2000 or performer.yaw_speed < 0 or performer.yaw_speed > 360) return error.InvalidSavedPerformer;
+            inline for (.{ "animation", "idle", "movement" }) |field| {
+                const sequence = @field(performer, field);
+                if (sequence.last < sequence.first or sequence.fps == 0 or sequence.fps > 240) return error.InvalidSavedPerformerAnimation;
+            }
+        }
         if (world.get(entity, data.Health) catch null) |health| if (health.current < -1000000 or health.current > 1000000 or health.maximum < 1 or health.maximum > 1000000 or health.armor < 0 or health.armor > 1000000) return error.InvalidSavedHealth;
         if (world.get(entity, data.Mover) catch null) |mover| if (mover.motion.duration_ms <= 0 or mover.speed <= 0) return error.InvalidSavedMover;
         if (world.get(entity, data.Train) catch null) |train| if (train.position.duration_ms <= 0 or train.angles.duration_ms <= 0 or train.speed <= 0) return error.InvalidSavedTrain;
@@ -554,6 +577,12 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = try world.create(67, .{ data.Transform{}, data.Binding{ .slot = 84 }, data.Velocity{}, data.Body{}, data.Health{ .current = 300, .maximum = 300 }, data.Hurt{}, data.Random{ .state = 29 }, data.Projectile{ .owner = 7, .weapon = 26, .damage = 40, .born_ms = -3000, .stepped_ms = 1000, .lifetime_ms = 19000, .flight = .{ .metamaser = cube } }, data.Lifetime{ .expires_ms = 16000 } });
     _ = try world.create(68, .{ data.Transform{}, data.Binding{ .slot = 85 }, data.MetaRing{ .owner = 7, .cube = 67, .damage = 40, .born_ms = 900, .next_ms = 1050 } });
     _ = try world.create(69, .{ data.Transform{}, data.Binding{ .slot = 86 }, data.Random{ .state = 30 }, data.MetaLaser{ .owner = 7, .cube = 67, .damage = 40, .next_ms = 1100, .expires_ms = 5900 } });
+    _ = try world.create(73, .{ data.Transform{}, data.MapObject{ .classname = "info_aiscript" }, data.Script{ .name = "Skeet1Path", .active = true, .index = 2, .due_ms = 1800, .next_ms = 1050, .revision = 4 } });
+    _ = try world.create(74, .{ data.Transform{}, data.MapObject{ .classname = "misc_healthtree" }, data.Body{}, data.Binding{ .slot = 89, .model = 1 }, data.Velocity{}, data.Health{ .current = 100, .maximum = 100 }, data.Random{ .state = 8 }, data.HealthTree{ .fruit = 2, .previous = 3, .ready_ms = 1800, .changed_ms = 800 } });
+    _ = try world.create(72, .{ data.Transform{}, data.Body{ .mins = @splat(-3), .maxs = @splat(3) }, data.Binding{ .slot = 88, .model = 1 }, data.Velocity{ .linear = .{ 400, 0, 0 } }, data.Lifetime{ .expires_ms = 5500 }, data.FrogSpit{ .owner = 7, .damage = 7, .born_ms = 500, .stepped_ms = 950 } });
+    _ = try world.create(70, .{ data.Transform{}, data.MapObject{ .classname = "worldspawn" }, data.Cinematic{ .name = "intro", .shot = 20, .started_ms = 500, .active = true, .sounds = 2, .queued = .{3} ++ @as([127]u16, @splat(0)) } });
+    _ = try world.create(71, .{ data.Transform{}, data.Body{}, data.Binding{ .slot = 87, .model = 1 }, data.Performer{ .unique = "oka1", .classname = "cine_osaka", .model = "models/cinematic/c_osaka_intr.dkm", .animation = .{ .first = 10, .last = 20 }, .animation_ms = 800, .next_ms = 1050, .queue = .{42} ++ @as([127]u16, @splat(0)), .count = 1, .started = true, .due_ms = 1900 } });
+
     const mover = try world.create(42, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
     _ = mover;
     world.next_id = 100;
@@ -613,6 +642,25 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expectEqual(@as(i64, 9100), saved_bolt.next_ms);
     try std.testing.expectEqual(@as(u32, 62), saved_bolt.chain);
     try std.testing.expectEqual(@as(i64, 9800), (try loaded.world.get(loaded.world.find(64).?, data.Zeus)).ready_ms);
+    const script = (try loaded.world.get(loaded.world.find(73).?, data.Script)).*;
+    try std.testing.expectEqual(@as(u16, 2), script.index);
+    try std.testing.expectEqual(@as(i64, 9800), script.due_ms);
+    try std.testing.expectEqual(@as(i64, 9050), script.next_ms);
+    const tree = (try loaded.world.get(loaded.world.find(74).?, data.HealthTree)).*;
+    try std.testing.expectEqual(@as(u3, 2), tree.fruit);
+    try std.testing.expectEqual(@as(i64, 9800), tree.ready_ms);
+    const spit = (try loaded.world.get(loaded.world.find(72).?, data.FrogSpit)).*;
+    try std.testing.expectEqual(@as(i64, 8500), spit.born_ms);
+    try std.testing.expectEqual(@as(i64, 8950), spit.stepped_ms);
+    try std.testing.expectEqual(@as(f32, 7), spit.damage);
+    const saved_cinematic = (try loaded.world.get(loaded.world.find(70).?, data.Cinematic)).*;
+    try std.testing.expectEqual(@as(i64, 8500), saved_cinematic.started_ms);
+    try std.testing.expectEqual(@as(u16, 20), saved_cinematic.shot);
+    try std.testing.expectEqual(@as(u16, 3), saved_cinematic.queued[0]);
+    const performer = (try loaded.world.get(loaded.world.find(71).?, data.Performer)).*;
+    try std.testing.expectEqual(@as(i64, 8800), performer.animation_ms);
+    try std.testing.expectEqual(@as(i64, 9900), performer.due_ms);
+    try std.testing.expectEqual(@as(u16, 42), performer.queue[0]);
     const saved_wisp = (try loaded.world.get(loaded.world.find(65).?, data.Projectile)).*;
     try std.testing.expectEqual(@as(i64, 8700), saved_wisp.born_ms);
     try std.testing.expectEqual(@as(i64, 400), saved_wisp.flight.wyndrax.next_ms);

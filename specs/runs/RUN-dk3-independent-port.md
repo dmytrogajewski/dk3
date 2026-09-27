@@ -3105,3 +3105,79 @@ launch now must contain an actual pending release and the driver waits for resto
 flight or confirmed Venom flesh contact. `status-events/` passes Gas Hands kill,
 Venom bite/poison death, pending release restoration, saved pool owner-contact and
 Kineticore freeze/restoration. This is a repaired driver, with no gameplay adjustment.
+
+## runtime-zig — sequence 244 (native authored intro execution)
+
+Implemented supplied cinematic parsing, cameras, actor queues, animation, movement,
+local sound, freeze/release and typed save state. New Game now requests the authored
+intro. Private review established model selection, queue identity fallback and missing
+animation behavior; no private implementation was imported. Diagnostic runners disable
+cinematics explicitly; the ordinary-input runner enables them and clicks Normal in UI.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| First fresh intro | Failed | `runtime-zig-244/intro-first/`: reaches shot 29, then missing Osaka actor due to authored `oka1`/`osa1` IDs. Reference queues fall back to class; spawn/remove remain exact. Regression distinguishes these lookups. |
+| Lookup replay from New Game | Failed | `intro-queue-lookup/`: passes Osaka case, stops at Usagi's unavailable `amba` cue near shot 34. Reference skips unavailable animation requests; native executor corrected accordingly. Legitimate shot-20 checkpoint retained. |
+| Presentation | Partially inspected | Intro shot 20 shows Toshiro/Hiro staging and supplied models. Full reference playback, sound restoration and remaining cinematic task families remain open. |
+| Scope | Implemented, incomplete | Opening programs contain supported tasks. Other program task families still produce explicit unsupported errors. No full campaign acceptance. |
+
+## runtime-zig — sequence 245 (opening actors and cinematic handoff)
+
+Protopod hatching and Slaughterskeet flight/melee/retreat consume class-owned policy,
+supplied tuning/events and converted authored air nodes. Froginator ground decisions,
+melee/spit/jumps and a separate poison-spit controller are connected; no player weapon
+substitute. Actor and projectile saves retain state/deadlines. These actors still need
+native interaction and connected encounter verification; death/pain presentation and
+other opening classes/scripts remain open.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Intro development checkpoint | Failed | `runtime-zig-245/intro-checkpoint/`: restored legitimate shot 20 from earlier build, passed both cue fixes and all remaining intro shots, fired authored exit. Observation command during reconnect raised `MissingPlayer`, crashing new server before arrival. This is a diagnostic endpoint defect; not campaign acceptance. |
+| Handoff correction | Implemented; replay pending | Missing player returns explicit connecting response; driver waits for ClientBegin before observing again. No gameplay rules modified. |
+| Integrated cinematic/pod/skeet build | Passed | `/tmp/dk3-runtime-245-cue-build.log`: three native modules and 90 focused checks. Probe identity is in `intro-checkpoint/identity.json`; it is superseded for acceptance by subsequent actor/handoff edits. |
+| Froginator integration | Implemented; verification pending | Supplied primary/secondary weapon data, both bite strike frames, normal/hard ranged restriction, per-class jump and poison contract. Frogs and spit snapshots added; build/engine replay in progress. |
+
+Fresh New Game through authored e1m2a remains unrun. The complete four-episode and
+multiplayer port remains open. Shared actor/component changes require affected actor,
+status/body-control and save regressions at the integration checkpoint. Earlier
+weapon results retain their narrow historical scope, not acceptance on this build.
+
+Sequence 245 handoff replay passes its limited scope in
+`runtime-zig-245/handoff-replay/`, identity
+`254909c3925ff64a9907a99c33053fe7021153677a8b4ec80004208bda34de48`.
+From the legitimate earlier-build shot-80 save, the remaining intro, authored exit,
+all seven arrival shots, normal control with health 100/Disruptor and arrival save/load
+complete. Restored arrival frame inspected. Not a fresh New Game result, and no combat
+or map traversal acceptance. `/tmp/dk3-runtime-245-opening-connected-build.log` records
+three native modules and 91 focused checks; four input-driver checks pass. The earlier
+`frogs-build.log` was accidentally shared by overlapping builds; it is not a coherent
+build record and is superseded by `opening-connected-build.log`.
+
+## runtime-zig — sequence 246 (authored actor actions and opening resupply)
+
+Implemented action program parsing/execution, unique actor IDs, spawn, ignore/aggressive
+states, supplied path following, messages, animation, facing and use. Actor paths and
+script execution are persistent. Script triggers keep their authored use-only/multiple
+flags. Private reference review establishes path arrival tolerances, random target
+selection, one-time pathtarget dispatch and absent script/animation no-ops. Other
+unsupported action types are explicit errors, not replacements. Full scripts, spawned
+bridge encounter, workers and saved execution remain unverified.
+
+Health trees were found missing while preparing the ordinary resupply route. Their
+reference single-player fruit is finite even when map epairs request recharge; only
+max_fruit is read, with ten health per fruit and a one-second use cooldown. This is a
+concrete opening integration blocker, not a reason to reduce damage for the driver.
+Ambient fireflies are separate presentation work; Cambot, Thunderskeet, Crox and Rockgat
+remain missing actor behavior. Normal-input route development uses the legitimate
+arrival save and must not be described as fresh full-route acceptance.
+
+Sequence 246 consolidated build: `/tmp/dk3-runtime-246-consolidated-build.log`
+passes all three modules and 94 focused checks, including script cursors, tree fruit/
+cooldown and spit rebasing. Ordinary route driver observes actual pickup/weapon readiness,
+processed movement, attacks and target health changes; lack of contact or movement
+invalidates the attempt. `runtime-zig-246/fresh-opening/` is the active fresh New Game
+run on this build. No route acceptance is claimed while it is running.
+
+Sequence 246 aggregate: `/tmp/dk3-runtime-246-aggregate.log` passes 232 Zig and
+48 Python checks plus formatting. Assertions remain enabled; named actor/item/weapon
+roots execute. This is supporting verification, not campaign acceptance.

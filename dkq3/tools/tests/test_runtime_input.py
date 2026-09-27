@@ -37,3 +37,14 @@ class NativeInputTests(unittest.TestCase):
             with self.assertRaises(TimeoutError):
                 driver.fire()
             self.assertEqual([call.args[0] for call in issue.call_args_list], ["+attack", "-attack"])
+
+    def test_observation_waits_for_connection_event_during_map_handoff(self):
+        driver = NativeInput(None, None, None, None, [])
+        with patch.object(driver, "_observe_once", side_effect=[
+            ({"connecting": 1}, 40), ({"processed": 1, "map": "e1m1a"}, 90),
+        ]) as observe, patch("runtime_input.wait") as wait:
+            self.assertEqual(driver.observe()["map"], "e1m1a")
+            self.assertEqual(observe.call_count, 2)
+            event = wait.call_args.args[2]
+            self.assertFalse(event(" " * 40 + "loading"))
+            self.assertTrue(event(" " * 40 + "dk3 zig: player entered isolated movement runtime"))

@@ -1,0 +1,100 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//! Froginator-owned missile. Player weapon identities and tuning are not involved.
+const std = @import("std");
+const data = @import("../domain/components.zig");
+const ecs = @import("../ecs/world.zig");
+const abi = @import("../engine/abi.zig");
+const c = abi.c;
+const engine = @import("../engine/server.zig");
+const Slots = @import("../engine/slots.zig").Slots;
+const v = @import("../domain/vector.zig");
+const policy = @import("actor_catalog").froginator;
+const lifecycle = @import("weapon_entities.zig");
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: policy.Tuning, now: i64) !void {
+    const random = try world.get(owner, data.Random);
+    const target_pose = (try world.get(target, data.Transform)).*;
+    const target_velocity = (try world.get(target, data.Velocity)).linear;
+    const basis = v.basis(pose.angles);
+    const origin = v.add(pose.position, v.add(v.scale(basis.right, tuning.offset[0]), v.add(v.scale(basis.forward, tuning.offset[1]), v.scale(v.cross(basis.right, basis.forward), tuning.offset[2]))));
+    // Reference leading follows target view direction, not velocity direction. Its
+    // supplied spread and vertical offset are unused in this projectile aim path.
+    var lead_angles = target_pose.angles;
+    var lead = @max(1, v.length(target_velocity) * 0.1);
+    const skill = engine.integer("g_spSkill");
+    const roll = random.next();
+    const deviation: f32 = if (skill <= 2 and roll > 0.25) 0.5 else if (skill == 3 and roll > 0.25 and lead > 80) 3 else if (skill >= 4 and roll > 0.85 and lead > 100) 6 else 0;
+    if (deviation != 0) {
+        lead = v.length(target_velocity) * 0.1;
+        if (random.next() > 0.5) lead = -lead;
+        lead_angles[1] += 30 / deviation * ((random.next() * 2 - 1) * (90 / deviation));
+        lead_angles[0] += 5 / deviation * ((random.next() * 2 - 1) * (10 / deviation));
+    }
+    var destination = v.add(target_pose.position, v.scale(v.basis(lead_angles).forward, lead));
+    if ((try world.get(target, data.Player)).ducked) {
+        const target_body = (try world.get(target, data.Body)).*;
+        destination[2] -= target_body.maxs[2] - target_body.mins[2];
+    }
+    const direction = v.normalize(v.subtract(destination, origin));
+    const amount = tuning.damage + random.next() * tuning.random_damage;
+    const entity = try world.create(null, .{
+        data.Transform{ .position = v.add(origin, .{ 0, 0, 10 }), .angles = .{ -std.math.atan2(direction[2], @sqrt(direction[0] * direction[0] + direction[1] * direction[1])) * 180 / std.math.pi, std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi, 0 } },
+        data.Velocity{ .linear = v.scale(direction, tuning.speed) },
+        data.Body{ .mins = @splat(-3), .maxs = @splat(3), .collision_mask = c.MASK_SHOT },
+        data.Lifetime{ .expires_ms = now + 5000 },
+        data.FrogSpit{ .owner = try world.persistentId(owner), .damage = amount, .born_ms = now, .stepped_ms = now },
+    });
+    try lifecycle.bind(world, slots, projections, entity, policy.spit_model);
+    try publish(world, entity, projections, now);
+    var text: [128]u8 = undefined;
+    engine.print(try std.fmt.bufPrintZ(&text, "dk3 frog: id={d} spit={d} damage={d:.2}\n", .{ try world.persistentId(owner), try world.persistentId(entity), amount }));
+}
+pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
+    const binding = (try world.get(entity, data.Binding)).*;
+    const pose = (try world.get(entity, data.Transform)).*;
+    const velocity = (try world.get(entity, data.Velocity)).linear;
+    const projection = &projections[binding.slot];
+    projection.state.number = binding.slot;
+    projection.state.eType = c.ET_GENERAL;
+    projection.state.modelindex = binding.model;
+    projection.state.angles2 = @splat(0.15);
+    projection.state.pos = @import("../engine/trajectory.zig").linear(pose.position, velocity, now);
+    projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
+    projection.shared.currentOrigin = pose.position;
+    projection.shared.mins = @splat(-3);
+    projection.shared.maxs = @splat(3);
+    projection.shared.contents = 0;
+    const owner = (try world.get(entity, data.FrogSpit)).owner;
+    projection.shared.ownerNum = if (world.find(owner)) |source| (try world.get(source, data.Binding)).slot else c.ENTITYNUM_NONE;
+    engine.link(projection);
+}
+pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
+    const occupants = slots.occupants;
+    for (occupants) |occupant| {
+        const entity = occupant orelse continue;
+        if (!world.alive(entity)) continue;
+        var spit = (world.get(entity, data.FrogSpit) catch continue).*;
+        if (now >= (try world.get(entity, data.Lifetime)).expires_ms) {
+            try lifecycle.remove(world, slots, projections, entity);
+            continue;
+        }
+        const pose = (try world.get(entity, data.Transform)).*;
+        const velocity = (try world.get(entity, data.Velocity)).linear;
+        const owner_slot = if (world.find(spit.owner)) |source| (try world.get(source, data.Binding)).slot else c.ENTITYNUM_NONE;
+        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, @as(f32, @floatFromInt(@max(0, now - spit.stepped_ms))) * 0.001)), .mins = @splat(-3), .maxs = @splat(3), .slot = @intCast(owner_slot), .mask = c.MASK_SHOT });
+        if (hit.fraction < 1 or hit.start_solid) {
+            if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |target| if ((world.get(target, data.Health) catch null) != null) {
+                _ = try @import("weapon_damage.zig").hurt(world, target, spit.owner, 0, spit.damage, now, false);
+                try @import("weapon_damage.zig").shove(world, target, spit.owner, velocity, spit.damage, now);
+                if ((world.get(target, data.Player) catch null) != null) try @import("ailments.zig").apply(world, target, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, spit.owner, 0, now);
+                var text: [100]u8 = undefined;
+                engine.print(try std.fmt.bufPrintZ(&text, "dk3 frog: spit={d} contact={d}\n", .{ try world.persistentId(entity), try world.persistentId(target) }));
+            };
+            try lifecycle.remove(world, slots, projections, entity);
+            continue;
+        }
+        (try world.get(entity, data.Transform)).position = hit.end;
+        spit.stepped_ms = now;
+        (try world.get(entity, data.FrogSpit)).* = spit;
+        try publish(world, entity, projections, now);
+    }
+}

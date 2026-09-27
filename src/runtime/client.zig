@@ -29,6 +29,7 @@ export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
+    @import("client/cinematics.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
     world = null;
@@ -96,6 +97,7 @@ fn draw(now: i32) !void {
         while (command_sequence < snapshot.serverCommandSequence) {
             command_sequence += 1;
             if (engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)}) != 0) {
+                try @import("client/cinematics.zig").command();
                 if (@import("client/commands.zig").restored()) |restored| {
                     @import("client/models.zig").reset();
                     @import("client/events.zig").reset();
@@ -161,7 +163,12 @@ fn draw(now: i32) !void {
     ref.fov_y = std.math.atan(@as(f32, @floatFromInt(ref.height)) / @as(f32, @floatFromInt(ref.width))) * 360 / std.math.pi;
     ref.vieworg = transform.position;
     ref.vieworg[2] += player.view_height;
-    const basis = v.basis(v.add(view_angles, @import("client/area_effects.zig").shake(snapshot.entities[0..@intCast(snapshot.numEntities)], ref.vieworg, now)));
+    if (snapshot.ps.dk3CameraActive != 0) {
+        ref.vieworg = snapshot.ps.dk3CameraOrigin;
+        ref.fov_x = snapshot.ps.dk3CameraFov;
+        ref.fov_y = std.math.atan(@tan(ref.fov_x * std.math.pi / 360) * @as(f32, @floatFromInt(ref.height)) / @as(f32, @floatFromInt(ref.width))) * 360 / std.math.pi;
+    }
+    const basis = v.basis(if (snapshot.ps.dk3CameraActive != 0) snapshot.ps.dk3CameraAngles else v.add(view_angles, @import("client/area_effects.zig").shake(snapshot.entities[0..@intCast(snapshot.numEntities)], ref.vieworg, now)));
     ref.viewaxis[0] = basis.forward;
     ref.viewaxis[1] = v.scale(basis.right, -1);
     ref.viewaxis[2] = v.cross(ref.viewaxis[0], ref.viewaxis[1]);
@@ -211,11 +218,16 @@ fn draw(now: i32) !void {
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
         if (entity.eType == c.ET_GENERAL and entity.generic1 > 0 and entity.generic1 <= 1000) try @import("client/status_visuals.zig").frost(rendered, @as(f32, @floatFromInt(entity.generic1)) / 1000);
     }
+    if (snapshot.ps.dk3CameraActive != 0) @import("client/cinematics.zig").audio(ref.vieworg);
     @import("client/impacts.zig").draw(now, &ref);
     if (player.mode == .normal and snapshot.ps.stats[c.STAT_HEALTH] > 0) try weapon_view.draw(loadout.*, character.*, &ref, client_number, now, weapon_end_ms);
     _ = engine.gateway.call(c.CG_R_RENDERSCENE, .{&ref});
-    @import("client/status_visuals.zig").screen(ailments.*, display);
-    try hud.render(display, .{ .current = snapshot.ps.stats[c.STAT_HEALTH], .armor = snapshot.ps.stats[c.STAT_ARMOR] }, character.*, .{ .mask = @bitCast(snapshot.ps.dk3Keys), .quest = @bitCast(snapshot.ps.dk3Quest) }, loadout.*, &weapon_table, selected_weapon, now);
+    if (snapshot.ps.dk3CameraActive != 0) {
+        @import("client/cinematics.zig").overlay(snapshot.ps.dk3CameraBlend, display);
+    } else {
+        @import("client/status_visuals.zig").screen(ailments.*, display);
+        try hud.render(display, .{ .current = snapshot.ps.stats[c.STAT_HEALTH], .armor = snapshot.ps.stats[c.STAT_ARMOR] }, character.*, .{ .mask = @bitCast(snapshot.ps.dk3Keys), .quest = @bitCast(snapshot.ps.dk3Quest) }, loadout.*, &weapon_table, selected_weapon, now);
+    }
     _ = engine.gateway.call(c.CG_S_RESPATIALIZE, .{ @as(isize, client_number), &ref.vieworg, &ref.viewaxis, @as(isize, @intFromBool(player.water_level == 3)) });
 }
 fn console() isize {

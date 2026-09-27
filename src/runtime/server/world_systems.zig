@@ -9,6 +9,8 @@ const trains = @import("trains.zig");
 const special = @import("special_movers.zig");
 pub const State = struct {
     inline_models: u16 = 1,
+    cinematics: @import("cinematics.zig").State = .{},
+    scripts: @import("scripts.zig").State = .{},
     actors: @import("actors.zig").Actors = .{},
     navigation: @import("../engine/navigation.zig").Navigation = .{},
     pub fn deinit(self: *State) void {
@@ -31,8 +33,11 @@ pub const State = struct {
         try trains.spawn(world, slots, projections, now);
         try special.spawn(world, slots, projections, now);
         try @import("items.zig").spawn(world, slots, projections, now, episode);
+        try @import("healthtrees.zig").spawn(world, slots, projections, now);
         try self.actors.spawn(allocator, world, slots, projections, now, episode);
         try @import("attachments.zig").spawn(world);
+        try self.cinematics.spawn(allocator, world);
+        try self.scripts.init(allocator, world);
         try self.navigation.init(allocator, now);
     }
     pub fn step(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, targets: *Router, now: i64, elapsed: u32, table: *const @import("../domain/weapons.zig").Table) !void {
@@ -82,12 +87,15 @@ pub const State = struct {
         try @import("metamaser.zig").step(world, slots, projections, now);
         try @import("weapon_launches.zig").step(world, slots, projections, table, now);
         try @import("melee.zig").step(world, slots, projections, table, now);
+        try @import("frog_spit.zig").step(world, slots, projections, now);
         try @import("ailments.zig").step(world, now);
         try self.navigation.frame(now);
         self.navigation.sync(projections);
-        try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);
+        if (!@import("cinematics.zig").active(world)) try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);
+        try @import("healthtrees.zig").step(world, slots, projections, now, elapsed);
         try @import("items.zig").step(world, slots, projections, targets, table, now, elapsed);
         try targets.step(world, slots, projections, now);
+        if (!@import("cinematics.zig").active(world)) try self.scripts.step(world, slots, projections, &self.actors, targets, now);
         try @import("world_actions.zig").step(world, slots, projections, targets, now);
     }
 };

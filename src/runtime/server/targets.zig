@@ -14,6 +14,7 @@ const Trigger = data.Trigger;
 pub const Router = struct {
     pending: @import("../domain/target_actions.zig").Queue = @splat(null),
     depth: usize = 0,
+    scripts: ?*const @import("scripts.zig").State = null,
     travel: ?@import("../domain/travel.zig").Request = null,
     pub fn activate(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {
         return self.activateFrom(world, slots, projections, entity, null, activator, now);
@@ -24,11 +25,23 @@ pub const Router = struct {
         defer self.depth -= 1;
         const object = (try world.get(entity, data.MapObject)).*;
         if (!@import("keys.zig").allows(world, object, activator)) return;
+        if ((world.get(entity, data.HealthTree) catch null) != null) return @import("healthtrees.zig").use(world, slots, projections, entity, activator, now);
+        if (std.mem.eql(u8, object.classname, "trigger_script")) {
+            const trigger = try world.get(entity, data.Trigger);
+            if (now < trigger.ready_ms or (trigger.limit > 0 and trigger.uses >= trigger.limit)) return;
+            if (prop.nonempty(object, "cinescript")) return error.TriggeredCinematicNotImplemented;
+            const name = prop.text(object, "aiscript") orelse return error.MissingAuthoredScript;
+            try (self.scripts orelse return error.MissingScriptPrograms).start(world, entity, name, activator, true);
+            const used = try world.get(entity, data.Trigger);
+            used.uses += 1;
+            used.ready_ms = now + used.wait_ms;
+            return;
+        }
         if (world.get(entity, data.Exit) catch null) |exit| {
             if (now < exit.ready_ms or self.travel != null) return;
             const player = world.find(activator) orelse return;
             const state = world.get(player, data.Player) catch return;
-            if (state.mode != .normal or (try world.get(player, data.Health)).current <= 0) return;
+            if ((state.mode != .normal and !(state.mode == .frozen and @import("cinematics.zig").active(world))) or (try world.get(player, data.Health)).current <= 0) return;
             exit.ready_ms = now + 1000;
             self.travel = .{ .exit = try world.persistentId(entity), .player = activator };
             return;
@@ -42,6 +55,10 @@ pub const Router = struct {
             return;
         }
         if (try @import("world_actions.zig").activate(world, slots, projections, self, entity, activator, now)) return;
+        if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .protopod) {
+            actor.pod.use(now);
+            return;
+        };
         if (world.get(entity, data.Mover)) |_| return movers.use(world, slots, projections, entity, activator, now) else |_| {}
         if ((world.get(entity, data.Secret) catch null) != null or (world.get(entity, data.Rotation) catch null) != null) {
             if (try @import("special_movers.zig").use(world, slots, projections, entity, activator, now)) try self.fire(world, slots, projections, entity, activator, now);
@@ -127,7 +144,7 @@ pub fn spawn(world: *data.World) !void {
     {
         defer query.deinit();
         while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| {
-            for ([_][]const u8{ "trigger_once", "trigger_multiple", "trigger_relay", "trigger_counter" }) |name| if (std.mem.eql(u8, object.classname, name)) {
+            for ([_][]const u8{ "trigger_once", "trigger_multiple", "trigger_relay", "trigger_counter", "trigger_script" }) |name| if (std.mem.eql(u8, object.classname, name)) {
                 entities[count] = entity;
                 count += 1;
                 break;
@@ -136,6 +153,10 @@ pub fn spawn(world: *data.World) !void {
     }
     for (entities[0..count]) |entity| {
         const object = (try world.get(entity, data.MapObject)).*;
+        if (std.mem.eql(u8, object.classname, "trigger_script")) {
+            try world.put(entity, Trigger{ .limit = if (object.flags & 1 != 0) 0 else 1, .wait_ms = try prop.milliseconds(object, "wait", 2) });
+            continue;
+        }
         const counter = std.mem.eql(u8, object.classname, "trigger_counter");
         const limit = try prop.number(object, "count", if (counter) 2 else 0);
         const wait = try prop.milliseconds(object, "wait", 0);

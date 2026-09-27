@@ -62,7 +62,7 @@ pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         if (sequence) |state| {
             if (!state.touch or state.active) continue;
         } else if (trigger != null) {
-            if (trigger.?.counter or object.flags & 1 != 0 or projection.shared.contents & c.CONTENTS_TRIGGER == 0) continue;
+            if (trigger.?.counter or object.flags & (if (std.mem.eql(u8, object.classname, "trigger_script")) @as(u32, 2) else 1) != 0 or projection.shared.contents & c.CONTENTS_TRIGGER == 0) continue;
         } else if (mover) |motion| {
             if (!button_touch and (motion.group != try world.persistentId(entity) or object.targetname.len != 0 or (!motion.platform and object.flags & 16 == 0))) continue;
             if (try prop.number(object, "health", 0) > 0) continue;

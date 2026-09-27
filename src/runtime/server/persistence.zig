@@ -50,6 +50,8 @@ pub fn prepare(slot: []const u8, previous: bool) !format.Loaded {
 /// Admission cannot call engine mutation. Projection rebuilding below is infallible
 /// for the admitted entity families and current map's loaded definitions.
 pub fn admit(loaded: *format.Loaded, systems: *const @import("world_systems.zig").State) !void {
+    try systems.cinematics.admit(&loaded.world);
+    try systems.scripts.admit(&loaded.world);
     var query = loaded.world.queryAccess(0, 0, 0);
     defer query.deinit();
     while (query.next()) |view| for (view.entities()) |entity| {
@@ -70,7 +72,7 @@ pub fn admit(loaded: *format.Loaded, systems: *const @import("world_systems.zig"
                     engine.print(try std.fmt.bufPrintZ(&text, "dk3 save: invalid model on entity {d} ({s}), model={d}, registered={d}\n", .{ try loaded.world.persistentId(entity), if (object) |value| value.classname else "dynamic", binding.model, loaded.header.resources.models.len }));
                     return error.InvalidSavedModel;
                 }
-                if ((loaded.world.get(entity, data.Actor) catch null) == null and (loaded.world.get(entity, data.Pickup) catch null) == null and (loaded.world.get(entity, data.Projectile) catch null) == null and (loaded.world.get(entity, data.Charge) catch null) == null) return error.UnsupportedSavedEntity;
+                if ((loaded.world.get(entity, data.Actor) catch null) == null and (loaded.world.get(entity, data.Pickup) catch null) == null and (loaded.world.get(entity, data.Projectile) catch null) == null and (loaded.world.get(entity, data.Charge) catch null) == null and (loaded.world.get(entity, data.Performer) catch null) == null and (loaded.world.get(entity, data.FrogSpit) catch null) == null and (loaded.world.get(entity, data.HealthTree) catch null) == null) return error.UnsupportedSavedEntity;
             }
         }
     };
@@ -102,6 +104,18 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         slots.occupants[binding.slot] = entity;
         if (binding.slot == 0) {
             try clients.publish(world, projections, states, 0);
+            continue;
+        }
+        if ((world.get(entity, data.HealthTree) catch null) != null) {
+            try @import("healthtrees.zig").publish(world, entity, projections, now);
+            continue;
+        }
+        if ((world.get(entity, data.FrogSpit) catch null) != null) {
+            try @import("frog_spit.zig").publish(world, entity, projections, now);
+            continue;
+        }
+        if ((world.get(entity, data.Performer) catch null) != null) {
+            try @import("cinematics.zig").publish(world, entity, projections, now);
             continue;
         }
         if ((world.get(entity, data.Actor) catch null) != null) {

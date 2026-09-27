@@ -10,7 +10,7 @@ multiplayer modes/bots, persistence, UI and release requirements remain in scope
 | Outcome | Implementation and contracts | Native engine / connected gameplay | Evidence and limits |
 |---|---|---|---|
 | Finish weapon controllers | Audit completed: 28 class-owned policies are connected, including Zeus, Wyndrax, Nightmare and Metamaser. Counts describe dispatch coverage only. | Several focused interactions exercised; no complete weapon acceptance. | Journal sequences 232–243. Diagnostic inventory, placement and sometimes health changes invalidate these as continuous campaign evidence. |
-| Fresh opening campaign | Intro/cinematic execution, opening hostile classes and authored encounter scripts require implementation/audit. | **Unrun:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. No verified consolidated build yet. | Must use ordinary starting inventory, normal difficulty, one build and asset manifest. Include combat, pickups, controls, death/reload, save/load and visited worlds. |
+| Fresh opening campaign | Intro execution and pod/skeet/frog policies implemented; remaining opening classes and authored encounter scripts incomplete. | **Unrun as a complete route:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. No verified consolidated build yet. | Must use ordinary starting inventory, normal difficulty, one build and asset manifest. Include combat, pickups, controls, death/reload, save/load and visited worlds. |
 | Native save and visited-world restoration | Typed native snapshots and visited archives implemented; focused contracts execute. | Sequence 241 travel diagnostic passes a limited e1m3b/e1m3a round trip. Connected campaign persistence unrun. | `zig-out/reports/runtime-zig-241/travel-regression/`; diagnostic placements, no companion/cinematic qualification. |
 | Remaining campaign and multiplayer | Most actors, companion/cinematic progression and native multiplayer behaviors remain. | Unrun in this runtime. | Opening milestone is an integration gate, not completion of this scope. |
 
@@ -71,3 +71,42 @@ Earlier retired-runtime campaign rows in the roadmap are historical only.
 After any change affecting an earlier route segment, record affected coverage,
 replay that regression, then rerun the complete milestone on the consolidated build.
 Run applicable aggregate checks at integration checkpoints, without duplicate suites.
+
+## Current opening integration batch (244–245)
+
+Fresh intro runs found two authored cue cases, corrected against private reference
+contracts: class fallback for queued actor IDs and ignoring absent animation cues.
+A development replay from a legitimate earlier-build shot-20 checkpoint passed the
+remaining intro and authored exit, then failed before e1m1a arrival because the
+observation endpoint crashed during reconnect. The endpoint/driver correction is
+implemented and awaiting replay. This is neither a fresh playthrough nor arrival
+acceptance. Exact executable/modules/assets are recorded in
+`zig-out/reports/runtime-zig-245/intro-checkpoint/identity.json`; its source is now
+superseded by the handoff and frog additions. First failure logs/captures are retained
+under `runtime-zig-244/intro-first/` and `intro-queue-lookup/`.
+
+Protopod, Slaughterskeet and Froginator are implemented with class-owned behavior and
+supplied tuning. Native interactions, saves during their actions and connected
+encounters are unverified. Remaining opening classes and bridge scripts are blockers;
+full cinematic task/presentation parity and further campaign/MP remain open. No
+legacy acceptance transfers. Actor/component changes require affected combat,
+body-control/status and persistence replay at the consolidated checkpoint.
+
+The handoff correction passes a limited replay in
+`runtime-zig-245/handoff-replay/identity.json`, identity
+`254909c3925ff64a9907a99c33053fe7021153677a8b4ec80004208bda34de48`:
+remaining intro from the old shot-80 checkpoint → authored e1m1a arrival → normal
+control → save/load. Arrival remains health 100, Disruptor, normal difficulty.
+Restored frame inspected. No connected combat/traversal and no fresh New Game claim.
+Three modules/91 focused contracts pass on that build. Subsequent action/path changes
+require revalidation. Sequence 246 connects actor action programs and paths; native
+bridge verification is pending. Missing health trees were identified as a normal
+resupply blocker; Cambot/Thunderskeet/Crox/Rockgat remain actor blockers. Ambient
+fireflies and finer effects remain separately tracked presentation work.
+
+Sequence 246 consolidated actor/action/resupply build passes three modules and 94
+focused checks. Applicable aggregate passes 232 Zig + 48 Python checks and formatting
+(`/tmp/dk3-runtime-246-aggregate.log`). A fresh run is underway in
+`runtime-zig-246/fresh-opening/`; no outcome is assigned until its observations complete.
+Health trees now provide the finite authored campaign resupply with saved fruit state;
+live use/restoration remain unverified. Scope beyond the opening gate is unchanged.

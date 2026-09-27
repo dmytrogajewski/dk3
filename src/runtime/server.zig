@@ -86,6 +86,7 @@ fn init(now: i64) !void {
     }
     if (engine.integer("dk3_runtime_probe") == 2) {
         try systems.spawn(arena.?.allocator(), &world.?, &slots, &projection, now, clients.episode);
+        targets.scripts = &systems.scripts;
         if (engine.integer("dk3_resume") == 1) {
             _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_resume"), @as([*:0]const u8, "0") });
             var loaded = try persistence.prepare("dk3-resume-internal", false);
@@ -135,7 +136,7 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
     // Remaining work publishes admitted state; unexpected invariant failures are
     // runtime errors, never a partially successful load reported to the player.
     @import("server/resources.zig").restore(header.resources) catch |err| runtimeFailure(err);
-    targets = .{ .pending = header.pending };
+    targets = .{ .pending = header.pending, .scripts = &systems.scripts };
     persistence.project(&world.?, &slots, &projection, &clients, &players, &systems, header, clock.now_ms) catch |err| runtimeFailure(err);
     if (staged_campaign) |state| {
         campaign.deinit();
@@ -421,12 +422,15 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
                 if (campaign.departing) return 0;
+                systems.cinematics.step(&world.?, &slots, &projection, &targets, clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
                 systems.step(&world.?, &slots, &projection, &targets, clock.now_ms, elapsed, &clients.weapon_table) catch |err| runtimeFailure(err);
                 for (clients.entities, 0..) |entity, index| if (entity != null) {
                     clients.publish(&world.?, &projection, &players, index) catch |err| runtimeFailure(err);
+                    systems.cinematics.camera(&world.?, &players[index], clock.now_ms) catch |err| runtimeFailure(err);
                 };
                 if (targets.travel) |request| {
                     targets.travel = null;
+                    if (@import("server/cinematics.zig").active(&world.?)) @import("server/cinematics.zig").finish(&world.?, &slots, &projection, clients.entities[0].?) catch |err| runtimeFailure(err);
                     campaign_module.depart(&campaign, &world.?, &clients, &targets, &systems, &projection, request, clock.now_ms) catch |err| {
                         var message: [160]u8 = undefined;
                         engine.print(std.fmt.bufPrintZ(&message, "dk3 travel: exit {d} refused: {s}\n", .{ request.exit, @errorName(err) }) catch unreachable);

@@ -33,6 +33,11 @@ pub const Zeus = @import("weapon_catalog").zeus.Chain;
 pub const ZeusBolt = @import("weapon_catalog").zeus.Bolt;
 pub const Nightmare = @import("weapon_catalog").nightmare.Ritual;
 pub const MetaRing = @import("weapon_catalog").metamaser.Ring;
+pub const Cinematic = @import("cinematics.zig").Playback;
+pub const Performer = @import("cinematics.zig").Performer;
+pub const HealthTree = @import("item_catalog").healthtree.State;
+pub const Script = @import("actions.zig").Execution;
+pub const FrogSpit = @import("actor_catalog").froginator.Spit;
 pub const MetaLaser = @import("weapon_catalog").metamaser.Laser;
 pub const SoundEvent = struct { sound: u16, subject: u16, channel: u8 };
 pub const ImpactEvent = struct { weapon: u5, kind: @import("weapon_catalog").impact_rules.Kind, normal: Vec3, charged: bool = false, detonation: bool = false, sequence: i32 = 0, trail: bool = false };
@@ -55,7 +60,7 @@ pub const Gravity = struct { acceleration: f32 = 800 };
 pub const Motion = struct { destination: Vec3 = @splat(0), velocity: Vec3 = @splat(0) };
 pub const Lifetime = struct { expires_ms: i64 };
 pub const Attachment = struct { parent_id: u32, offset: Vec3 };
-pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21, character = 22, ailments = 23, sound_event = 24, projectile = 25, actor = 26, hurt = 27, hazard = 28, destructible = 29, wall = 30, target_sequence = 31, exit = 32, impact_event = 33, melee = 34, weapon_launch = 35, charge = 36, hammer = 37, shockwave = 38, nova = 39, flashlight = 40, zeus = 41, zeus_bolt = 42, nightmare = 43, meta_ring = 44, meta_laser = 45 };
+pub const ComponentId = enum(u6) { transform = 0, velocity = 1, body = 2, health = 3, random = 4, binding = 5, map_object = 6, lifetime = 7, attachment = 8, gravity = 9, motion = 10, inventory = 11, player = 12, weapons = 13, mover = 14, trigger = 15, train = 16, rotation = 17, secret = 18, keys = 19, pickup = 20, item_motion = 21, character = 22, ailments = 23, sound_event = 24, projectile = 25, actor = 26, hurt = 27, hazard = 28, destructible = 29, wall = 30, target_sequence = 31, exit = 32, impact_event = 33, melee = 34, weapon_launch = 35, charge = 36, hammer = 37, shockwave = 38, nova = 39, flashlight = 40, zeus = 41, zeus_bolt = 42, nightmare = 43, meta_ring = 44, meta_laser = 45, cinematic = 46, performer = 47, frog_spit = 48, script = 49, health_tree = 50 };
 pub const Component = union(ComponentId) {
     transform: Transform,
     velocity: Velocity,
@@ -103,6 +108,11 @@ pub const Component = union(ComponentId) {
     nightmare: Nightmare,
     meta_ring: MetaRing,
     meta_laser: MetaLaser,
+    cinematic: Cinematic,
+    performer: Performer,
+    frog_spit: FrogSpit,
+    script: Script,
+    health_tree: HealthTree,
 };
 pub const types = blk: {
     const fields = std.meta.fields(Component);

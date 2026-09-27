@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""Ordinary-input native campaign runner. Execute under dkguard --headless, without --gpu."""
+import argparse
+import json
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import tempfile
+import time
+
+from runtime_input import NativeInput, record_identity
+from runtime_probe import client_settings, stage_client_modules, wait
+from runtime_ui_probe import Input
+
+
+def run(args):
+    if not __debug__:
+        raise RuntimeError("Campaign acceptance requires assertions")
+    args.report.mkdir(parents=True, exist_ok=True)
+    identity = record_identity(args.engine, args.prefix, args.report)
+    log = args.report / "client.log"
+    inputs = []
+    with tempfile.TemporaryDirectory(prefix="dk3-native-campaign-") as temporary:
+        home = Path(temporary)
+        stage_client_modules(args.prefix, home)
+        settings = client_settings(args.engine, home)
+        settings.update({"dk3_cinematics": "1", "g_spSkill": "3", "in_nograb": "1", "developer": "1"})
+        command = [str(args.engine / "bin/dk3")]
+        for key, value in settings.items():
+            command += ["+set", key, value]
+        if args.checkpoint:
+            saves = home / "state/dk3/saves"
+            saves.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(args.checkpoint, saves / "intro_resume.sav")
+            command += ["+map", args.checkpoint_map]
+        with log.open("w") as output:
+            process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT)
+            pipe = home / "dk3/commands.fifo"
+            ui = None
+            driver = NativeInput(process, pipe, log, home, inputs)
+
+            def capture(name):
+                source = home / f"dk3/screenshots/{name}.jpg"
+                driver.issue(f"screenshotJPEG {name}")
+                wait(process, log, lambda _: source.exists() and source.stat().st_size > 0, 5)
+                shutil.copy2(source, args.report / source.name)
+
+            try:
+                wait(process, log, lambda text: "native menus initialized" in text and pipe.exists(), 30)
+                if not args.checkpoint:
+                    ui = Input(inputs)
+                    ui.focus()
+                    ui.align_menu()
+                    ui.click(265, 349)  # Normal difficulty, through the native New Game menu.
+                wait(process, log, lambda text: "dk3 zig client: first snapshot applied" in text, 45)
+                if args.checkpoint:
+                    driver.load("intro_resume")
+                state = driver.until(lambda s: (s["map"] == "intro" and s["cinematic"] and s["mode"] == "frozen") or (args.checkpoint and args.checkpoint_map == "e1m1a" and s["map"] == "e1m1a" and s["mode"] == "normal"), description="authored intro or legitimate arrival checkpoint ready")
+                if state["skill"] != 3 or state["health"] != 100 or state["weapon"] != 1:
+                    raise RuntimeError(f"New Game did not start with ordinary normal-difficulty state: {state}")
+                capture("checkpoint-start" if args.checkpoint else "intro-start")
+                seen = set()
+                deadline = time.monotonic() + 650
+                while time.monotonic() < deadline:
+                    state = driver.observe()
+                    marker = (state["map"], state["shot"])
+                    if marker not in seen:
+                        seen.add(marker)
+                        print(f"campaign: map={state['map']} shot={state['shot']} cinematic={state['cinematic']} health={state['health']}", flush=True)
+                        if state["map"] == "intro" and state["shot"] in (20, 50, 80):
+                            checkpoint = driver.save(f"intro_{state['shot']}")
+                            shutil.copy2(checkpoint, args.report / checkpoint.name)
+                        if state["shot"] in (1, 20, 50, 80, 110) or state["map"] == "e1m1a":
+                            capture(f"{state['map']}-shot-{state['shot']:03}")
+                    if state["map"] == "e1m1a" and state["cinematic"] == 0 and state["mode"] == "normal":
+                        break
+                    if state["health"] <= 0:
+                        raise RuntimeError("Player died during the intro or arrival cinematic")
+                    # Wait for a shot/map transition with a bounded timeout; timeout triggers
+                    # a state observation, not an inference that playback has advanced.
+                    offset = len(driver.text())
+                    try:
+                        wait(process, log, lambda text: "dk3 cinematic:" in text[offset:] or "Server:" in text[offset:], 2)
+                    except TimeoutError:
+                        pass
+                else:
+                    raise TimeoutError("Full intro did not reach playable e1m1a")
+                intro_shots = {shot for level, shot in seen if level == "intro"}
+                if not args.checkpoint and len(intro_shots) < 115:
+                    raise RuntimeError(f"Intro observation incomplete: {len(intro_shots)}/115 shots")
+                save = driver.save("opening_arrival")
+                driver.load("opening_arrival")
+                state = driver.until(lambda s: s["map"] == "e1m1a" and s["mode"] == "normal" and not s["cinematic"], description="arrival save restored without replaying intro")
+                capture("e1m1a-restored-arrival")
+                shutil.copy2(save, args.report / save.name)
+                opening = None
+                if args.opening:
+                    from runtime_opening_route import opening_route
+                    opening = opening_route(driver, capture, args.report)
+                (args.report / "result.json").write_text(json.dumps({"identity": identity, "checkpoint": str(args.checkpoint) if args.checkpoint else None, "scope": ("Development replay from an earlier-build legitimate intro checkpoint through e1m1a arrival/save/load. Not fresh campaign acceptance." if args.checkpoint else "New Game through all intro shots and e1m1a arrival cinematic, ordinary inventory, normal difficulty, arrival save/load. Connected e1m1a combat/bridge/e1m1c/e1m2a traversal not yet exercised."), "state": state, "opening": opening}, indent=2) + "\n")
+                driver.issue("quit")
+                if process.wait(timeout=15) != 0:
+                    raise RuntimeError("Campaign shutdown failed")
+            finally:
+                (args.report / "inputs.json").write_text(json.dumps({"launch": command, "inputs": inputs}, indent=2) + "\n")
+                if ui:
+                    ui.close()
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=15)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--engine", type=Path, required=True)
+    parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
+    parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--opening", action="store_true", help="Continue with ordinary-input opening route development")
+    parser.add_argument("--checkpoint-map", choices=("intro", "e1m1a"), default="intro")
+    parser.add_argument("--checkpoint", type=Path, help="Legitimate intro checkpoint for development replay; never fresh campaign acceptance")
+    args = parser.parse_args()
+    args.engine, args.prefix, args.report = args.engine.resolve(), args.prefix.resolve(), args.report.resolve()
+    run(args)
+
+
+if __name__ == "__main__":
+    main()

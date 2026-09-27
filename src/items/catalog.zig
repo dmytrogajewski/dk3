@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Shared metadata for native inventory, item rules and presentation.
+pub const healthtree = @import("healthtree.zig");
 const std = @import("std");
 const Pair = struct { name: []const u8, value: []const u8 };
 fn count(comptime bytes: []const u8) usize {
@@ -69,4 +70,8 @@ test "key identities, bomb consumption and complete purifier parts" {
     try std.testing.expect(inventory.has("item_purifier_shard2") and !inventory.has("item_purifier"));
     _ = inventory.collect(31);
     try std.testing.expect(inventory.has("item_purifier"));
+}
+
+test {
+    _ = healthtree;
 }

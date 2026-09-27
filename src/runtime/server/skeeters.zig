@@ -1,0 +1,123 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+//! Pod hatching and Slaughterskeet flight consume class policy and supplied tuning.
+const std = @import("std");
+const data = @import("../domain/components.zig");
+const ecs = @import("../ecs/world.zig");
+const rules = @import("../domain/actors.zig");
+const v = @import("../domain/vector.zig");
+const abi = @import("../engine/abi.zig");
+const c = abi.c;
+const engine = @import("../engine/server.zig");
+const Slots = @import("../engine/slots.zig").Slots;
+const perceive = @import("actor_perception.zig").perceive;
+pub fn pod(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, body: *data.Body, now: i64) !void {
+    if (now < actor.think_ms) return;
+    actor.think_ms = now + 100;
+    const definition = actors.table.definitions[actor.definition];
+    const enemy = try perceive(world, slots, entity, actor, pose, definition, now);
+    const random = try world.get(entity, data.Random);
+    const xy = if (enemy.enemy) |target| @import("../domain/navigation.zig").horizontalDistance(pose.position, (try world.get(target, data.Transform)).position) else std.math.inf(f32);
+    actor.pod.notice(now, enemy.visible, xy, random.next(), random.next());
+    const previous = actor.pod.phase;
+    if (actor.pod.tick(now, definition.hatch.duration())) {
+        actor.changed_ms = now;
+        body.mass = 0.5;
+        const child = try actors.spawnDynamic(world, slots, projections, "monster_slaughterskeet", v.add(pose.position, .{ 0, 0, 10 }), pose.angles, now);
+        const child_actor = try world.get(child, data.Actor);
+        child_actor.threat = actor.threat;
+        child_actor.threat_position = actor.threat_position;
+        child_actor.skeeter.enter(.hatching, now, actors.table.definitions[child_actor.definition].hatch.duration());
+        try @import("events.zig").sound(world, slots, projections, definition.hatch_sound, pose.position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
+        var buffer: [140]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 pod: id={d} hatched={d} enemy={d}\n", .{ try world.persistentId(entity), try world.persistentId(child), actor.threat }));
+    }
+    if (previous != .shell and actor.pod.phase == .shell) {
+        body.mins = .{ -8, -8, -2 };
+        body.maxs = .{ 8, 8, 2 };
+        (try world.get(entity, data.Health)).current = 1;
+    }
+}
+fn retreat(world: *data.World, entity: ecs.Entity, pose: data.Transform, body: data.Body, enemy: v.Vec3, routes: *const @import("air_routes.zig").Routes) !v.Vec3 {
+    const random = try world.get(entity, data.Random);
+    const slot = (try world.get(entity, data.Binding)).slot;
+    var selected: ?v.Vec3 = null;
+    outer: for ([_][2]f32{ .{ 1, 0 }, .{ 0, 1 } }) |axis| {
+        var degrees = random.next() * 360;
+        const step_degrees: f32 = if (random.next() > 0.5) 12 else -12;
+        var distance: f32 = 512;
+        while (distance > 100) : (distance *= 0.65) {
+            for (0..30) |_| {
+                const direction = v.basis(.{ -20, pose.angles[1] + degrees, 0 }).forward;
+                var point = v.add(pose.position, .{ direction[0] * distance * axis[0], direction[1] * distance * axis[1], direction[2] * distance });
+                if (random.next() > 0.5 and pose.position[2] > enemy[2] + distance / 2) point[2] = pose.position[2] - direction[2] * distance;
+                const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = point, .mins = v.scale(body.mins, 1.25), .maxs = v.scale(body.maxs, 1.25), .slot = slot, .mask = c.MASK_SHOT });
+                if (!hit.start_solid and hit.fraction == 1) {
+                    selected = point;
+                    break :outer;
+                }
+                degrees += step_degrees;
+            }
+        }
+    }
+    const point = selected orelse v.add(enemy, .{ 0, 0, 178 });
+    // The authored air graph owns retreat destinations; absence is a setup failure.
+    return routes.nearest(point) orelse error.MissingSkeeterAirNodes;
+}
+pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, body: data.Body, velocity: *data.Velocity, now: i64, elapsed: u32) !void {
+    const definition = actors.table.definitions[actor.definition];
+    const slot = (try world.get(entity, data.Binding)).slot;
+    if (now >= actor.think_ms) {
+        actor.think_ms = now + 100;
+        var enemy = try perceive(world, slots, entity, actor, pose.*, definition, now);
+        if (enemy.enemy) |target| if ((try world.get(target, data.Player)).water_level == 3) {
+            actor.threat = 0;
+            enemy.enemy = null;
+        };
+        const previous = actor.skeeter.phase;
+        const strike_ms = @divTrunc(@as(i64, definition.strikes[0]) * 1000, definition.attacks[0].fps);
+        const hit = actor.skeeter.tick(now, enemy.enemy != null, enemy.visible, enemy.distance, definition.range, definition.attacks[0].duration(), strike_ms, v.length(v.subtract(actor.skeeter.retreat, pose.position)));
+        if (actor.skeeter.phase != previous) {
+            actor.changed_ms = now;
+            if (actor.skeeter.phase == .retreat) actor.skeeter.retreat = try retreat(world, entity, pose.*, body, actor.threat_position, &actors.air_routes);
+        }
+        if (hit and enemy.enemy != null) {
+            const target = enemy.enemy.?;
+            const point = v.add((try world.get(target, data.Transform)).position, .{ 0, 0, 8 });
+            const direction = v.normalize(v.subtract(point, pose.position));
+            const contact = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+            if (contact.entity < slots.occupants.len) if (slots.occupants[contact.entity]) |victim| if ((world.get(victim, data.Player) catch null) != null) {
+                const amount = definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;
+                _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = try world.persistentId(entity) });
+                var buffer: [120]u8 = undefined;
+                engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 skeeter: id={d} melee={d} damage={d:.2}\n", .{ try world.persistentId(entity), try world.persistentId(victim), amount }));
+            };
+        }
+        if (actor.skeeter.phase == .attack and !actor.skeeter.sounded and now >= actor.skeeter.started_ms + definition.attack_sound_ms[0]) {
+            actor.skeeter.sounded = true;
+            if (definition.attack_sounds[0].len > 0) try @import("events.zig").sound(world, slots, projections, definition.attack_sounds[0], pose.position, slot, c.CHAN_WEAPON, now);
+        }
+        velocity.linear = @splat(0);
+        if (actor.skeeter.phase == .hatching) {
+            // Supplied hatch animation lifts the emerging skeeter four units per think.
+            const destination = v.add(pose.position, .{ 0, 0, 4 });
+            const trace = try engine.collisionService().trace(.{ .start = pose.position, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
+            pose.position = trace.end;
+        } else if (enemy.enemy != null and actor.skeeter.phase != .attack) {
+            const destination = if (actor.skeeter.phase == .retreat) actor.skeeter.retreat else v.add(actor.threat_position, .{ 0, 0, 24 });
+            if (try actors.air_routes.next(pose.position, destination, body, slot)) |waypoint| {
+                const offset = v.subtract(waypoint, pose.position);
+                const distance = v.length(offset);
+                const speed = definition.speed * (if (actor.skeeter.phase == .dart) @as(f32, 1.5) else 1);
+                velocity.linear = v.scale(v.normalize(offset), @min(speed, distance * 10));
+            }
+        }
+        actor.mode = if (actor.skeeter.phase == .attack) .attack else if (v.length(velocity.linear) > 0.1 or actor.skeeter.phase == .hatching) .chase else .idle;
+        if (enemy.enemy != null) {
+            const direction = v.subtract(actor.threat_position, pose.position);
+            pose.angles[1] = std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi;
+            pose.angles[0] = -std.math.atan2(direction[2], @sqrt(direction[0] * direction[0] + direction[1] * direction[1])) * 180 / std.math.pi;
+        }
+    }
+    try @import("actor_flight.zig").move(pose, body, velocity, slot, elapsed);
+    actor.ground_entity = c.ENTITYNUM_NONE;
+}

@@ -13,6 +13,21 @@ fn deadline(value: *?i64, delta: i64) !void {
 }
 pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)], delta: i64) !void {
     switch (id) {
+        .health_tree => {
+            try shift(&value.ready_ms, delta);
+            try shift(&value.changed_ms, delta);
+            try deadline(&value.recharge_ms, delta);
+        },
+        .script => {
+            try shift(&value.due_ms, delta);
+            try shift(&value.next_ms, delta);
+        },
+        .cinematic => try shift(&value.started_ms, delta),
+        .performer => {
+            try shift(&value.animation_ms, delta);
+            try shift(&value.due_ms, delta);
+            try shift(&value.next_ms, delta);
+        },
         .nightmare => {
             try shift(&value.born_ms, delta);
             try shift(&value.phase_ms, delta);
@@ -55,7 +70,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try active(&value.invisible_until, delta);
             try active(&value.environment_until, delta);
         },
-        .projectile => {
+        .frog_spit, .projectile => {
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
         },
@@ -103,6 +118,12 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try deadline(&value.freeze_next_ms, delta);
         },
         .actor => {
+            try shift(&value.think_ms, delta);
+            try shift(&value.scripted_ms, delta);
+            try shift(&value.frog.started_ms, delta);
+            try shift(&value.skeeter.started_ms, delta);
+            try shift(&value.skeeter.until_ms, delta);
+            try shift(&value.pod.next_ms, delta);
             try shift(&value.changed_ms, delta);
             try active(&value.panic_until, delta);
             try shift(&value.threat_seen_ms, delta);

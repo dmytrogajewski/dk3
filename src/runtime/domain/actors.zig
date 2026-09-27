@@ -7,6 +7,17 @@ pub const Mode = enum { idle, flee, chase, attack, reload, dead };
 pub const State = struct {
     definition: u8,
     guard: catalog.mishima.State = .{},
+    skeeter: catalog.skeeter.State = .{},
+    pod: catalog.protopod.State = .{},
+    frog: catalog.froginator.State = .{},
+    think_ms: i64 = 0,
+    unique: []const u8 = "",
+    ignore_player: bool = false,
+    path: u32 = 0,
+    scripted_pose: ?animation.Sequence = null,
+    moving_pose: ?animation.Sequence = null,
+    scripted_ms: i64 = 0,
+
     mode: Mode = .idle,
     changed_ms: i64 = 0,
     panic_until: i64 = 0,
@@ -31,10 +42,12 @@ pub const State = struct {
 };
 pub const Definition = struct {
     loaded: bool = false,
+    frog: catalog.froginator.Tuning = .{},
     model: []const u8 = "",
     health: i32 = 0,
     mass: f32 = 100,
     speed: f32 = 0,
+    walk_speed: f32 = 0,
     mins: v.Vec3 = @splat(0),
     maxs: v.Vec3 = @splat(0),
     idle: animation.Sequence = .{},
@@ -42,10 +55,15 @@ pub const Definition = struct {
     death: animation.Sequence = .{},
     attacks: [3]animation.Sequence = @splat(.{}),
     strikes: [3]u16 = @splat(1),
+    second_strikes: [3]?u16 = @splat(null),
     attack_sounds: [3][]const u8 = @splat(""),
+    attack_sound_ms: [3]i64 = @splat(0),
+    hatch_sound: []const u8 = "",
     reload: animation.Sequence = .{},
+    hatch: animation.Sequence = .{},
     sight_range: f32 = 0,
     fov: f32 = 180,
+    yaw_speed: f32 = 20,
     damage: f32 = 0,
     random_damage: f32 = 0,
     range: f32 = 0,
@@ -76,12 +94,19 @@ pub const Table = struct {
             if (entry.model.len == 0 or entry.model.len >= 64) return error.InvalidActorModel;
             const health = try row.number("health", 0);
             entry.speed = try row.number("run_speed", 0);
+            entry.walk_speed = try row.number("walk_speed", 0);
             if (health <= 0 or health > 1000000 or entry.speed < 0 or entry.speed > 2000) return error.InvalidActorTuning;
             entry.health = @intFromFloat(health);
             entry.mass = try row.number("mass", 100);
             if (!std.math.isFinite(entry.mass) or entry.mass <= 0 or entry.mass > 100000) return error.InvalidActorMass;
             entry.sight_range = try row.number("active_distance", 1000);
             entry.fov = try row.number("fov", 180);
+            if (row.field("angle_speed")) |angles| {
+                var parts = std.mem.tokenizeAny(u8, angles, " \t");
+                _ = parts.next();
+                entry.yaw_speed = try std.fmt.parseFloat(f32, parts.next() orelse return error.InvalidActorAngles);
+                if (!std.math.isFinite(entry.yaw_speed) or entry.yaw_speed <= 0 or entry.yaw_speed > 360) return error.InvalidActorAngles;
+            }
             entry.damage = try row.number("weapon1_base_damage", 0);
             entry.random_damage = try row.number("weapon1_random_damage", 0);
             entry.range = try row.number("weapon1_distance", 0);
@@ -103,6 +128,7 @@ pub const Table = struct {
                 entry.maxs[i] = try row.number("size_max_" ++ axis, 0);
                 if (entry.mins[i] >= entry.maxs[i] or @abs(entry.mins[i]) > 1024 or @abs(entry.maxs[i]) > 1024) return error.InvalidActorBounds;
             }
+            if (catalog.entries[id].kind == .froginator) entry.frog = try catalog.froginator.Tuning.parse(row);
             entry.loaded = true;
         }
         return result;

@@ -46,7 +46,7 @@ def client_settings(engine, home, renderer="opengl1", workers=4):
             "fs_homepath": str(home), "fs_homedatapath": str(home),
             "fs_homestatepath": str(home / "state"), "com_basegame": "dk3",
             "com_pipefile": "commands.fifo", "vm_game": "0", "vm_cgame": "0",
-            "vm_ui": "0", "g_gametype": "2", "dk3_runtime_probe": "2",
+            "vm_ui": "0", "g_gametype": "2", "dk3_runtime_probe": "2", "dk3_cinematics": "0",
             "dk3_jobs": str(workers), "com_maxfps": "60", "cl_renderer": renderer,
             "r_fullscreen": "0", "r_mode": "-1", "r_customwidth": "960",
             "r_customheight": "540", "s_useOpenAL": "0"}

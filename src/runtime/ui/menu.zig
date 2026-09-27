@@ -266,7 +266,9 @@ pub const Menu = struct {
                 engine.set("dk3_loadRequest", "");
                 engine.set("dk3_resume", "0");
                 self.close();
-                engine.execute("map e1m1a\n");
+                engine.set("dk3_cinematics", "1");
+                engine.set("dk3_travel_pending", "0");
+                engine.execute("map intro\n");
             },
             .setting => |index| settings.entries[index].change(direction),
             .bind => |index| {

@@ -32,17 +32,36 @@ class NativeInput:
         send(self.pipe, command)
 
     def observe(self):
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            result, offset = self._observe_once()
+            if not result.get("connecting"):
+                return result
+            # A map handoff may accept console commands before ClientBegin.
+            # Wait for the connection event, including one emitted just after
+            # the pending response, then request authoritative state again.
+            wait(self.process, self.log, lambda text, offset=offset:
+                 "player entered isolated movement runtime" in text[offset:] or
+                 "ERROR: Zig runtime:" in text[offset:], max(0.1, deadline - time.monotonic()))
+        raise TimeoutError("Native player connection did not finish")
+
+    def _observe_once(self):
+        prior = self.text()
+        if "ERROR: Zig runtime:" in prior:
+            raise RuntimeError(next(line for line in reversed(prior.splitlines()) if "ERROR: Zig runtime:" in line))
         self.serial += 1
         marker = f"dk3 observe {self.serial}: "
         before = len(self.text())
         self.issue(f"dk3_runtime_observe {self.serial}")
-        text = wait(self.process, self.log, lambda value: marker in value[before:], 5)[before:]
+        text = wait(self.process, self.log, lambda value: marker in value[before:] or "ERROR: Zig runtime:" in value[before:], 5)[before:]
+        if "ERROR: Zig runtime:" in text:
+            raise RuntimeError(next(line for line in text.splitlines() if "ERROR: Zig runtime:" in line))
         line = next(line.split(marker, 1)[1] for line in text.splitlines() if marker in line)
         result = {}
         for key, value in re.findall(r"(\w+)=([^ ]+)", line):
-            result[key] = tuple(map(float, value.split(","))) if key in ("pos", "angles") else value if key == "mode" else int(value)
+            result[key] = tuple(map(float, value.split(","))) if key in ("pos", "angles") else value if key in ("mode", "map") else int(value)
         self.inputs.append({"observed": result})
-        return result
+        return result, before
 
     def until(self, predicate, *, seconds=10, description="expected native state"):
         deadline = time.monotonic() + seconds
