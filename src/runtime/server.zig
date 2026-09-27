@@ -254,7 +254,7 @@ fn consoleCommand() isize {
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_match")) {
-        bots.report() catch |err| runtimeFailure(err);
+        bots.report(&world.?, &slots, &clients) catch |err| runtimeFailure(err);
         @import("server/observation.zig").match(&world.?, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
@@ -263,7 +263,19 @@ fn consoleCommand() isize {
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_route")) {
-        @import("server/navigation_probe.zig").route() catch |err| saveFeedback(err);
+        @import("server/navigation_probe.zig").route() catch |err| {
+            var message: [128]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "dk3 route failed: {s}\n", .{@errorName(err)}) catch unreachable);
+        };
+        return 1;
+    }
+    if (std.mem.eql(u8, command, "dk3_runtime_route_controls")) {
+        for (clients.entities) |maybe| if (maybe) |entity| {
+            const pose = (world.?.get(entity, component.Transform) catch continue).*;
+            const toward = @import("domain/vector.zig").add(pose.position, @import("domain/vector.zig").scale(@import("domain/vector.zig").basis(pose.angles).forward, 80));
+            @import("server/bot_routes.zig").diagnose(&world.?, &slots, &projection, entity, toward, systems.navigation.service(), clock.now_ms) catch |err| runtimeFailure(err);
+        };
+        engine.print("dk3 route controls complete\n");
         return 1;
     }
     if (saveCommand(command) catch |err| {

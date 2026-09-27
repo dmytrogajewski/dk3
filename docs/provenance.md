@@ -177,3 +177,12 @@ unaffected local routes; the defective engine cycles in the other four, while th
 repaired engine reaches all six goals. No private reference was needed or imported.
 Server disconnect reasons are also printed locally for failed native-run diagnosis.
 Original bundled notices remain unchanged.
+
+Sequence 289 reviews the private reference's cinematic unique-ID dispatch and
+missing-sound contract (`dlls/world/cin_playback.cpp`, `base/dk_/dk_cin_playback.cpp`,
+and `base/Audio/DkAudioEngine_Miles/S_Calls.cpp`). Supplied e1m2 authoring references
+`hiro1` under the misspelled `cien_hiro` label and requests absent media at
+`globa/a_speedwhoosh.wav`. Independent native preloading now uses the existing
+performer identity; failed audio registration logs the original path and leaves
+playback running. There is no asset-name substitution or copied private code.
+The small public test fixture is project-authored from the observed record contract.

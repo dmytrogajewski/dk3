@@ -84,6 +84,7 @@ pub const State = struct {
         var map_buffer: [64]u8 = undefined;
         const map_name = @import("persistence.zig").mapName(&map_buffer);
         for (program.shots) |shot| for (shot.tracks) |track| {
+            if (!program.needsDefinition(track)) continue;
             if (self.definition(track.classname) != null) continue;
             if (self.count == self.definitions.len) return error.CinematicClassCapacity;
             var actor_definition: Definition = .{ .classname = track.classname, .model = "", .metadata = "" };
@@ -546,4 +547,6 @@ test "intro Osaka queue alias resolves by class without duplicating spawn or rem
     try std.testing.expect(resolveActor(&world, .remove, "osa1", "cine_osaka") == null);
     const exact = try world.create(21, .{data.Performer{ .unique = "osa1", .classname = "cine_osaka", .model = "models/cinematic/c_osaka_intr.dkm" }});
     try std.testing.expectEqual(exact, resolveActor(&world, .animation, "osa1", "cine_osaka").?);
+    try std.testing.expectEqual(exact, resolveActor(&world, .animation, "osa1", "misspelled_class").?);
+    try std.testing.expectEqual(exact, resolveActor(&world, .remove, "osa1", "misspelled_class").?);
 }

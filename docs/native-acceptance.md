@@ -15,16 +15,52 @@ is inferred from class counts or test volume.
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at sequence 285; full interactions unverified | Sequences 232–243/251 have narrow fixtures; no full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Current applicable contract roots pass at 285 | **Not accepted:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a | Previous legitimate checkpoints reach defeated bridge boss/reward and first factory gate; complete fresh route required |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 289 | **Not accepted:** fresh New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a | Legitimate checkpoint replays now reach the factory exit and complete e1m2a's nine-shot arrival; fresh consolidated route is running |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Snapshot and deadline contracts pass at 285 | Sequence 287 authored death/reload; 288 actual C→B→C after disk load retains bridge progress | Latest restoration replay is checkpointed; fresh consolidated campaign/death replay remains |
-| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | Native and wire contracts pass at 287 | Four-bot DM demonstrates natural movement/pickup/combat/respawn on `8dc7a3…`; CTF capture passes at 288; deathtag capture fails | Portal cache repaired with failing/passing regression; blocked deathtag routes remain. Human network/reconnect/browser/rooms remain unaccepted |
+| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 222 applicable native contracts pass at 289; wire contracts at 287 remain valid | Four-bot DM demonstrates natural movement/pickup/combat/respawn on `8dc7a3…`; CTF contested capture revalidated at 289; deathtag capture unresolved | Named door prerequisites, control-goal progress and slime escape repaired; deathtag replay pending. Human network/reconnect/browser/rooms remain unaccepted |
 | World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | World policy roots pass at 285; engine effects unverified | No new campaign or visual acceptance | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
 
 ## Build and asset identity
 
-Current sequence-288 installation
+Latest bot consolidation installation
+`edf131c18aecec693aaae945bb0ab7dd9983a23781867eedaf7d7fd07a2b60b3`
+passes 222 native contracts. `runtime-zig-289/ctf-consolidated/` revalidates actual
+pickup, movement, attack, opponent damage and respawn by all four bots, with one
+contested capture. Exact combined identity:
+`b9cbc6d200b60bb8f8f5beddf68e60abfca67fd33cd2cbc997e92379c67f5331`.
+`deathtag-consolidated/` is still running. The fresh campaign below retains its
+original immutable `0490b…` installation and staged modules; the later changes
+affect bot control and optional pickup routing, not its campaign behavior.
+
+Sequence-289 cinematic repair installation
+`0490b20023b7306d69ee4088db4e70a5dc706cf4fdd45851afd67f7c8ce5f159`
+uses the unchanged asset manifest below. `runtime-zig-289/factory-arrival-repaired/`
+verifies normal contact with the authored factory exit, e1m2a admission, all nine
+arrival shots and release alive with incoming health/armor/ammunition. It starts
+from an unmodified legitimate factory checkpoint: no fresh gate is claimed.
+Exact combined identity: `31b5d79d732239f1dd02c127318a39e597c6bdd4c6bee9dcd6e5a1c85f22e2ce`.
+`factory-departure/` retains the former class-admission failure and demonstrates
+the platform, upper passage, controlled descent and lower route on `fa467c…`.
+`factory-exit-repaired/` retains the subsequent missing-sound client failure.
+The preload repair follows unique-ID binding; absent authored sound media is
+reported without aborting playback, matching the reference contract.
+The native contract batch passes 222 tests; the driver batch passes 16.
+`fresh-opening/` is the full consolidated campaign replay on `0490b…`, still pending.
+
+Read-only deathtag diagnostics under the same sequence establish separate failures:
+closed lift doors whose buttons sit behind another named door, and a dry ledge
+whose escape crosses slime. The observed player water level is **zero**, correcting
+the earlier inference of a submerged player. `deathtag-controls-repaired/` proves
+that accepting an initially solid floor trace alone does not clear the button
+approach: the final standing hull intersects the second door. Debug-module
+`deathtag-control-chain/` and `deathtag-control-escape/` demonstrate movement toward
+prerequisite controls and combat/respawn by all four bots; the 120-second diagnostic
+still has no carrier. These are diagnostic build combinations, not mode acceptance.
+The latest safe-return pickup policy is contract-tested; deathtag capture remains open.
+
+Sequence-288 installation
 `fa467c30668dee2537bd194a18c872f57c3eb7d22f6bf1408655eaf743b48344`
 uses unchanged asset manifest
 `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
@@ -43,7 +79,8 @@ identities accompany each report under `zig-out/reports/runtime-zig-288/`.
 - `ctf/` verifies ordinary four-bot weapon pickups, actual combat/contact, deaths,
   respawns and one contested flag capture. `deathtag/` still fails: all bots collect
   weapons and move, combat/respawn occur, but no bomb carrier appears. Its remaining
-  blocked corridors and a submerged route require diagnosis. This is not full
+  blocked corridors and an apparent submerged route required diagnosis (corrected
+  above by actual water-level and collision evidence). This is not full
   multiplayer or human-network acceptance.
 
 The prior surfacing repair (`5414bcb6…`, sequence 287) exposed reliable-command

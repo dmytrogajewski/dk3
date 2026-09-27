@@ -89,7 +89,32 @@ pub const Shot = struct {
 fn polynomial(coefficients: [4]f32, seconds: f32) f32 {
     return ((coefficients[0] * seconds + coefficients[1]) * seconds + coefficients[2]) * seconds + coefficients[3];
 }
-pub const Program = struct { shots: []const Shot, tasks: []const Task };
+pub const Program = struct {
+    shots: []const Shot,
+    tasks: []const Task,
+    /// Queue commands address an existing unique ID before considering a class.
+    /// Such references need the spawned performer's definition, not a second one
+    /// inferred from their label (e1m2's last shot labels hiro1 as "cien_hiro").
+    pub fn needsDefinition(self: Program, track: Track) bool {
+        for (self.tasks[track.first..][0..track.count]) |task| {
+            if (task.kind == .none) continue;
+            if (task.kind == .spawn) return true;
+            const unique = if (task.unique.len > 0) task.unique else track.unique;
+            if (unique.len == 0) return true;
+            var spawned = false;
+            for (self.shots) |shot| for (shot.tracks) |previous| {
+                if (previous.first >= track.first) continue;
+                for (self.tasks[previous.first..][0..previous.count]) |creation| {
+                    if (creation.kind != .spawn) continue;
+                    const created_id = if (creation.unique.len > 0) creation.unique else previous.unique;
+                    if (std.mem.eql(u8, unique, created_id)) spawned = true;
+                }
+            };
+            if (!spawned) return true;
+        }
+        return false;
+    }
+};
 const Reader = struct {
     tokens: @import("tables.zig").Reader,
     fn word(self: *Reader) ![]const u8 {
@@ -238,4 +263,37 @@ test "cinematic cubic evaluates seconds and holds segment endpoints" {
     try std.testing.expectEqual(@as(f32, 75), mid.fov);
     try std.testing.expectEqual(@as(f32, 127.5), mid.blend[3]);
     try std.testing.expectEqual(@as(f32, 120), shot.camera(9000, shot.initial).position[0]);
+}
+
+test "cinematic admission follows spawned unique identities without inventing typo classes" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const program = try parse(arena.allocator(),
+        \\dk3_cinematic 1 2
+        \\shot 1 0 0 0 0 0 90 1 1 1 "" ""
+        \\camera 0 0
+        \\0 0 0 0 0 0
+        \\sounds 0
+        \\entities 1
+        \\"cine_hiro" "hiro1" 1
+        \\18 -1 0 0 0 0 0 0 0 0 "" "" "" "hiro1"
+        \\shot 1 0 0 0 0 0 90 1 1 1 "" ""
+        \\camera 0 0
+        \\0 0 0 0 0 0
+        \\sounds 0
+        \\entities 4
+        \\"cien_hiro" "hiro1" 1
+        \\15 -1 0 0 0 0 0 0 0 0 "c_talk" "" "" "hiro1"
+        \\"cine_hiro" "hiro2" 1
+        \\18 -1 0 0 0 0 0 0 0 0 "" "" "" "hiro2"
+        \\"monster_worker" "worker1" 1
+        \\15 -1 0 0 0 0 0 0 0 0 "amba" "" "" "worker1"
+        \\"cine_hiro" "" 1
+        \\15 -1 0 0 0 0 0 0 0 0 "c_talk" "" "" ""
+    );
+    try std.testing.expect(program.needsDefinition(program.shots[0].tracks[0]));
+    try std.testing.expect(!program.needsDefinition(program.shots[1].tracks[0]));
+    // Real spawns, borrowed map actors, and class-only references still require
+    // definitions. A missing model for one of these must still reject admission.
+    for (program.shots[1].tracks[1..]) |track| try std.testing.expect(program.needsDefinition(track));
 }

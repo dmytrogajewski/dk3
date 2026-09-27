@@ -5374,3 +5374,76 @@ one contested capture (identity `f8f36f36562e91ec87953b44071c878ed761bc0dff07bb6
 route remain. Its combat/respawn evidence does not establish captures. The complete
 fresh opening gate, remaining campaign/interaction/party scenarios and human network,
 rooms and independent release acceptance stay open.
+
+## Sequence 289 — factory-cinematic-and-authored-bot-controls
+
+Checkpointed normal-input factory traversal now exercises both outer controls, yard
+combat/resupply, the console switch, its monitor, save/load during monitor playback,
+three exit doors, platform ascent, the upper rail crossing, liftmaster descent and
+the lower route to the authored e1m2a exit. Driver corrections follow supplied ground
+node connections and actual collision: console access comes through node 122, use
+occurs from its reachable front, and the upper 32-unit rail requires an ordinary
+jump. No movement speed, damage, geometry or puzzle timing changes. Evidence on
+installation `fa467c30668dee2537bd194a18c872f57c3eb7d22f6bf1408655eaf743b48344`:
+`runtime-zig-288/factory-pipe/`, then `runtime-zig-289/factory-console/` and
+`factory-departure/`. These remain separate checkpoint replays, not one fresh gate.
+
+The exit exposes `UnknownCinematicClass` during e1m2a admission. Its supplied final
+shot calls Hiro `cien_hiro` while retaining the correct unique ID `hiro1`. Native
+queue execution already binds the unique ID first, matching private reference
+behavior; preloading incorrectly attempted to load a second model for the typo.
+Preloading now recognizes tracks addressing a previously spawned identity. Real
+spawns, borrowed actors and class-only references still require their definitions.
+A native regression covers typo binding and those unaffected admission cases.
+
+The first repaired exit then exposes `MissingCinematicSound` at shot eight. The
+authored path `globa/a_speedwhoosh.wav` is absent. The private sound contract does
+not abort playback when media fails to load. Native cinematic audio now logs that
+path and continues, without substituting another asset. On installation
+`0490b20023b7306d69ee4088db4e70a5dc706cf4fdd45851afd67f7c8ce5f159`,
+`factory-arrival-repaired/` completes all nine shots and releases the living player
+with health 82, armor 162 and Ion ammunition 100. The frame was inspected. Exact
+combined identity is `31b5d79d732239f1dd02c127318a39e597c6bdd4c6bee9dcd6e5a1c85f22e2ce`;
+asset manifest remains `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+`factory-exit-repaired/` retains the missing-sound failure. The fresh full opening
+replay on `0490b…` is running in `fresh-opening/`; no completed milestone yet.
+The applicable native batch passes 222 contracts and driver/evidence checks pass 16.
+
+Read-only bot diagnostics distinguish separate deathtag failures. Blue bots physically
+hit named lift door 110; its remote button 18 is itself obstructed by door 321,
+which button 507 controls. Initial floor-trace solidity alone is inconclusive:
+final stationary hull clearance remains required. Bot control discovery now follows
+these observed door prerequisites with cycle bounds, returning a real reachable
+control goal for normal movement/use, never remotely firing the target. Progress
+renews a control trip deadline rather than abandoning a cross-base goal after a
+fixed total duration. Additional physical obstructions can select their own controls.
+
+The other observed bot is on a dry ledge (actual water level zero), correcting the
+earlier submerged inference. Its outgoing routes require crossing slime. Bots may
+request that escape only when AAS finds no safe route; damage remains authoritative,
+and campaign actors/companions retain their existing safe routing requests. Optional
+pickups now require a safe return route so they do not invite that trap. The
+resupply contract rejects one-way loot without granting or moving it.
+`deathtag-routes/`, `deathtag-controls/`, `deathtag-controls-repaired/` and
+`deathtag-edges/` retain read-only diagnosis. Debug `deathtag-control-chain/` shows
+prerequisite-control pursuit. `deathtag-control-escape/` shows all four bots moving,
+collecting, attacking, receiving opponent damage and respawning, but no carrier
+within its 120-second diagnostic. It is not consolidated mode acceptance. The latest
+return-route change and production replay remain pending; prior CTF acceptance
+requires revalidation after shared bot changes. Full campaign/weapon/companion, human
+network, rooms and release requirements remain open.
+
+The bot consolidation `edf131c18aecec693aaae945bb0ab7dd9983a23781867eedaf7d7fd07a2b60b3`
+passes all 222 applicable native contracts. `ctf-consolidated/` revalidates pickups,
+movement, actual attacks/opponent damage and respawns by all four participants and
+one contested capture. Combined identity: `b9cbc6d200b60bb8f8f5beddf68e60abfca67fd33cd2cbc997e92379c67f5331`.
+`deathtag-consolidated/` remains in progress. The fresh opening run retains its
+immutable `0490b…` build and staged modules while these bot-only changes are tested.
+The match driver now invalidates fatal engine errors immediately and retains read-only
+control/mover diagnosis on failure; existing report directories cannot be reused.
+
+A read-only supplied cinematic/model audit finds three additional authoring-resolution
+issues: credits requests absent `c_hiro_cred.dkm`, e3m4b names absent `e3m4_intro`,
+and e3m6_cinemid refers to `monster_gharroth` while actor tuning names
+`monster_garroth`. `cinematic-authoring-audit.json` is asset diagnosis only, not
+map-load or playback acceptance. Reference behavior is being checked before repair.

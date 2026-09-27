@@ -32,7 +32,7 @@ pub const State = struct {
     next_population: i64 = 0,
     serial: usize = 0,
     /// Read-only route evidence for normal-input match diagnostics.
-    pub fn report(self: *const State) !void {
+    pub fn report(self: *const State, world: *data.World, slots: *const Slots, clients: *const Clients) !void {
         var buffer: [1024]u8 = undefined;
         for (self.brains, 0..) |maybe, index| if (maybe) |brain| {
             const route = brain.route;
@@ -46,6 +46,7 @@ pub const State = struct {
                 @intFromBool(route.blocked),          route.progress_ms,                              route.refresh_ms,
                 brain.jump_until,                     if (brain.control) |control| control.id else 0, @intFromBool(brain.yield_point != null),
             }));
+            if (route.blocked) if (clients.entities[index]) |entity| try @import("navigation_probe.zig").corridor(world, slots, entity, if (route.waypoint != null) waypoint.point else route.destination);
         };
     }
     pub fn add(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, clients: *Clients, now: i64) !void {
@@ -154,6 +155,9 @@ pub const State = struct {
             };
             var control_aim: ?v.Vec3 = null;
             if (brain.control) |control| {
+                // Keep a remote control goal while the bot makes actual route
+                // progress; a fixed trip deadline abandoned cross-base controls.
+                brain.control_until = @max(brain.control_until, brain.route.progress_ms + 15000);
                 control_aim = try routes.aim(world, control);
                 if (control_aim == null or now >= brain.control_until) {
                     if (control_aim != null) {
@@ -175,7 +179,9 @@ pub const State = struct {
             var crouch = false;
             var ladder = false;
             if (destination) |goal| {
-                if (try brain.route.update(service, .{ .position = pose.position, .destination = goal, .slot = @intCast(index), .player = true }, now)) |waypoint| {
+                // Prefer every safe route. If none exists, permit swimming out
+                // of a slime basin; actual contact still applies authored damage.
+                if (try brain.route.update(service, .{ .position = pose.position, .destination = goal, .slot = @intCast(index), .player = true, .allow_slime_escape = true }, now)) |waypoint| {
                     movement = v.subtract(waypoint.point, pose.position);
                     ladder = waypoint.ladder;
                     const hull = (try world.get(entity, data.Body)).*;
@@ -192,12 +198,13 @@ pub const State = struct {
                         brain.yield_point = point;
                         brain.yield_until = now + 1000;
                         brain.route = .{};
-                    } else if (brain.control == null) {
-                        brain.control = try routes.seek(world, slots, projections, entity, toward, service, now, if (now < brain.avoid_until) brain.avoided else 0);
-                        if (brain.control != null) {
+                    } else {
+                        const control = try routes.seek(world, slots, projections, entity, toward, service, now, if (now < brain.avoid_until) brain.avoided else 0);
+                        if (control != null and (brain.control == null or control.?.id != brain.control.?.id)) {
+                            brain.control = control;
                             brain.control_until = now + 15000;
                             brain.route = .{};
-                        } else if (now - brain.route.progress_ms >= 3000 and brain.goal != 0) {
+                        } else if (brain.control == null and now - brain.route.progress_ms >= 3000 and brain.goal != 0) {
                             brain.avoided = brain.goal;
                             brain.avoid_until = now + 10000;
                             brain.goal = 0;
@@ -273,6 +280,9 @@ fn pickupGoal(world: *data.World, player: ecs.Entity, table: *const @import("../
         const distance = v.length(v.subtract(origin, goal));
         if (distance < 24 or distance >= nearest) continue;
         if (try service.next(.{ .position = origin, .destination = goal, .slot = (try world.get(player, data.Binding)).slot, .player = true }) == null) continue;
+        // Optional loot must not strand the bot in a drop-only pocket whose
+        // return requires unprotected slime. Emergency escape remains separate.
+        if (try service.next(.{ .position = goal, .destination = origin, .slot = (try world.get(player, data.Binding)).slot, .player = true }) == null) continue;
         nearest = distance;
         result = try world.persistentId(entity);
     };
@@ -325,12 +335,14 @@ test "bot resupply routes to a standing origin without moving or granting the we
     const t = std.testing;
     const Fake = struct {
         calls: usize = 0,
+        one_way: bool = false,
         fn next(raw: *anyopaque, request: nav.Request) !?nav.Waypoint {
             const self: *@This() = @ptrCast(@alignCast(raw));
             self.calls += 1;
             // Reproduce the floor weapon: raw model height 112 has no reachable
             // player area; feet at 113 require a player origin at 137.
             if (request.destination[2] != 137) return null;
+            if (self.one_way and request.destination[0] == 0) return null;
             return .{ .point = request.destination };
         }
     };
@@ -343,11 +355,13 @@ test "bot resupply routes to a standing origin without moving or granting the we
     var table: @import("../domain/weapons.zig").Table = .{};
     table.entries[2] = .{ .damage = 15, .range = 1800, .ammoCost = 1, .initialAmmo = 20, .ammoMax = 100 };
     try t.expectEqual(@as(u32, 14), try pickupGoal(&world, player, &table, service, 0, true, 100));
-    try t.expectEqual(@as(usize, 1), fake.calls);
+    try t.expectEqual(@as(usize, 2), fake.calls);
     try t.expectEqual(@as(i32, 1 << 1), (try world.get(player, data.Weapons)).dk3Inventory);
     try t.expectEqual(@as(f32, 112), (try world.get(item, data.Transform)).position[2]);
+    fake.one_way = true;
+    try t.expectEqual(@as(u32, 0), try pickupGoal(&world, player, &table, service, 0, true, 100));
     try t.expectEqual(@as(u32, 0), try pickupGoal(&world, player, &table, service, 14, true, 100));
     (try world.get(item, data.Pickup)).visible = false;
     try t.expectEqual(@as(u32, 0), try pickupGoal(&world, player, &table, service, 0, true, 100));
-    try t.expectEqual(@as(usize, 1), fake.calls);
+    try t.expectEqual(@as(usize, 4), fake.calls);
 }

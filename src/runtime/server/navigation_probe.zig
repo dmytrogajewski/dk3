@@ -7,6 +7,21 @@ const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
 const c = abi.c;
 const v = @import("../domain/vector.zig");
+pub fn corridor(world: *data.World, slots: *const @import("../engine/slots.zig").Slots, entity: ecs.Entity, toward: v.Vec3) !void {
+    const position = (try world.get(entity, data.Transform)).position;
+    const body = (try world.get(entity, data.Body)).*;
+    const player = (try world.get(entity, data.Player)).*;
+    const slot = (try world.get(entity, data.Binding)).slot;
+    const delta = v.subtract(toward, position);
+    const end = v.add(position, v.scale(v.normalize(.{ delta[0], delta[1], 0 }), 80));
+    const hit = try engine.collisionService().trace(.{ .start = position, .end = end, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+    const obstacle = if (hit.entity < slots.occupants.len) slots.occupants[hit.entity] else null;
+    const object = if (obstacle) |other| world.get(other, data.MapObject) catch null else null;
+    const area = engine.gateway.call(c.BOTLIB_AI_REACHABILITY_AREA, .{ &position, @as(isize, slot) });
+    const goal_area = engine.gateway.call(c.BOTLIB_AI_REACHABILITY_AREA, .{ &toward, @as(isize, c.ENTITYNUM_NONE) });
+    var text: [512]u8 = undefined;
+    engine.print(try std.fmt.bufPrintZ(&text, "dk3 bot corridor: slot={d} from_area={d} goal_area={d} ground={d} water={d} ducked={d} fraction={d:.4} solid={d} obstacle={d} class={s} normal={d:.3},{d:.3},{d:.3}\n", .{ slot, area, goal_area, player.ground_entity, player.water_level, @intFromBool(player.ducked), hit.fraction, @intFromBool(hit.start_solid or hit.all_solid), if (obstacle) |other| try world.persistentId(other) else 0, if (object) |value| value.classname else if (hit.entity == c.ENTITYNUM_WORLD) "world" else "none", hit.normal[0], hit.normal[1], hit.normal[2] }));
+}
 /// Follow real AAS edges without moving any actor. A repeated area invalidates
 /// the route even when each individual lookup reports a reachable destination.
 pub fn route() !void {

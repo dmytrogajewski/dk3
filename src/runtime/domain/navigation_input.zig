@@ -7,6 +7,22 @@ const collision = @import("collision.zig");
 pub fn pickupPoint(position: v.Vec3, pickup_mins: v.Vec3, collector_mins: v.Vec3) v.Vec3 {
     return .{ position[0], position[1], position[2] + pickup_mins[2] - collector_mins[2] };
 }
+/// A downward search may begin inside an overhang and leave it before finding
+/// the floor. Accept that floor only if the final standing hull is actually clear.
+pub const Support = struct { floor: ?collision.Trace = null, obstruction: ?u16 = null };
+pub fn supportedPoint(service: collision.Collision, request: collision.Request) !Support {
+    const hit = try service.trace(request);
+    if (hit.all_solid) return .{ .obstruction = hit.entity };
+    if (hit.fraction == 1 or hit.normal[2] < 0.7) return .{};
+    if (hit.start_solid) {
+        var stationary = request;
+        stationary.start = hit.end;
+        stationary.end = hit.end;
+        const clearance = try service.trace(stationary);
+        if (clearance.start_solid or clearance.all_solid) return .{ .obstruction = clearance.entity };
+    }
+    return .{ .floor = hit };
+}
 pub fn crouch(service: collision.Collision, position: v.Vec3, destination: v.Vec3, mins: v.Vec3, standing: v.Vec3, slot: u16, mask: u32) !bool {
     const delta = v.subtract(destination, position);
     const flat: v.Vec3 = .{ delta[0], delta[1], 0 };
@@ -52,4 +68,32 @@ test "pickup approach shares the support plane for different item and collector 
             try t.expect(goal[2] != 112);
         }
     }
+}
+
+test "control floor search can leave an overhang but must validate the final hull" {
+    const t = @import("std").testing;
+    const Fixture = struct {
+        initial_solid: bool = true,
+        final_solid: bool = false,
+        all_solid: bool = false,
+        fraction: f32 = 0.156,
+        fn trace(raw: *anyopaque, request: collision.Request) !collision.Trace {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            const stationary = v.length(v.subtract(request.start, request.end)) == 0;
+            return .{ .fraction = if (stationary) 0 else self.fraction, .end = .{ 77, 1872, 152.125 }, .normal = .{ 0, 0, 1 }, .start_solid = if (stationary) self.final_solid else self.initial_solid, .all_solid = self.all_solid };
+        }
+    };
+    var fixture: Fixture = .{};
+    const service: collision.Collision = .{ .context = &fixture, .trace_fn = Fixture.trace };
+    const request: collision.Request = .{ .start = .{ 77, 1872, 192 }, .end = .{ 77, 1872, -64 }, .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .slot = 1, .mask = 1 };
+    try t.expect((try supportedPoint(service, request)).floor != null);
+    fixture.final_solid = true;
+    try t.expect((try supportedPoint(service, request)).floor == null);
+    fixture.initial_solid = false;
+    try t.expect((try supportedPoint(service, request)).floor != null);
+    fixture.all_solid = true;
+    try t.expect((try supportedPoint(service, request)).floor == null);
+    fixture.all_solid = false;
+    fixture.fraction = 1;
+    try t.expect((try supportedPoint(service, request)).floor == null);
 }

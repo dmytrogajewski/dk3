@@ -15,6 +15,32 @@ from runtime_probe import client_settings, stage_client_modules, wait
 from runtime_ui_probe import Input
 
 
+def complete_opening(args, driver, intro_shots, final_state):
+    if args.checkpoint or not args.opening:
+        return False
+    maps = []
+    for entry in driver.inputs:
+        name = entry.get("observed", {}).get("map")
+        if name and (not maps or name != maps[-1]):
+            maps.append(name)
+    if maps != ["intro", "e1m1a", "e1m1b", "e1m1c", "e1m1b", "e1m1c", "e1m2a"]:
+        raise RuntimeError(f"Fresh route did not retain its connected map sequence: {maps}")
+    if len(intro_shots) < 115 or final_state["map"] != "e1m2a" or final_state["mode"] != "normal" or final_state["health"] <= 0 or final_state["skill"] != 3:
+        raise RuntimeError("Fresh opening did not finish alive on normal difficulty")
+    if not any(row.get("combat_target") and row.get("fired") and row.get("contacted") for row in driver.inputs):
+        raise RuntimeError("Fresh opening has no observed attack and target contact")
+    death = json.loads((args.report / "connected-death-reload.json").read_text())
+    visit = json.loads((args.report / "visited-world-roundtrip.json").read_text())
+    monitor = json.loads((args.report / "monitor-restoration.json").read_text())
+    if death["death"]["health"] > 0 or death["restored"]["health"] <= 0 or death["restored"]["mode"] != "normal":
+        raise RuntimeError("Death/reload evidence does not restore a living player")
+    if visit["before"] != visit["after"] or visit["bridge_arrival"]["map"] != "e1m1b" or visit["factory_return"]["map"] != "e1m1c":
+        raise RuntimeError("Visited-world evidence does not retain the authored round trip")
+    if monitor["restored_player"]["mode"] != "frozen" or monitor["released_player"]["mode"] != "normal":
+        raise RuntimeError("Monitor evidence does not restore and release player control")
+    return True
+
+
 def run(args):
     if not __debug__:
         raise RuntimeError("Campaign acceptance requires assertions")
@@ -114,11 +140,13 @@ def run(args):
                 if args.opening:
                     from runtime_opening_route import opening_route
                     opening = opening_route(driver, capture, args.report, args.checkpoint_phase)
+                final_state = driver.observe()
+                completed = complete_opening(args, driver, intro_shots, final_state)
                 result = {"identity": identity, "checkpoint": str(args.checkpoint) if args.checkpoint else None,
                           "scope": ("Development replay from a legitimate checkpoint; never fresh campaign acceptance."
                                     if args.checkpoint else "Ordinary New Game, normal difficulty and full intro; only the recorded connected route is exercised."),
-                          "intro_shots": sorted(intro_shots), "arrival": state, "final_state": driver.observe(),
-                          "opening": opening, "complete_opening_milestone": False}
+                          "intro_shots": sorted(intro_shots), "arrival": state, "final_state": final_state,
+                          "opening": opening, "complete_opening_milestone": completed}
                 (args.report / "result.json").write_text(json.dumps(result, indent=2) + "\n")
                 driver.issue("quit")
                 if process.wait(timeout=15) != 0:
@@ -168,7 +196,7 @@ def main():
     parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--opening", action="store_true", help="Continue with ordinary-input opening route development")
-    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle", "marsh-late", "marsh-exit", "bridge-arrival", "bridge-control", "bridge-river", "bridge-health", "bridge-ford", "bridge-supplies", "bridge-crossing", "bridge-boss", "bridge-cleared", "factory-arrival", "factory-outside", "factory-gate", "factory-pipe", "factory-upper", "factory-passage", "factory-yard", "factory-yard-turn", "factory-interior", "factory-switch"), default="arrival")
+    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle", "marsh-late", "marsh-exit", "bridge-arrival", "bridge-control", "bridge-river", "bridge-health", "bridge-ford", "bridge-supplies", "bridge-crossing", "bridge-boss", "bridge-cleared", "factory-arrival", "factory-outside", "factory-gate", "factory-pipe", "factory-upper", "factory-passage", "factory-yard", "factory-yard-turn", "factory-interior", "factory-switch", "factory-departure", "factory-exit"), default="arrival")
     parser.add_argument("--checkpoint-map", choices=("intro", "e1m1a", "e1m1b", "e1m1c"), default="intro")
     parser.add_argument("--checkpoint", type=Path, help="Legitimate checkpoint for development replay; never fresh campaign acceptance")
     args = parser.parse_args()

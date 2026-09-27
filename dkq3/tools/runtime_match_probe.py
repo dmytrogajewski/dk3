@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import time
 
-from runtime_input import record_identity
+from runtime_input import engine_failure, record_identity
 from runtime_probe import send, wait, stage_client_modules
 
 
@@ -25,6 +25,8 @@ def fields(line):
 def run(args):
     if not __debug__:
         raise RuntimeError("Match verification requires assertions")
+    if args.report.exists() and any(args.report.iterdir()):
+        raise RuntimeError("Match evidence requires a fresh report directory")
     args.report.mkdir(parents=True, exist_ok=True)
     identity = record_identity(args.engine, args.prefix, args.report)
     dedicated = args.engine / "bin/dk3ded"
@@ -69,9 +71,9 @@ def run(args):
                     offset = log.stat().st_size
                     send(pipe, "dk3_runtime_match")
                     text = wait(process, log, lambda text: "dk3 match complete:" in text[offset:]
-                                or "ERROR: Zig runtime:" in text[offset:], 5)[offset:]
-                    if "ERROR: Zig runtime:" in text:
-                        raise RuntimeError(text)
+                                or engine_failure(text[offset:]), 5)[offset:]
+                    if failure := engine_failure(text):
+                        raise RuntimeError(failure)
                     players = [fields(line) for line in text.splitlines() if line.startswith("dk3 match player:")]
                     objectives = [fields(line) for line in text.splitlines() if line.startswith("dk3 match objective:")]
                     now = int(re.search(r"dk3 match complete: now=(\d+)", text)[1])
@@ -124,6 +126,16 @@ def run(args):
                     raise RuntimeError("Native match shutdown failed")
             except Exception as error:
                 result.update(status="failed", error=str(error))
+                if process.poll() is None:
+                    try:
+                        offset = log.stat().st_size
+                        send(pipe, "dk3_runtime_movers")
+                        send(pipe, "dk3_runtime_route_controls")
+                        diagnosis = wait(process, log, lambda text: "dk3 route controls complete" in text[offset:]
+                                         or engine_failure(text[offset:]), 5)[offset:]
+                        (args.report / "failed-route-diagnostics.log").write_text(diagnosis)
+                    except Exception as unavailable:
+                        result["diagnostic_error"] = str(unavailable)
                 raise
             finally:
                 (args.report / "samples.json").write_text(json.dumps(samples, indent=2) + "\n")

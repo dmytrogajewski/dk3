@@ -53,6 +53,12 @@ fn chain(world: *data.World, source: ecs.Entity, obstacle: ecs.Entity, actor: u3
     return false;
 }
 pub fn seek(world: *data.World, slots: *Slots, projections: []const @import("../engine/abi.zig").EntityProjection, actor: ecs.Entity, toward: v.Vec3, service: nav.Service, now: i64, avoided: u32) !?Control {
+    return seekInternal(world, slots, projections, actor, toward, service, now, avoided, false);
+}
+pub fn diagnose(world: *data.World, slots: *Slots, projections: []const @import("../engine/abi.zig").EntityProjection, actor: ecs.Entity, toward: v.Vec3, service: nav.Service, now: i64) !void {
+    _ = try seekInternal(world, slots, projections, actor, toward, service, now, 0, true);
+}
+fn seekInternal(world: *data.World, slots: *Slots, projections: []const @import("../engine/abi.zig").EntityProjection, actor: ecs.Entity, toward: v.Vec3, service: nav.Service, now: i64, avoided: u32, diagnostic: bool) !?Control {
     const pose = (try world.get(actor, data.Transform)).*;
     const body = (try world.get(actor, data.Body)).*;
     const slot = (try world.get(actor, data.Binding)).slot;
@@ -61,11 +67,19 @@ pub fn seek(world: *data.World, slots: *Slots, projections: []const @import("../
     direction = v.normalize(direction);
     const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, 80)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_PLAYERSOLID });
     if (hit.fraction == 1 or hit.entity >= slots.occupants.len) return null;
-    var obstacle = slots.occupants[hit.entity] orelse return null;
+    const obstacle = slots.occupants[hit.entity] orelse return null;
+    var dependencies: [64]u32 = undefined;
+    return seekObstacle(world, slots, projections, actor, obstacle, service, now, avoided, diagnostic, &dependencies, 0);
+}
+fn seekObstacle(world: *data.World, slots: *Slots, projections: []const @import("../engine/abi.zig").EntityProjection, actor: ecs.Entity, blocked: ecs.Entity, service: nav.Service, now: i64, avoided: u32, diagnostic: bool, dependencies: *[64]u32, depth: usize) anyerror!?Control {
+    var obstacle = blocked;
     const mover = world.get(obstacle, data.Mover) catch return null;
     if (mover.moving()) return null;
     if (world.find(mover.group)) |master| obstacle = master;
     const obstacle_id = try world.persistentId(obstacle);
+    if (depth == dependencies.len or std.mem.indexOfScalar(u32, dependencies[0..depth], obstacle_id) != null) return null;
+    dependencies[depth] = obstacle_id;
+    const pose = (try world.get(actor, data.Transform)).*;
     const id = try world.persistentId(actor);
     var result: ?Control = null;
     var nearest: f32 = std.math.inf(f32);
@@ -88,15 +102,27 @@ pub fn seek(world: *data.World, slots: *Slots, projections: []const @import("../
         } else continue;
         var visited: [64]u32 = undefined;
         if (!try chain(world, entity, obstacle, id, now, &visited, 0)) continue;
-        const point = try approach(world, entity, actor, action, service, projections) orelse continue;
-        const distance = v.length(v.subtract(point, pose.position));
-        if (distance >= nearest) continue;
-        nearest = distance;
-        result = .{ .id = control_id, .obstacle = obstacle_id, .point = point, .action = action };
+        var obstructions: [5]u16 = @splat(c.ENTITYNUM_NONE);
+        if (try approach(world, entity, actor, action, service, projections, diagnostic, &obstructions)) |point| {
+            const distance = v.length(v.subtract(point, pose.position));
+            if (distance >= nearest) continue;
+            nearest = distance;
+            result = .{ .id = control_id, .obstacle = obstacle_id, .point = point, .action = action };
+        } else for (obstructions, 0..) |blocked_slot, index| {
+            if (blocked_slot >= slots.occupants.len or std.mem.indexOfScalar(u16, obstructions[0..index], blocked_slot) != null) continue;
+            const blocker = slots.occupants[blocked_slot] orelse continue;
+            // A control may itself sit behind another authored door. Walk to that
+            // door's real control first; normal use/contact still performs every step.
+            const prerequisite = try seekObstacle(world, slots, projections, actor, blocker, service, now, avoided, diagnostic, dependencies, depth + 1) orelse continue;
+            const distance = v.length(v.subtract(prerequisite.point, pose.position));
+            if (distance >= nearest) continue;
+            nearest = distance;
+            result = prerequisite;
+        }
     };
     return result;
 }
-fn approach(world: *data.World, target: ecs.Entity, actor: ecs.Entity, action: @FieldType(Control, "action"), service: nav.Service, projections: []const @import("../engine/abi.zig").EntityProjection) !?v.Vec3 {
+fn approach(world: *data.World, target: ecs.Entity, actor: ecs.Entity, action: @FieldType(Control, "action"), service: nav.Service, projections: []const @import("../engine/abi.zig").EntityProjection, diagnostic: bool, obstructions: *[5]u16) !?v.Vec3 {
     const pose = (try world.get(actor, data.Transform)).*;
     const body = (try world.get(actor, data.Body)).*;
     const player = (try world.get(actor, data.Player)).*;
@@ -113,17 +139,28 @@ fn approach(world: *data.World, target: ecs.Entity, actor: ecs.Entity, action: @
     if (action != .touch) points[0] = pose.position;
     var chosen: ?v.Vec3 = null;
     var distance: f32 = std.math.inf(f32);
-    for (points) |candidate| {
+    var text: [512]u8 = undefined;
+    for (points, 0..) |candidate, index| {
         var top = candidate;
         top[2] = @max(pose.position[2], middle[2]) + 48;
-        const floor = try engine.collisionService().trace(.{ .start = top, .end = v.add(top, .{ 0, 0, -256 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_PLAYERSOLID });
-        if (floor.start_solid or floor.all_solid or floor.fraction == 1 or floor.normal[2] < 0.7) continue;
+        const support = try @import("../domain/navigation_input.zig").supportedPoint(engine.collisionService(), .{ .start = top, .end = v.add(top, .{ 0, 0, -256 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_PLAYERSOLID });
+        const floor = support.floor orelse {
+            obstructions[index] = support.obstruction orelse c.ENTITYNUM_NONE;
+            continue;
+        };
+        if (diagnostic) engine.print(try std.fmt.bufPrintZ(&text, "dk3 control floor: slot={d} control={d} point={d:.2},{d:.2},{d:.2} fraction={d:.3} solid={d} normal_z={d:.3}\n", .{ slot, try world.persistentId(target), floor.end[0], floor.end[1], floor.end[2], floor.fraction, @intFromBool(floor.start_solid or floor.all_solid), floor.normal[2] }));
         if (try engine.collisionService().contents(v.add(floor.end, .{ 0, 0, body.mins[2] + 1 }), slot) & (c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO) != 0) continue;
         const eye = v.add(floor.end, .{ 0, 0, player.view_height });
         const sight = try engine.collisionService().trace(.{ .start = eye, .end = middle, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-        if (action != .touch and sight.entity != target_slot) continue;
+        if (diagnostic) engine.print(try std.fmt.bufPrintZ(&text, "dk3 control sight: slot={d} control={d} hit_slot={d} target_slot={d} range={d:.3}\n", .{ slot, try world.persistentId(target), sight.entity, target_slot, v.length(v.subtract(sight.end, eye)) }));
+        if (action != .touch and sight.entity != target_slot) {
+            obstructions[index] = sight.entity;
+            continue;
+        }
         if (action == .use and v.length(v.subtract(sight.end, eye)) > 88) continue;
-        if (try service.next(.{ .position = pose.position, .destination = floor.end, .slot = slot, .player = true }) == null) continue;
+        const reachable = try service.next(.{ .position = pose.position, .destination = floor.end, .slot = slot, .player = true }) != null;
+        if (diagnostic) engine.print(try std.fmt.bufPrintZ(&text, "dk3 control approach: slot={d} control={d} reachable={d}\n", .{ slot, try world.persistentId(target), @intFromBool(reachable) }));
+        if (!reachable) continue;
         const length = v.length(v.subtract(pose.position, floor.end));
         if (length < distance) {
             chosen = floor.end;

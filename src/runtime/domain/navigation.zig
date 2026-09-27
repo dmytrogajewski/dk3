@@ -21,7 +21,7 @@ pub fn selection(bytes: []const u8, wanted: Mode) ![]const u8 {
     return result orelse error.MissingNavigationMode;
 }
 pub const Waypoint = struct { point: v.Vec3, jump: bool = false, crouch: bool = false, ladder: bool = false, from_area: i32 = 0, to_area: i32 = 0 };
-pub const Request = struct { player: bool = false, position: v.Vec3, destination: v.Vec3, slot: u16 };
+pub const Request = struct { player: bool = false, allow_slime_escape: bool = false, position: v.Vec3, destination: v.Vec3, slot: u16 };
 pub const Service = struct {
     context: *anyopaque,
     next_fn: *const fn (*anyopaque, Request) anyerror!?Waypoint,
