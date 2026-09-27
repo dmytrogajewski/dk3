@@ -101,7 +101,7 @@ pub fn depart(state: *State, world: *data.World, clients: *const @import("client
     if (try world.persistentId(player) != request.player or (try world.get(player, data.Health)).current <= 0) return error.InvalidTraveler;
     const object = (try world.get(exit, data.MapObject)).*;
     if (!try @import("companions.zig").required(world, player, object.flags)) return error.ExitRequiresCompanions;
-    if (@import("properties.zig").text(object, "cinematic")) |name| if (name.len > 0) {
+    if (@import("properties.zig").text(object, "cinematic")) |name| if (name.len > 0 and systems.cinematics.available(name)) {
         const controller = @import("cinematics.zig").findController(world);
         const completed = if (controller) |entity| blk: {
             const playback = (try world.get(entity, data.Cinematic)).*;

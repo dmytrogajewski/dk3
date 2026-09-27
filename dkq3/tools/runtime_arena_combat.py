@@ -63,12 +63,17 @@ def battle(driver, capture):
     waypoint = 0
     deadline = time.monotonic() + 90
     initial = driver.select(2)
-    patrol = ((-896, 500), (-720, 500), (-720, 780), (-896, 780)) if initial["pos"][2] > 900 else ((-1510, 730), (-1510, 850))
+    # Stay on the open east plateau. The former northwest corner sent Hiro
+    # against the cliff at (-911, 460), where the boss has no firing line.
+    # The east barrier is an authored 5000-damage brush at x=-623..-619.
+    # Leave steering/knockback clearance from it as well as the west cliff.
+    patrol = ((-720, 520), (-720, 800), (-860, 800), (-860, 520)) if initial["pos"][2] > 900 else ((-1510, 730), (-1510, 850))
     contacts, waves = [], set()
     previous_health = None
     observed_shots = False
     last_contact = time.monotonic()
     next_threats, threats, active_sprays = 0, [], None
+    observed_health = {}
 
     def buttons(wanted):
         nonlocal held
@@ -85,6 +90,10 @@ def battle(driver, capture):
                 raise RuntimeError("Arena battle ended in death or an unexpected transition")
             observed_shots |= state["event"] != initial["event"] and state["fire"] != initial["fire"]
             rows = actors(driver)
+            for identity, row in rows.items():
+                if identity in observed_health and row["health"] < observed_health[identity]:
+                    last_contact = time.monotonic()
+                observed_health[identity] = row["health"]
             bosses = [(identity, row) for identity, row in rows.items() if row["unique"] == "tskeet"]
             if len(bosses) != 1:
                 raise RuntimeError("Arena battle requires exactly one authored Thunderskeet")
@@ -98,18 +107,20 @@ def battle(driver, capture):
             if boss["health"] <= 0:
                 if not observed_shots or not contacts or len(waves) != 10:
                     raise RuntimeError("Boss death lacks observed fire/contact or all ten authored wave actors")
-                if active_sprays == 0:
-                    return contacts, waves
+                # The authored shield is available now. Return for its actual
+                # pickup instead of patrolling unarmored under lingering spray.
+                return contacts, waves
             if state["ammo"] <= 0:
                 raise RuntimeError("Arena combat exhausted the collected Ion ammunition")
             if boss["health"] > 0 and time.monotonic() - last_contact > 12:
                 raise RuntimeError("No boss contact during the bounded firing window; inspect the actual sight line")
             target = boss
-            if boss["health"] <= 0:
-                survivors = [row for row in rows.values() if row["class"] == "monster_slaughterskeet"
-                             and row["health"] > 0 and row["sight"] == "1" and row["threat"] != "0"]
-                if survivors:
-                    target = min(survivors, key=lambda row: math.dist(row["pos"], state["pos"]))
+            survivors = [row for row in rows.values() if row["class"] == "monster_slaughterskeet"
+                         and row["health"] > 0 and row["sight"] == "1" and row["threat"] != "0"]
+            if survivors:
+                closest = min(survivors, key=lambda row: math.dist(row["pos"], state["pos"]))
+                if boss["health"] <= 0 or math.dist(closest["pos"], state["pos"]) < 200:
+                    target = closest
             # Submit view and movement together before waiting for another state.
             # Waiting for aim acknowledgement with the old keys still held turned
             # a short bank patrol into large sideways excursions.
@@ -133,7 +144,7 @@ def battle(driver, capture):
             yaw = math.radians(aim_yaw)
             forward = (dx * math.cos(yaw) + dy * math.sin(yaw)) / length
             right = (dx * math.sin(yaw) - dy * math.cos(yaw)) / length
-            wanted = {"speed"} if length < 90 else set()
+            wanted = {"speed"} if length < 90 and not threats else set()
             if abs(forward) > 0.38:
                 wanted.add("forward" if forward > 0 else "back")
             if abs(right) > 0.38:

@@ -15,14 +15,45 @@ is inferred from class counts or test volume.
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at sequence 285; full interactions unverified | Sequences 232–243/251 have narrow fixtures; no full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 289 | **Not accepted:** fresh New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a | Legitimate checkpoint replays now reach the factory exit and complete e1m2a's nine-shot arrival; fresh consolidated route is running |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 289 | **Not accepted:** fresh New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a | Legitimate checkpoint replays now reach the factory exit and complete e1m2a's nine-shot arrival; the fresh 289 route failed at the second Crox pool; corrected checkpoint routing reaches the boss |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Snapshot and deadline contracts pass at 285 | Sequence 287 authored death/reload; 288 actual C→B→C after disk load retains bridge progress | Latest restoration replay is checkpointed; fresh consolidated campaign/death replay remains |
-| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 222 applicable native contracts pass at 289; wire contracts at 287 remain valid | Four-bot DM demonstrates natural movement/pickup/combat/respawn on `8dc7a3…`; CTF contested capture revalidated at 289; deathtag capture unresolved | Named door prerequisites, control-goal progress and slime escape repaired; deathtag replay pending. Human network/reconnect/browser/rooms remain unaccepted |
+| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 222 applicable native contracts pass at 289; wire contracts at 287 remain valid | Four-bot DM demonstrates natural movement/pickup/combat/respawn on `8dc7a3…`; CTF contested capture revalidated at 289; deathtag capture unresolved | Named door prerequisites, control-goal progress and slime escape repaired; deathtag still has no carrier after replay. Human network/reconnect/browser/rooms remain unaccepted |
 | World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | World policy roots pass at 285; engine effects unverified | No new campaign or visual acceptance | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
 
 ## Build and asset identity
+
+Sequence-290 consolidated installation
+`b55eef1a5de4fe3fdbb54020b83889f649264cb3b8a650690b19d9b868710e54`
+uses unchanged manifest
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+Its 228 native contracts and 17 driver/evidence checks pass. Immutable-run combined
+identity: `f31deb83ece0f3de17e7730797d948b1fb17131af838145e90051051842c602a`.
+
+- `runtime-zig-290/cinematic-before-{e3m4b,e3m6a,credits}/` reproduces the three
+  admission failures on the preceding `c3908767…` installation. The repaired
+  `cinematic-after-e3m4b/` admits the map, retains normal control and restores a
+  completed save. e3m6a then completes all 16 shots of its diagnostically activated mid-cinematic and restores; credits completes both shots and restores. These pass admission/playback/control restoration, not full boss/credits presentation or campaign completion.
+  Explicit map admission and diagnostic triggers are not connected traversal.
+- Item projections now clear a preceding sound event's frame/flags before publishing
+  a reused slot. The poison-frame contract passes; running spawned-pickup rendering
+  remains to be inspected. Earlier broken-ammo frames are not accepted presentation.
+- `bridge-second-pool/` clears the omitted Crox from the dry bank and reaches the boss
+  through ordinary movement. It then fails a blocked firing line. `bridge-open-bank/`
+  and `bridge-east-plateau-coherent/` retain distinct failed combat strategies; neither
+  is a completed bridge result. `bridge-wave-defense/` reaches the authored east 5000-damage barrier because its patrol is too wide. `bridge-barrier-clearance/` defeats the boss but dies to remaining attacks before collecting its shield. `bridge-reward-resupply/` retains another combat death before the reward becomes available; no bridge completion is accepted. Further combat diagnosis needs actual damage-source evidence before another route replay. No gameplay rules were changed for these driver failures.
+- `bridge-east-plateau/` is **invalid setup**: a mutable build prefix changed while
+  modules were staged. Its guarded process group was terminated and all acceptance
+  rejected. Campaign/match runners now default to immutable installation files,
+  verify identity and copied bytes, and explicitly label mixed diagnostic modules.
+  A regression reproduces replacement between hashing and staging.
+- `deathtag-control-continuation/` uses a recorded Debug diagnostic combination and
+  demonstrates real prerequisite/final presses on both authored control chains.
+  `deathtag-lift-rider/` on `c3908767…` still fails: all four bots move, collect weapons,
+  fire, receive opponent damage and respawn, but no carrier appears. Rider centering
+  is contract-tested; its complete lift/objective route remains unaccepted. No further
+  unchanged long match is running. CTF needs affected replay after these bot changes.
 
 Latest bot consolidation installation
 `edf131c18aecec693aaae945bb0ab7dd9983a23781867eedaf7d7fd07a2b60b3`
@@ -30,7 +61,7 @@ passes 222 native contracts. `runtime-zig-289/ctf-consolidated/` revalidates act
 pickup, movement, attack, opponent damage and respawn by all four bots, with one
 contested capture. Exact combined identity:
 `b9cbc6d200b60bb8f8f5beddf68e60abfca67fd33cd2cbc997e92379c67f5331`.
-`deathtag-consolidated/` is still running. The fresh campaign below retains its
+`deathtag-consolidated/` failed its carrier/capture requirement. The fresh campaign below retains its
 original immutable `0490b…` installation and staged modules; the later changes
 affect bot control and optional pickup routing, not its campaign behavior.
 
@@ -47,7 +78,7 @@ the platform, upper passage, controlled descent and lower route on `fa467c…`.
 The preload repair follows unique-ID binding; absent authored sound media is
 reported without aborting playback, matching the reference contract.
 The native contract batch passes 222 tests; the driver batch passes 16.
-`fresh-opening/` is the full consolidated campaign replay on `0490b…`, still pending.
+`fresh-opening/` is a failed full campaign replay on `0490b…`: all 115 intro shots, arrival restoration, marsh traversal and bridge resupply run, then the driver enters the second pool with Crox 425 alive. Hiro still had 135 Ion rounds before death; the death state clears the inventory. Its automatic arrival reload verifies restoration only.
 
 Read-only deathtag diagnostics under the same sequence establish separate failures:
 closed lift doors whose buttons sit behind another named door, and a dry ledge

@@ -10,7 +10,18 @@ const c = abi.c;
 const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const Router = @import("targets.zig").Router;
-const Definition = struct { classname: []const u8, model: []const u8, metadata: []const u8, scale: v.Vec3 = @splat(1), walk: f32 = 25, run: f32 = 125, yaw: f32 = 20 };
+const Definition = struct {
+    classname: []const u8,
+    model: []const u8,
+    metadata: ?[]const u8 = null,
+    scale: v.Vec3 = @splat(1),
+    walk: f32 = 25,
+    run: f32 = 125,
+    yaw: f32 = 20,
+    fn sequence(self: Definition, name: []const u8) !?@import("../domain/animation.zig").Sequence {
+        return try @import("../domain/animation.zig").find(self.metadata orelse return null, name);
+    }
+};
 pub const State = struct {
     allocator: std.mem.Allocator = undefined,
     programs: [64]struct { name: []const u8, value: rules.Program } = undefined,
@@ -50,10 +61,14 @@ pub const State = struct {
             };
         }
         for (names[0..count]) |name| try self.load(allocator, name);
-        if (intro.len > 0) {
+        if (intro.len > 0 and self.available(intro)) {
             try self.select(intro);
             try world.put(controller orelse return error.MissingCinematicController, data.Cinematic{ .name = intro });
         }
+    }
+    pub fn available(self: *const State, name: []const u8) bool {
+        for (self.programs[0..self.program_count]) |program| if (std.mem.eql(u8, program.name, name)) return true;
+        return false;
     }
     fn select(self: *State, name: []const u8) !void {
         for (self.programs[0..self.program_count]) |program| if (std.mem.eql(u8, program.name, name)) {
@@ -64,6 +79,7 @@ pub const State = struct {
         return error.UnavailableCinematicProgram;
     }
     pub fn trigger(self: *State, world: *data.World, entity: ecs.Entity, name: []const u8, activator: u32) !bool {
+        if (!self.available(name)) return false;
         if (active(world)) return false;
         const player = world.find(activator) orelse return false;
         if ((world.get(player, data.Player) catch return false).mode != .normal) return false;
@@ -77,7 +93,11 @@ pub const State = struct {
         if (!@import("../domain/snapshot.zig").validName(name)) return error.InvalidCinematicName;
         var path: [96]u8 = undefined;
         const program_path = try std.fmt.bufPrintZ(&path, "dk3/cinematics/{s}.cfg", .{name});
-        const bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, program_path, 4 * 1024 * 1024);
+        const bytes = try @import("../engine/files.zig").readOptional(.server, &engine.gateway, allocator, program_path, 4 * 1024 * 1024) orelse {
+            var warning: [160]u8 = undefined;
+            engine.print(try std.fmt.bufPrintZ(&warning, "dk3 cinematic: unavailable program={s}\n", .{name}));
+            return;
+        };
         const program = try rules.parse(allocator, bytes);
         if (program.shots.len == 0) return error.EmptyCinematic;
         const tuning = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, "dk3/tables/aidata.cfg", 4 * 1024 * 1024);
@@ -87,7 +107,7 @@ pub const State = struct {
             if (!program.needsDefinition(track)) continue;
             if (self.definition(track.classname) != null) continue;
             if (self.count == self.definitions.len) return error.CinematicClassCapacity;
-            var actor_definition: Definition = .{ .classname = track.classname, .model = "", .metadata = "" };
+            var actor_definition: Definition = .{ .classname = track.classname, .model = "" };
             // Cine classes select the supplied map-family performance model.
             const prefix: ?[]const u8 = if (std.mem.startsWith(u8, track.classname, "cine_")) blk: {
                 const aliases = .{ .{ "superfly", "super" }, .{ "toshiro", "tosh" }, .{ "gharroth", "ghar" }, .{ "pgharroth", "pghar" }, .{ "charon", "char" }, .{ "fatworker", "fat" }, .{ "thinworker", "thin" } };
@@ -108,9 +128,22 @@ pub const State = struct {
                 };
             }
             if (prefix) |stem| actor_definition.model = try std.fmt.allocPrint(allocator, "models/cinematic/c_{s}_{s}.dkm", .{ stem, map_name[0..@min(4, map_name.len)] });
-            if (actor_definition.model.len == 0) return error.UnknownCinematicClass;
+            if (actor_definition.model.len == 0) {
+                for (program.tasks[track.first..][0..track.count]) |task| if (task.kind == .spawn) return error.UnknownCinematicClass;
+                // Commands may address an absent actor. The reference leaves
+                // that command without a recipient; it does not create one.
+                continue;
+            }
             const metadata_path = try std.fmt.bufPrintZ(&path, "{s}.anim", .{actor_definition.model});
-            actor_definition.metadata = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, metadata_path, 1 << 20);
+            actor_definition.metadata = try @import("../engine/files.zig").readOptional(.server, &engine.gateway, allocator, metadata_path, 1 << 20);
+            if (actor_definition.metadata == null) {
+                if (!program.controlOnly(track.classname)) return error.MissingCinematicModel;
+                // Keep the timed authored use/removal, without rendering a
+                // replacement actor for absent control-carrier media.
+                var warning: [180]u8 = undefined;
+                engine.print(try std.fmt.bufPrintZ(&warning, "dk3 cinematic: control carrier has no media class={s} model={s}\n", .{ track.classname, actor_definition.model }));
+                actor_definition.model = "";
+            }
             self.definitions[self.count] = actor_definition;
             self.count += 1;
         };
@@ -216,8 +249,8 @@ pub const State = struct {
                             continue;
                         }
                         const definition_value = self.definition(track.classname) orelse return error.UnknownCinematicClass;
-                        const idle: @import("../domain/animation.zig").Sequence = try @import("../domain/animation.zig").find(definition_value.metadata, "amba") orelse .{};
-                        const movement = try @import("../domain/animation.zig").find(definition_value.metadata, "walka") orelse idle;
+                        const idle: @import("../domain/animation.zig").Sequence = try definition_value.sequence("amba") orelse .{};
+                        const movement = try definition_value.sequence("walka") orelse idle;
                         const entity = try world.create(null, .{ data.Transform{ .position = task.destination, .angles = task.angles }, data.Performer{ .unique = unique, .classname = track.classname, .model = definition_value.model, .scale = definition_value.scale, .walk_speed = definition_value.walk, .run_speed = definition_value.run, .yaw_speed = definition_value.yaw, .animation = idle, .idle = idle, .movement = movement, .animation_ms = now, .next_ms = now }, data.Body{ .mins = .{ -12, -12, -24 }, .maxs = .{ 12, 12, 30 }, .contents = 0, .collision_mask = c.MASK_SOLID } });
                         const slot = try slots.acquire(entity, null);
                         try world.put(entity, data.Binding{ .slot = slot, .model = try @import("resources.zig").model(definition_value.model) });
@@ -236,7 +269,7 @@ pub const State = struct {
                     },
                     else => if (actor) |entity| {
                         const performer = try world.get(entity, data.Performer);
-                        if (task.kind == .animation and try @import("../domain/animation.zig").find(self.definition(performer.classname).?.metadata, task.animation) == null) {
+                        if (task.kind == .animation and try self.definition(performer.classname).?.sequence(task.animation) == null) {
                             // Gold QueueAnimation ignores absent sequence names. The supplied
                             // intro requests Usagi's absent amba after nodd in shot 34.
                             var warning: [180]u8 = undefined;
@@ -248,7 +281,10 @@ pub const State = struct {
                         if (performer.count == performer.queue.len) return error.CinematicQueueCapacity;
                         performer.queue[performer.count] = task_id;
                         performer.count += 1;
-                    } else if (task.kind != .none) return error.MissingCinematicActor,
+                    } else if (task.kind != .none) {
+                        var warning: [256]u8 = undefined;
+                        engine.print(try std.fmt.bufPrintZ(&warning, "dk3 cinematic: absent recipient class={s} unique={s} task={s}\n", .{ track.classname, unique, @tagName(task.kind) }));
+                    },
                 }
                 playback.queued[index] += 1;
             }
@@ -266,8 +302,8 @@ pub const State = struct {
         const definition_value = self.definition(classname) orelse return error.UnknownCinematicClass;
         const binding = (try world.get(entity, data.Binding)).*;
         const body = (try world.get(entity, data.Body)).*;
-        const idle = try @import("../domain/animation.zig").find(definition_value.metadata, "amba") orelse try @import("../domain/animation.zig").find(definition_value.metadata, "aamba") orelse @import("../domain/animation.zig").Sequence{};
-        const walking = try @import("../domain/animation.zig").find(definition_value.metadata, "walka") orelse idle;
+        const idle = try definition_value.sequence("amba") orelse try definition_value.sequence("aamba") orelse @import("../domain/animation.zig").Sequence{};
+        const walking = try definition_value.sequence("walka") orelse idle;
         try world.put(entity, data.Performer{ .unique = unique, .classname = classname, .model = definition_value.model, .scale = definition_value.scale, .walk_speed = definition_value.walk, .run_speed = definition_value.run, .yaw_speed = definition_value.yaw, .animation = idle, .idle = idle, .movement = walking, .animation_ms = now, .next_ms = now, .borrowed = true, .original_model = binding.model, .original_contents = body.contents });
         (try world.get(entity, data.Binding)).model = try @import("resources.zig").model(definition_value.model);
         (try world.get(entity, data.Body)).contents = 0;
@@ -291,7 +327,7 @@ pub const State = struct {
                     performer.due_ms = now;
                     switch (task.kind) {
                         .animation, .idle => {
-                            const sequence = try @import("../domain/animation.zig").find(definition_value.metadata, task.animation) orelse return error.MissingCinematicAnimation;
+                            const sequence = try definition_value.sequence(task.animation) orelse return error.MissingCinematicAnimation;
                             if (task.kind == .idle) performer.idle = sequence else {
                                 performer.animation = sequence;
                                 performer.animation_ms = now;
@@ -299,7 +335,7 @@ pub const State = struct {
                             }
                         },
                         .move, .move_turn => {
-                            performer.animation = if (task.animation.len > 0) try @import("../domain/animation.zig").find(definition_value.metadata, task.animation) orelse performer.movement else performer.movement;
+                            performer.animation = if (task.animation.len > 0) try definition_value.sequence(task.animation) orelse performer.movement else performer.movement;
                             performer.animation_ms = now;
                         },
                         .wait => performer.due_ms = now + @as(i64, @intFromFloat(@max(0, task.attribute) * 1000)),
@@ -428,6 +464,7 @@ pub fn active(world: *data.World) bool {
     return (world.get(entity, data.Cinematic) catch unreachable).active;
 }
 fn findPerformer(world: *data.World, unique: []const u8) ?ecs.Entity {
+    if (unique.len == 0) return null;
     var query = world.queryAccess(data.World.mask(.{data.Performer}), 0, 0);
     defer query.deinit();
     while (query.next()) |view| for (view.entities(), view.read(data.Performer)) |entity, performer| if (std.mem.eql(u8, unique, performer.unique)) return entity;
@@ -549,4 +586,13 @@ test "intro Osaka queue alias resolves by class without duplicating spawn or rem
     try std.testing.expectEqual(exact, resolveActor(&world, .animation, "osa1", "cine_osaka").?);
     try std.testing.expectEqual(exact, resolveActor(&world, .animation, "osa1", "misspelled_class").?);
     try std.testing.expectEqual(exact, resolveActor(&world, .remove, "osa1", "misspelled_class").?);
+}
+
+test "an absent class-only recipient cannot bind another unnamed performer" {
+    var world = data.World.init(std.testing.allocator, 4);
+    defer world.deinit();
+    const existing = try world.create(20, .{data.Performer{ .unique = "", .classname = "cine_hero", .model = "models/hero.dkm" }});
+    try std.testing.expect(resolveActor(&world, .teleport, "", "absent_actor") == null);
+    try std.testing.expectEqual(existing, resolveActor(&world, .teleport, "", "cine_hero").?);
+    try std.testing.expect(resolveActor(&world, .spawn, "", "cine_hero") == null);
 }

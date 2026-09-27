@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import time
 
-from runtime_probe import send, wait
+from runtime_probe import runtime_files, send, wait
 
 
 def engine_failure(text):
@@ -173,16 +173,24 @@ class NativeInput:
         return restored
 
 
-def record_identity(engine, prefix, report):
+def record_identity(engine, prefix, report, *, require_installation=False):
     """Hash the actual executable, modules, shaders and admitted local packages."""
     import hashlib
     files = [engine / "bin/dk3"]
-    files += sorted((prefix / "lib/dk3").glob("*.so"))
-    files += sorted((prefix / "share/dk3/scripts").glob("*.shader"))
+    selected = runtime_files(prefix)
+    files += list(selected.values())
     files += sorted((engine / "share/dk3").glob("*.pk3"))
     # Renderers can be built in or adjacent to the engine executable.
     files += sorted((engine / "bin").glob("*renderer*.so"))
-    records = {str(path): hashlib.file_digest(path.open("rb"), "sha256").hexdigest() for path in files}
+    records = {}
+    for path in files:
+        with path.open("rb") as stream:
+            records[str(path)] = hashlib.file_digest(stream, "sha256").hexdigest()
+    if require_installation:
+        manifest = json.loads((engine / "installation.json").read_text())
+        for destination, source in selected.items():
+            if records[str(source)] != manifest["files"].get("share/" + destination):
+                raise RuntimeError(f"Scenario runtime differs from its immutable installation: {source}")
     digest = hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()
     (report / "identity.json").write_text(json.dumps({"sha256": digest, "files": records}, indent=2) + "\n")
     return digest

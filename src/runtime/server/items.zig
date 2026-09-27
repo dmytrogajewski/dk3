@@ -81,16 +81,25 @@ fn spawnOne(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     try world.put(entity, body);
     try world.put(entity, data.Pickup{ .kind = kind, .amount = @intFromFloat(try prop.number(object, "count", 0)) });
     try world.put(entity, data.ItemMotion{ .base = position, .started_ms = now });
+    // Slots can previously belong to a sound/event, corpse or brush entity.
+    projections[slot] = std.mem.zeroes(abi.EntityProjection);
     try publish(world, entity, projections);
 }
 
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection) !void {
+    const projection = try updateProjection(world, entity, projections);
+    if (projection.shared.contents != 0) engine.link(projection) else engine.unlink(projection);
+}
+
+fn updateProjection(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection) !*abi.EntityProjection {
     const binding = (try world.get(entity, data.Binding)).*;
     const transform = (try world.get(entity, data.Transform)).*;
     const body = (try world.get(entity, data.Body)).*;
     const pickup = (try world.get(entity, data.Pickup)).*;
     const motion = (try world.get(entity, data.ItemMotion)).*;
     const projection = &projections[binding.slot];
+    projection.state = std.mem.zeroes(c.entityState_t);
+    projection.state.number = binding.slot;
     projection.state.eType = c.ET_DK3_ITEM;
     projection.state.modelindex = binding.model;
     projection.state.pos = if (motion.ground != null) @import("../engine/trajectory.zig").stationary(transform.position) else @import("../engine/trajectory.zig").linear(motion.base, motion.velocity, motion.started_ms);
@@ -101,14 +110,14 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.shared.currentAngles = transform.angles;
     projection.shared.mins = body.mins;
     projection.shared.maxs = body.maxs;
+    projection.shared.ownerNum = c.ENTITYNUM_NONE;
     projection.shared.contents = if (pickup.visible) c.CONTENTS_TRIGGER else 0;
     if (pickup.visible) {
         projection.shared.svFlags &= ~@as(i32, c.SVF_NOCLIENT);
-        engine.link(projection);
     } else {
         projection.shared.svFlags |= c.SVF_NOCLIENT;
-        engine.unlink(projection);
     }
+    return projection;
 }
 /// Shared tossed-item collision; a false result means an authored no-drop volume.
 pub fn settle(world: *data.World, entity: ecs.Entity, now: i64, elapsed: u32) !bool {
@@ -187,4 +196,35 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             break; // Targets may destroy this item or other queried entities.
         }
     }
+}
+
+test "pickup projection clears a previous sound event when its slot is reused" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 4);
+    defer world.deinit();
+    const item = try world.create(1, .{ data.Binding{ .slot = 0, .model = 29 }, data.Transform{ .position = .{ 10, 20, 30 } }, data.Body{ .mins = @splat(-8), .maxs = @splat(8) }, data.Pickup{ .kind = .{ .ammunition = 2 } }, data.ItemMotion{ .ground = c.ENTITYNUM_WORLD } });
+    var projections = [_]abi.EntityProjection{std.mem.zeroes(abi.EntityProjection)};
+    projections[0].state.frame = @import("../domain/audio.zig").parameter_tag;
+    projections[0].state.eFlags = c.EF_NODRAW;
+    projections[0].state.event = c.EV_GENERAL_SOUND;
+    projections[0].state.eventParm = 17;
+    projections[0].shared.ownerNum = 3;
+    const projected = try updateProjection(&world, item, &projections);
+    try t.expectEqual(@as(i32, 0), projected.state.frame);
+    try t.expectEqual(@as(i32, 0), projected.state.eFlags);
+    try t.expectEqual(@as(i32, 0), projected.state.event);
+    try t.expectEqual(@as(i32, 0), projected.state.eventParm);
+    try t.expectEqual(@as(i32, c.ET_DK3_ITEM), projected.state.eType);
+    try t.expectEqual(@as(i32, 29), projected.state.modelindex);
+    try t.expectEqual(@as(i32, c.ENTITYNUM_NONE), projected.shared.ownerNum);
+    try t.expectEqual(@as(data.Vec3, .{ 10, 20, 30 }), projected.state.pos.trBase);
+    try t.expectEqual(@as(i32, c.CONTENTS_TRIGGER), projected.shared.contents);
+    (try world.get(item, data.Pickup)).visible = false;
+    _ = try updateProjection(&world, item, &projections);
+    try t.expectEqual(@as(i32, 0), projected.shared.contents);
+    try t.expect(projected.shared.svFlags & c.SVF_NOCLIENT != 0);
+    (try world.get(item, data.Pickup)).visible = true;
+    _ = try updateProjection(&world, item, &projections);
+    try t.expectEqual(@as(i32, c.CONTENTS_TRIGGER), projected.shared.contents);
+    try t.expect(projected.shared.svFlags & c.SVF_NOCLIENT == 0);
 }

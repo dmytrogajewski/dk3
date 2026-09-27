@@ -92,6 +92,20 @@ fn polynomial(coefficients: [4]f32, seconds: f32) f32 {
 pub const Program = struct {
     shots: []const Shot,
     tasks: []const Task,
+    /// A timed control carrier has no performance to render. Credits uses one
+    /// to press a door despite supplying no model for that map family.
+    pub fn controlOnly(self: Program, classname: []const u8) bool {
+        var uses = false;
+        for (self.shots) |shot| for (shot.tracks) |track| {
+            if (!std.mem.eql(u8, track.classname, classname)) continue;
+            for (self.tasks[track.first..][0..track.count]) |task| switch (task.kind) {
+                .use => uses = true,
+                .none, .spawn, .remove, .wait, .clear => {},
+                else => return false,
+            };
+        };
+        return uses;
+    }
     /// Queue commands address an existing unique ID before considering a class.
     /// Such references need the spawned performer's definition, not a second one
     /// inferred from their label (e1m2's last shot labels hiro1 as "cien_hiro").
@@ -296,4 +310,28 @@ test "cinematic admission follows spawned unique identities without inventing ty
     // Real spawns, borrowed map actors, and class-only references still require
     // definitions. A missing model for one of these must still reject admission.
     for (program.shots[1].tracks[1..]) |track| try std.testing.expect(program.needsDefinition(track));
+}
+
+test "missing media is permissible only for a timed control carrier" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const program = try parse(arena.allocator(),
+        \\dk3_cinematic 1
+        \\1
+        \\shot 2 0 0 0 0 0 90 1 1 1 "" ""
+        \\camera 0 0
+        \\0 0 0 0 0 0
+        \\sounds 0
+        \\entities 2
+        \\"cine_switcher" "door" 3
+        \\18 -1 0 0 0 0 0 0 0 0 "" "" "" "door"
+        \\13 1 0 0 0 0 0 0 0 0 "" "door_target" "" "door"
+        \\19 2 0 0 0 0 0 0 0 0 "" "" "" "door"
+        \\"cine_hero" "hero" 2
+        \\18 -1 0 0 0 0 0 0 0 0 "" "" "" "hero"
+        \\15 1 0 0 0 0 0 0 0 0 "wave" "" "" "hero"
+    );
+    try std.testing.expect(program.controlOnly("cine_switcher"));
+    try std.testing.expect(!program.controlOnly("cine_hero"));
+    try std.testing.expect(!program.controlOnly("missing"));
 }

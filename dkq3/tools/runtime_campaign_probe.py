@@ -25,7 +25,7 @@ def complete_opening(args, driver, intro_shots, final_state):
             maps.append(name)
     if maps != ["intro", "e1m1a", "e1m1b", "e1m1c", "e1m1b", "e1m1c", "e1m2a"]:
         raise RuntimeError(f"Fresh route did not retain its connected map sequence: {maps}")
-    if len(intro_shots) < 115 or final_state["map"] != "e1m2a" or final_state["mode"] != "normal" or final_state["health"] <= 0 or final_state["skill"] != 3:
+    if not set(range(115)).issubset(intro_shots) or final_state["map"] != "e1m2a" or final_state["mode"] != "normal" or final_state["health"] <= 0 or final_state["skill"] != 3:
         raise RuntimeError("Fresh opening did not finish alive on normal difficulty")
     if not any(row.get("combat_target") and row.get("fired") and row.get("contacted") for row in driver.inputs):
         raise RuntimeError("Fresh opening has no observed attack and target contact")
@@ -47,12 +47,12 @@ def run(args):
     if args.report.exists() and any(args.report.iterdir()):
         raise RuntimeError("Campaign evidence requires a fresh report directory")
     args.report.mkdir(parents=True, exist_ok=True)
-    identity = record_identity(args.engine, args.prefix, args.report)
+    identity = record_identity(args.engine, args.prefix, args.report, require_installation=True)
     log = args.report / "client.log"
     inputs = []
     with tempfile.TemporaryDirectory(prefix="dk3-native-campaign-") as temporary:
         home = Path(temporary)
-        stage_client_modules(args.prefix, home)
+        stage_client_modules(args.prefix, home, installation=args.engine)
         settings = client_settings(args.engine, home)
         settings.update({"dk3_cinematics": "1", "g_spSkill": "3", "in_nograb": "1", "developer": "1"})
         command = [str(args.engine / "bin/dk3")]
@@ -129,7 +129,7 @@ def run(args):
                 else:
                     raise TimeoutError("Full intro did not reach playable e1m1a")
                 intro_shots = {shot for level, shot in seen if level == "intro"}
-                if not args.checkpoint and len(intro_shots) < 115:
+                if not args.checkpoint and not set(range(115)).issubset(intro_shots):
                     raise RuntimeError(f"Intro observation incomplete: {len(intro_shots)}/115 shots")
                 save = driver.save("opening_arrival")
                 driver.load("opening_arrival")
@@ -193,10 +193,10 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True)
-    parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
+    parser.add_argument("--prefix", type=Path, help="Runtime source; defaults to the immutable --engine installation")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--opening", action="store_true", help="Continue with ordinary-input opening route development")
-    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle", "marsh-late", "marsh-exit", "bridge-arrival", "bridge-control", "bridge-river", "bridge-health", "bridge-ford", "bridge-supplies", "bridge-crossing", "bridge-boss", "bridge-cleared", "factory-arrival", "factory-outside", "factory-gate", "factory-pipe", "factory-upper", "factory-passage", "factory-yard", "factory-yard-turn", "factory-interior", "factory-switch", "factory-departure", "factory-exit"), default="arrival")
+    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle", "marsh-late", "marsh-exit", "bridge-arrival", "bridge-control", "bridge-river", "bridge-health", "bridge-ford", "bridge-supplies", "bridge-climb", "bridge-crossing", "bridge-boss", "bridge-cleared", "factory-arrival", "factory-outside", "factory-gate", "factory-pipe", "factory-upper", "factory-passage", "factory-yard", "factory-yard-turn", "factory-interior", "factory-switch", "factory-departure", "factory-exit"), default="arrival")
     parser.add_argument("--checkpoint-map", choices=("intro", "e1m1a", "e1m1b", "e1m1c"), default="intro")
     parser.add_argument("--checkpoint", type=Path, help="Legitimate checkpoint for development replay; never fresh campaign acceptance")
     args = parser.parse_args()
@@ -207,7 +207,8 @@ def main():
         parser.error("A bridge checkpoint requires its bridge phase")
     if args.checkpoint_map == "e1m1c" and not args.checkpoint_phase.startswith("factory-"):
         parser.error("A factory checkpoint requires its factory phase")
-    args.engine, args.prefix, args.report = args.engine.resolve(), args.prefix.resolve(), args.report.resolve()
+    args.engine = args.engine.resolve()
+    args.prefix, args.report = (args.prefix or args.engine).resolve(), args.report.resolve()
     run(args)
 
 

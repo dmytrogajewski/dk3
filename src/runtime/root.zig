@@ -15,6 +15,7 @@ test {
     _ = @import("server/bots.zig");
     _ = @import("server/resources.zig");
     _ = @import("server/bot_routes.zig");
+    _ = @import("server/items.zig");
     _ = @import("server/companion_items.zig");
     _ = @import("server/companion_weapons.zig");
     _ = @import("domain/player_pose.zig");

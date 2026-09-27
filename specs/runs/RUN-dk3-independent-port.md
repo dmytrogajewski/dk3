@@ -5447,3 +5447,82 @@ issues: credits requests absent `c_hiro_cred.dkm`, e3m4b names absent `e3m4_intr
 and e3m6_cinemid refers to `monster_gharroth` while actor tuning names
 `monster_garroth`. `cinematic-authoring-audit.json` is asset diagnosis only, not
 map-load or playback acceptance. Reference behavior is being checked before repair.
+
+## Sequence 290 — campaign admission, pickup projection and authored bot continuation
+
+Continues the full accepted independent port on `rewrite/native-zig-runtime`.
+Main, the installed preserved game, user saves and live service remain unchanged.
+Bare `zig build play` remains the sequence-286 native development entry point.
+
+The sequence-289 fresh opening replay failed at Crox 425 in the second pool after
+all 115 intro shots, ordinary marsh traversal, controls and bridge resupply. Its
+last living inventory held 135 Ion rounds; zero ammunition was the death reset,
+not exhaustion. `runtime-zig-290/bridge-second-pool/` clears that Crox from the dry
+bank with ordinary fire, traverses the climb and activates the authored boss.
+The old boss patrol then loses its firing line at the west cliff. Lower-bank and
+narrow-plateau alternatives fail survival; the wider wave-defense patrol hits the
+actual east `trigger_hurt` (5000 damage, x=-623..-619). These retained failures are
+driver evidence, not authorization to change authored damage/geometry. The next
+patrol preserves clearance from both cliff and barrier and handles nearby skeets.
+
+A real rendering failure used frame 10030 on spawned Ion ammunition: a released
+sound-event transport slot retained its animation/event fields. Pickup binding now
+initializes the projection, and publication clears old wire state. A poison-frame
+regression explicitly executes from the native root. Three bot regressions
+cover prerequisite completion, allied live control reservations and lift riding.
+Bots retain the original blocked door while performing prerequisite controls;
+ordinary `use` logs show both 507→18 and 508→22 chains in the running server.
+`deathtag-control-continuation/` is a Debug diagnostic combination. The coherent
+`deathtag-lift-rider/` still has no carrier/capture despite movement, pickups,
+attacks, opponent damage and respawns by all four participants. No complete
+objective-route or multiplayer acceptance is transferred from earlier runtimes.
+
+Consolidated installation:
+`b55eef1a5de4fe3fdbb54020b83889f649264cb3b8a650690b19d9b868710e54`.
+Unchanged asset manifest:
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+228 native contracts pass (146 native root, 48 actors, 24 weapons, 2 inventory,
+8 items); 17 input/evidence checks pass. Assertions remain enabled. The first new
+cinematic fixture had an invalid test header and failed; correcting that fixture
+produces the passing consolidated result. No unrelated broad suite is repeated.
+
+The supplied cinematic audit becomes three reproducible engine regressions:
+`cinematic-before-e3m4b/` fails InvalidFileSize, `cinematic-before-e3m6a/` fails
+UnknownCinematicClass, and `cinematic-before-credits/` fails InvalidFileSize on
+`c39087674306439fae19c80553f9b3e771b75f34781d1d7ab9ee7fcf92039f4b`.
+The repaired immutable build above passes all three narrow cases: e3m4b admission
+and gameplay save restoration; e3m6a's 16-shot mid-cinematic and completed restore;
+credits' two-shot playback and completed restore. e3m6a uses explicit diagnostic
+activation of its actual authored trigger after the arrival cinematic. This is
+not a connected boss encounter, credits presentation qualification or campaign
+traversal. Post-credits direct-map player view is dark and remains outside the
+narrow playback result. Shared cinematic changes require the opening regression.
+Combined immutable-run identity:
+`f31deb83ece0f3de17e7730797d948b1fb17131af838145e90051051842c602a`.
+
+Private behavior review confirms missing programs do not start and absent actors
+receive no queued command. Unknown spawn classes remain errors; empty IDs no
+longer alias unrelated unnamed performers. Empty/oversized/malformed files remain
+errors. Credits has no c_hiro_cred model in the local original archives; its actor
+only carries timed door-use/removal tasks. Such control-only classes may lack
+media. Intentional correction: render no missing-model marker for this carrier;
+real performances still require metadata. See tracked provenance for reviewed
+reference paths; no private implementation or assets were admitted.
+
+`bridge-east-plateau/` was invalidated because build-prefix module replacement
+raced with staging. The specific guarded process group was terminated. New
+campaign/match runs use immutable installation modules by default and verify both
+selected identities and copied bytes. Mismatches invalidate setup. A driver
+regression replaces a module between identity recording and copy and confirms
+rejection. Explicit mixed-build match diagnostics require a separate flag.
+No evidence from that interrupted mixed run is accepted. Fresh continuous opening,
+remaining campaign, weapon interactions, human multiplayer, rooms and release
+remain open in the tracked current acceptance matrix.
+
+The `bridge-barrier-clearance/` replay kills the Thunderskeet and observes all ten
+wave actors but dies under remaining attacks before collecting the shield. The
+following `bridge-reward-resupply/` replay dies before boss defeat. Both are failed
+routes; no fresh acceptance is assembled from them. Further combat diagnosis must
+record actual damage sources rather than infer splash/self-damage from health loss.
+`cinematic-after-e3m6a/` and `cinematic-after-credits/` completed successfully with
+actual post-playback saves/restores; their final rendered frames were inspected.

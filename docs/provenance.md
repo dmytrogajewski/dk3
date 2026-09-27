@@ -186,3 +186,20 @@ and `base/Audio/DkAudioEngine_Miles/S_Calls.cpp`). Supplied e1m2 authoring refer
 performer identity; failed audio registration logs the original path and leaves
 playback running. There is no asset-name substitution or copied private code.
 The small public test fixture is project-authored from the observed record contract.
+
+Sequence 290 reviews absent cinematic records/recipients in the private reference
+(`base/dk_/dk_gce_main.cpp`, `dlls/world/cin_playback.cpp`) and the missing-model
+registration behavior (`dlls/world/cine_entities.cpp`, `base/ref_gl/gl_model.cpp`,
+`base/ref_gl/gl_rmain.cpp`). Missing program files do not start playback, and commands
+for absent actors have no recipient. Native handling now preserves those contracts;
+empty, oversized and malformed supplied files remain errors. Unknown spawn classes
+are still rejected. Empty unique IDs cannot bind unrelated unnamed performers.
+
+The supplied credits program creates a timed door-use carrier whose computed model
+is absent from both the original local archives and converted packages. Native code
+permits missing media only when every task for the class is control/lifetime work
+and at least one task uses a target. It preserves the authored timing and removal.
+Intentional presentation correction: that control carrier is invisible rather than
+using the reference renderer's missing-model marker. Actual character performances
+still require their model metadata. No private implementation or asset is imported;
+public parser fixtures are independently authored.

@@ -72,6 +72,21 @@ pub const State = struct {
         self.brains[index] = null;
         engine.config(c.CS_PLAYERS + @as(i32, @intCast(index)), "");
     }
+    fn assigned(self: *const State, world: *data.World, clients: *const Clients, requester: usize, obstacle: u32) bool {
+        const player = clients.entities[requester] orelse return false;
+        const team = (world.get(player, data.Session) catch return false).*;
+        for (self.brains, clients.entities, 0..) |maybe, candidate, index| {
+            if (index == requester) continue;
+            const other = candidate orelse continue;
+            const brain = maybe orelse continue;
+            const control = brain.control orelse continue;
+            if (control.route_obstacle != obstacle) continue;
+            if ((world.get(other, data.Health) catch continue).current <= 0) continue;
+            const session = (world.get(other, data.Session) catch continue).*;
+            if (@import("../domain/multiplayer.zig").allied(team, session)) return true;
+        }
+        return false;
+    }
     pub fn step(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, clients: *Clients, router: *@import("targets.zig").Router, service: nav.Service, now: i64) !void {
         _ = router;
         if (!@import("multiplayer.zig").enabled()) return;
@@ -154,27 +169,40 @@ pub const State = struct {
                 destination = (try world.get(other, data.Transform)).position;
             };
             var control_aim: ?v.Vec3 = null;
-            if (brain.control) |control| {
+            if (brain.control) |previous| {
                 // Keep a remote control goal while the bot makes actual route
                 // progress; a fixed trip deadline abandoned cross-base controls.
                 brain.control_until = @max(brain.control_until, brain.route.progress_ms + 15000);
-                control_aim = try routes.aim(world, control);
-                if (control_aim == null or now >= brain.control_until) {
-                    if (control_aim != null) {
-                        brain.avoided = control.id;
+                if (routes.completed(world, previous) or now >= brain.control_until) {
+                    if (!routes.completed(world, previous)) {
+                        brain.avoided = previous.id;
                         brain.avoid_until = now + 10000;
                     }
                     brain.control = null;
                     brain.route = .{};
-                    control_aim = null;
                 } else {
-                    destination = control.point;
-                    if (control.action == .touch and nav.horizontalDistance(pose.position, control.point) < 24) destination = control_aim;
+                    var control = previous;
+                    control_aim = try routes.aim(world, control);
+                    if (control_aim == null) {
+                        if (try routes.advance(world, slots, projections, entity, control, service, now)) |next| {
+                            control = next;
+                            brain.control = next;
+                            brain.route = .{};
+                            control_aim = try routes.aim(world, next);
+                        }
+                    }
+                    // Delayed relays and moving prerequisite doors retain the
+                    // original route request while no next control is ready.
+                    destination = if (control_aim == null) pose.position else control.point;
+                    if (control.action == .touch and nav.horizontalDistance(pose.position, control.point) < 24 and control_aim != null) destination = control_aim;
                 }
             }
             if (now < brain.yield_until) {
                 destination = brain.yield_point;
             } else brain.yield_point = null;
+            if (brain.control == null) if (destination) |goal| {
+                if (try routes.ridePoint(world, slots, entity, goal)) |point| destination = point;
+            };
             var movement: v.Vec3 = @splat(0);
             var crouch = false;
             var ladder = false;
@@ -201,9 +229,17 @@ pub const State = struct {
                     } else {
                         const control = try routes.seek(world, slots, projections, entity, toward, service, now, if (now < brain.avoid_until) brain.avoided else 0);
                         if (control != null and (brain.control == null or control.?.id != brain.control.?.id)) {
-                            brain.control = control;
-                            brain.control_until = now + 15000;
-                            brain.route = .{};
+                            if (brain.control == null and self.assigned(world, clients, index, control.?.route_obstacle)) {
+                                // A teammate fetches the remote control while
+                                // this bot stays available to cross the door.
+                                movement = @splat(0);
+                            } else {
+                                var next = control.?;
+                                if (brain.control) |parent| next.route_obstacle = parent.route_obstacle;
+                                brain.control = next;
+                                brain.control_until = now + 15000;
+                                brain.route = .{};
+                            }
                         } else if (brain.control == null and now - brain.route.progress_ms >= 3000 and brain.goal != 0) {
                             brain.avoided = brain.goal;
                             brain.avoid_until = now + 10000;
@@ -251,7 +287,10 @@ pub const State = struct {
             if (crouch) input.upmove = -127;
             if (now < brain.jump_until) input.upmove = 127;
             if ((ladder or player.water_level >= 2) and @abs(movement[2]) > 8) input.upmove = if (movement[2] > 0) 127 else -127;
-            if (use_control) _ = engine.gateway.call(c.BOTLIB_EA_COMMAND, .{ @as(isize, @intCast(index)), @as([*:0]const u8, "use") });
+            if (use_control) {
+                if (engine.integer("developer") > 0) engine.print(try std.fmt.bufPrintZ(&message, "dk3 bot control: slot={d} use={d} obstacle={d} route_obstacle={d}\n", .{ index, brain.control.?.id, brain.control.?.obstacle, brain.control.?.route_obstacle }));
+                _ = engine.gateway.call(c.BOTLIB_EA_COMMAND, .{ @as(isize, @intCast(index)), @as([*:0]const u8, "use") });
+            }
             _ = engine.gateway.call(c.BOTLIB_USER_COMMAND, .{ @as(isize, @intCast(index)), &input });
         }
     }
@@ -364,4 +403,27 @@ test "bot resupply routes to a standing origin without moving or granting the we
     (try world.get(item, data.Pickup)).visible = false;
     try t.expectEqual(@as(u32, 0), try pickupGoal(&world, player, &table, service, 0, true, 100));
     try t.expectEqual(@as(usize, 4), fake.calls);
+}
+
+test "only a living teammate can reserve an authored control route" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 4);
+    defer world.deinit();
+    var clients: Clients = .{};
+    clients.entities[0] = try world.create(1, .{data.Session{ .team = .red }});
+    const helper = try world.create(2, .{ data.Session{ .team = .red }, data.Health{} });
+    clients.entities[1] = helper;
+    var state: State = .{};
+    state.brains[1] = .{ .control = .{ .id = 507, .obstacle = 321, .route_obstacle = 110, .point = @splat(0), .action = .use } };
+    try t.expect(state.assigned(&world, &clients, 0, 110));
+    try t.expect(!state.assigned(&world, &clients, 1, 110));
+    try t.expect(!state.assigned(&world, &clients, 0, 319));
+    (try world.get(helper, data.Health)).current = 0;
+    try t.expect(!state.assigned(&world, &clients, 0, 110));
+    (try world.get(helper, data.Health)).current = 100;
+    (try world.get(helper, data.Session)).team = .blue;
+    try t.expect(!state.assigned(&world, &clients, 0, 110));
+    (try world.get(helper, data.Session)).team = .red;
+    state.brains[1].?.control = null;
+    try t.expect(!state.assigned(&world, &clients, 0, 110));
 }

@@ -48,6 +48,25 @@ def collect_boss_drop(driver, capture, report):
             raise RuntimeError("Consumed boss drop without observed player armor")
         return
     before = driver.observe()["armor"]
+    if drop["ground"] == "null" and drop["pos"][2] > driver.observe()["pos"][2] + 32:
+        # The real reward is still falling. Move under it on the current bank;
+        # its airborne model height is not a walkable player destination.
+        walk(driver, (*drop["pos"][:2], driver.observe()["pos"][2]), capture, tolerance=16)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            state = driver.observe()
+            drop = items(driver)[identity]
+            if state["health"] <= 0:
+                raise RuntimeError("Player died approaching the falling boss reward")
+            if state["armor"] > before:
+                if drop["visible"] != "0":
+                    raise RuntimeError("Armor increase did not consume the observed boss reward")
+                checkpoint(driver, capture, report, "bridge_boss_reward")
+                return
+            if drop["ground"] != "null":
+                break
+        else:
+            raise TimeoutError("Boss reward neither landed nor contacted the player")
     if driver.observe()["pos"][2] > 900 and drop["pos"][2] < 800:
         cross_drop(driver, (drop["pos"][0], drop["pos"][1], drop["pos"][2] + 24))
     walk(driver, (drop["pos"][0], drop["pos"][1], drop["pos"][2] + 24), capture, tolerance=16)
@@ -224,6 +243,9 @@ def bridge_route(driver, capture, report, phase="bridge-arrival"):
     if state["map"] != "e1m1b" or state["skill"] != 3 or state["health"] <= 0:
         raise RuntimeError(f"Invalid ordinary bridge checkpoint: {state}")
     try:
+        if phase == "bridge-climb":
+            clear_ford(driver, capture, report, identities=(425,))
+            return bridge_climb(driver, capture, report, start_index=5)
         if phase == "bridge-supplies":
             return bridge_span(driver, capture, report)
         if phase == "bridge-crossing":
@@ -293,13 +315,23 @@ def bridge_span(driver, capture, report):
             break
     if not control_visible:
         raise RuntimeError("West turret control has no confirmed firing lane from the approach")
+    return bridge_climb(driver, capture, report)
+
+
+def bridge_climb(driver, capture, report, start_index=0):
     for index, point in enumerate(((-2487, 360, 472), (-2640, 463, 490), (-2687, 607, 532),
             (-2679, 743, 528), (-2608, 944, 528), (-2384, 864, 472), (-2272, 836, 472),
             (-2120, 784, 472), (-1972, 712, 472), (-1973, 581, 471), (-1969, 396, 517),
             (-1973, 294, 557), (-1953, 198, 604), (-1834, 5, 705), (-1800, -84, 774),
             (-1775, -174, 823), (-1659, -218, 824), (-1591, -51, 863), (-1568, 159, 899),
             (-1705, 306, 961), (-1798, 463, 980), (-1751, 665, 986))):
+        if index < start_index:
+            continue
         walk(driver, point, capture, combat=True)
+        if index == 4:
+            # This dry bank overlooks the second pool. The previous driver
+            # ignored its authored Crox and entered the water within bite range.
+            clear_ford(driver, capture, report, identities=(425,))
         if index in (4, 12, 17):
             checkpoint(driver, capture, report, f"bridge_climb_{index}")
     for point in ((-1648, 816, 984), (-1616, 752, 984)):
@@ -342,6 +374,7 @@ def bridge_battle(driver, capture, report):
     state = driver.observe()
     from runtime_arena_combat import battle
     contacts, waves = battle(driver, capture)
+    collect_boss_drop(driver, capture, report)
     checkpoint(driver, capture, report, "bridge_boss_defeated")
     driver.load("bridge_boss_defeated")
     restored = next(row for row in actors(driver).values() if row["unique"] == "tskeet")

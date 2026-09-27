@@ -44,6 +44,9 @@ class CampaignEvidenceTests(unittest.TestCase):
         self.shots.remove(30)
         with self.assertRaises(RuntimeError):
             self.complete()
+        self.shots.add(999)
+        with self.assertRaises(RuntimeError):
+            self.complete()
         self.shots.add(30)
         self.rows[-1]["contacted"] = False
         with self.assertRaisesRegex(RuntimeError, "target contact"):

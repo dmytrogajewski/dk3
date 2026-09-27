@@ -28,18 +28,19 @@ def run(args):
     if args.report.exists() and any(args.report.iterdir()):
         raise RuntimeError("Match evidence requires a fresh report directory")
     args.report.mkdir(parents=True, exist_ok=True)
-    identity = record_identity(args.engine, args.prefix, args.report)
+    identity = record_identity(args.engine, args.prefix, args.report, require_installation=not args.diagnostic_runtime)
     dedicated = args.engine / "bin/dk3ded"
     executable = hashlib.sha256(dedicated.read_bytes()).hexdigest()
     scenario = {"dm": (0, "e1dm1"), "ctf": (4, "e1ctf1"), "deathtag": (8, "e1dt1")}[args.mode]
     log = args.report / "server.log"
     samples = []
     result = {"identity": identity, "dedicated_sha256": executable, "mode": args.mode,
+              "diagnostic_runtime": args.diagnostic_runtime,
               "map": args.map or scenario[1], "setup": "Fresh map, normal bot starting inventory; no placements or grants.",
               "scope": "Natural bot movement, pickup, combat and respawn; one contested capture for objective modes. No human network or complete mode acceptance."}
     with tempfile.TemporaryDirectory(prefix="dk3-native-match-") as temporary:
         home = Path(temporary)
-        stage_client_modules(args.prefix, home)
+        stage_client_modules(args.prefix, home, installation=None if args.diagnostic_runtime else args.engine)
         settings = {"net_enabled": "0", "fs_basepath": str(args.engine / "share"),
                     "fs_homepath": str(home), "fs_homedatapath": str(home),
                     "fs_homestatepath": str(home / "state"), "com_basegame": "dk3",
@@ -152,14 +153,16 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True)
-    parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
+    parser.add_argument("--prefix", type=Path, help="Runtime source; defaults to the immutable --engine installation")
+    parser.add_argument("--diagnostic-runtime", action="store_true", help="Allow explicitly mixed runtime modules for subsystem diagnosis")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--mode", choices=("dm", "ctf", "deathtag"), required=True)
     parser.add_argument("--map")
     parser.add_argument("--bots", type=int, choices=range(2, 9), default=4)
     parser.add_argument("--seconds", type=int, default=300)
     args = parser.parse_args()
-    args.engine, args.prefix, args.report = args.engine.resolve(), args.prefix.resolve(), args.report.resolve()
+    args.engine = args.engine.resolve()
+    args.prefix, args.report = (args.prefix or args.engine).resolve(), args.report.resolve()
     run(args)
 
 

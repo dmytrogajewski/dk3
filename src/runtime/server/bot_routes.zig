@@ -9,7 +9,22 @@ const engine = @import("../engine/server.zig");
 const c = @import("../engine/abi.zig").c;
 const prop = @import("properties.zig");
 const Slots = @import("../engine/slots.zig").Slots;
-pub const Control = struct { id: u32, obstacle: u32, point: v.Vec3, action: enum { use, touch, shoot } };
+pub const Control = struct { id: u32, obstacle: u32, route_obstacle: u32, point: v.Vec3, action: enum { use, touch, shoot } };
+pub fn completed(world: *data.World, control: Control) bool {
+    const obstacle = world.find(control.route_obstacle) orelse return true;
+    const mover = world.get(obstacle, data.Mover) catch return true;
+    return mover.state == .open or mover.state == .opening;
+}
+/// Finishing a prerequisite does not finish the original blocked route. Resolve
+/// the next real control from the current world state, retaining the route goal.
+pub fn advance(world: *data.World, slots: *Slots, projections: []const @import("../engine/abi.zig").EntityProjection, actor: ecs.Entity, control: Control, service: nav.Service, now: i64) !?Control {
+    if (completed(world, control)) return null;
+    const obstacle = world.find(control.route_obstacle) orelse return null;
+    var dependencies: [64]u32 = undefined;
+    var next = try seekObstacle(world, slots, projections, actor, obstacle, service, now, 0, false, &dependencies, 0) orelse return null;
+    next.route_obstacle = control.route_obstacle;
+    return next;
+}
 pub fn aim(world: *data.World, control: Control) !?v.Vec3 {
     const entity = world.find(control.id) orelse return null;
     if (world.get(entity, data.Health) catch null) |health| if (health.current <= 0) return null;
@@ -23,6 +38,24 @@ pub fn center(world: *data.World, entity: ecs.Entity) !v.Vec3 {
     const pose = (try world.get(entity, data.Transform)).*;
     const body = world.get(entity, data.Body) catch return pose.position;
     return v.add(pose.position, v.scale(v.add(body.mins, body.maxs), 0.5));
+}
+/// Stay inside a lift shaft until its authored travel brings the rider to the
+/// requested floor. Running into the upper landing early can block the pusher.
+pub fn ridePoint(world: *data.World, slots: *const Slots, actor: ecs.Entity, destination: v.Vec3) !?v.Vec3 {
+    const ground = (try world.get(actor, data.Player)).ground_entity;
+    if (ground >= slots.occupants.len) return null;
+    const platform = slots.occupants[ground] orelse return null;
+    const mover = world.get(platform, data.Mover) catch return null;
+    if (mover.angular or @abs(mover.opened[2] - mover.closed[2]) < 18) return null;
+    if (@abs(mover.opened[0] - mover.closed[0]) > 1 or @abs(mover.opened[1] - mover.closed[1]) > 1) return null;
+    const rider = (try world.get(actor, data.Transform)).position;
+    if (@abs(destination[2] - rider[2]) <= 18) return null;
+    const pose = (try world.get(platform, data.Transform)).position;
+    const endpoint = if (@abs(destination[2] - (rider[2] + mover.closed[2] - pose[2])) < @abs(destination[2] - (rider[2] + mover.opened[2] - pose[2]))) mover.closed else mover.opened;
+    if (@abs(destination[2] - (rider[2] + endpoint[2] - pose[2])) >= @abs(destination[2] - rider[2]) - 18) return null;
+    var point = try center(world, platform);
+    point[2] = rider[2];
+    return point;
 }
 fn linked(source: data.MapObject, target: []const u8) bool {
     if (target.len == 0) return false;
@@ -69,7 +102,10 @@ fn seekInternal(world: *data.World, slots: *Slots, projections: []const @import(
     if (hit.fraction == 1 or hit.entity >= slots.occupants.len) return null;
     const obstacle = slots.occupants[hit.entity] orelse return null;
     var dependencies: [64]u32 = undefined;
-    return seekObstacle(world, slots, projections, actor, obstacle, service, now, avoided, diagnostic, &dependencies, 0);
+    var control = try seekObstacle(world, slots, projections, actor, obstacle, service, now, avoided, diagnostic, &dependencies, 0) orelse return null;
+    const mover = world.get(obstacle, data.Mover) catch return null;
+    control.route_obstacle = if (world.find(mover.group)) |master| try world.persistentId(master) else try world.persistentId(obstacle);
+    return control;
 }
 fn seekObstacle(world: *data.World, slots: *Slots, projections: []const @import("../engine/abi.zig").EntityProjection, actor: ecs.Entity, blocked: ecs.Entity, service: nav.Service, now: i64, avoided: u32, diagnostic: bool, dependencies: *[64]u32, depth: usize) anyerror!?Control {
     var obstacle = blocked;
@@ -107,7 +143,7 @@ fn seekObstacle(world: *data.World, slots: *Slots, projections: []const @import(
             const distance = v.length(v.subtract(point, pose.position));
             if (distance >= nearest) continue;
             nearest = distance;
-            result = .{ .id = control_id, .obstacle = obstacle_id, .point = point, .action = action };
+            result = .{ .id = control_id, .obstacle = obstacle_id, .route_obstacle = obstacle_id, .point = point, .action = action };
         } else for (obstructions, 0..) |blocked_slot, index| {
             if (blocked_slot >= slots.occupants.len or std.mem.indexOfScalar(u16, obstructions[0..index], blocked_slot) != null) continue;
             const blocker = slots.occupants[blocked_slot] orelse continue;
@@ -214,4 +250,42 @@ test "route controls follow authored relay chains without bypassing locks or scr
     (try world.get(relay, data.MapObject)).classname = "trigger_relay";
     (try world.get(relay, data.MapObject)).target = "relay";
     try t.expect(!try chain(&world, button, door, 1, 0, &visited, 0));
+}
+
+test "an open prerequisite keeps the original blocked route active" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 4);
+    defer world.deinit();
+    const root = try world.create(110, .{data.Mover{ .closed = @splat(0), .opened = .{ 0, 0, 128 }, .motion = .{} }});
+    const prerequisite = try world.create(321, .{data.Mover{ .closed = @splat(0), .opened = .{ 0, 0, 128 }, .motion = .{}, .state = .open }});
+    const control: Control = .{ .id = 507, .obstacle = 321, .route_obstacle = 110, .point = @splat(0), .action = .use };
+    try t.expect(!completed(&world, control));
+    try world.destroy(prerequisite);
+    try t.expect(!completed(&world, control));
+    (try world.get(root, data.Mover)).state = .opening;
+    try t.expect(completed(&world, control));
+    (try world.get(root, data.Mover)).state = .closing;
+    try t.expect(!completed(&world, control));
+    try world.destroy(root);
+    try t.expect(completed(&world, control));
+}
+
+test "a lift rider centers below the landing and resumes its route at landing height" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 4);
+    defer world.deinit();
+    var slots: Slots = .{};
+    const platform = try world.create(337, .{ data.Transform{ .position = .{ 0, 0, -98 } }, data.Body{ .mins = .{ 616, 1264, -144 }, .maxs = .{ 712, 1344, 96 } }, data.Mover{ .closed = @splat(0), .opened = .{ 0, 0, -98 }, .motion = .{}, .state = .open } });
+    const slot = try slots.acquire(platform, null);
+    const actor = try world.create(1, .{ data.Player{ .ground_entity = slot }, data.Transform{ .position = .{ 631, 1300, 22 } } });
+    const goal: v.Vec3 = .{ 272, 1304, 120 };
+    try t.expectEqual(@as(?v.Vec3, .{ 664, 1304, 22 }), try ridePoint(&world, &slots, actor, goal));
+    // Ordinary same-height traversal and non-riders remain unaffected.
+    try t.expectEqual(@as(?v.Vec3, null), try ridePoint(&world, &slots, actor, .{ 272, 1304, 22 }));
+    (try world.get(actor, data.Player)).ground_entity = c.ENTITYNUM_WORLD;
+    try t.expectEqual(@as(?v.Vec3, null), try ridePoint(&world, &slots, actor, goal));
+    (try world.get(actor, data.Player)).ground_entity = slot;
+    (try world.get(platform, data.Transform)).position[2] = 0;
+    (try world.get(actor, data.Transform)).position[2] = 120;
+    try t.expectEqual(@as(?v.Vec3, null), try ridePoint(&world, &slots, actor, goal));
 }

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Exercise the isolated replacement ABI and worker barriers, not gameplay acceptance."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -32,13 +33,26 @@ def send(pipe, command):
         os.close(fd)
 
 
-def stage_client_modules(prefix, home):
+def runtime_files(prefix):
+    """Resolve an immutable installation, or an explicitly chosen diagnostic build."""
+    installed = (prefix / "installation.json").is_file()
+    module_root = prefix / ("share/dk3" if installed else "lib/dk3")
+    files = {f"dk3/{name}.so": module_root / f"{name}.so" for name in ("qagame", "cgame", "ui")}
+    files["dk3/scripts/dk3-projectile-weather.shader"] = prefix / "share/dk3/scripts/dk3-projectile-weather.shader"
+    return files
+
+
+def stage_client_modules(prefix, home, *, installation=None):
     """Copy native modules and owned shaders into an isolated profile."""
     (home / "dk3/scripts").mkdir(parents=True)
-    for module in ("qagame", "cgame", "ui"):
-        shutil.copy2(prefix / f"lib/dk3/{module}.so", home / f"dk3/{module}.so")
-    shutil.copy2(prefix / "share/dk3/scripts/dk3-projectile-weather.shader",
-                 home / "dk3/scripts/dk3-projectile-weather.shader")
+    manifest = json.loads((installation / "installation.json").read_text())["files"] if installation else None
+    for destination, source in runtime_files(prefix).items():
+        shutil.copy2(source, home / destination)
+        if manifest is not None:
+            with (home / destination).open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            if digest != manifest.get("share/" + destination):
+                raise RuntimeError(f"Staged runtime changed or differs from its installation: {source}")
 
 
 def client_settings(engine, home, renderer="opengl1", workers=4):

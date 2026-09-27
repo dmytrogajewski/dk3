@@ -142,3 +142,38 @@ class NativeInputTests(unittest.TestCase):
         with patch.object(driver, "issue"), patch.object(driver, "observe", side_effect=observations) as observe:
             self.assertEqual(driver.stop_forward()["cmd"], 250)
             self.assertEqual(observe.call_count, 4)
+
+
+class RuntimeGenerationTests(unittest.TestCase):
+    def test_staging_rejects_a_module_changed_after_identity_was_recorded(self):
+        import hashlib
+        import json
+        from pathlib import Path
+        import tempfile
+        from runtime_input import record_identity
+        from runtime_probe import stage_client_modules
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            engine, prefix, report = root / 'installed', root / 'building', root / 'report'
+            (engine / 'bin').mkdir(parents=True)
+            (engine / 'bin/dk3').write_bytes(b'engine')
+            report.mkdir()
+            records = {}
+            for name in ('qagame.so', 'cgame.so', 'ui.so', 'scripts/dk3-projectile-weather.shader'):
+                installed = engine / 'share/dk3' / name
+                installed.parent.mkdir(parents=True, exist_ok=True)
+                installed.write_text(name)
+                source = prefix / ('lib/dk3' if name.endswith('.so') else 'share/dk3') / name
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text(name)
+                records['share/dk3/' + name] = hashlib.sha256(name.encode()).hexdigest()
+            (engine / 'installation.json').write_text(json.dumps({'files': records}))
+            record_identity(engine, prefix, report, require_installation=True)
+            (prefix / 'lib/dk3/cgame.so').write_bytes(b'next build')
+            with self.assertRaisesRegex(RuntimeError, 'Staged runtime changed'):
+                stage_client_modules(prefix, root / 'rejected', installation=engine)
+            with self.assertRaisesRegex(RuntimeError, 'runtime differs'):
+                record_identity(engine, prefix, report, require_installation=True)
+            # The immutable generation remains usable while a new one builds.
+            stage_client_modules(engine, root / 'accepted', installation=engine)
+            self.assertEqual((root / 'accepted/dk3/cgame.so').read_bytes(), b'cgame.so')
