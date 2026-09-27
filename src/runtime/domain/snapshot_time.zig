@@ -173,6 +173,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
             switch (value.attack) {
+                .meteor => |*meteor| try shift(&meteor.next_ms, delta),
                 .npc_wisp => |*wisp| {
                     try shift(&wisp.next_ms, delta);
                     try active(&wisp.sine_ms, delta);

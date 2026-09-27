@@ -17,6 +17,9 @@ pub const doombat = @import("doombat.zig");
 pub const griffon = @import("griffon.zig");
 pub const harpy = @import("harpy.zig");
 pub const dragon = @import("dragon.zig");
+pub const garroth = @import("garroth.zig");
+pub const stavros = @import("stavros.zig");
+pub const meteors = @import("meteors.zig");
 pub const wyndrax = @import("wyndrax.zig");
 pub const wisp = @import("wisp.zig");
 pub const buboid = @import("buboid.zig");
@@ -55,9 +58,9 @@ pub const thunderskeet = @import("thunderskeet.zig");
 pub const rockgat = @import("rockgat.zig");
 pub const crox = @import("crox.zig");
 pub const cambot = @import("cambot.zig");
-pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat, companion, ragemaster, skeleton, satyr, column, dwarf, lycanthir, spider, smallspider, cryotech, surgeon, labmonkey, inmater, lasergat, knight1, knight2, cerberus, piperat, plague_rat, shark, venomvermin, rotworm, centurion, fletcher, battleboar, rocketdude, rocketmp, thief, blackprisoner, whiteprisoner, femgang, sludgeminion, sealcaptain, sealcommando, sealgirl, uzigang, psyclaw, doombat, griffon, harpy, dragon, deathsphere, chaingang, buboid, wyndrax };
+pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat, companion, ragemaster, skeleton, satyr, column, dwarf, lycanthir, spider, smallspider, cryotech, surgeon, labmonkey, inmater, lasergat, knight1, knight2, cerberus, piperat, plague_rat, shark, venomvermin, rotworm, centurion, fletcher, battleboar, rocketdude, rocketmp, thief, blackprisoner, whiteprisoner, femgang, sludgeminion, sealcaptain, sealcommando, sealgirl, uzigang, psyclaw, doombat, griffon, harpy, dragon, deathsphere, chaingang, buboid, wyndrax, garroth, stavros };
 pub fn sequenceAttack(kind: Kind) bool {
-    return groundAttack(kind) or kind == .doombat or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or kind == .chaingang or kind == .buboid or kind == .wyndrax;
+    return groundAttack(kind) or kind == .doombat or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or kind == .chaingang or kind == .buboid or kind == .wyndrax or kind == .garroth or kind == .stavros;
 }
 pub fn groundAttack(kind: Kind) bool {
     return switch (kind) {
@@ -134,6 +137,8 @@ pub const entries = [_]Definition{
     .{ .classname = "monster_chaingang", .kind = .chaingang, .run = "flya" },
     .{ .classname = "monster_buboid", .kind = .buboid },
     .{ .classname = "monster_wyndrax", .kind = .wyndrax },
+    .{ .classname = "monster_garroth", .kind = .garroth },
+    .{ .classname = "monster_stavros", .kind = .stavros, .run = "walka" },
 };
 pub fn find(name: []const u8) ?u8 {
     for (entries, 0..) |entry, i| if (@import("std").mem.eql(u8, name, entry.classname)) return @intCast(i);
@@ -181,6 +186,9 @@ test {
     _ = buboid;
     _ = wisp;
     _ = wyndrax;
+    _ = garroth;
+    _ = stavros;
+    _ = meteors;
     _ = archers;
     _ = missiles;
     _ = battleboar;

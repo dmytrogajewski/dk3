@@ -53,19 +53,8 @@ pub fn consume(entity: c.entityState_t) !void {
     }
     var mark_count: usize = 0;
     if (cue.mark) |name| if (v.length(normal) > 0.5) {
-        const shader: c.qhandle_t = @intCast(engine.gateway.call(c.CG_R_REGISTERSHADER, .{name.ptr}));
-        // Repeated stationary shots must not stack the texture's faint alpha fringe
-        // until its rectangular footprint becomes opaque.
-        for (&decals) |*mark| if (mark.shader == shader and v.dot(mark.normal, normal) > 0.95 and v.length(v.subtract(mark.origin, entity.pos.trBase)) < cue.radius * 0.5) {
-            mark.shader = 0;
-        };
         const angle = (cue.angle_degrees orelse @as(f32, @floatFromInt((serial *% 137) % 360))) * (std.math.pi / 180.0);
-        const projected = try marks.project(entity.pos.trBase, normal, cue.radius, angle);
-        for (projected.polygons[0..projected.count]) |polygon| {
-            decals[next_mark] = .{ .polygon = polygon, .shader = shader, .at = entity.time, .origin = entity.pos.trBase, .normal = normal };
-            next_mark = (next_mark + 1) % decals.len;
-        }
-        mark_count = projected.count;
+        mark_count = try decal(entity.pos.trBase, normal, cue.radius, name, angle, entity.time);
     };
     if (cue.particles > 0) {
         const shader: c.qhandle_t = @intCast(engine.gateway.call(c.CG_R_REGISTERSHADER, .{cue.particle_shader.ptr}));
@@ -128,4 +117,18 @@ pub fn draw(now: i64, ref: *const c.refdef_t) void {
         const fade = 1 - @as(f32, @floatFromInt(age)) / @as(f32, @floatFromInt(light.duration));
         _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &light.origin, engine.floatArg(light.radius * fade), engine.floatArg(light.color[0]), engine.floatArg(light.color[1]), engine.floatArg(light.color[2]) });
     }
+}
+
+/// Actor effects use the same bounded decal lifetime and overlap policy as weapons.
+pub fn decal(origin: v.Vec3, normal: v.Vec3, radius: f32, name: [:0]const u8, angle: f32, now: i64) !usize {
+    const shader: c.qhandle_t = @intCast(engine.gateway.call(c.CG_R_REGISTERSHADER, .{name.ptr}));
+    for (&decals) |*mark| if (mark.shader == shader and v.dot(mark.normal, normal) > 0.95 and v.length(v.subtract(mark.origin, origin)) < radius * 0.5) {
+        mark.shader = 0;
+    };
+    const projected = try marks.project(origin, normal, radius, angle);
+    for (projected.polygons[0..projected.count]) |polygon| {
+        decals[next_mark] = .{ .polygon = polygon, .shader = shader, .at = now, .origin = origin, .normal = normal };
+        next_mark = (next_mark + 1) % decals.len;
+    }
+    return projected.count;
 }

@@ -167,7 +167,13 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, @as(f32, @floatFromInt(at - attack.stepped_ms)) * 0.001)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
                 pose.position = hit.end;
                 if (hit.fraction < 1 or hit.start_solid) {
-                    velocity.linear = v.subtract(velocity.linear, v.scale(hit.normal, 2 * v.dot(velocity.linear, hit.normal)));
+                    const speed = v.length(velocity.linear);
+                    const incident = v.normalize(velocity.linear);
+                    var reflected = v.subtract(incident, v.scale(hit.normal, 2 * v.dot(incident, hit.normal)));
+                    for (&reflected) |*axis| if (@abs(axis.*) < 0.1) {
+                        axis.* = 0;
+                    };
+                    velocity.linear = v.scale(v.normalize(reflected), speed * 0.75);
                     state.forward = v.subtract(state.forward, v.scale(hit.normal, 2 * v.dot(state.forward, hit.normal)));
                     pose.angles = angles(state.forward);
                     pose.position = v.add(pose.position, v.scale(hit.normal, 0.03125));

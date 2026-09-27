@@ -87,6 +87,8 @@ pub const Actors = struct {
             .chaingang => &catalog.chaingang.attacks,
             .buboid => &catalog.buboid.attacks,
             .wyndrax => &catalog.wyndrax.attacks,
+            .garroth => &catalog.garroth.attacks,
+            .stavros => &catalog.stavros.attacks,
             .psyclaw => &catalog.psyclaw.attacks,
             .sludgeminion => &catalog.sludge.attacks,
             .rotworm => &catalog.rotworm.attacks,
@@ -134,7 +136,7 @@ pub const Actors = struct {
             if (second < 0 or second > @as(f32, @floatFromInt(definition.attacks[i].last - definition.attacks[i].first))) return error.InvalidActorStrike;
             definition.second_strikes[i] = if (second > 0) @intFromFloat(second) else null;
             if (policy.kind == .venomvermin and (i == 1 or i == 3)) definition.second_strikes[i] = @intFromFloat(second);
-            if (policy.kind == .psyclaw or policy.kind == .griffon or (policy.kind == .buboid and i < 2)) definition.second_strikes[i] = @intFromFloat(second);
+            if (policy.kind == .garroth or policy.kind == .psyclaw or policy.kind == .griffon or (policy.kind == .buboid and i < 2)) definition.second_strikes[i] = @intFromFloat(second);
             if (policy.kind == .uzigang or ((policy.kind == .sealcaptain or policy.kind == .sealgirl) and i == 1)) definition.second_strikes[i] = @intFromFloat(second);
             if (policy.kind == .rocketmp and i != 1) definition.second_strikes[i] = @intFromFloat(second);
             if (policy.kind == .blackprisoner or policy.kind == .whiteprisoner) definition.second_strikes[i] = @intFromFloat(second);
@@ -147,6 +149,10 @@ pub const Actors = struct {
         if (policy.kind == .dwarf or policy.kind == .lycanthir or policy.kind == .knight1 or policy.kind == .knight2 or policy.kind == .plague_rat or policy.kind == .fletcher or policy.kind == .battleboar or policy.kind == .rocketdude or policy.kind == .thief or policy.kind == .blackprisoner or policy.kind == .whiteprisoner or policy.kind == .femgang or policy.kind == .sealcaptain or policy.kind == .sealcommando or policy.kind == .sealgirl or policy.kind == .uzigang) definition.death_b = try animation.find(metadata, "dieb") orelse return error.MissingActorDeath;
         if (policy.kind == .femgang) definition.alternate_idle = try animation.find(metadata, "ambb") orelse return error.MissingFemgangIdle;
         if (policy.kind == .harpy and (definition.attacks[2].first > 191 or definition.attacks[2].last < 209)) return error.InvalidHarpyDrop;
+        if (policy.kind == .garroth) {
+            try self.ensure(catalog.find("monster_buboid").?);
+            definition.death_b = try animation.find(metadata, "dieb") orelse return error.MissingActorDeath;
+        }
         if (policy.kind == .buboid) definition.death_b = try animation.find(metadata, "dieb") orelse return error.MissingActorDeath;
         if (policy.kind == .chaingang) definition.death_d = try animation.find(metadata, "diec") orelse return error.MissingActorDeath;
         if (policy.kind == .griffon or policy.kind == .harpy or policy.kind == .chaingang or policy.kind == .buboid or policy.kind == .wyndrax) {
@@ -398,6 +404,7 @@ pub const Actors = struct {
                     const definition = self.table.definitions[actor.definition];
                     actor.death_pose = if (@abs(facing) < 0.3) definition.death_b else if (facing > 0) definition.death else definition.death_d;
                 };
+                if (kind == .garroth) actor.death_pose = if ((try world.get(entity, data.Random)).next() < 0.5) self.table.definitions[actor.definition].death else self.table.definitions[actor.definition].death_b;
                 if (kind == .buboid) actor.death_pose = self.table.definitions[actor.definition].death_b;
                 if (kind == .chaingang) actor.death_pose = if ((try world.get(entity, data.Random)).next() > 0.33) self.table.definitions[actor.definition].death else self.table.definitions[actor.definition].death_d;
                 if (catalog.entries[actor.definition].kind == .lycanthir) actor.death_pose = self.table.definitions[actor.definition].death_b;
@@ -540,6 +547,10 @@ pub const Actors = struct {
                 try @import("harpies.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
             } else if (!dead and policy.kind == .dragon and body.motion_owner == null) {
                 try @import("dragons.zig").step(world, slots, projections, entity, &actor, &pose, body, &velocity, self.table.definitions[actor.definition], now, elapsed);
+            } else if (!dead and policy.kind == .garroth and body.motion_owner == null) {
+                try @import("garroths.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
+            } else if (!dead and policy.kind == .stavros and body.motion_owner == null) {
+                try @import("stavros_actor.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
             } else if (!dead and policy.kind == .wyndrax and body.motion_owner == null) {
                 try @import("wyndrax_actor.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
             } else if (!dead and policy.kind == .buboid and body.motion_owner == null) {

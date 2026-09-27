@@ -15,6 +15,7 @@ pub const State = struct {
         prisoner_rock: @import("actor_catalog").prisoners.Rock,
         sludge_glob: @import("actor_catalog").sludge.Glob,
         gunner_burst: @import("actor_catalog").gunners.Burst,
+        meteor: @import("actor_catalog").meteors.State,
         npc_wisp: @import("actor_catalog").wyndrax.Wisp,
         wyndrax_zap: @import("actor_catalog").wyndrax.Zap,
         wyndrax_bolt: @import("actor_catalog").wyndrax.Bolt,

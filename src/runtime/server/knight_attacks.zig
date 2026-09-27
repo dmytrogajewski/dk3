@@ -41,7 +41,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.angles2 = @splat(0.45);
     projection.state.frame = @intFromEnum(state.attack);
     switch (state.attack) {
-        .npc_wisp, .wyndrax_zap, .wyndrax_bolt, .rocket, .rotworm_spit, .shaft, .prisoner_rock, .sludge_glob, .gunner_burst, .psyclaw_sphere, .fireball => return error.InvalidKnightAttack,
+        .meteor, .npc_wisp, .wyndrax_zap, .wyndrax_bolt, .rocket, .rotworm_spit, .shaft, .prisoner_rock, .sludge_glob, .gunner_burst, .psyclaw_sphere, .fireball => return error.InvalidKnightAttack,
         .knight_punch => {},
         .knight_zap => |value| {
             projection.state.origin2 = value.destination;
@@ -71,7 +71,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     const pose = (try world.get(entity, data.Transform)).*;
     const skip: u16 = if (world.find(state.owner)) |owner| (try world.get(owner, data.Binding)).slot else c.ENTITYNUM_NONE;
     switch (state.attack) {
-        .npc_wisp, .wyndrax_zap, .wyndrax_bolt, .rocket, .rotworm_spit, .shaft, .prisoner_rock, .sludge_glob, .gunner_burst, .psyclaw_sphere, .fireball => return error.InvalidKnightAttack,
+        .meteor, .npc_wisp, .wyndrax_zap, .wyndrax_bolt, .rocket, .rotworm_spit, .shaft, .prisoner_rock, .sludge_glob, .gunner_burst, .psyclaw_sphere, .fireball => return error.InvalidKnightAttack,
         .knight_zap => |*value| {
             while (state.stepped_ms + 100 <= @min(now, state.born_ms + 500)) {
                 state.stepped_ms += 100;

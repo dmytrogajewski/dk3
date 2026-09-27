@@ -336,6 +336,14 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
             if (attack.owner == 0 or attack.stepped_ms < attack.born_ms) return error.InvalidSavedActorAttack;
             switch (attack.attack) {
+                .meteor => |meteor| {
+                    try require(world, entity, .{data.Random});
+                    for ([_]f32{ meteor.damage, meteor.radius, meteor.speed, meteor.glow, meteor.bounce_max, meteor.delta }) |value| if (!std.math.isFinite(value)) return error.InvalidSavedActorAttack;
+                    if (meteor.damage < 0 or meteor.damage > 1000000 or meteor.radius < 0 or meteor.radius > 1000000 or meteor.speed < 0 or meteor.speed > 65536 or meteor.next_ms <= attack.stepped_ms or meteor.next_ms > attack.stepped_ms + (if (meteor.phase == .impact) @as(i64, 500) else 100) or meteor.glow <= 0 or meteor.glow > 3 or meteor.bounces > 6 or meteor.bounce_max < 0 or meteor.bounce_max > 5) return error.InvalidSavedActorAttack;
+                    for (meteor.scale) |axis| if (!std.math.isFinite(axis) or axis <= 0 or axis > 2) return error.InvalidSavedActorAttack;
+                    for (meteor.spin ++ meteor.normal) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 360) return error.InvalidSavedActorAttack;
+                    if (meteor.phase == .fragment and meteor.damage != 0) return error.InvalidSavedActorAttack;
+                },
                 .npc_wisp => |wisp| {
                     try require(world, entity, .{ data.Random, data.Health, data.Hurt });
                     if (wisp.target == 0 or wisp.phase >= 12 or !std.math.isFinite(wisp.personality) or @abs(wisp.personality) > 1 or !std.math.isFinite(wisp.alpha) or wisp.alpha <= 0 or wisp.alpha > 1 or !std.math.isFinite(wisp.sprite_scale) or wisp.sprite_scale < 1 or wisp.sprite_scale > 1.5 or wisp.next_ms <= attack.stepped_ms or wisp.next_ms > attack.stepped_ms + 100) return error.InvalidSavedActorAttack;

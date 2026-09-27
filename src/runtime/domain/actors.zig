@@ -25,6 +25,7 @@ pub const State = struct {
     chaingang: catalog.chaingang.State = .{},
     buboid: catalog.buboid.State = .{},
     wyndrax: catalog.wyndrax.State = .{},
+    garroth: catalog.garroth.State = .{},
     pain_ready_ms: i64 = 0,
     evasion: catalog.evasion.State = .{},
     battleboar: catalog.battleboar.State = .{},
@@ -97,6 +98,8 @@ pub const Definition = struct {
     harpy_arrow: catalog.weapon.Tuning = .{},
     dragon_fireball: catalog.weapon.Tuning = .{},
     death_bolt: catalog.weapon.Tuning = .{},
+    stave: catalog.weapon.Tuning = .{},
+    garroth_wisp: catalog.weapon.Tuning = .{},
     psyclaw_blast: catalog.weapon.Tuning = .{},
     sludge_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
     boar_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
@@ -227,6 +230,11 @@ pub const Table = struct {
             }
             if (catalog.entries[id].kind == .froginator) entry.frog = try catalog.froginator.Tuning.parse(row);
             if (catalog.entries[id].kind == .dwarf) entry.dwarf = try catalog.dwarf.Tuning.parse(row);
+            if (catalog.entries[id].kind == .stavros) entry.stave = try catalog.weapon.Tuning.parse(row, "weapon1_");
+            if (catalog.entries[id].kind == .garroth) {
+                entry.stave = try catalog.weapon.Tuning.parse(row, "weapon2_");
+                entry.garroth_wisp = try catalog.weapon.Tuning.parse(row, "weapon3_");
+            }
             if (catalog.entries[id].kind == .inmater) entry.laser = try catalog.laser.Tuning.parse(row, "weapon2_");
             if (catalog.entries[id].kind == .lasergat) entry.laser = try catalog.laser.Tuning.parse(row, "weapon1_");
             if (catalog.entries[id].kind == .cryotech) {

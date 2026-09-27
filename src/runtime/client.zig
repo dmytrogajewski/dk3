@@ -37,6 +37,7 @@ fn shutdown() void {
     @import("client/buboid.zig").reset();
     @import("client/wisps.zig").reset();
     @import("client/wyndrax_actor.zig").reset();
+    @import("client/actor_meteors.zig").reset();
     @import("client/fx_particles.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
@@ -251,6 +252,9 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").cryotech.render_tag) {
             @import("client/cryo_spray.zig").draw(entity, now, &ref);
             continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").meteors.render_tag) {
+            if (try @import("client/actor_meteors.zig").draw(entity, now, &ref)) continue;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").wyndrax.render_tag) {
             if (try @import("client/wyndrax_actor.zig").draw(entity, now, &ref)) continue;

@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–261): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–262): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -61,7 +61,9 @@ Sequence 259 connects Harpy, Dragon and flesh-fragment deaths; its coherent thre
 link is `/tmp/dk3-runtime-259-dragon-link.log`. Sequence 260 connects DeathSphere and
 Chaingang; all three modules link in `/tmp/dk3-runtime-260-chaingang-link-fixed.log`.
 Sequence 261 connects Buboid, ambient Wisp swarms and Wyndrax; its consolidated
-link is `/tmp/dk3-runtime-261-consolidated-link.log`. No gameplay acceptance is added.
+link is `/tmp/dk3-runtime-261-consolidated-link.log`. Sequence 262 adds Garroth,
+Stavros and their NPC meteor callback (`/tmp/dk3-runtime-262-meteor-link.log`).
+No gameplay acceptance is added.
 
 Shared changes invalidate prior script/cinematic, damage, actor perception,
 restoration/travel and multiplayer coverage on the developing build. Sequence 258
@@ -450,11 +452,46 @@ sequence-261 logs. This establishes no running-engine or campaign acceptance and
 verified gameplay build/asset identity. Main, preserved installation, user saves,
 private assets and live service are untouched.
 
+## Sequence 262 implementation checkpoint
+
+Garroth connects the reviewed melee/ranged admission gap, difficulty-dependent
+selection, ordered weapon fallbacks, both authored strike events, death variants
+and dynamic Buboid summoning. Summons share the existing radial clearance selector
+with Nightmare while retaining each caller's mask. The selected location also passes
+full standing-hull clearance; a blocked summon is consumed instead of creating an
+actor inside occupied geometry. Death outputs are not inherited by a summoned Buboid.
+Stavros connects pitch-facing, its supplied `ataka` event, one-percent pain admission
+and meteor firing. Its supplied model has no `runa`; movement uses `walka`.
+
+The shared NPC stave callback owns launch offsets, initial five-percent speed,
+growth-conditioned acceleration/spin, twelve-second lifetime, impact and 4–6 fragments.
+Parent damage and blast radius both use the authored base damage, as in the source
+callback. Fragment spawn never assigns health in the reference; its explosion damage
+therefore stays zero while its scaled radius and bounce/expiry lifecycle remain active.
+No guessed fragment damage is introduced. This NPC callback is distinct from the
+existing player Stavros weapon. Effects include the persistent launch flare, light,
+particle trail, explosion disc/model, sprite, sound and world scorch. Full particle
+atlas/attenuation/scale comparison remains open. Explosion projections briefly persist
+for native delivery and save restoration, extending the deleted reference projectile.
+
+The same reference physics inspection corrects NPC Wisp bounce damping to 0.75 and
+its normalized-axis stop epsilon. The shared decal helper preserves the existing
+weapon overlap/retention policy; radial-search extraction preserves Nightmare's
+existing mask and cumulative headings. Revalidate those affected paths, new summon/
+combat/restoration cases and all connected episode encounters. Range/fallback contracts
+are written but unexecuted. Supplied authoring and private contracts were read locally;
+no private source or assets were admitted.
+
+**Implemented; unverified.** The coherent link is
+`/tmp/dk3-runtime-262-meteor-consolidated-link.log`. No test suite, native-engine,
+connected campaign/multiplayer or reference-playback acceptance was performed.
+No verified gameplay build/asset identity is established for this coding pass.
+Main, the installed game, user saves and the live service remain preserved.
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data (including monster factories/death
-spawns) still finds these unimplemented classes at this checkpoint: Garroth, Kage, Medusa, final Mikiko, Nharre and
-Stavros. Script-created classes and boss phases remain part of the full audit.
+spawns) still finds these unimplemented classes at this checkpoint: Kage, Medusa, final Mikiko and Nharre. Script-created classes and boss phases remain part of the full audit.
 This inventory is a coding work list, not campaign-load or traversal acceptance.
 
 ## Acceptance rules

@@ -3617,3 +3617,20 @@ native-engine scenario, connected campaign/multiplayer acceptance or reference
 playback has run. Remaining classes, boss progression, companions, all campaign and
 multiplayer/release requirements stay open. Main, the installed game, saves and
 live online service are preserved. Continue the same coding pass.
+
+## Sequence 262 — garroth-stavros-and-meteors (implementation checkpoint)
+
+Continues after pushed checkpoint `274bf84`. Garroth's authored weapon choice and
+Buboid summoning, Stavros's attack controller and their shared NPC meteor/fragment
+callback connect to native movement, damage, effects and persistence. Supplied model
+inspection confirms Stavros's walk-only movement sequence. Private behavior review
+retains the source's unassigned fragment damage, distinct from the player weapon.
+Shared radial clearance/decal mechanisms are reused; their affected coverage and the
+NPC Wisp bounce correction are recorded in the acceptance matrix.
+
+The three-module link is `/tmp/dk3-runtime-262-meteor-consolidated-link.log`.
+Garroth range/fallback contracts remain unexecuted; no broad suites, engine runs or
+campaign/multiplayer acceptance. Four remaining BSP-admitted classes, script-created
+actors and all broader connected progression/companion/multiplayer/release outcomes
+remain open. This is the continuing implementation pass, not completion of the port.
+Main, installed gameplay, saves, private assets and online service are untouched.

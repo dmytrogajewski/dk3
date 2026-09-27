@@ -13,6 +13,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
         .shaft => try @import("shafts.zig").publish(world, entity, projections, now),
         .rotworm_spit => try @import("rotworm_spit.zig").publish(world, entity, projections, now),
         .rocket => try @import("actor_rockets.zig").publish(world, entity, projections, now),
+        .meteor => try @import("meteors.zig").publish(world, entity, projections, now),
         .npc_wisp, .wyndrax_zap, .wyndrax_bolt => try @import("wyndrax_attacks.zig").publish(world, entity, projections, now),
         .knight_zap, .knight_punch => try @import("knight_attacks.zig").publish(world, entity, projections, now),
     }
@@ -32,6 +33,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             .shaft => try @import("shafts.zig").step(world, slots, projections, entity, now),
             .rotworm_spit => try @import("rotworm_spit.zig").step(world, slots, projections, entity, now),
             .rocket => try @import("actor_rockets.zig").step(world, slots, projections, entity, now),
+            .meteor => try @import("meteors.zig").step(world, slots, projections, entity, now),
             .npc_wisp, .wyndrax_zap, .wyndrax_bolt => try @import("wyndrax_attacks.zig").step(world, slots, projections, entity, now),
             .knight_zap, .knight_punch => try @import("knight_attacks.zig").step(world, slots, projections, entity, now),
         }
