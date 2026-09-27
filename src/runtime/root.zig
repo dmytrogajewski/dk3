@@ -52,6 +52,8 @@ test {
     _ = @import("domain/world_actions.zig");
     _ = @import("actor_catalog").mishima;
     _ = @import("domain/actors.zig");
+    _ = @import("domain/actor_audio.zig");
+    _ = @import("domain/companion_pose.zig");
     _ = @import("domain/animation.zig");
     _ = @import("domain/combat.zig");
     _ = @import("domain/pellets.zig");

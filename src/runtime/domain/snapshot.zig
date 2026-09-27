@@ -485,6 +485,9 @@ pub fn validate(snapshot: *Loaded) !void {
         }
         if (world.get(entity, data.Actor) catch null) |actor| {
             if (actor.definition >= @import("actor_catalog").entries.len or actor.guard.pose >= 3 or actor.guard.rounds > 8 or actor.cambot.wave >= 12 or actor.cambot.back_direction < -1 or actor.cambot.back_direction > 1) return error.InvalidSavedActor;
+            if ((actor.idle_pose == null) != (actor.idle_started_ms == null)) return error.InvalidSavedActorIdle;
+            if (actor.idle_pose) |pose| if (pose.last < pose.first or pose.fps == 0 or pose.fps > 240) return error.InvalidSavedActorIdle;
+            if (actor.audio.cue) |cue| if (cue >= 256) return error.InvalidSavedActorAudio;
             const gun = actor.rockgat;
             if (gun.height > 1024 or gun.fire_ms < 10 or gun.fire_ms > 3600000 or gun.range <= 0 or gun.range > 65536 or gun.damage < 0 or gun.damage > 1000000 or gun.random_damage < 0 or gun.random_damage > 1000000) return error.InvalidSavedRockgat;
             for (gun.bursts) |burst| if (burst) |shot| {
@@ -552,7 +555,13 @@ pub fn validate(snapshot: *Loaded) !void {
                 .attractor => "target_attractor",
                 .particles => "sfx_complex_particle",
                 .light_ramp => "target_lightramp",
-                .light => |state| switch (state.kind) { .light => "light", .spot => "light_spot", .strobe => "light_strobe", .flare => "light_flare", .flame => if (std.mem.eql(u8, classname, "light_e1") or std.mem.eql(u8, classname, "light_e2") or std.mem.eql(u8, classname, "light_e3") or std.mem.eql(u8, classname, "light_e4")) classname else "light_e1" },
+                .light => |state| switch (state.kind) {
+                    .light => "light",
+                    .spot => "light_spot",
+                    .strobe => "light_strobe",
+                    .flare => "light_flare",
+                    .flame => if (std.mem.eql(u8, classname, "light_e1") or std.mem.eql(u8, classname, "light_e2") or std.mem.eql(u8, classname, "light_e3") or std.mem.eql(u8, classname, "light_e4")) classname else "light_e1",
+                },
                 .spotlight => |state| if (state.dynamic) "func_dynalight" else "target_spotlight",
                 .earthquake => "target_earthquake",
                 .gib_emitter => "func_gib",
@@ -561,9 +570,14 @@ pub fn validate(snapshot: *Loaded) !void {
                 .laser => "target_laser",
                 .healer => |state| if (state.kind == .fountain) "misc_fountain" else "misc_hosportal",
                 .speaker => if (std.mem.eql(u8, classname, "sound_ambient")) "sound_ambient" else "target_speaker",
-                .timer => "func_timer", .push => "trigger_push", .teleport => "trigger_teleport",
-                .secret => "trigger_secret", .toggle => "trigger_toggle", .music => "trigger_changemusic",
-                .console => "trigger_console", .remove_item => "trigger_remove_inventory_item",
+                .timer => "func_timer",
+                .push => "trigger_push",
+                .teleport => "trigger_teleport",
+                .secret => "trigger_secret",
+                .toggle => "trigger_toggle",
+                .music => "trigger_changemusic",
+                .console => "trigger_console",
+                .remove_item => "trigger_remove_inventory_item",
             };
             if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
             switch (control.action) {
@@ -571,22 +585,22 @@ pub fn validate(snapshot: *Loaded) !void {
                     for (state.extent) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedBloodCloud;
                     if (state.mass <= 0 or state.mass > 100000 or !std.math.isFinite(state.mass)) return error.InvalidSavedBloodCloud;
                     if (state.until_ms) |until| if (until - state.next_ms != 500) return error.InvalidSavedBloodCloud;
-                    try require(world, entity, .{data.Random, data.Binding});
+                    try require(world, entity, .{ data.Random, data.Binding });
                 },
                 .target_effect => |state| {
-                    try require(world, entity, .{data.Binding, data.Random});
+                    try require(world, entity, .{ data.Binding, data.Random });
                     if (state.count < 1 or state.count > 64 or state.kind >= 33 or state.interval_ms <= 0 or state.duration_ms <= 0 or state.sound > snapshot.header.resources.sounds.len or (state.visible and (state.pulse_ms == null or state.serial == 0))) return error.InvalidSavedTargetEffect;
                     if (state.gravity != -250 and state.gravity != 0 and state.gravity != 125) return error.InvalidSavedTargetEffect;
                     for (state.direction ++ state.color) |value| if (!std.math.isFinite(value) or @abs(value) > 1000000) return error.InvalidSavedTargetEffect;
                 },
                 .weather => |state| {
-                    try require(world, entity, .{data.Binding, data.Body});
+                    try require(world, entity, .{ data.Binding, data.Body });
                     if ((try world.get(entity, data.Body)).contents != 0) return error.InvalidSavedWeather;
                     for (state.mins ++ state.maxs) |value| if (!std.math.isFinite(value) or @abs(value) > 1000000) return error.InvalidSavedWeather;
                     for (state.mins, state.maxs) |lower, upper| if (lower > upper) return error.InvalidSavedWeather;
                 },
                 .lightning => |state| {
-                    try require(world, entity, .{data.Binding, data.Random});
+                    try require(world, entity, .{ data.Binding, data.Random });
                     if (state.count > state.attractors.len or state.damage < 0 or state.damage > 1000000 or state.scale <= 0 or state.modulation < 0 or state.delay_ms <= 0 or state.duration_ms <= 0) return error.InvalidSavedLightning;
                     for ([5]f32{ state.damage, state.scale, state.modulation, state.chance, state.ground_chance } ++ state.color) |value| if (!std.math.isFinite(value) or @abs(value) > 1000000) return error.InvalidSavedLightning;
                     for (state.sounds ++ [1]u16{state.loop_sound}) |sound| if (sound > snapshot.header.resources.sounds.len) return error.InvalidSavedLightning;
@@ -604,7 +618,7 @@ pub fn validate(snapshot: *Loaded) !void {
                     for (state.endpoint) |value| if (!std.math.isFinite(value)) return error.InvalidSavedLightningBolt;
                 },
                 .particles => |state| {
-                    try require(world, entity, .{data.Binding, data.Random});
+                    try require(world, entity, .{ data.Binding, data.Random });
                     if (state.count < 1 or state.count > 10 or state.velocity < 1 or state.velocity > 1000 or state.scale < 0.01 or state.scale > 200 or state.alpha < 0.01 or state.fade <= 0.01 or state.frequency < 0 or state.emission_time < 0.01 or (state.tracked and (!state.on or (state.phase != .check and state.phase != .spawn))) or (state.phase == .idle) != (state.next_ms == null)) return error.InvalidSavedParticles;
                     for ([8]f32{ state.velocity, state.radius, state.scale, state.alpha, state.fade, state.frequency, state.emission_time, state.gravity } ++ state.color ++ state.direction ++ state.acceleration) |value| if (!std.math.isFinite(value) or @abs(value) > 1000000) return error.InvalidSavedParticles;
                 },
@@ -630,7 +644,7 @@ pub fn validate(snapshot: *Loaded) !void {
                     for (state.color) |value| if (!std.math.isFinite(value) or value < 0 or value > 1) return error.InvalidSavedSpotlight;
                 },
                 .earthquake => |state| {
-                    try require(world, entity, .{data.Binding, data.Random});
+                    try require(world, entity, .{ data.Binding, data.Random });
                     if (!state.parameters.valid() or !std.math.isFinite(state.radius) or state.radius <= 0 or state.radius > 1000000 or !std.math.isFinite(state.severity) or state.severity <= 0 or state.severity > 1000000 or !std.math.isFinite(state.damage) or state.damage < 0 or state.damage * state.severity > 200000000 or state.duration_ms <= 0 or state.sound > snapshot.header.resources.sounds.len) return error.InvalidSavedEarthquake;
                 },
                 .gib_emitter => |state| {
@@ -659,7 +673,9 @@ pub fn validate(snapshot: *Loaded) !void {
                     for (speaker.sounds[0..speaker.count]) |index| if (index > snapshot.header.resources.sounds.len) return error.InvalidSavedSound;
                 },
                 .timer => |timer| if (timer.wait_ms < 100 or timer.wait_ms > 3600000 or timer.variance_ms < 0 or timer.variance_ms >= timer.wait_ms or timer.delay_ms < 0 or timer.delay_ms > 3600000) return error.InvalidSavedTimer,
-                .push => |push| for (push.velocity) |value| { if (!std.math.isFinite(value) or @abs(value) > 100000) return error.InvalidSavedPush; },
+                .push => |push| for (push.velocity) |value| {
+                    if (!std.math.isFinite(value) or @abs(value) > 100000) return error.InvalidSavedPush;
+                },
                 .toggle => |toggle| {
                     if (!std.math.isFinite(toggle.radius) or toggle.radius < 0) return error.InvalidSavedToggle;
                     for (toggle.center) |value| if (!std.math.isFinite(value)) return error.InvalidSavedToggle;

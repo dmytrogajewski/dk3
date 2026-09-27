@@ -48,10 +48,6 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             try @import("actor_lasers.zig").launch(world, slots, projections, entity, target, pose.*, definition.laser, true, now);
         }
     };
-    const times = [_]?i64{ definition.attack_sound_ms[0], definition.second_sound_ms[0] };
-    const names = [_][]const u8{ definition.attack_sounds[0], definition.second_attack_sounds[0] };
-    for (times, names, 0..) |at, name, i| if (at) |ms| {
-        if (name.len > 0 and actor.melee.event(@as(u2, 1) << @intCast(i), ms, now, true)) try @import("events.zig").sound(world, slots, projections, name, pose.position, (try world.get(entity, data.Binding)).slot, c.CHAN_WEAPON, now);
-    };
+    try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);
     if (now - actor.melee.started_ms >= sequence.duration()) actor.melee.active = false;
 }

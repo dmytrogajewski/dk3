@@ -108,6 +108,7 @@ pub const State = struct {
         try self.navigation.frame(now);
         self.navigation.sync(projections);
         if (!@import("cinematics.zig").active(world)) try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);
+        if (!@import("cinematics.zig").active(world)) try @import("actor_audio.zig").step(&self.actors, world, slots, projections, now);
         if (!@import("cinematics.zig").active(world)) try @import("companions.zig").combat(&self.actors, world, slots, projections, table, now, elapsed);
         try @import("actor_attacks.zig").step(world, slots, projections, now);
         try @import("wisps.zig").step(world, slots, projections, now);

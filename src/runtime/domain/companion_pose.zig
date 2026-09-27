@@ -3,6 +3,40 @@
 const animation = @import("animation.zig");
 const std = @import("std");
 const catalog = @import("weapon_catalog");
+pub const Playback = struct {
+    sequence: animation.Sequence,
+    started: i64,
+    looping: bool = true,
+    pub fn frame(self: Playback, now: i64) u16 {
+        return self.sequence.frame(now - self.started, self.looping);
+    }
+};
+
+test "companion cues share the published shot and jump clocks without restarting movement" {
+    const poses: Set = .{
+        .idle = @splat(.{ .first = 0, .last = 9 }),
+        .run = @splat(.{ .first = 10, .last = 19 }),
+        .jump = @splat(.{ .first = 20, .last = 29 }),
+        .attack = @splat(.{ .first = 30, .last = 39 }),
+        .crouch = @splat(.{ .first = 40, .last = 49 }),
+        .crouch_walk = @splat(.{ .first = 50, .last = 59 }),
+        .crouch_attack = @splat(.{ .first = 60, .last = 69 }),
+        .swim = .{ .first = 70, .last = 79 },
+    };
+    const firing = poses.select(0, false, false, false, false, 500, 1000, 0, 1200);
+    try std.testing.expectEqual(@as(u16, 32), firing.frame(1200));
+    try std.testing.expectEqual(@as(i64, 1000), firing.started);
+    try std.testing.expect(!firing.looping);
+    const second = poses.select(0, false, false, true, false, 500, 1500, 0, 1700);
+    try std.testing.expectEqual(@as(u16, 62), second.frame(1700));
+    try std.testing.expectEqual(@as(i64, 1500), second.started);
+    const running = poses.select(0, true, false, false, false, 500, 1000, 0, 1200);
+    try std.testing.expectEqual(@as(u16, 12), running.frame(1200));
+    try std.testing.expect(running.looping);
+    const jumping = poses.select(0, false, true, false, false, 500, 1000, 0, 1200);
+    try std.testing.expectEqual(@as(u16, 27), jumping.frame(1200));
+    try std.testing.expect(!jumping.looping);
+}
 pub const Set = struct {
     idle: [3]animation.Sequence,
     run: [3]animation.Sequence,
@@ -28,22 +62,22 @@ pub const Set = struct {
         }
         return result;
     }
-    pub fn frame(self: Set, weapon: i32, moving: bool, jumping: bool, ducked: bool, swimming: bool, jump_started: i64, last_fire: ?i64, changed: i64, now: i64) u16 {
+    pub fn select(self: Set, weapon: i32, moving: bool, jumping: bool, ducked: bool, swimming: bool, jump_started: i64, last_fire: ?i64, changed: i64, now: i64) Playback {
         const entry = if (weapon > 0 and weapon < 32) catalog.find(@intCast(weapon)) else null;
         const grip: usize = if (entry) |item| switch (item.spec.player_grip) {
             .glove => 0,
             .pistol => 1,
             .rifle, .shoulder => 2,
         } else 0;
-        if (swimming) if (self.swim) |sequence| return sequence.frame(now - changed, true);
+        if (swimming) if (self.swim) |sequence| return .{ .sequence = sequence, .started = changed };
         if (ducked) {
-            if (moving) return self.crouch_walk[grip].frame(now - changed, true);
-            if (last_fire) |at| if (now >= at and now - at < self.crouch_attack[grip].duration()) return self.crouch_attack[grip].frame(now - at, false);
-            return self.crouch[grip].frame(now - changed, true);
+            if (moving) return .{ .sequence = self.crouch_walk[grip], .started = changed };
+            if (last_fire) |at| if (now >= at and now - at < self.crouch_attack[grip].duration()) return .{ .sequence = self.crouch_attack[grip], .started = at, .looping = false };
+            return .{ .sequence = self.crouch[grip], .started = changed };
         }
-        if (jumping) return self.jump[grip].frame(now - jump_started, false);
-        if (moving) return self.run[grip].frame(now - changed, true);
-        if (last_fire) |at| if (now >= at and now - at < self.attack[grip].duration()) return self.attack[grip].frame(now - at, false);
-        return self.idle[grip].frame(now - changed, true);
+        if (jumping) return .{ .sequence = self.jump[grip], .started = jump_started, .looping = false };
+        if (moving) return .{ .sequence = self.run[grip], .started = changed };
+        if (last_fire) |at| if (now >= at and now - at < self.attack[grip].duration()) return .{ .sequence = self.attack[grip], .started = at, .looping = false };
+        return .{ .sequence = self.idle[grip], .started = changed };
     }
 };

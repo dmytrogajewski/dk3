@@ -6,6 +6,9 @@ const animation = @import("animation.zig");
 pub const Mode = enum { idle, flee, chase, attack, reload, dead };
 pub const State = struct {
     definition: u8,
+    audio: @import("actor_audio.zig").State = .{},
+    idle_pose: ?animation.Sequence = null,
+    idle_started_ms: ?i64 = null,
     melee: catalog.melee_cycle.State = .{},
     spider: catalog.spider.State = .{},
     cryotech: catalog.cryotech.State = .{},
@@ -97,6 +100,9 @@ pub const State = struct {
 };
 pub const Definition = struct {
     loaded: bool = false,
+    audio: []const @import("actor_audio.zig").Cue = &.{},
+    idle_choices: []const @import("actor_audio.zig").Idle = &.{},
+    attenuation: [2]f32 = .{ 256, 648 },
     pain_c: ?animation.Sequence = null,
     dwarf: catalog.dwarf.Tuning = .{},
     thief_knife: catalog.weapon.Tuning = .{},
@@ -137,6 +143,8 @@ pub const Definition = struct {
     attacks: [8]animation.Sequence = @splat(.{}),
     strikes: [8]u16 = @splat(1),
     second_strikes: [8]?u16 = @splat(null),
+    attack_alternative: [8]?f32 = @splat(null),
+    attack_sound_enabled: [8]bool = @splat(true),
     attack_sounds: [8][]const u8 = @splat(""),
     attack_sound_ms: [8]i64 = @splat(0),
     second_attack_sounds: [8][]const u8 = @splat(""),
@@ -208,6 +216,8 @@ pub const Table = struct {
             if (!std.math.isFinite(entry.mass) or entry.mass <= 0 or entry.mass > 100000) return error.InvalidActorMass;
             entry.attack_range = try row.number("attack_distance", 0);
             entry.sight_range = try row.number("active_distance", 1000);
+            entry.attenuation = .{ try row.number("min_attenuation", 256), try row.number("max_attenuation", 648) };
+            for (entry.attenuation) |attenuation| if (attenuation < 0 or attenuation > 65536) return error.InvalidActorAttenuation;
             entry.fov = try row.number("fov", 180);
             if (row.field("angle_speed")) |angles| {
                 var parts = std.mem.tokenizeAny(u8, angles, " \t");

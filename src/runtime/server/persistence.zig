@@ -56,7 +56,23 @@ pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").Stat
     var query = loaded.world.queryAccess(0, 0, 0);
     defer query.deinit();
     while (query.next()) |view| for (view.entities()) |entity| {
-        if (loaded.world.get(entity, data.Actor) catch null) |actor| try systems.actors.ensure(actor.definition);
+        if (loaded.world.get(entity, data.Actor) catch null) |actor| {
+            try systems.actors.ensure(actor.definition);
+            const definition = systems.actors.table.definitions[actor.definition];
+            if (actor.audio.cue) |cue| {
+                if (cue >= definition.audio.len) return error.InvalidSavedActorAudio;
+                const sequence = definition.audio[cue].sequence orelse return error.InvalidSavedActorAudio;
+                if (actor.audio.started_ms == null or actor.audio.sampled_ms == null or actor.audio.frame < sequence.first or actor.audio.frame > sequence.last) return error.InvalidSavedActorAudio;
+            }
+            if (actor.idle_pose) |pose| {
+                var found = false;
+                for (definition.idle_choices) |choice| if (std.meta.eql(pose, choice.sequence)) {
+                    found = true;
+                    break;
+                };
+                if (!found) return error.InvalidSavedActorIdle;
+            }
+        }
         if (loaded.world.get(entity, data.Binding) catch null) |binding| {
             if ((loaded.world.get(entity, data.Hammer) catch null) != null or (loaded.world.get(entity, data.Shockwave) catch null) != null or (loaded.world.get(entity, data.Nova) catch null) != null or (loaded.world.get(entity, data.Flashlight) catch null) != null or (loaded.world.get(entity, data.Zeus) catch null) != null or (loaded.world.get(entity, data.ZeusBolt) catch null) != null or (loaded.world.get(entity, data.Nightmare) catch null) != null or (loaded.world.get(entity, data.MetaRing) catch null) != null or (loaded.world.get(entity, data.MetaLaser) catch null) != null) continue;
             if (loaded.world.get(entity, data.WorldControl) catch null) |control| if (control.action == .blood_cloud or control.action == .target_effect or control.action == .lightning or control.action == .lightning_bolt or control.action == .particles or control.action == .light or control.action == .spotlight or control.action == .earthquake or control.action == .speaker or control.action == .laser or control.action == .healer) {

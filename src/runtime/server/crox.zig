@@ -83,15 +83,7 @@ pub fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *
         state.struck = true;
         try strike(world, slots, entity, enemy.enemy.?, pose.*, definition, now);
     }
-    const times = [_]?i64{ definition.attack_sound_ms[index], definition.second_sound_ms[index] };
-    const sounds = [_][]const u8{ definition.attack_sounds[index], definition.second_attack_sounds[index] };
-    for (times, sounds, 0..) |time, sound, bit| if (time) |at| {
-        const flag = @as(u2, 1) << @as(u1, @intCast(bit));
-        if (state.sounded & flag == 0 and elapsed >= at) {
-            state.sounded |= flag;
-            if (sound.len != 0) try @import("events.zig").sound(world, slots, projections, sound, pose.position, slot, c.CHAN_WEAPON, now);
-        }
-    };
+    try @import("actor_attack_sounds.zig").at(world, slots, projections, entity, actor, definition, state.pose, state.started_ms, now, 3);
     if (elapsed >= definition.attacks[index].duration()) {
         state.attacking = false;
         state.cycle_ms = now;

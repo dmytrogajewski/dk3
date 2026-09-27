@@ -26,7 +26,10 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             switch (value.action) {
                 .timer => |*timer| try deadline(&timer.next_ms, delta),
                 .speaker => |*speaker| try deadline(&speaker.next_ms, delta),
-                .blood_cloud => |*state| { try shift(&state.next_ms, delta); try deadline(&state.until_ms, delta); },
+                .blood_cloud => |*state| {
+                    try shift(&state.next_ms, delta);
+                    try deadline(&state.until_ms, delta);
+                },
                 .target_effect => |*state| {
                     try deadline(&state.next_ms, delta);
                     try deadline(&state.until_ms, delta);
@@ -350,6 +353,11 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try active(&value.archer.clear_ms, delta);
             try deadline(&value.knight.sidestep_until, delta);
             try deadline(&value.rat.evasion_until, delta);
+            try deadline(&value.idle_started_ms, delta);
+            try deadline(&value.audio.attack_started_ms, delta);
+            try deadline(&value.audio.started_ms, delta);
+            try deadline(&value.audio.sampled_ms, delta);
+            try deadline(&value.audio.ambient_ready_ms, delta);
             try active(&value.shark.wander_until_ms, delta);
             try deadline(&value.fish.wander_until_ms, delta);
             try deadline(&value.fish.motion_ms, delta);
@@ -463,7 +471,7 @@ test "wildlife restoration keeps target hysteresis wave phase and pending blood 
     try t.expect(actor.fish.aggressive);
     try t.expectEqual(@as(?i64, 9200), actor.seagull.motion_ms);
     try t.expectEqual(@as(u4, 7), actor.seagull.wave);
-    var cloud: data.WorldControl = .{ .action = .{ .blood_cloud = .{ .next_ms = 1100, .extent = .{92, 92, -240}, .mass = 200 } } };
+    var cloud: data.WorldControl = .{ .action = .{ .blood_cloud = .{ .next_ms = 1100, .extent = .{ 92, 92, -240 }, .mass = 200 } } };
     try rebase(.world_control, &cloud, 8000);
     try t.expectEqual(@as(i64, 9100), cloud.action.blood_cloud.next_ms);
     try t.expectEqual(null, cloud.action.blood_cloud.until_ms);
@@ -471,6 +479,35 @@ test "wildlife restoration keeps target hysteresis wave phase and pending blood 
     try rebase(.world_control, &cloud, 1000);
     try t.expectEqual(@as(?i64, 10600), cloud.action.blood_cloud.until_ms);
     try t.expectEqual(@as(i64, 500), cloud.action.blood_cloud.until_ms.? - cloud.action.blood_cloud.next_ms);
+}
+
+test "actor audio restoration retains consumed cues, choices and remaining ambient delay" {
+    var value: data.Actor = .{ .definition = 0, .idle_pose = .{ .first = 10, .last = 29 }, .idle_started_ms = 1000, .audio = .{
+        .attack_started_ms = 1000,
+        .attack_index = 2,
+        .attack_sounds = 2,
+        .attack_alternate = true,
+        .cue = 4,
+        .started_ms = 1000,
+        .sampled_ms = 1400,
+        .frame = 14,
+        .pending = 1,
+        .sounded = 1,
+        .alternate = true,
+        .threat = 8,
+        .ambient_ready_ms = 31000,
+    } };
+    try rebase(.actor, &value, 8000);
+    try std.testing.expectEqual(@as(?i64, 9000), value.idle_started_ms);
+    try std.testing.expectEqual(@as(?i64, 9000), value.audio.attack_started_ms);
+    try std.testing.expectEqual(@as(?i64, 9000), value.audio.started_ms);
+    try std.testing.expectEqual(@as(?i64, 9400), value.audio.sampled_ms);
+    try std.testing.expectEqual(@as(?i64, 39000), value.audio.ambient_ready_ms);
+    try std.testing.expectEqual(@as(u2, 2), value.audio.attack_sounds);
+    try std.testing.expectEqual(@as(u2, 1), value.audio.sounded);
+    try std.testing.expectEqual(@as(u2, 1), value.audio.pending);
+    try std.testing.expectEqual(@as(u32, 8), value.audio.threat);
+    try std.testing.expect(value.audio.alternate and value.audio.attack_alternate);
 }
 
 test "world timer restore shifts its deadline but preserves variance sequence and activation" {
@@ -520,7 +557,7 @@ test "restored lightning keeps link and expiry boundaries while preserving inter
     const t = std.testing;
     var emitter: data.WorldControl = .{ .action = .{ .lightning = .{ .flags = 0, .next_ms = 2100, .uncull_until_ms = 3000 } } };
     var attractor: data.WorldControl = .{ .action = .{ .attractor = .{ .link_ms = 700 } } };
-    var bolt: data.WorldControl = .{ .action = .{ .lightning_bolt = .{ .emitter = 9, .target = 4, .endpoint = .{1, 2, 3}, .next_ms = 800, .until_ms = 1000, .damage = 10 } } };
+    var bolt: data.WorldControl = .{ .action = .{ .lightning_bolt = .{ .emitter = 9, .target = 4, .endpoint = .{ 1, 2, 3 }, .next_ms = 800, .until_ms = 1000, .damage = 10 } } };
     try rebase(.world_control, &emitter, 5000);
     try rebase(.world_control, &attractor, 5000);
     try rebase(.world_control, &bolt, 5000);

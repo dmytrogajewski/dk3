@@ -47,6 +47,41 @@ def number(row, key, default, name):
     return int(value)
 
 
+def percentage(row, key, default, name):
+    value = row.get(key, '')
+    if value in ('', None):
+        return default
+    try:
+        value = float(value)
+    except (ValueError, TypeError) as error:
+        raise ValueError(f'{name}: invalid {key}') from error
+    if not math.isfinite(value):
+        raise ValueError(f'{name}: invalid {key}')
+    return min(100, max(0, value))
+
+
+def normalize(row, classname, animation, name):
+    result = {'classname': classname, 'animation': animation}
+    for index in (1, 2):
+        result[f'sound{index}'] = str(row.get(f'sound{index}', '') or '').strip()
+        raw = row.get(f'frame{index}', '')
+        result[f'frame{index}'] = (1 if raw in ('', None, '-1', -1)
+                                  else number(row, f'frame{index}', 1, name))
+    result['strike1'] = next((number(row, key, 1, name) for key in
+                              ('attack_seq_1', 'attack_seq1', 'attack_seq') if key in row), 1)
+    result['strike2'] = next((number(row, key, 0, name) for key in
+                              ('attack_seq_2', 'attack_seq2') if key in row), 0)
+    result['weight'] = percentage(row, 'anim_percent', 100, name)
+    alternative = row.get('sound2_percent', '') not in ('', None)
+    result['sound2_chance'] = percentage(row, 'sound2_percent', 0, name)
+    result['sound2_alternative'] = int(alternative)
+    result['frame1_enabled'] = int(row.get('frame1') not in ('-1', -1))
+    result['frame2_enabled'] = int(not alternative and
+                                   row.get('frame2', '') not in ('', None, '-1', -1))
+    result['flags'] = str(row.get('flags', row.get('flag', '')) or '').strip()
+    return result
+
+
 def entries(game, profile):
     extensions = ('.json', '.csv', '.vsc') if profile == '1.3' else ('.csv', '.vsc', '.json')
     source = next((('aidata' + ext, game.find('aidata' + ext)) for ext in extensions
@@ -72,16 +107,7 @@ def entries(game, profile):
             animation = str(row.get('framename', '')).strip().lower()
             if not animation or animation.startswith(('//', ';')):
                 continue
-            normalized = {'classname': actor['classname'], 'animation': animation}
-            for index in (1, 2):
-                normalized[f'sound{index}'] = str(row.get(f'sound{index}', '') or '').strip()
-                normalized[f'frame{index}'] = number(row, f'frame{index}', 1, name)
-            normalized['strike1'] = next((number(row, key, 0, name) for key in
-                                          ('attack_seq_1', 'attack_seq1', 'attack_seq') if key in row), 0)
-            normalized['strike2'] = next((number(row, key, 0, name) for key in
-                                          ('attack_seq_2', 'attack_seq2') if key in row), 0)
-            normalized['weight'] = number(row, 'anim_percent', 100, name)
-            normalized['sound2_chance'] = min(100, number(row, 'sound2_percent', 100, name))
+            normalized = normalize(row, actor['classname'], animation, name)
             output.append('{')
             output.extend(tables.quoted(key) + ' ' + tables.quoted(value)
                           for key, value in sorted(normalized.items()))

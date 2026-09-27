@@ -34,10 +34,7 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
                     const start = actor.thunder.next_shot;
                     const shots = actor.thunder.shots(now, definition.attacks[0].first, definition.attacks[0].fps);
                     for (0..shots) |index| try @import("thunder_spray.zig").launch(world, slots, projections, entity, target, pose.*, start + index >= 2, definition.offset, now);
-                    if (!actor.thunder.sounded and now >= actor.thunder.started_ms + definition.attack_sound_ms[0]) {
-                        actor.thunder.sounded = true;
-                        try @import("events.zig").sound(world, slots, projections, definition.attack_sounds[0], pose.position, slot, c.CHAN_WEAPON, now);
-                    }
+                    try @import("actor_attack_sounds.zig").at(world, slots, projections, entity, actor, definition, 0, actor.thunder.started_ms, now, 3);
                     if (now >= actor.thunder.started_ms + definition.attacks[0].duration()) {
                         actor.thunder.enter(.hover, now);
                     }

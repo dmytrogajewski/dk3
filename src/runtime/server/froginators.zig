@@ -46,10 +46,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
                     };
                 }
             }
-            if (!actor.frog.sounded and now >= actor.frog.started_ms + definition.attack_sound_ms[index]) {
-                actor.frog.sounded = true;
-                try @import("events.zig").sound(world, slots, projections, definition.attack_sounds[index], pose.position, slot, c.CHAN_WEAPON, now);
-            }
+            try @import("actor_attack_sounds.zig").at(world, slots, projections, entity, actor, definition, @intCast(index), actor.frog.started_ms, now, 3);
             if (now >= actor.frog.started_ms + definition.attacks[index].duration()) actor.frog.enter(.decide, now);
         }
     } else {

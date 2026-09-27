@@ -141,11 +141,7 @@ pub fn emit(world: *data.World, slots: *@import("../engine/slots.zig").Slots, pr
     const index = actor.melee.pose;
     const sequence = definition.attacks[index];
     const slot = (try world.get(entity, data.Binding)).slot;
-    const sound_times = [_]?i64{ definition.attack_sound_ms[index], definition.second_sound_ms[index] };
-    const sound_names = [_][]const u8{ definition.attack_sounds[index], definition.second_attack_sounds[index] };
-    for (sound_times, sound_names, 0..) |time, name, i| if (time) |at| {
-        if (name.len > 0 and actor.melee.event(@as(u2, 1) << @intCast(i), at, now, true)) try @import("events.zig").sound(world, slots, projections, name, pose.position, slot, c.CHAN_WEAPON, now);
-    };
+    try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);
     if (kind == .lycanthir and index == 4 and !actor.lycanthir.launched and now >= actor.melee.started_ms + definition.attack_sound_ms[index]) {
         actor.lycanthir.launched = true;
         const velocity = try world.get(entity, data.Velocity);

@@ -5054,3 +5054,42 @@ converter loses whether sound2 is a sequential cue or an alternative at frame1, 
 its missing-probability default is 100 instead of the reference initialization of 0.
 Continue implementation through these actual behavior gaps before consolidated
 verification. No new build, test, engine run or reference presentation comparison ran.
+
+
+## Sequence 282 — authored-actor-audio
+
+Connected authored sight-only rows and frame cues for idle, movement, pain and death,
+including companions. CSV conversion now preserves explicit disabled frames, absent
+second frames, fractional probabilities, animation weights and the distinction between
+a sequential sound2 and an alternative chosen at sound1's frame. Explicit zero remains
+an alternative and suppresses the second sequential event. Missing sound2 probability
+is zero; missing first attack frame defaults to first+1, matching model initialization.
+Old actor-event tables fail with a regeneration diagnostic instead of guessing lost data.
+
+Generic idle selection uses contiguous supplied amba/ambb/... sequences and their
+weights, retaining custom class idle owners. Crox swim/wander poses bypass land idle
+selection. Sound admission uses authored active distance and attenuation; ambient cues
+retain their 10–40-second cooldown. Attack choices and consumed cues have independent
+saved state so sound probability cannot consume a rat/spider launch event. Existing
+class-owned impact and launch samples remain class-owned. Guard outgoing attack cues
+are consumed before completion changes the phase. Out-of-clip sounds never become
+late events. Generic cues do not repeat on a held death or petrified pose.
+
+Companion pose selection returns the actual sequence, clock and looping rule used by
+both projection and audio. Its weapon and jump epochs remain distinct from movement;
+no duplicate companion audio policy was added. Snapshot clocks rebase together and
+admission checks cue identity/frame and selected idle against loaded class metadata.
+Written, unrun regressions cover conversion alternatives/disabled frames, exact model
+lookup, contiguous idle choices, crossed/consumed frame events, finite death sounds,
+companion shot/jump/movement clocks and saved audio deadlines/masks. Both new domain
+roots are explicitly included in the native test root.
+
+Permitted private behavior review: MonsterSound/ai_frames/ai_func and class/Sidekick
+callbacks establish those data contracts. No private source or assets are imported;
+tests use synthetic public fixtures. Targeted native module link
+`/tmp/dk3-runtime-282-actor-audio-link.log` exited 0 before final companion cue sharing,
+guard completion, Crox idle admission and restoration-validation edits. No contract
+suite, engine scenario, connected route or reference presentation comparison ran.
+Revalidation includes shared actor attack timing/audio, companions, persistence and
+all affected campaign encounters. The full four-episode/multiplayer/release coding
+pass continues before consolidated build/assets and scenario verification.

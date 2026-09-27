@@ -70,11 +70,7 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
     const index = actor.melee.pose;
     const sequence = definition.attacks[index];
     const slot = (try world.get(entity, data.Binding)).slot;
-    const times = [_]?i64{ definition.attack_sound_ms[index], definition.second_sound_ms[index] };
-    const sounds = [_][]const u8{ definition.attack_sounds[index], definition.second_attack_sounds[index] };
-    for (times, sounds, 0..) |time, name, i| if (time) |at| {
-        if (name.len > 0 and actor.melee.event(@as(u2, 1) << @intCast(i), at, now, true)) try @import("events.zig").sound(world, slots, projections, name, pose.position, slot, c.CHAN_WEAPON, now);
-    };
+    try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);
     const jump = index == 1 or index == 3;
     const first = actor.melee.event(1, @divTrunc(@as(i64, definition.strikes[index]) * 1000, sequence.fps), now, false);
     if (jump and first) {

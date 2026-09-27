@@ -66,10 +66,7 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
                 engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 skeeter: id={d} melee={d} damage={d:.2}\n", .{ try world.persistentId(entity), try world.persistentId(victim), amount }));
             };
         }
-        if (actor.skeeter.phase == .attack and !actor.skeeter.sounded and now >= actor.skeeter.started_ms + definition.attack_sound_ms[0]) {
-            actor.skeeter.sounded = true;
-            if (definition.attack_sounds[0].len > 0) try @import("events.zig").sound(world, slots, projections, definition.attack_sounds[0], pose.position, slot, c.CHAN_WEAPON, now);
-        }
+        if (actor.skeeter.phase == .attack) try @import("actor_attack_sounds.zig").at(world, slots, projections, entity, actor, definition, 0, actor.skeeter.started_ms, now, 3);
         velocity.linear = @splat(0);
         if (actor.skeeter.phase == .hatching) {
             // Supplied hatch animation lifts the emerging skeeter four units per think.

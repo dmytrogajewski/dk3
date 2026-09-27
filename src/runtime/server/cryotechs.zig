@@ -58,11 +58,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
 fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, now: i64) !void {
     const sequence = definition.attacks[0];
     while (actor.cryotech.next(now - actor.melee.started_ms, sequence.fps)) |event| try @import("cryo_spray.zig").launch(world, slots, projections, entity, target, pose, event.offset, definition, now);
-    const sound_times = [_]?i64{ definition.attack_sound_ms[0], definition.second_sound_ms[0] };
-    const names = [_][]const u8{ definition.attack_sounds[0], definition.second_attack_sounds[0] };
-    for (sound_times, names, 0..) |at, name, i| if (at) |time| {
-        if (name.len > 0 and actor.melee.event(@as(u2, 1) << @intCast(i), time, now, true)) try @import("events.zig").sound(world, slots, projections, name, pose.position, (try world.get(entity, data.Binding)).slot, c.CHAN_WEAPON, now);
-    };
+    try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);
 }
 pub fn ambient(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, now: i64) !void {
     const sequence = actor.scripted_pose orelse return;

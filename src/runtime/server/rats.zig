@@ -92,9 +92,8 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
     const sequence = definition.attacks[index];
     const slot = (try world.get(entity, data.Binding)).slot;
     const jump = index == 1;
-    const sound = definition.attack_sounds[index];
+    try @import("actor_attack_sounds.zig").at(world, slots, projections, entity, actor, definition, index, actor.melee.started_ms, now, if (jump and definition.attack_alternative[index] == null) 1 else 3);
     if (actor.melee.event(1, definition.attack_sound_ms[index], now, true)) {
-        if (sound.len > 0) try @import("events.zig").sound(world, slots, projections, sound, pose.position, slot, c.CHAN_WEAPON, now);
         if (jump) {
             actor.rat.launched = true;
             const velocity = try world.get(entity, data.Velocity);
@@ -103,9 +102,7 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
             actor.ground_entity = c.ENTITYNUM_NONE;
         }
     }
-    if (!jump) if (definition.second_sound_ms[index]) |at| {
-        if (actor.melee.event(2, at, now, true) and definition.second_attack_sounds[index].len > 0) try @import("events.zig").sound(world, slots, projections, definition.second_attack_sounds[index], pose.position, slot, c.CHAN_WEAPON, now);
-    };
+
     const at = if (jump) definition.jump_strike_ms else @divTrunc(@as(i64, definition.strikes[index]) * 1000, sequence.fps);
     if (!actor.melee.event(1, at, now, false) or (!jump and !facing)) return;
     const weapon: catalog.weapon.Tuning = if (actor.rat.poison) definition.rat_poison else .{ .damage = definition.damage, .random_damage = definition.random_damage, .range = definition.range, .offset = definition.offset, .spread = definition.spread };

@@ -81,8 +81,8 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
     const index = actor.melee.pose;
     const slot = (try world.get(entity, data.Binding)).slot;
     const jump = index == 1;
+    try @import("actor_attack_sounds.zig").at(world, slots, projections, entity, actor, definition, index, actor.melee.started_ms, now, if (definition.attack_alternative[index] == null) 1 else 3);
     if (actor.melee.event(1, definition.attack_sound_ms[index], now, true)) {
-        if (definition.attack_sounds[index].len > 0) try @import("events.zig").sound(world, slots, projections, definition.attack_sounds[index], pose.position, slot, c.CHAN_AUTO, now);
         if (jump and !actor.spider.launched) {
             actor.spider.launched = true;
             (try world.get(entity, data.Velocity)).linear = v.add(v.scale(v.basis(pose.angles).forward, definition.speed * 1.5), .{ 0, 0, definition.upward_speed });

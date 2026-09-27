@@ -83,6 +83,9 @@ pub fn guard(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         } else if (now - actor.threat_seen_ms >= 10000) actor.threat = 0;
         clear = visible and v.length(delta) <= definition.range;
     }
+    // Consume the outgoing pose before tick can complete it. Its last frame can
+    // be crossed on the same update that returns the guard to ready.
+    if (actor.guard.phase == .firing) try @import("actor_attack_sounds.zig").at(world, slots, projections, entity, actor, definition, @intCast(actor.guard.pose), actor.guard.started_ms, now, 3);
     const event = actor.guard.tick(now, clear, definition.guardTiming());
     const mode: rules.Mode = switch (actor.guard.phase) {
         .firing => .attack,
@@ -101,13 +104,13 @@ pub fn guard(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             const amount = definition.damage + actor.guard.fraction() * definition.random_damage;
             _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = owner_id });
         };
-        const sound = definition.attack_sounds[actor.guard.pose];
-        if (sound.len != 0) try @import("events.zig").sound(world, slots, projections, sound, start, slot, c.CHAN_WEAPON, now);
+
         if (engine.integer("developer") != 0) {
             var buffer: [160]u8 = undefined;
             engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 zig guard: id={d} fired rounds={d} enemy={d}\n", .{ owner_id, actor.guard.rounds, actor.threat }));
         }
     }
+    if (actor.guard.phase == .firing) try @import("actor_attack_sounds.zig").at(world, slots, projections, entity, actor, definition, @intCast(actor.guard.pose), actor.guard.started_ms, now, 3);
     if (event.reload_sound) {
         try @import("events.zig").sound(world, slots, projections, @import("actor_catalog").mishima.reload_sound, pose.position, slot, c.CHAN_AUTO, now);
         var buffer: [128]u8 = undefined;

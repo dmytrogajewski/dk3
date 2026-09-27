@@ -134,7 +134,9 @@ pub const Actors = struct {
             const row = try self.event(policy.classname, attack);
             definition.attack_sounds[i] = row.field("sound1") orelse "";
             definition.second_attack_sounds[i] = row.field("sound2") orelse "";
-            if (definition.second_attack_sounds[i].len != 0) definition.second_sound_ms[i] = @intFromFloat(try row.number("frame2", 0) * 1000 / @as(f32, @floatFromInt(definition.attacks[i].fps)));
+            definition.attack_sound_enabled[i] = try row.number("frame1_enabled", 1) != 0;
+            if (try row.number("sound2_alternative", 0) != 0) definition.attack_alternative[i] = std.math.clamp(try row.number("sound2_chance", 0) * 0.01, 0, 1);
+            if (definition.second_attack_sounds[i].len != 0 and try row.number("frame2_enabled", 1) != 0) definition.second_sound_ms[i] = @intFromFloat(try row.number("frame2", 0) * 1000 / @as(f32, @floatFromInt(definition.attacks[i].fps)));
             if ((policy.kind == .lycanthir and i == 4) or ((policy.kind == .spider or policy.kind == .smallspider) and i == 1)) definition.jump_strike_ms = @intFromFloat(try row.number("frame2", 0) * 1000 / @as(f32, @floatFromInt(definition.attacks[i].fps)));
             if ((policy.kind == .piperat or policy.kind == .plague_rat) and i == 1) definition.jump_strike_ms = @intFromFloat(try row.number("frame2", 0) * 1000 / @as(f32, @floatFromInt(definition.attacks[i].fps)));
             const strike = try row.number("strike1", 0);
@@ -149,6 +151,10 @@ pub const Actors = struct {
             if (policy.kind == .rocketmp and i != 1) definition.second_strikes[i] = @intFromFloat(second);
             if (policy.kind == .blackprisoner or policy.kind == .whiteprisoner) definition.second_strikes[i] = @intFromFloat(second);
             definition.attack_sound_ms[i] = @intFromFloat(try row.number("frame1", 0) * 1000 / @as(f32, @floatFromInt(definition.attacks[i].fps)));
+            // Out-of-clip events never occur. Keep the timing for class-owned
+            // launch rules, but do not turn an unreachable sound into a late cue.
+            if (try row.number("frame1", 1) > @as(f32, @floatFromInt(definition.attacks[i].last - definition.attacks[i].first))) definition.attack_sound_enabled[i] = false;
+            if (try row.number("frame2", 1) > @as(f32, @floatFromInt(definition.attacks[i].last - definition.attacks[i].first))) definition.second_sound_ms[i] = null;
         }
         if (catalog.sequenceAttack(policy.kind)) {
             definition.pain[0] = try animation.find(metadata, "hita");
@@ -226,6 +232,8 @@ pub const Actors = struct {
             try self.water_routes.initGround(self.allocator);
             self.water_ready = true;
         }
+        definition.audio = try @import("../domain/actor_audio.zig").parse(self.allocator, self.event_bytes, metadata, policy.classname);
+        if (std.mem.eql(u8, policy.idle, "amba") and policy.kind != .protopod and policy.kind != .column and policy.kind != .femgang and policy.kind != .sludgeminion and policy.kind != .companion) definition.idle_choices = try @import("../domain/actor_audio.zig").idleChoices(self.allocator, metadata, definition.audio);
         self.animations[id] = true;
         if (policy.kind == .protopod) try self.ensure(catalog.find("monster_slaughterskeet").?);
     }
@@ -292,8 +300,8 @@ pub const Actors = struct {
         const binding = (try world.get(entity, data.Binding)).*;
         const policy = catalog.entries[actor.definition];
         const hatching = policy.kind == .protopod and (actor.pod.phase == .opening or actor.pod.phase == .shell) or policy.kind == .skeeter and actor.skeeter.phase == .hatching;
-        const sequence = if (actor.mode == .dead and actor.death_pose != null) actor.death_pose.? else if (actor.reaction != null and actor.mode != .dead) actor.reaction.? else if (catalog.sequenceAttack(policy.kind) and actor.melee.active) definition.attacks[actor.melee.pose] else if (policy.kind == .crox and actor.mode == .dead and actor.crox.death_b) definition.death_b else if (policy.kind == .crox and actor.mode != .attack and actor.mode != .dead and actor.scripted_pose == null) if (actor.crox.swimming) definition.swim else if (actor.crox.wandering) definition.walk else if (actor.mode == .chase) definition.run else definition.idle else if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_pose.? else if (hatching) definition.hatch else switch (actor.mode) {
-            .idle => if (policy.kind == .femgang and actor.femgang.idle_b) definition.alternate_idle else if (policy.kind == .sludgeminion and actor.sludge.idle_scoop) definition.attacks[2] else definition.idle,
+        const sequence = if (actor.mode == .dead and actor.death_pose != null) actor.death_pose.? else if (actor.reaction != null and actor.mode != .dead) actor.reaction.? else if (catalog.sequenceAttack(policy.kind) and actor.melee.active) definition.attacks[actor.melee.pose] else if (policy.kind == .crox and actor.mode == .dead and actor.crox.death_b) definition.death_b else if (policy.kind == .crox and actor.mode != .attack and actor.mode != .dead and actor.scripted_pose == null) if (actor.crox.swimming) definition.swim else if (actor.crox.wandering) definition.walk else if (actor.mode == .chase) definition.run else actor.idle_pose orelse definition.idle else if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_pose.? else if (hatching) definition.hatch else switch (actor.mode) {
+            .idle => if (actor.idle_pose) |idle| idle else if (policy.kind == .femgang and actor.femgang.idle_b) definition.alternate_idle else if (policy.kind == .sludgeminion and actor.sludge.idle_scoop) definition.attacks[2] else definition.idle,
             .flee, .chase => if (actor.path != 0 and actor.moving_pose != null) actor.moving_pose.? else definition.run,
             .attack => definition.attacks[if (catalog.sequenceAttack(policy.kind)) actor.melee.pose else if (policy.kind == .crox) actor.crox.pose else if (policy.kind == .froginator) actor.frog.pose() else actor.guard.pose],
             .reload => definition.reload,
@@ -309,7 +317,7 @@ pub const Actors = struct {
         projection.state.time2 = if (policy.kind == .cambot and actor.mode != .dead) if (actor.threat != 0) catalog.cambot.alert_tag else catalog.cambot.idle_tag else 0;
         if (policy.kind == .chaingang and actor.mode != .dead and actor.chaingang.flying) projection.state.time2 = catalog.chaingang.jet_tag;
         if (policy.kind == .deathsphere) projection.state.loopSound = if (actor.mode != .dead and actor.threat_seen_ms > 0) try @import("resources.zig").sound("e1/m_dspherehovera.wav") else 0;
-        projection.state.frame = sequence.frame(now - (if (actor.reaction != null and actor.mode != .dead) actor.reaction_started_ms else if (catalog.sequenceAttack(policy.kind) and actor.melee.active) actor.melee.started_ms else if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_ms else if ((catalog.sequenceAttack(policy.kind)) and actor.mode == .attack) actor.melee.started_ms else if (policy.kind == .crox and actor.mode == .attack) actor.crox.started_ms else if (policy.kind == .thunderskeet and actor.mode == .attack) actor.thunder.started_ms else if (policy.kind == .froginator and actor.mode == .attack) actor.frog.started_ms else if (policy.kind == .skeeter and (actor.mode == .attack or hatching)) actor.skeeter.started_ms else if (policy.kind == .mishima_guard and (actor.mode == .attack or actor.mode == .reload)) actor.guard.started_ms else actor.changed_ms), !hatching and actor.reaction == null and !actor.melee.active and (actor.mode == .idle or actor.mode == .flee or actor.mode == .chase));
+        projection.state.frame = sequence.frame(now - (if (actor.reaction != null and actor.mode != .dead) actor.reaction_started_ms else if (catalog.sequenceAttack(policy.kind) and actor.melee.active) actor.melee.started_ms else if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_ms else if ((catalog.sequenceAttack(policy.kind)) and actor.mode == .attack) actor.melee.started_ms else if (policy.kind == .crox and actor.mode == .attack) actor.crox.started_ms else if (policy.kind == .thunderskeet and actor.mode == .attack) actor.thunder.started_ms else if (policy.kind == .froginator and actor.mode == .attack) actor.frog.started_ms else if (policy.kind == .skeeter and (actor.mode == .attack or hatching)) actor.skeeter.started_ms else if (policy.kind == .mishima_guard and (actor.mode == .attack or actor.mode == .reload)) actor.guard.started_ms else if (actor.mode == .idle and actor.idle_started_ms != null) actor.idle_started_ms.? else actor.changed_ms), !hatching and actor.reaction == null and !actor.melee.active and (actor.mode == .idle or actor.mode == .flee or actor.mode == .chase));
         if (policy.kind == .lycanthir) if (@import("lycanthirs.zig").frame(actor, definition, now)) |frame| {
             projection.state.frame = frame;
         };
@@ -407,9 +415,7 @@ pub const Actors = struct {
             const loadout = (try world.get(entity, data.Weapons)).*;
             projection.state.weapon = if (companion.carrying or actor.mode == .dead) 0 else loadout.weapon;
             if (actor.mode != .dead and actor.reaction == null and actor.scripted_pose == null) {
-                const poses = self.companion_poses[actor.definition] orelse return error.MissingCompanionPoses;
-                const velocity = (try world.get(entity, data.Velocity)).linear;
-                projection.state.frame = poses.frame(loadout.weapon, @abs(velocity[0]) > 1 or @abs(velocity[1]) > 1, !body.grounded and @abs(velocity[2]) > 1 and companion.motor.water_level < 2, companion.motor.ducked, companion.motor.water_level > 1, companion.jump_started_ms, loadout.last_fire_ms, actor.changed_ms, now);
+                projection.state.frame = (try self.companionPlayback(world, entity, now)).frame(now);
             }
         }
         if (world.get(entity, data.Ailments) catch null) |status| {
@@ -425,6 +431,15 @@ pub const Actors = struct {
         projection.shared.contents = @bitCast(body.contents);
         projection.shared.ownerNum = c.ENTITYNUM_NONE;
         engine.link(projection);
+    }
+    pub fn companionPlayback(self: *const Actors, world: *data.World, entity: ecs.Entity, now: i64) !@import("../domain/companion_pose.zig").Playback {
+        const actor = try world.get(entity, data.Actor);
+        const poses = self.companion_poses[actor.definition] orelse return error.MissingCompanionPoses;
+        const companion = try world.get(entity, data.Companion);
+        const loadout = try world.get(entity, data.Weapons);
+        const body = try world.get(entity, data.Body);
+        const velocity = (try world.get(entity, data.Velocity)).linear;
+        return poses.select(loadout.weapon, @abs(velocity[0]) > 1 or @abs(velocity[1]) > 1, !body.grounded and @abs(velocity[2]) > 1 and companion.motor.water_level < 2, companion.motor.ducked, companion.motor.water_level > 1, companion.jump_started_ms, loadout.last_fire_ms, actor.changed_ms, now);
     }
     pub fn visible(from: v.Vec3, to: v.Vec3, skip: u16, target: u16) !bool {
         const hit = try engine.collisionService().trace(.{ .start = from, .end = to, .mins = @splat(0), .maxs = @splat(0), .slot = skip, .mask = c.MASK_SOLID });
