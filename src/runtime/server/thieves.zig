@@ -21,14 +21,9 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         actor.reaction = null;
         actor.reaction_until_ms = null;
     }
-    if (injured and hurt.amount >= 35 and (try world.get(entity, data.Random)).next() < 0.3) if (definition.pain[0]) |hit| {
-        actor.reaction = hit;
-        actor.reaction_started_ms = now;
-        actor.reaction_until_ms = now + hit.duration();
-        actor.melee.active = false;
-        actor.mode = .idle;
+    if (injured and try @import("actor_pain.zig").generic(world, entity, actor, definition, hurt.amount, 30, 35, now)) {
         return;
-    };
+    }
     const target = sensed.enemy orelse {
         actor.melee.active = false;
         actor.mode = .idle;

@@ -6,7 +6,7 @@ pub const State = struct {
     born_ms: i64,
     stepped_ms: i64,
     attack: union(enum) {
-        knight_flame: knights.Flame,
+        fireball: @import("actor_catalog").fireballs.State,
         knight_zap: knights.Zap,
         knight_punch: void,
         rocket: @import("actor_catalog").missiles.Rocket,
@@ -15,5 +15,6 @@ pub const State = struct {
         prisoner_rock: @import("actor_catalog").prisoners.Rock,
         sludge_glob: @import("actor_catalog").sludge.Glob,
         gunner_burst: @import("actor_catalog").gunners.Burst,
+        psyclaw_sphere: @import("actor_catalog").psyclaw.Sphere,
     },
 };

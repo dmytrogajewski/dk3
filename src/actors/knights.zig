@@ -5,8 +5,6 @@ pub const flame_attacks = [_][]const u8{ "ataka", "atakb" };
 // The supplied Knight2 model and event table contain only atakc. Use that
 // authored stroke for the close punch too; the reference requests absent ataka.
 pub const lightning_attacks = [_][]const u8{ "atakc", "atakc" };
-pub const flame_model = "models/e3/we_fball.dkm";
-pub const flame_glow = "models/e3/we_fglow.sp2";
 pub const render_tag = 10006;
 pub const State = struct {
     sidestep_until: ?i64 = null,
@@ -20,7 +18,6 @@ pub fn inRange(distance: f32, melee_range: f32, ranged_range: f32, ranged_roll: 
     return distance < melee_range or (distance < ranged_range and ranged_roll < 0.6) or (distance > 100 and distance < 250 and chase_roll < 0.6);
 }
 pub const Weapon = @import("weapon.zig").Tuning;
-pub const Flame = struct { damage: f32, drift_ms: i64 };
 pub const Bolt = struct {
     born_ms: i64,
     next_ms: i64,

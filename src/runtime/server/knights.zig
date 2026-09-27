@@ -91,7 +91,7 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
             }
             return;
         }
-        if (lightning) try @import("knight_attacks.zig").zap(world, slots, projections, entity, target, pose, now) else try @import("knight_attacks.zig").flame(world, slots, projections, entity, target, pose, definition.knight_ranged, now);
+        if (lightning) try @import("knight_attacks.zig").zap(world, slots, projections, entity, target, pose, now) else try @import("actor_fireballs.zig").launch(world, slots, projections, entity, target, pose, .knight, definition.knight_ranged, now);
         return;
     }
     const aim = try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random));

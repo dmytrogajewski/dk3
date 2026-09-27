@@ -144,6 +144,10 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.next_ms, delta);
         },
         .ailments => {
+            if (value.warp) |*warp| {
+                try shift(&warp.until_ms, delta);
+                try shift(&warp.next_ms, delta);
+            }
             if (value.poison) |*poison| {
                 try shift(&poison.until_ms, delta);
                 try shift(&poison.next_ms, delta);
@@ -155,10 +159,11 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
             switch (value.attack) {
+                .psyclaw_sphere => |*sphere| try shift(&sphere.next_ms, delta),
                 .gunner_burst => |*burst| try shift(&burst.next_ms, delta),
                 .shaft => |*shaft| try deadline(&shaft.contact_ms, delta),
                 .rocket => |*rocket| try shift(&rocket.next_ms, delta),
-                .knight_flame => |*fire| try shift(&fire.drift_ms, delta),
+                .fireball => |*fire| try shift(&fire.drift_ms, delta),
                 .knight_zap => |*zap| for (&zap.bolts) |*maybe| {
                     if (maybe.*) |*bolt| {
                         try shift(&bolt.born_ms, delta);
@@ -176,7 +181,13 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
         .actor => {
             try active(&value.gunner.ready_ms, delta);
             try active(&value.gunner.emit_ms, delta);
-            try active(&value.gunner.pain_lock_ms, delta);
+            try active(&value.pain_ready_ms, delta);
+            try active(&value.doombat.started_ms, delta);
+            try active(&value.griffon.started_ms, delta);
+            try deadline(&value.griffon.until_ms, delta);
+            try active(&value.psyclaw.protected_until_ms, delta);
+            try active(&value.psyclaw.emit_ms, delta);
+            try deadline(&value.psyclaw.jump_started_ms, delta);
             try active(&value.thief.next_attack_ms, delta);
             try deadline(&value.thief.sidestep_until, delta);
             try active(&value.prisoner.ready_ms, delta);

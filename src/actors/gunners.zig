@@ -6,7 +6,6 @@ pub const State = struct {
     pursuing: bool = true,
     ready_ms: i64 = 0,
     emit_ms: i64 = 0,
-    pain_lock_ms: i64 = 0,
 };
 pub const BurstKind = enum { commando, uzi, shotgun };
 pub const Burst = struct {

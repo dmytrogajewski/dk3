@@ -3547,3 +3547,21 @@ first client timestamp-width compile error remains in the initial link log. No t
 engine scenarios or connected acceptance ran. Current code changes remain implemented /
 unverified. Full remaining campaign, actors/bosses, companion progression, multiplayer
 and release work continues; no installed assets, saves, main or live services changed.
+
+## Sequence 258 — psychic-and-aerial-combat (implementation checkpoint)
+
+Continues the complete coding pass after feature checkpoint `c14f175`. Psyclaw paired
+projectiles/player warp, Doombat flight/bite/fireballs and Griffon air/ground combat
+connect to supplied authoring, native collision, persistence and presentation.
+Reference contract review also repairs shared generic pain, Knight fireballs and
+Uzi callback ordering. Class-owned decisions remain separate from common movement,
+projectile and pain services. No private implementation or assets entered the project.
+Narrow compatibility corrections and incomplete gib/particle/task parity are listed
+in the current matrix; affected historical coverage is explicitly due for replay.
+
+Targeted `zig build game --prefix zig-out/native-dev` links all three modules in
+`/tmp/dk3-runtime-258-griffon-link.log`. This is compilation evidence only. New
+light-hit pain and class-policy regression contracts have not run. No systematic
+suite, engine scenario or connected campaign/multiplayer acceptance ran during this
+checkpoint. Full remaining campaign, companion, boss, multiplayer and release scope
+continues. Main, installed game, saves, assets and online service remain untouched.

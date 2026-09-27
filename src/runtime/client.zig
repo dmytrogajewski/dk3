@@ -164,8 +164,9 @@ fn draw(now: i32) !void {
     ref.width = display.vidWidth;
     ref.height = display.vidHeight;
     ref.time = now;
-    ref.fov_x = 90;
-    ref.fov_y = std.math.atan(@as(f32, @floatFromInt(ref.height)) / @as(f32, @floatFromInt(ref.width))) * 360 / std.math.pi;
+    const psychic = @import("actor_catalog").psyclaw.visual(snapshot.ps.dk3PsyEnd, now);
+    ref.fov_x = 90 + psychic.fov;
+    ref.fov_y = std.math.atan(@tan(ref.fov_x * std.math.pi / 360) * @as(f32, @floatFromInt(ref.height)) / @as(f32, @floatFromInt(ref.width))) * 360 / std.math.pi;
     ref.vieworg = transform.position;
     ref.vieworg[2] += player.view_height;
     if (snapshot.ps.dk3CameraActive != 0) {
@@ -173,7 +174,7 @@ fn draw(now: i32) !void {
         ref.fov_x = snapshot.ps.dk3CameraFov;
         ref.fov_y = std.math.atan(@tan(ref.fov_x * std.math.pi / 360) * @as(f32, @floatFromInt(ref.height)) / @as(f32, @floatFromInt(ref.width))) * 360 / std.math.pi;
     }
-    const basis = v.basis(if (snapshot.ps.dk3CameraActive != 0) snapshot.ps.dk3CameraAngles else v.add(view_angles, @import("client/area_effects.zig").shake(snapshot.entities[0..@intCast(snapshot.numEntities)], ref.vieworg, now)));
+    const basis = v.basis(if (snapshot.ps.dk3CameraActive != 0) snapshot.ps.dk3CameraAngles else v.add(v.add(view_angles, .{ 0, 0, psychic.roll }), @import("client/area_effects.zig").shake(snapshot.entities[0..@intCast(snapshot.numEntities)], ref.vieworg, now)));
     ref.viewaxis[0] = basis.forward;
     ref.viewaxis[1] = v.scale(basis.right, -1);
     ref.viewaxis[2] = v.cross(ref.viewaxis[0], ref.viewaxis[1]);
@@ -203,6 +204,14 @@ fn draw(now: i32) !void {
             const glow = try @import("client/sprites.zig").register("models/global/we_flarered.sp2");
             @import("client/sprites.zig").draw(glow, 0, origin, 1, true, &ref);
             _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &origin, engine.floatArg(175), engine.floatArg(0.65), engine.floatArg(0.35), engine.floatArg(0.35) });
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").fireballs.render_tag and entity.weapon == @intFromEnum(@import("actor_catalog").fireballs.Kind.knight)) {
+            const origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
+            _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &origin, engine.floatArg(150), engine.floatArg(0.95), engine.floatArg(0.35), engine.floatArg(0.15) });
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").psyclaw.render_tag and entity.weapon == 0) {
+            const sprite = try @import("client/sprites.zig").register("models/global/e_sflgreen.sp2");
+            @import("client/sprites.zig").draw(sprite, 0, @import("engine/trajectory.zig").evaluate(entity.pos, now), 1, true, &ref);
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").gunners.render_tag) {
             try @import("client/gunner_bursts.zig").draw(&game, entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now);
@@ -251,7 +260,10 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").stavros.id) try @import("client/stavros.zig").draw(entity, now, &ref);
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").wyndrax.id) try @import("client/wyndrax.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").metamaser.id) try @import("client/metamaser.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
-        if (entity.eType == c.ET_PLAYER and entity.number == client_number) continue;
+        if (entity.eType == c.ET_PLAYER and entity.number == client_number) {
+            try @import("client/events.zig").loop(&game, entity, @import("engine/trajectory.zig").evaluate(entity.pos, now));
+            continue;
+        }
         var handle: c.qhandle_t = 0;
         if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
             handle = inline_models[@intCast(entity.modelindex)];
@@ -277,6 +289,10 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/scenery.zig").render_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").dwarf.axe_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(@divTrunc((@as(i64, entity.time2) - now) * 255, 1000), 0, 255));
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").shafts.render_tag and entity.time2 > 0) rendered.shaderRGBA[3] = @intCast(std.math.clamp(@divTrunc((@as(i64, entity.time2) - now) * 255, 1000), 0, 255));
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").psyclaw.render_tag) {
+            for (entity.origin2, rendered.shaderRGBA[0..3]) |axis, *channel| channel.* = @intFromFloat(std.math.clamp(axis, 0, 1) * 255);
+            rendered.shaderRGBA[3] = 115;
+        }
         if (entity.eType == c.ET_MISSILE) try @import("client/projectiles.zig").decorate(&rendered, entity, now);
         try @import("client/events.zig").loop(&game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
@@ -293,6 +309,7 @@ fn draw(now: i32) !void {
         @import("client/cinematics.zig").overlay(snapshot.ps.dk3CameraBlend, display);
     } else {
         @import("client/status_visuals.zig").screen(ailments.*, display);
+        @import("client/status_visuals.zig").psychic(psychic.blend, display);
         try hud.render(display, .{ .current = snapshot.ps.stats[c.STAT_HEALTH], .armor = snapshot.ps.stats[c.STAT_ARMOR] }, character.*, .{ .mask = @bitCast(snapshot.ps.dk3Keys), .quest = @bitCast(snapshot.ps.dk3Quest) }, loadout.*, &weapon_table, selected_weapon, now);
     }
     _ = engine.gateway.call(c.CG_S_RESPATIALIZE, .{ @as(isize, client_number), &ref.vieworg, &ref.viewaxis, @as(isize, @intFromBool(player.water_level == 3)) });

@@ -35,6 +35,7 @@ test {
     _ = @import("domain/melee.zig");
     _ = @import("domain/damage.zig");
     _ = @import("server/damage.zig");
+    _ = @import("server/actor_pain.zig");
     _ = @import("weapon_catalog").character;
     _ = @import("domain/character.zig");
     _ = @import("weapon_catalog").gas;

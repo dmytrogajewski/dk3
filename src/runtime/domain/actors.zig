@@ -16,6 +16,10 @@ pub const State = struct {
     femgang: catalog.femgang.State = .{},
     sludge: catalog.sludge.State = .{},
     gunner: catalog.gunners.State = .{},
+    psyclaw: catalog.psyclaw.State = .{},
+    doombat: catalog.doombat.State = .{},
+    griffon: catalog.griffon.State = .{},
+    pain_ready_ms: i64 = 0,
     evasion: catalog.evasion.State = .{},
     battleboar: catalog.battleboar.State = .{},
     rocketmp: catalog.rocketmp.State = .{},
@@ -82,6 +86,8 @@ pub const Definition = struct {
     thief_knife: catalog.weapon.Tuning = .{},
     prisoner_rock: catalog.weapon.Tuning = .{},
     alternate_idle: animation.Sequence = .{},
+    doombat_fireball: catalog.weapon.Tuning = .{},
+    psyclaw_blast: catalog.weapon.Tuning = .{},
     sludge_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
     boar_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
     mp_rockets: [2]catalog.weapon.Tuning = @splat(.{}),
@@ -103,6 +109,7 @@ pub const Definition = struct {
     maxs: v.Vec3 = @splat(0),
     idle: animation.Sequence = .{},
     run: animation.Sequence = .{},
+    ground_run: animation.Sequence = .{},
     death: animation.Sequence = .{},
     attacks: [8]animation.Sequence = @splat(.{}),
     strikes: [8]u16 = @splat(1),
@@ -226,6 +233,15 @@ pub const Table = struct {
                 if (entry.prisoner_rock.speed <= 0) return error.InvalidPrisonerRock;
             }
             if ((catalog.entries[id].kind == .sealcaptain or catalog.entries[id].kind == .sealgirl) and entry.range <= 256) return error.InvalidGunnerShotgun;
+            if (catalog.entries[id].kind == .doombat) {
+                entry.doombat_fireball = try catalog.weapon.Tuning.parse(row, "weapon2_");
+                entry.doombat_fireball.speed = 400;
+                entry.sight_range = 10000;
+            }
+            if (catalog.entries[id].kind == .psyclaw) {
+                entry.psyclaw_blast = try catalog.weapon.Tuning.parse(row, "weapon2_");
+                if (entry.psyclaw_blast.speed <= 0) return error.InvalidPsyclawBlast;
+            }
             if (catalog.entries[id].kind == .sludgeminion) {
                 entry.sludge_weapons = .{ try catalog.weapon.Tuning.parse(row, "weapon1_"), try catalog.weapon.Tuning.parse(row, "weapon2_") };
                 for (entry.sludge_weapons) |glob| if (glob.speed <= 0) return error.InvalidSludgeGlob;

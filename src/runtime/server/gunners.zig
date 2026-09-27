@@ -30,30 +30,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         actor.reaction = null;
         actor.reaction_until_ms = null;
     }
-    if (injured and hurt.amount > 0 and now > actor.gunner.pain_lock_ms) {
-        const random = try world.get(entity, data.Random);
-        // AI_StartPain rolls before the class wrapper's second independent roll.
-        const first = @as(u8, @intFromFloat(random.next() * 99.9)) < 20;
-        const second = @as(u8, @intFromFloat(random.next() * 99.9)) < 20;
-        if (first or (second and hurt.amount >= policy.painLimit(kind))) {
-            if (definition.pain[0]) |hit| {
-                actor.reaction = hit;
-                actor.reaction_started_ms = now;
-                actor.reaction_until_ms = now + hit.duration();
-                actor.gunner.pain_lock_ms = now + @divTrunc(@as(i64, hit.last - hit.first) * 1000, hit.fps);
-                actor.melee.active = false;
-                actor.mode = .idle;
-                return;
-            }
-        } else if (second) {
-            // The wrapper leaves the current sequence in place below its limit;
-            // TASK_PAIN then removes itself on the next non-hit animation tick.
-            const sequence = if (actor.melee.active) definition.attacks[actor.melee.pose] else if (actor.mode == .chase) definition.run else definition.idle;
-            actor.gunner.pain_lock_ms = now + @divTrunc(@as(i64, sequence.last - sequence.first) * 1000, sequence.fps);
-            actor.mode = .idle;
-            return;
-        }
-    }
+    if (injured and try @import("actor_pain.zig").generic(world, entity, actor, definition, hurt.amount, 20, policy.painLimit(kind), now)) return;
     const target = sensed.enemy orelse {
         actor.melee.active = false;
         actor.gunner.pursuing = true;

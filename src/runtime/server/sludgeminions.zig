@@ -3,7 +3,6 @@ const std = @import("std");
 const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
-const engine = @import("../engine/server.zig");
 const c = abi.c;
 const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
@@ -22,15 +21,10 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         actor.reaction = null;
         actor.reaction_until_ms = null;
     }
-    if (injured and hurt.amount >= 45 and (try world.get(entity, data.Random)).next() < 0.05) if (definition.pain[0]) |hit| {
-        actor.reaction = hit;
-        actor.reaction_started_ms = now;
-        actor.reaction_until_ms = now + hit.duration();
-        actor.melee.active = false;
-        actor.sludge.phase = .normal;
-        actor.mode = .idle;
+    if (injured and try @import("actor_pain.zig").generic(world, entity, actor, definition, hurt.amount, 5, 45, now)) {
+        if (!actor.melee.active) actor.sludge.phase = .normal;
         return;
-    };
+    }
     if (actor.sludge.phase == .scooping) {
         actor.mode = .attack;
         if (now - actor.melee.started_ms < definition.attacks[2].duration()) return;
@@ -68,7 +62,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     if (tick) {
         pose.angles[1] += std.math.clamp(@mod(yaw - pose.angles[1] + 180, 360) - 180, -definition.yaw_speed, definition.yaw_speed);
         actor.think_ms = now + 100;
-        if (actor.melee.active) try orient(world, entity, pose, definition.pitch_speed);
+        if (actor.melee.active) try @import("actor_floor.zig").orient(world, entity, pose, definition.pitch_speed);
     }
     const facing = @abs(@mod(yaw - pose.angles[1] + 180, 360) - 180) <= 5;
     if (actor.melee.active) {
@@ -100,18 +94,4 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
         actor.sludge.ammo -= 1;
         try @import("sludge_globs.zig").launch(world, slots, projections, entity, target, pose, definition.sludge_weapons[hand], now);
     };
-}
-fn orient(world: *data.World, entity: ecs.Entity, pose: *data.Transform, pitch_speed: f32) !void {
-    const axes = v.basis(pose.angles);
-    const slot = (try world.get(entity, data.Binding)).slot;
-    const directions = [_]v.Vec3{ v.subtract(axes.forward, axes.right), v.add(axes.forward, axes.right), v.scale(v.subtract(axes.forward, axes.right), -1) };
-    var points: [3]v.Vec3 = undefined;
-    for (directions, &points) |direction, *point| {
-        const start = v.add(pose.position, .{ direction[0] * 8, direction[1] * 8, 32 });
-        const hit = try engine.collisionService().trace(.{ .start = start, .end = v.add(start, .{ 0, 0, -64 }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID });
-        point.* = hit.end;
-    }
-    const slope = v.subtract(points[1], points[2]);
-    const wanted = std.math.clamp(-std.math.atan2(slope[2], @sqrt(slope[0] * slope[0] + slope[1] * slope[1])) * 180 / std.math.pi, -45, 45);
-    pose.angles[0] += std.math.clamp(wanted - pose.angles[0], -pitch_speed, pitch_speed);
 }

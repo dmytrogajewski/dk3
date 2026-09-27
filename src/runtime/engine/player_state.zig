@@ -99,6 +99,7 @@ pub fn writeCharacter(ps: *c.playerState_t, character: data.Character, ailments:
     ps.dk3EnvUntil = @intCast(character.environment_until);
     ps.dk3Status = @bitCast(character.rings | ailments.mask);
     ps.dk3FreezeLevel = ailments.freeze_level;
+    ps.dk3PsyEnd = if (ailments.warp) |warp| @intCast(warp.until_ms) else 0;
     ps.dk3SaveGems = character.save_gems;
     ps.dk3Level = character.level;
     ps.dk3Experience = character.experience;

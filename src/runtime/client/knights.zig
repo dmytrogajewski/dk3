@@ -8,12 +8,6 @@ const policy = @import("actor_catalog").knights;
 pub fn draw(entity: c.entityState_t, now: i32, ref: *const c.refdef_t) !bool {
     const origin = @import("../engine/trajectory.zig").evaluate(entity.pos, now);
     switch (entity.frame) {
-        0 => {
-            const glow = try sprites.register(policy.flame_glow);
-            sprites.draw(glow, 0, origin, 0.55, true, ref);
-            _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &origin, engine.floatArg(50), engine.floatArg(0.95), engine.floatArg(0.25), engine.floatArg(0.15) });
-            return false;
-        },
         1 => {
             const starts = [_]v.Vec3{ entity.angles, entity.angles2 };
             const births = [_]i32{ entity.time2, entity.legsAnim };

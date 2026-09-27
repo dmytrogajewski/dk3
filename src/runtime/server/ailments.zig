@@ -31,6 +31,7 @@ pub fn step(world: *data.World, now: i64) !void {
                 break;
             }
         }
+        try @import("psyclaw_warp.zig").step(world, entity, &state, now);
         (try world.get(entity, data.Ailments)).* = state;
     };
 }

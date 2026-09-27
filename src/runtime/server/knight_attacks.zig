@@ -9,21 +9,6 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").knights;
 const lifecycle = @import("weapon_entities.zig");
-pub fn flame(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: policy.Weapon, now: i64) !void {
-    const random = try world.get(owner, data.Random);
-    const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
-    const amount = tuning.damage + random.next() * tuning.random_damage;
-    const entity = try world.create(null, .{
-        data.Transform{ .position = aim.origin, .angles = .{ -std.math.atan2(aim.direction[2], @sqrt(aim.direction[0] * aim.direction[0] + aim.direction[1] * aim.direction[1])) * 180 / std.math.pi, std.math.atan2(aim.direction[1], aim.direction[0]) * 180 / std.math.pi, 0 } },
-        data.Velocity{ .linear = v.scale(aim.direction, tuning.speed) },
-        data.Body{ .mins = @splat(-2), .maxs = @splat(2), .collision_mask = c.MASK_SHOT },
-        data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .knight_flame = .{ .damage = amount, .drift_ms = now + 100 } } },
-    });
-    errdefer world.destroy(entity) catch unreachable;
-    try lifecycle.bind(world, slots, projections, entity, policy.flame_model);
-    try publish(world, entity, projections, now);
-    try @import("events.zig").sound(world, slots, projections, "global/e_firetraveld.wav", pose.position, (try world.get(owner, data.Binding)).slot, c.CHAN_AUTO, now);
-}
 pub fn zap(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, now: i64) !void {
     const entity = try world.create(null, .{
         data.Transform{ .position = v.add(pose.position, .{ 0, 0, 24 }) },                                                                                                                                                                          data.Velocity{}, data.Body{ .mins = @splat(0), .maxs = @splat(0) },
@@ -56,8 +41,8 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.angles2 = @splat(0.45);
     projection.state.frame = @intFromEnum(state.attack);
     switch (state.attack) {
-        .rocket, .rotworm_spit, .shaft, .prisoner_rock, .sludge_glob, .gunner_burst => return error.InvalidKnightAttack,
-        .knight_flame, .knight_punch => {},
+        .rocket, .rotworm_spit, .shaft, .prisoner_rock, .sludge_glob, .gunner_burst, .psyclaw_sphere, .fireball => return error.InvalidKnightAttack,
+        .knight_punch => {},
         .knight_zap => |value| {
             projection.state.origin2 = value.destination;
             projection.state.otherEntityNum = 0;
@@ -83,42 +68,10 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     var state = (try world.get(entity, data.ActorAttack)).*;
-    var pose = (try world.get(entity, data.Transform)).*;
+    const pose = (try world.get(entity, data.Transform)).*;
     const skip: u16 = if (world.find(state.owner)) |owner| (try world.get(owner, data.Binding)).slot else c.ENTITYNUM_NONE;
     switch (state.attack) {
-        .rocket, .rotworm_spit, .shaft, .prisoner_rock, .sludge_glob, .gunner_burst => return error.InvalidKnightAttack,
-        .knight_flame => |*fire| {
-            const velocity = (try world.get(entity, data.Velocity)).linear;
-            const end_ms = @min(now, state.born_ms + 5000);
-            var impact = false;
-            while (state.stepped_ms < end_ms) {
-                const at = @min(end_ms, fire.drift_ms);
-                const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, @as(f32, @floatFromInt(at - state.stepped_ms)) * 0.001)), .mins = @splat(-2), .maxs = @splat(2), .slot = skip, .mask = c.MASK_SHOT });
-                pose.position = hit.end;
-                state.stepped_ms = at;
-                if (hit.fraction < 1 or hit.start_solid) {
-                    impact = true;
-                    break;
-                }
-                if (at == fire.drift_ms) {
-                    // The reviewed effect advances world X, despite calling it pitch.
-                    // Retain that behavior, but trace the increment instead of tunnelling.
-                    const drift = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 1, 0, 0 }), .mins = @splat(-2), .maxs = @splat(2), .slot = skip, .mask = c.MASK_SHOT });
-                    pose.position = drift.end;
-                    fire.drift_ms += 100;
-                    if (drift.fraction < 1 or drift.start_solid) {
-                        impact = true;
-                        break;
-                    }
-                }
-            }
-            if (impact or now >= state.born_ms + 5000) {
-                try @import("area_damage.zig").apply(world, slots, .{ .owner = state.owner, .weapon = 0, .origin = pose.position, .damage = fire.damage, .radius = 128, .skip_slot = skip, .self_scale = 0 }, now);
-                try @import("scenery.zig").explosion(world, slots, projections, pose.position, 1, now);
-                try @import("events.zig").sound(world, slots, projections, "global/e_explodeh.wav", pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
-                return lifecycle.remove(world, slots, projections, entity);
-            }
-        },
+        .rocket, .rotworm_spit, .shaft, .prisoner_rock, .sludge_glob, .gunner_burst, .psyclaw_sphere, .fireball => return error.InvalidKnightAttack,
         .knight_zap => |*value| {
             while (state.stepped_ms + 100 <= @min(now, state.born_ms + 500)) {
                 state.stepped_ms += 100;

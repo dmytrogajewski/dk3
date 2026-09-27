@@ -19,14 +19,9 @@ pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World
         actor.reaction = null;
         actor.reaction_until_ms = null;
     }
-    if (injured and hurt.amount >= 50 and (try world.get(entity, data.Random)).next() < 0.1) if (definition.pain[0]) |hit| {
-        actor.reaction = hit;
-        actor.reaction_started_ms = now;
-        actor.reaction_until_ms = now + hit.duration();
-        actor.melee.active = false;
-        actor.mode = .idle;
+    if (injured and try @import("actor_pain.zig").generic(world, entity, actor, definition, hurt.amount, 10, 50, now)) {
         return;
-    };
+    }
     const target = sensed.enemy orelse {
         actor.melee.active = false;
         actor.mode = .idle;

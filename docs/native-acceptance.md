@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–257): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–258): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -54,10 +54,14 @@ linked all three modules in `/tmp/dk3-runtime-256-episode-link.log`. Sequence 25
 adds Sludgeminion and the four episode-four gunners; its corrected link is
 `/tmp/dk3-runtime-257-gunners-link-fixed.log`. The first link's client timestamp-width
 error is retained in `/tmp/dk3-runtime-257-gunners-link.log`. No new contract suite,
-engine scenario or connected playthrough has run in this coding pass.
+engine scenario or connected playthrough has run in this coding pass. Sequence 258
+connects Psyclaw, Doombat and Griffon, repairs generic pain and shared fireballs, and
+links all three modules in `/tmp/dk3-runtime-258-griffon-link.log` (compile evidence only).
 
 Shared changes invalidate prior script/cinematic, damage, actor perception,
-restoration/travel and multiplayer coverage on the developing build. Historical
+restoration/travel and multiplayer coverage on the developing build. Sequence 258
+additionally requires replay of Knight fireballs, Skeeter retreat, actor-attack callback
+ordering, actor pain and psychic-effect restoration. Historical
 manifests remain valid only for their recorded narrower builds and setups.
 
 ## Current outcome matrix
@@ -286,12 +290,46 @@ reference temporary entity's unplaced world origin. Class-specific take-cover sc
 tracers and exact task/reaction timing remain incomplete/unqualified. No damage/geometry
 changes were made to help an input driver. New contracts are written but unexecuted.
 
+## Sequence 258 implementation checkpoint
+
+Psyclaw connects paired spheres, melee, ranged sidestepping, jump reduction, initial
+immunity and eight-second player warping. Player movement interference, rendered FOV /
+roll / color, loop sound and save/travel deadlines are connected. Compatibility changes:
+the small sphere keeps the actual shooter instead of treating its parent projectile's
+hook as an actor; flying spheres honor the otherwise unused eight-second lifetime;
+the oscillation stays within twelve samples, and final FOV recovery cannot overshoot.
+The supplied model has no `dieb`; normal death retains its available `diea` sequence.
+
+Doombat connects bite/ranged health rules, retreat/hover, bobbing, collision response
+and corpse bounce. Its percentage-versus-base-health comparisons are retained, including
+the speed branch that is unreachable with the supplied base health. Griffon connects
+air/ground pursuit, room/liquid checks, authored-node landing, retreat, ground leaps
+and timed strikes. Its ten-unit launch lift is collision-traced. Air turning uses the
+shortest wrapped yaw difference; retreat uses a bounded search and existing authored
+graphs. These are native compatibility choices, not reference-playback acceptance.
+Griffon/Harpy always-gib behavior and broader creature death presentation still need
+implementation; this checkpoint does not claim complete actor parity.
+
+Shared generic pain now preserves the ordinary first roll before the independent
+heavy-hit wrapper roll. A light second-roll reaction retains its current animation
+and attack cursor. Unrun regression contracts cover the light-hit defect and lock.
+Shared fireballs now use point collision, radius 64, four secondary 30%-damage pulses
+for full-size fireballs, and quiet five-second expiry; Doombat uses only the small
+primary explosion. This supersedes the earlier Knight implementation. Fire trails
+and detailed impact-light comparison remain open. Actor-attack callbacks now observe
+the actor frame published during the same tick, repairing Uzi stop-frame ordering.
+
+All three modules link in `/tmp/dk3-runtime-258-griffon-link.log`; the initial fireball
+extraction's unused-variable compile error was corrected. New policy/pain tests are
+included in explicit test roots but **have not run**. No running native-engine identity,
+connected encounter, save restoration or private reference playback was established.
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data (including monster factories/death
 spawns) still finds these unimplemented classes at this checkpoint: Buboid, Chaingang,
-Deathsphere, Doombat, Dragon, Garroth, Griffon, Harpy, Kage, Medusa, final Mikiko, Nharre,
-Psyclaw, Stavros, Wisp and Wyndrax. Script-created classes and boss phases remain part of the full audit.
+Deathsphere, Dragon, Garroth, Harpy, Kage, Medusa, final Mikiko, Nharre,
+Stavros, Wisp and Wyndrax. Script-created classes and boss phases remain part of the full audit.
 This inventory is a coding work list, not campaign-load or traversal acceptance.
 
 ## Acceptance rules

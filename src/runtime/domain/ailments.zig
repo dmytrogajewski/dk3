@@ -6,6 +6,7 @@ pub const Poison = struct { source: u32, weapon: u5, damage: f32, until_ms: i64,
 pub const Tick = struct { source: u32, weapon: u5, amount: f32, bypass_armor: bool = false };
 pub const State = struct {
     mask: u32 = 0,
+    warp: ?@import("actor_catalog").psyclaw.Warp = null,
     freeze_level: f32 = 0,
     poison: ?Poison = null,
     freeze_at_ms: ?i64 = null,
@@ -14,7 +15,7 @@ pub const State = struct {
     freeze_weapon: u5 = 0,
     pub fn cure(self: *State) void {
         const retained = self.mask & ~@as(u32, 7);
-        self.* = .{ .mask = retained };
+        self.* = .{ .mask = retained, .warp = self.warp };
     }
     fn thaw(self: *State, now: i64) void {
         if (self.freeze_at_ms) |at| {

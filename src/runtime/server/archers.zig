@@ -23,7 +23,8 @@ pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World
         actor.reaction = null;
         actor.reaction_until_ms = null;
     }
-    if (injured and (kind == .centurion or hurt.amount >= 25) and (try world.get(entity, data.Random)).next() < (if (kind == .centurion) @as(f32, 0.3) else 0.2)) if (definition.pain[0]) |sequence| {
+    if (injured and kind == .fletcher and try @import("actor_pain.zig").generic(world, entity, actor, definition, hurt.amount, 20, 25, now)) return;
+    if (injured and kind == .centurion and (try world.get(entity, data.Random)).next() < 0.3) if (definition.pain[0]) |sequence| {
         actor.reaction = sequence;
         actor.reaction_started_ms = now;
         actor.reaction_until_ms = now + sequence.duration();

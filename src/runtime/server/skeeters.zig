@@ -37,32 +37,6 @@ pub fn pod(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
         (try world.get(entity, data.Health)).current = 1;
     }
 }
-fn retreat(world: *data.World, entity: ecs.Entity, pose: data.Transform, body: data.Body, enemy: v.Vec3, routes: *const @import("air_routes.zig").Routes) !v.Vec3 {
-    const random = try world.get(entity, data.Random);
-    const slot = (try world.get(entity, data.Binding)).slot;
-    var selected: ?v.Vec3 = null;
-    outer: for ([_][2]f32{ .{ 1, 0 }, .{ 0, 1 } }) |axis| {
-        var degrees = random.next() * 360;
-        const step_degrees: f32 = if (random.next() > 0.5) 12 else -12;
-        var distance: f32 = 512;
-        while (distance > 100) : (distance *= 0.65) {
-            for (0..30) |_| {
-                const direction = v.basis(.{ -20, pose.angles[1] + degrees, 0 }).forward;
-                var point = v.add(pose.position, .{ direction[0] * distance * axis[0], direction[1] * distance * axis[1], direction[2] * distance });
-                if (random.next() > 0.5 and pose.position[2] > enemy[2] + distance / 2) point[2] = pose.position[2] - direction[2] * distance;
-                const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = point, .mins = v.scale(body.mins, 1.25), .maxs = v.scale(body.maxs, 1.25), .slot = slot, .mask = c.MASK_SHOT });
-                if (!hit.start_solid and hit.fraction == 1) {
-                    selected = point;
-                    break :outer;
-                }
-                degrees += step_degrees;
-            }
-        }
-    }
-    const point = selected orelse v.add(enemy, .{ 0, 0, 178 });
-    // The authored air graph owns retreat destinations; absence is a setup failure.
-    return routes.nearest(point) orelse error.MissingSkeeterAirNodes;
-}
 pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, body: data.Body, velocity: *data.Velocity, now: i64, elapsed: u32) !void {
     const definition = actors.table.definitions[actor.definition];
     const slot = (try world.get(entity, data.Binding)).slot;
@@ -78,7 +52,7 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
         const hit = actor.skeeter.tick(now, enemy.enemy != null, enemy.visible, enemy.distance, definition.range, definition.attacks[0].duration(), strike_ms, v.length(v.subtract(actor.skeeter.retreat, pose.position)));
         if (actor.skeeter.phase != previous) {
             actor.changed_ms = now;
-            if (actor.skeeter.phase == .retreat) actor.skeeter.retreat = try retreat(world, entity, pose.*, body, actor.threat_position, &actors.air_routes);
+            if (actor.skeeter.phase == .retreat) actor.skeeter.retreat = (try @import("air_escape.zig").find(world, entity, pose.*, body, actor.threat_position, &actors.air_routes, 512, 178)) orelse return error.MissingSkeeterAirNodes;
         }
         if (hit and enemy.enemy != null) {
             const target = enemy.enemy.?;

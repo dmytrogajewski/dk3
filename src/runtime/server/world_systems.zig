@@ -99,13 +99,13 @@ pub const State = struct {
         try @import("frog_spit.zig").step(world, slots, projections, now);
         try @import("cryo_spray.zig").step(world, slots, projections, now);
         try @import("actor_lasers.zig").step(world, slots, projections, now);
-        try @import("actor_attacks.zig").step(world, slots, projections, now);
         try @import("ailments.zig").step(world, now);
         try @import("monitors.zig").step(world, slots, now);
         try self.navigation.frame(now);
         self.navigation.sync(projections);
         if (!@import("cinematics.zig").active(world)) try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);
         if (!@import("cinematics.zig").active(world)) try @import("companions.zig").combat(&self.actors, world, slots, projections, table, now, elapsed);
+        try @import("actor_attacks.zig").step(world, slots, projections, now);
         try @import("fireflies.zig").step(world, slots, projections, now, elapsed);
         try @import("scenery.zig").step(world, slots, projections, targets, now, elapsed);
         try @import("healthtrees.zig").step(world, slots, projections, now, elapsed);

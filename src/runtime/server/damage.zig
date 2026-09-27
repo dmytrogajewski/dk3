@@ -4,6 +4,7 @@ const ecs = @import("../ecs/world.zig");
 const rules = @import("../domain/damage.zig");
 pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, options: rules.Options) !rules.Result {
     if ((world.get(entity, data.Performer) catch null) != null) return .{};
+    if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .psyclaw and now <= actor.psyclaw.protected_until_ms) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .column and !@import("actor_catalog").column.acceptsWeapon(options.weapon == @import("weapon_catalog").hammer.id)) return .{};
     // C4 explosions schedule nearby charges explicitly; radius damage must not
     // collapse the staggered chain into simultaneous deaths.

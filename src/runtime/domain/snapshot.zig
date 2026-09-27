@@ -309,6 +309,9 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
             if (attack.owner == 0 or attack.stepped_ms < attack.born_ms) return error.InvalidSavedActorAttack;
             switch (attack.attack) {
+                .psyclaw_sphere => |sphere| {
+                    if (sphere.damage <= 0 or sphere.damage > 1000000 or sphere.scale < 0.5 or sphere.scale > 4.5 or sphere.multiplier < 0.9 or sphere.multiplier > 1.45 or sphere.color < -8 or sphere.color > 33 or sphere.color_direction < -8 or sphere.color_direction > 8 or sphere.next_ms <= attack.stepped_ms or sphere.next_ms > attack.stepped_ms + 100 or attack.stepped_ms > attack.born_ms + 8000) return error.InvalidSavedActorAttack;
+                },
                 .gunner_burst => |burst| {
                     if (burst.next_ms <= attack.stepped_ms or burst.tuning.damage < 0 or burst.tuning.damage > 1000000 or burst.tuning.random_damage < 0 or burst.tuning.random_damage > 1000000 or burst.tuning.range <= 0 or burst.tuning.range > 65536) return error.InvalidSavedActorAttack;
                     for (burst.tuning.offset) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1024) return error.InvalidSavedActorAttack;
@@ -335,7 +338,7 @@ pub fn validate(snapshot: *Loaded) !void {
                 .rocket => |rocket| {
                     if (rocket.damage <= 0 or rocket.damage > 1000000 or rocket.speed <= 0 or rocket.speed > 65536 or rocket.divisor == 0 or rocket.frame > 2 or attack.stepped_ms > attack.born_ms + @import("actor_catalog").missiles.lifetime(rocket.kind) or rocket.next_ms <= attack.stepped_ms or rocket.next_ms > attack.stepped_ms + (if (rocket.kind == .battleboar) @as(i64, 5000) else 100)) return error.InvalidSavedActorAttack;
                 },
-                .knight_flame => |fire| {
+                .fireball => |fire| {
                     if (fire.damage <= 0 or fire.damage > 1000000 or attack.stepped_ms > attack.born_ms + 5000 or fire.drift_ms <= attack.stepped_ms or fire.drift_ms > attack.stepped_ms + 100) return error.InvalidSavedActorAttack;
                 },
                 .knight_zap => |zap| {
@@ -394,6 +397,8 @@ pub fn validate(snapshot: *Loaded) !void {
                 if (shot.remaining == 0 or shot.remaining > 5) return error.InvalidSavedRockgatBurst;
             };
             try require(world, entity, .{ data.Velocity, data.Body, data.Health, data.Hurt, data.Binding, data.MapObject });
+            if (actor.doombat.bob > 5 or !std.math.isFinite(actor.doombat.speed) or actor.doombat.speed < 0) return error.InvalidSavedActor;
+            for (actor.griffon.destination ++ actor.griffon.previous) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             if (!std.math.isFinite(actor.sludge.ammo) or @abs(actor.sludge.ammo) > 1000000) return error.InvalidSavedActor;
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
             if (actor.lycanthir.phase != .living and (@import("actor_catalog").entries[actor.definition].kind != .lycanthir or actor.lycanthir.wake_ms < actor.lycanthir.started_ms and actor.lycanthir.phase == .collapsed)) return error.InvalidSavedResurrection;
@@ -612,6 +617,10 @@ pub fn validate(snapshot: *Loaded) !void {
         }
         if (world.get(entity, data.Ailments) catch null) |ailments| {
             try require(world, entity, .{data.Health});
+            if (ailments.warp) |warp| {
+                try require(world, entity, .{data.Player});
+                if (warp.source == 0 or warp.next_ms > warp.until_ms or warp.next_ms < warp.until_ms - 7900) return error.InvalidSavedAilment;
+            }
             if (ailments.freeze_level < 0 or ailments.freeze_level > 1) return error.InvalidSavedAilment;
             if (ailments.poison) |poison| if (poison.damage <= 0 or poison.damage > 1000000 or poison.interval_ms < 100 or poison.interval_ms > 3600000 or poison.weapon > 28 or poison.next_ms > poison.until_ms + poison.interval_ms) return error.InvalidSavedAilment;
         }

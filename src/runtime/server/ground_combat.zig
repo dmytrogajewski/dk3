@@ -36,16 +36,17 @@ pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World
         actor.reaction = null;
         actor.reaction_until_ms = null;
     }
-    if (newly_hurt and hurt.amount > 0) {
+    if (newly_hurt and (kind == .labmonkey or kind == .femgang) and try @import("actor_pain.zig").generic(world, entity, actor, definition, hurt.amount, 20, 35, now)) return;
+    if (newly_hurt and hurt.amount > 0 and kind != .labmonkey and kind != .femgang) {
         const random = (try world.get(entity, data.Random)).next();
         const chance: f32 = switch (kind) {
-            .skeleton, .dwarf, .labmonkey, .femgang => 0.2,
+            .skeleton, .dwarf => 0.2,
             .lycanthir, .cerberus => 0.1,
             .ragemaster, .satyr => 0.05,
             .column => 1,
             else => unreachable,
         };
-        if (random < chance and ((kind != .labmonkey and kind != .femgang) or hurt.amount >= 35)) if (definition.pain[if (kind == .column and hurt.amount >= 20) @as(usize, 1) else 0]) |sequence| {
+        if (random < chance) if (definition.pain[if (kind == .column and hurt.amount >= 20) @as(usize, 1) else 0]) |sequence| {
             actor.reaction = sequence;
             actor.reaction_started_ms = now;
             actor.reaction_until_ms = now + sequence.duration();

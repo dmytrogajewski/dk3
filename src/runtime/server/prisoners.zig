@@ -23,15 +23,10 @@ pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World
         actor.reaction = null;
         actor.reaction_until_ms = null;
     }
-    if (injured and hurt.amount >= (if (white) @as(i32, 40) else 35) and (try world.get(entity, data.Random)).next() < (if (white) @as(f32, 0.2) else 0.1)) if (definition.pain[0]) |hit| {
-        actor.reaction = hit;
-        actor.reaction_started_ms = now;
-        actor.reaction_until_ms = now + hit.duration();
-        actor.melee.active = false;
+    if (injured and try @import("actor_pain.zig").generic(world, entity, actor, definition, hurt.amount, if (white) 20 else 10, if (white) 40 else 35, now)) {
         actor.evasion.until_ms = null;
-        actor.mode = .idle;
         return;
-    };
+    }
     const target = sensed.enemy orelse {
         actor.melee.active = false;
         actor.mode = .idle;

@@ -242,6 +242,8 @@ pub const Clients = struct {
             const weapon = @import("weapon_catalog").find(@intCast(inventory.weapon)) orelse return error.UnknownPlayerWeapon;
             projection.state.frame = pose_set.frame(&session.pose, .{ .velocity = velocity.linear, .yaw = transform.angles[1], .ducked = player.ducked, .jumping = player.jump_held and player.ground_entity == c.ENTITYNUM_NONE and player.water_level < 2, .dead = health.current <= 0 }, weapon.spec.player_grip, now);
         }
+        ps.loopSound = if (ailments.warp != null) try @import("resources.zig").sound(@import("actor_catalog").psyclaw.loop_sound) else 0;
+        projection.state.loopSound = ps.loopSound;
         projection.state.groundEntityNum = ps.groundEntityNum;
         projection.state.weapon = ps.weapon;
         projection.shared.currentOrigin = transform.position;
