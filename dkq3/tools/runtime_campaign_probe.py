@@ -58,7 +58,7 @@ def run(args):
                 if args.checkpoint:
                     driver.load("intro_resume")
                 state = driver.until(lambda s: (s["map"] == "intro" and s["cinematic"] and s["mode"] == "frozen") or (args.checkpoint and args.checkpoint_map == "e1m1a" and s["map"] == "e1m1a" and s["mode"] == "normal"), description="authored intro or legitimate arrival checkpoint ready")
-                if state["skill"] != 3 or state["health"] != 100 or state["weapon"] != 1:
+                if state["skill"] != 3 or (args.checkpoint_phase == "arrival" and (state["health"] != 100 or state["weapon"] != 1)):
                     raise RuntimeError(f"New Game did not start with ordinary normal-difficulty state: {state}")
                 capture("checkpoint-start" if args.checkpoint else "intro-start")
                 seen = set()
@@ -98,8 +98,8 @@ def run(args):
                 opening = None
                 if args.opening:
                     from runtime_opening_route import opening_route
-                    opening = opening_route(driver, capture, args.report)
-                (args.report / "result.json").write_text(json.dumps({"identity": identity, "checkpoint": str(args.checkpoint) if args.checkpoint else None, "scope": ("Development replay from an earlier-build legitimate intro checkpoint through e1m1a arrival/save/load. Not fresh campaign acceptance." if args.checkpoint else "New Game through all intro shots and e1m1a arrival cinematic, ordinary inventory, normal difficulty, arrival save/load. Connected e1m1a combat/bridge/e1m1c/e1m2a traversal not yet exercised."), "state": state, "opening": opening}, indent=2) + "\n")
+                    opening = opening_route(driver, capture, args.report, args.checkpoint_phase)
+                (args.report / "result.json").write_text(json.dumps({"identity": identity, "checkpoint": str(args.checkpoint) if args.checkpoint else None, "scope": ("Development replay from a legitimate checkpoint through e1m1a arrival/save/load. Not fresh campaign acceptance." if args.checkpoint else "New Game through all intro shots and e1m1a arrival cinematic, ordinary inventory, normal difficulty, arrival save/load. Connected e1m1a combat/bridge/e1m1c/e1m2a traversal not yet exercised."), "state": state, "opening": opening}, indent=2) + "\n")
                 driver.issue("quit")
                 if process.wait(timeout=15) != 0:
                     raise RuntimeError("Campaign shutdown failed")
@@ -118,9 +118,12 @@ def main():
     parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--opening", action="store_true", help="Continue with ordinary-input opening route development")
+    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter"), default="arrival")
     parser.add_argument("--checkpoint-map", choices=("intro", "e1m1a"), default="intro")
-    parser.add_argument("--checkpoint", type=Path, help="Legitimate intro checkpoint for development replay; never fresh campaign acceptance")
+    parser.add_argument("--checkpoint", type=Path, help="Legitimate checkpoint for development replay; never fresh campaign acceptance")
     args = parser.parse_args()
+    if args.checkpoint_phase != "arrival" and not (args.checkpoint and args.checkpoint_map == "e1m1a" and args.opening):
+        parser.error("A later route phase requires a legitimate e1m1a checkpoint and --opening")
     args.engine, args.prefix, args.report = args.engine.resolve(), args.prefix.resolve(), args.report.resolve()
     run(args)
 

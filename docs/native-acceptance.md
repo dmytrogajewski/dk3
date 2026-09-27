@@ -10,7 +10,7 @@ multiplayer modes/bots, persistence, UI and release requirements remain in scope
 | Outcome | Implementation and contracts | Native engine / connected gameplay | Evidence and limits |
 |---|---|---|---|
 | Finish weapon controllers | Audit completed: 28 class-owned policies are connected, including Zeus, Wyndrax, Nightmare and Metamaser. Counts describe dispatch coverage only. | Several focused interactions exercised; no complete weapon acceptance. | Journal sequences 232–243. Diagnostic inventory, placement and sometimes health changes invalidate these as continuous campaign evidence. |
-| Fresh opening campaign | Intro execution and pod/skeet/frog policies implemented; remaining opening classes and authored encounter scripts incomplete. | **Unrun as a complete route:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. No verified consolidated build yet. | Must use ordinary starting inventory, normal difficulty, one build and asset manifest. Include combat, pickups, controls, death/reload, save/load and visited worlds. |
+| Fresh opening campaign | Intro, pod/skeet/frog/Thunderskeet policies, opening action programs and health trees implemented. Cambot/Crox/Rockgat remain blockers. | **Unrun as a complete route:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. No verified consolidated build yet. | Must use ordinary starting inventory, normal difficulty, one build and asset manifest. Include combat, pickups, controls, death/reload, save/load and visited worlds. |
 | Native save and visited-world restoration | Typed native snapshots and visited archives implemented; focused contracts execute. | Sequence 241 travel diagnostic passes a limited e1m3b/e1m3a round trip. Connected campaign persistence unrun. | `zig-out/reports/runtime-zig-241/travel-regression/`; diagnostic placements, no companion/cinematic qualification. |
 | Remaining campaign and multiplayer | Most actors, companion/cinematic progression and native multiplayer behaviors remain. | Unrun in this runtime. | Opening milestone is an integration gate, not completion of this scope. |
 
@@ -106,7 +106,38 @@ fireflies and finer effects remain separately tracked presentation work.
 
 Sequence 246 consolidated actor/action/resupply build passes three modules and 94
 focused checks. Applicable aggregate passes 232 Zig + 48 Python checks and formatting
-(`/tmp/dk3-runtime-246-aggregate.log`). A fresh run is underway in
-`runtime-zig-246/fresh-opening/`; no outcome is assigned until its observations complete.
+(`/tmp/dk3-runtime-246-aggregate.log`). The fresh run in `runtime-zig-246/fresh-opening/` completed all intro and arrival shots,
+arrival save/load and Ion pickup, then failed its guessed navigation waypoint.
+No full campaign gate passed.
 Health trees now provide the finite authored campaign resupply with saved fruit state;
 live use/restoration remain unverified. Scope beyond the opening gate is unchanged.
+
+## Current connected coverage (247)
+
+| Player outcome | Exact build/assets | Remaining blocker / limits | Evidence |
+|---|---|---|---|
+| Fresh New Game, full intro and e1m1a arrival; arrival save/load and ordinary Ion pickup | Sequence 246 `fresh-opening/identity.json` contains every executable/module/package digest | Route failed at a driver waypoint against rock; full opening gate remains failed/incomplete. Subsequent actor/spawn changes require replay. | `runtime-zig-246/fresh-opening/` logs, inputs, captures and failure record |
+| Ordinary first Slaughterskeet encounter, rock-step jump and first marsh checkpoint, health 100 | `b1a868d39f0d0e0c2242551e7b8deef800dc5a1691679b5a524640a5f741cf88`; full asset manifest in `opening-jump/identity.json` | Development replay from legitimate sequence-246 arrival save; not a fresh route. Missing classes are not retroactively inserted into old saves. No complete map traversal yet. | `runtime-zig-247/opening-jump/result.json`, inputs, captures and checkpoint |
+| Bridge's ten authored skeets plus Thunderskeet, paths, aggression and restoration after fresh map initialization | Same sequence-247 identity; `bridge-first/identity.json` | Controlled activation and health 10000. Combat, death outputs and connected bridge traversal unverified. | `runtime-zig-247/bridge-first/result.json` and saved `bridge_paths.sav` |
+
+Sequence 247 connects the single-use authored monster factory, unique IDs, inherited
+flags, deathtarget and item spawnname. Saved dynamically created actors now admit their
+animation metadata before publication. Three modules and 96 focused checks pass in
+`/tmp/dk3-runtime-247-bridge-rebuild.log`. Full aggregate is pending this integration
+batch; earlier aggregate remains historical. Actor death output changes require
+civilian/guard and applicable weapon/body-control regressions. Thunderskeet spray,
+frog spit, health tree use/restoration and dynamic navigation need live qualification.
+Reference contracts were reviewed, not compared through reference playback. Spray's
+unsafe twelve-entry cycle is intentionally bounded at twelve; complete visual/audio
+parity and all remaining campaign/multiplayer scope stay open.
+
+Sequence 248 repaired a premature e1m1a exit caused by projecting a trigger's authored
+angle as brush rotation. `runtime-zig-248/trigger-before/` detects the defect on the
+previous build. `trigger-after/` passes remote-point rejection before/after save-load
+and valid contact with the real exit, using identity
+`02a5fcdaf9752fbcfe8a91801ced0639e35ab6b07ab6d1ca986a3f664fba172c`
+(full executable/module/asset manifest alongside the result). Diagnostic placement
+excludes connected traversal acceptance. Preserve previous angled-trigger travel rows
+as historical and **requiring revalidation**. Aggregate passes 235 Zig + 48 Python
+checks, formatting and all three native modules. The ordinary marsh replay is underway
+in `runtime-zig-248/marsh-trigger-fixed/`; a fresh consolidated full gate remains open.

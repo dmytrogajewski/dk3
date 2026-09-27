@@ -81,12 +81,14 @@ fn init(now: i64) !void {
     engine.locate(&projection, &players);
     engine.config(c.CS_GAME_VERSION, @import("engine/player_state.zig").version);
     engine.register("g_gametype", "2", c.CVAR_SERVERINFO);
+    engine.register("dm_item_respawn", "1", c.CVAR_SERVERINFO | c.CVAR_LATCH);
     while (try map.read(arena.?.allocator(), engine)) |object| {
         _ = try world.?.create(null, .{ object.binding, object.transform });
     }
     if (engine.integer("dk3_runtime_probe") == 2) {
         try systems.spawn(arena.?.allocator(), &world.?, &slots, &projection, now, clients.episode);
         targets.scripts = &systems.scripts;
+        targets.actors = &systems.actors;
         if (engine.integer("dk3_resume") == 1) {
             _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_resume"), @as([*:0]const u8, "0") });
             var loaded = try persistence.prepare("dk3-resume-internal", false);
@@ -136,7 +138,7 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
     // Remaining work publishes admitted state; unexpected invariant failures are
     // runtime errors, never a partially successful load reported to the player.
     @import("server/resources.zig").restore(header.resources) catch |err| runtimeFailure(err);
-    targets = .{ .pending = header.pending, .scripts = &systems.scripts };
+    targets = .{ .pending = header.pending, .scripts = &systems.scripts, .actors = &systems.actors };
     persistence.project(&world.?, &slots, &projection, &clients, &players, &systems, header, clock.now_ms) catch |err| runtimeFailure(err);
     if (staged_campaign) |state| {
         campaign.deinit();

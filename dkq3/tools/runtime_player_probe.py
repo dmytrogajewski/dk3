@@ -1566,9 +1566,14 @@ def run(args):
 
             try:
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
-                if args.scenario == "controllers":
+                if args.scenario in ("controllers", "bridge", "trigger-bounds"):
                     from runtime_input import NativeInput
-                    from runtime_weapon_completion_probe import scenario
+                    if args.scenario == "trigger-bounds":
+                        from runtime_trigger_bounds_probe import scenario
+                    elif args.scenario == "bridge":
+                        from runtime_bridge_probe import scenario
+                    else:
+                        from runtime_weapon_completion_probe import scenario
                     wait(process, log, lambda text: "dk3 zig client: first snapshot applied" in text)
                     result = scenario(NativeInput(process, pipe, log, home, inputs, diagnostic=True), args.report)
                 elif args.scenario == "navigation":
@@ -1643,7 +1648,7 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "meteors", "zeus", "controllers", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "meteors", "zeus", "controllers", "bridge", "trigger-bounds", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -1671,6 +1676,8 @@ def main():
         "meteors": ("e1m3b", "runtime-zig-241/meteors"),
         "zeus": ("e1m2a", "runtime-zig-242/zeus"),
         "controllers": ("e1m2a", "runtime-zig-243/controllers"),
+        "bridge": ("e1m1b", "runtime-zig-247/bridge"),
+        "trigger-bounds": ("e1m1a", "runtime-zig-248/trigger-bounds"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

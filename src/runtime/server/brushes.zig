@@ -6,6 +6,13 @@ const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
 const c = abi.c;
 const Slots = @import("../engine/slots.zig").Slots;
+/// Trigger angles describe directional behavior, not brush rotation. The reference
+/// engine expands rotated bounds only for SOLID_BSP; ioquake uses bmodel instead.
+/// Keep the authored transform for gameplay and project an unrotated trigger hull.
+pub fn collisionAngles(classname: []const u8, angles: data.Vec3) data.Vec3 {
+    return if (std.mem.startsWith(u8, classname, "trigger_")) @splat(0) else angles;
+}
+
 pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection) !void {
     // Collect handles before adding components: no structural edits in a query epoch.
     var entities: [@import("../ecs/world.zig").max_entities]@import("../ecs/world.zig").Entity = undefined;
@@ -46,9 +53,16 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         projection.state.apos.trType = c.TR_STATIONARY;
         projection.state.apos.trBase = transform.angles;
         projection.shared.currentOrigin = transform.position;
-        projection.shared.currentAngles = transform.angles;
+        projection.shared.currentAngles = collisionAngles(object.classname, transform.angles);
         projection.shared.contents = @bitCast(contents);
         if (hidden) projection.shared.svFlags |= c.SVF_NOCLIENT;
         engine.link(projection);
     }
+}
+
+test "directional trigger hulls stay unrotated while real rotating brushes retain orientation" {
+    try std.testing.expectEqual(data.Vec3{ 0, 0, 0 }, collisionAngles("trigger_changelevel", .{ 0, 180, 0 }));
+    try std.testing.expectEqual(data.Vec3{ 0, 0, 0 }, collisionAngles("trigger_once", .{ 0, 270, 0 }));
+    try std.testing.expectEqual(data.Vec3{ 0, 45, 0 }, collisionAngles("func_rotating", .{ 0, 45, 0 }));
+    try std.testing.expectEqual(data.Vec3{ 0, 0, 0 }, collisionAngles("func_door", .{ 0, 0, 0 }));
 }

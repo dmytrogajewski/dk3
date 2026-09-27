@@ -18,6 +18,8 @@ test {
     _ = @import("domain/snapshot_time.zig");
     _ = @import("domain/travel.zig");
     _ = @import("server/spawns.zig");
+    _ = @import("server/actor_spawns.zig");
+    _ = @import("server/brushes.zig");
     _ = @import("domain/navigation.zig");
     _ = @import("domain/world_actions.zig");
     _ = @import("actor_catalog").mishima;

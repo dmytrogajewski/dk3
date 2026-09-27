@@ -20,7 +20,7 @@ pub fn capture(allocator: std.mem.Allocator, bytes: []u8, world: *data.World, cl
     const header: format.Header = .{ .at_ms = now, .player_id = try world.persistentId(player), .episode = clients.episode, .next_id = world.next_id, .resources = try @import("resources.zig").capture(allocator), .pending = targets.pending, .journey = journey };
     return format.captureCampaign(allocator, bytes, world, mapName(&map), @intCast(std.math.clamp(engine.integer("g_spSkill"), 1, 5)), header, visited);
 }
-pub fn save(world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, systems: *const @import("world_systems.zig").State, slot: []const u8, now: i64, visited: []const format.Archive) !void {
+pub fn save(world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, systems: *@import("world_systems.zig").State, slot: []const u8, now: i64, visited: []const format.Archive) !void {
     if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return error.SaveRequiresSinglePlayer;
     const player = clients.entities[0] orelse return error.NoPlayerToSave;
     if ((try world.get(player, data.Health)).current <= 0) return error.CannotSaveDeadPlayer;
@@ -47,15 +47,16 @@ pub fn prepare(slot: []const u8, previous: bool) !format.Loaded {
     defer allocator.free(bytes);
     return format.decode(allocator, bytes);
 }
-/// Admission cannot call engine mutation. Projection rebuilding below is infallible
+/// Admission may load immutable class metadata, but cannot mutate engine entities.
+/// Projection rebuilding below is infallible
 /// for the admitted entity families and current map's loaded definitions.
-pub fn admit(loaded: *format.Loaded, systems: *const @import("world_systems.zig").State) !void {
+pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").State) !void {
     try systems.cinematics.admit(&loaded.world);
     try systems.scripts.admit(&loaded.world);
     var query = loaded.world.queryAccess(0, 0, 0);
     defer query.deinit();
     while (query.next()) |view| for (view.entities()) |entity| {
-        if (loaded.world.get(entity, data.Actor) catch null) |actor| if (!systems.actors.table.definitions[actor.definition].loaded) return error.UnavailableSavedActorDefinition;
+        if (loaded.world.get(entity, data.Actor) catch null) |actor| try systems.actors.ensure(actor.definition);
         if (loaded.world.get(entity, data.Binding) catch null) |binding| {
             if ((loaded.world.get(entity, data.Hammer) catch null) != null or (loaded.world.get(entity, data.Shockwave) catch null) != null or (loaded.world.get(entity, data.Nova) catch null) != null or (loaded.world.get(entity, data.Flashlight) catch null) != null or (loaded.world.get(entity, data.Zeus) catch null) != null or (loaded.world.get(entity, data.ZeusBolt) catch null) != null or (loaded.world.get(entity, data.Nightmare) catch null) != null or (loaded.world.get(entity, data.MetaRing) catch null) != null or (loaded.world.get(entity, data.MetaLaser) catch null) != null) continue;
             const object = loaded.world.get(entity, data.MapObject) catch null;
@@ -72,7 +73,7 @@ pub fn admit(loaded: *format.Loaded, systems: *const @import("world_systems.zig"
                     engine.print(try std.fmt.bufPrintZ(&text, "dk3 save: invalid model on entity {d} ({s}), model={d}, registered={d}\n", .{ try loaded.world.persistentId(entity), if (object) |value| value.classname else "dynamic", binding.model, loaded.header.resources.models.len }));
                     return error.InvalidSavedModel;
                 }
-                if ((loaded.world.get(entity, data.Actor) catch null) == null and (loaded.world.get(entity, data.Pickup) catch null) == null and (loaded.world.get(entity, data.Projectile) catch null) == null and (loaded.world.get(entity, data.Charge) catch null) == null and (loaded.world.get(entity, data.Performer) catch null) == null and (loaded.world.get(entity, data.FrogSpit) catch null) == null and (loaded.world.get(entity, data.HealthTree) catch null) == null) return error.UnsupportedSavedEntity;
+                if ((loaded.world.get(entity, data.Actor) catch null) == null and (loaded.world.get(entity, data.Pickup) catch null) == null and (loaded.world.get(entity, data.Projectile) catch null) == null and (loaded.world.get(entity, data.Charge) catch null) == null and (loaded.world.get(entity, data.Performer) catch null) == null and (loaded.world.get(entity, data.FrogSpit) catch null) == null and (loaded.world.get(entity, data.HealthTree) catch null) == null and (loaded.world.get(entity, data.ThunderSpray) catch null) == null) return error.UnsupportedSavedEntity;
             }
         }
     };
@@ -104,6 +105,10 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         slots.occupants[binding.slot] = entity;
         if (binding.slot == 0) {
             try clients.publish(world, projections, states, 0);
+            continue;
+        }
+        if ((world.get(entity, data.ThunderSpray) catch null) != null) {
+            try @import("thunder_spray.zig").publish(world, entity, projections, now);
             continue;
         }
         if ((world.get(entity, data.HealthTree) catch null) != null) {
@@ -180,7 +185,7 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         projection.state.pos = @import("../engine/trajectory.zig").stationary(transform.position);
         projection.state.apos = @import("../engine/trajectory.zig").stationary(transform.angles);
         projection.shared.currentOrigin = transform.position;
-        projection.shared.currentAngles = transform.angles;
+        projection.shared.currentAngles = @import("brushes.zig").collisionAngles(object.classname, transform.angles);
         projection.shared.contents = @bitCast(body.contents);
         var hidden = std.mem.startsWith(u8, object.classname, "trigger_") or std.mem.eql(u8, object.classname, "func_clip") or std.mem.eql(u8, object.classname, "func_monsterclip");
         if (world.get(entity, data.Destructible) catch null) |destructible| hidden = hidden or destructible.hidden or destructible.broken;

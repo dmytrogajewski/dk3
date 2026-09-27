@@ -29,27 +29,35 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             count += 1;
         };
     }
-    for (entities[0..count]) |entity| {
-        const object = (try world.get(entity, data.MapObject)).*;
-        const kind = rules.classify(object.classname).?;
-        const position = (try world.get(entity, data.Transform)).position;
-        const slot = try slots.acquire(entity, null);
-        errdefer slots.release(slot, entity) catch unreachable;
-        var buffer: [c.MAX_QPATH]u8 = undefined;
-        const path = try model(object, kind, episode, &buffer);
-        const model_index = try resources.model(path);
-        var body: data.Body = .{ .mins = @splat(-16), .maxs = @splat(16), .contents = c.CONTENTS_TRIGGER, .collision_mask = c.MASK_SOLID };
-        if (try resources.floorBounds(path)) |bounds| {
-            body.mins = bounds.mins;
-            body.maxs = bounds.maxs;
-        }
-        try world.put(entity, data.Binding{ .slot = slot, .model = model_index });
-        try world.put(entity, body);
-        try world.put(entity, data.Pickup{ .kind = kind, .amount = @intFromFloat(try prop.number(object, "count", 0)) });
-        try world.put(entity, data.ItemMotion{ .base = position, .started_ms = now });
-        try publish(world, entity, projections);
-    }
+    for (entities[0..count]) |entity| try spawnOne(world, slots, projections, entity, now, episode);
 }
+pub fn spawnDynamic(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, classname: []const u8, pose: data.Transform, now: i64, episode: u8) !ecs.Entity {
+    const entity = try world.create(null, .{ data.MapObject{ .classname = classname }, pose });
+    errdefer world.destroy(entity) catch unreachable;
+    try spawnOne(world, slots, projections, entity, now, episode);
+    return entity;
+}
+fn spawnOne(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64, episode: u8) !void {
+    const object = (try world.get(entity, data.MapObject)).*;
+    const kind = rules.classify(object.classname) orelse return error.UnknownItemClass;
+    const position = (try world.get(entity, data.Transform)).position;
+    const slot = try slots.acquire(entity, null);
+    errdefer slots.release(slot, entity) catch unreachable;
+    var buffer: [c.MAX_QPATH]u8 = undefined;
+    const path = try model(object, kind, episode, &buffer);
+    const model_index = try resources.model(path);
+    var body: data.Body = .{ .mins = @splat(-16), .maxs = @splat(16), .contents = c.CONTENTS_TRIGGER, .collision_mask = c.MASK_SOLID };
+    if (try resources.floorBounds(path)) |bounds| {
+        body.mins = bounds.mins;
+        body.maxs = bounds.maxs;
+    }
+    try world.put(entity, data.Binding{ .slot = slot, .model = model_index });
+    try world.put(entity, body);
+    try world.put(entity, data.Pickup{ .kind = kind, .amount = @intFromFloat(try prop.number(object, "count", 0)) });
+    try world.put(entity, data.ItemMotion{ .base = position, .started_ms = now });
+    try publish(world, entity, projections);
+}
+
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection) !void {
     const binding = (try world.get(entity, data.Binding)).*;
     const transform = (try world.get(entity, data.Transform)).*;

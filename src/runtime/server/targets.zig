@@ -15,6 +15,7 @@ pub const Router = struct {
     pending: @import("../domain/target_actions.zig").Queue = @splat(null),
     depth: usize = 0,
     scripts: ?*const @import("scripts.zig").State = null,
+    actors: ?*@import("actors.zig").Actors = null,
     travel: ?@import("../domain/travel.zig").Request = null,
     pub fn activate(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {
         return self.activateFrom(world, slots, projections, entity, null, activator, now);
@@ -25,6 +26,7 @@ pub const Router = struct {
         defer self.depth -= 1;
         const object = (try world.get(entity, data.MapObject)).*;
         if (!@import("keys.zig").allows(world, object, activator)) return;
+        if (std.mem.eql(u8, object.classname, "target_monster_spawn")) return @import("actor_spawns.zig").use(self.actors orelse return error.MissingActorDefinitions, world, slots, projections, entity, source, now);
         if ((world.get(entity, data.HealthTree) catch null) != null) return @import("healthtrees.zig").use(world, slots, projections, entity, activator, now);
         if (std.mem.eql(u8, object.classname, "trigger_script")) {
             const trigger = try world.get(entity, data.Trigger);

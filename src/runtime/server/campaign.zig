@@ -83,7 +83,7 @@ pub fn spawn(world: *data.World) !void {
         try world.put(entity, data.Exit{});
     };
 }
-pub fn depart(state: *State, world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, systems: *const @import("world_systems.zig").State, projections: []const @import("../engine/abi.zig").EntityProjection, request: travel.Request, now: i64) !void {
+pub fn depart(state: *State, world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, systems: *@import("world_systems.zig").State, projections: []const @import("../engine/abi.zig").EntityProjection, request: travel.Request, now: i64) !void {
     if (state.departing) return;
     if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return error.CampaignExitRequiresSinglePlayer;
     const exit = world.find(request.exit) orelse return error.MissingExit;

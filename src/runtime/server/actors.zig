@@ -39,7 +39,7 @@ pub const Actors = struct {
         }
         for (candidates[0..count]) |entity| try self.spawnOne(world, slots, projections, entity, now);
     }
-    fn ensure(self: *Actors, id: u8) !void {
+    pub fn ensure(self: *Actors, id: u8) !void {
         if (self.animations[id]) return;
         const definition = &self.table.definitions[id];
         if (!definition.loaded) return error.MissingActorDefinition;
@@ -55,6 +55,7 @@ pub const Actors = struct {
         const attacks: []const []const u8 = switch (policy.kind) {
             .mishima_guard => &catalog.mishima.attacks,
             .skeeter => &.{catalog.skeeter.attack},
+            .thunderskeet => &.{catalog.thunderskeet.attack},
             .froginator => &catalog.froginator.attacks,
             else => &.{},
         };
@@ -75,6 +76,13 @@ pub const Actors = struct {
             const hatch = if (policy.kind == .protopod) "hatcha" else catalog.skeeter.hatch;
             definition.hatch = try animation.find(metadata, hatch) orelse return error.MissingActorHatch;
             definition.hatch_sound = (try self.event(policy.classname, hatch)).field("sound1") orelse "";
+            if (!self.air_ready) {
+                try self.air_routes.init(self.allocator);
+                self.air_ready = true;
+            }
+        }
+        if (policy.kind == .thunderskeet) {
+            if (definition.attacks[0].first > 27 or definition.attacks[0].last < 32) return error.InvalidThunderBurstAnimation;
             if (!self.air_ready) {
                 try self.air_routes.init(self.allocator);
                 self.air_ready = true;
@@ -113,7 +121,10 @@ pub const Actors = struct {
         try self.publish(world, entity, projections, now);
     }
     pub fn spawnDynamic(self: *Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, classname: []const u8, position: v.Vec3, angles: v.Vec3, now: i64) !ecs.Entity {
-        const entity = try world.create(null, .{ data.MapObject{ .classname = classname }, data.Transform{ .position = position, .angles = angles } });
+        return self.spawnAuthored(world, slots, projections, .{ .classname = classname }, .{ .position = position, .angles = angles }, now);
+    }
+    pub fn spawnAuthored(self: *Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, object: data.MapObject, pose: data.Transform, now: i64) !ecs.Entity {
+        const entity = try world.create(null, .{ object, pose });
         errdefer world.destroy(entity) catch unreachable;
         try self.spawnOne(world, slots, projections, entity, now);
         return entity;
@@ -140,7 +151,7 @@ pub const Actors = struct {
         projection.state.angles2 = definition.scale;
         projection.state.generic1 = if (world.get(entity, data.Ailments) catch null) |ailment| @intFromFloat(ailment.freeze_level * 1000) else 0;
         projection.state.groundEntityNum = actor.ground_entity;
-        projection.state.frame = sequence.frame(now - (if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_ms else if (policy.kind == .froginator and actor.mode == .attack) actor.frog.started_ms else if (policy.kind == .skeeter and (actor.mode == .attack or hatching)) actor.skeeter.started_ms else if (policy.kind == .mishima_guard and (actor.mode == .attack or actor.mode == .reload)) actor.guard.started_ms else actor.changed_ms), !hatching and (actor.mode == .idle or actor.mode == .flee or actor.mode == .chase));
+        projection.state.frame = sequence.frame(now - (if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_ms else if (policy.kind == .thunderskeet and actor.mode == .attack) actor.thunder.started_ms else if (policy.kind == .froginator and actor.mode == .attack) actor.frog.started_ms else if (policy.kind == .skeeter and (actor.mode == .attack or hatching)) actor.skeeter.started_ms else if (policy.kind == .mishima_guard and (actor.mode == .attack or actor.mode == .reload)) actor.guard.started_ms else actor.changed_ms), !hatching and (actor.mode == .idle or actor.mode == .flee or actor.mode == .chase));
         projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
         projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
         projection.shared.currentOrigin = pose.position;
@@ -187,7 +198,7 @@ pub const Actors = struct {
                 const speed = if (policy.kind == .civilian) definition.walk_speed else definition.speed;
                 const point = if (!acting and following) try @import("scripts.zig").path(world, slots, projections, router, entity, &actor, pose, speed, now) else null;
                 actor.mode = if (point != null) .chase else .idle;
-                if (policy.kind == .skeeter) {
+                if (policy.kind == .skeeter or policy.kind == .thunderskeet) {
                     velocity.linear = @splat(0);
                     if (point) |destination| if (try self.air_routes.next(pose.position, destination, body, binding.slot)) |waypoint| {
                         const delta = v.subtract(waypoint, pose.position);
@@ -239,6 +250,8 @@ pub const Actors = struct {
             if (!dead and policy.kind == .protopod) try @import("skeeters.zig").pod(self, world, slots, projections, entity, &actor, pose, &body, now);
             if (!dead and policy.kind == .froginator and actor.frog.phase == .jump and body.motion_owner == null) {
                 try @import("froginators.zig").jump(&actor, &pose, &body, &velocity, binding.slot, elapsed);
+            } else if (!dead and policy.kind == .thunderskeet and body.motion_owner == null) {
+                try @import("thunderskeets.zig").fly(self, world, slots, projections, entity, &actor, &pose, body, &velocity, now, elapsed);
             } else if (!dead and policy.kind == .skeeter and body.motion_owner == null) {
                 try @import("skeeters.zig").fly(self, world, slots, projections, entity, &actor, &pose, body, &velocity, now, elapsed);
             } else try @import("actor_motion.zig").step(&actor, &pose, &body, &velocity, navigation, threat, self.table.definitions[actor.definition].speed * slow, binding.slot, now, elapsed);
@@ -250,7 +263,7 @@ pub const Actors = struct {
             if (dead and !actor.death_dispatched) {
                 (try world.get(entity, data.Actor)).death_dispatched = true;
                 try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode);
-                try router.fire(world, slots, projections, entity, hurt.source, now);
+                try @import("actor_spawns.zig").death(self, world, slots, projections, router, entity, now);
             }
         }
     }

@@ -87,6 +87,7 @@ pub const State = struct {
         try @import("metamaser.zig").step(world, slots, projections, now);
         try @import("weapon_launches.zig").step(world, slots, projections, table, now);
         try @import("melee.zig").step(world, slots, projections, table, now);
+        try @import("thunder_spray.zig").step(world, slots, projections, now);
         try @import("frog_spit.zig").step(world, slots, projections, now);
         try @import("ailments.zig").step(world, now);
         try self.navigation.frame(now);

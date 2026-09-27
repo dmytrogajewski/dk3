@@ -188,6 +188,11 @@ fn draw(now: i32) !void {
             if (entity.weapon == @import("weapon_catalog").zeus.id and entity.otherEntityNum == client_number and entity.weapon == loadout.weapon and entity.frame == 100) weapon_end_ms = entity.time2;
             continue;
         }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").thunderskeet.spray_tag) {
+            const sprite = try @import("client/sprites.zig").register(@import("actor_catalog").thunderskeet.spray_model);
+            @import("client/sprites.zig").drawPlane(sprite, 0, @import("engine/trajectory.zig").evaluate(entity.pos, now), entity.angles2[0], true, v.scale(ref.viewaxis[1], -1), ref.viewaxis[2], .{ 255, 255, 255, 115 });
+            continue;
+        }
         if (entity.eType == c.ET_MISSILE and try @import("client/projectiles.zig").sprite(entity, now, &ref)) continue;
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").stavros.id) try @import("client/stavros.zig").draw(entity, now, &ref);
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").wyndrax.id) try @import("client/wyndrax.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);

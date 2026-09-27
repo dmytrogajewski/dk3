@@ -3181,3 +3181,59 @@ run on this build. No route acceptance is claimed while it is running.
 Sequence 246 aggregate: `/tmp/dk3-runtime-246-aggregate.log` passes 232 Zig and
 48 Python checks plus formatting. Assertions remain enabled; named actor/item/weapon
 roots execute. This is supporting verification, not campaign acceptance.
+
+
+## runtime-zig — sequence 247 (bridge actors, authored factories and first encounter)
+
+Independent reference review: Thunderskeet chase/attack/hover tasks, four spray windows
+at frames 27/28/31/32, speed 128–192, quadratic 40/256 blast and half owner damage;
+factory epair/muniqueid/flag inheritance, single-use removal, deathtarget and spawnname.
+Implemented class policy and separately saved sprite controller. The reference's
+out-of-bounds spray cycle is bounded at twelve. Full flight inertia, pain/gibs and
+presentation remain unqualified; spray radius visibility uses engine solid tracing.
+Unknown monster death spawnname remains an explicit unsupported case. No private code
+or assets imported. Frog leading was extracted without changing its reviewed contract.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Fresh intro/arrival | Passed narrow prefix, route failed | Sequence 246 `fresh-opening/`: all intro/arrival shots, normal starting inventory, save/load, ordinary Ion pickup; driver then walked into rock. Not complete opening acceptance. |
+| Ground-route retry | Failed driver setup | `runtime-zig-247/opening-ground-route/`: moving through slow diagnostic/angle acknowledgements caused waypoint circles. No physics/geometry changes. |
+| Steering correction | Passed first combat, failed rock step | `opening-steering/`: Slaughterskeet killed with ordinary Ion shots; route needed a normal jump up the rock ledge. |
+| First encounter checkpoint | Passed narrow connected segment | `opening-jump/`, identity `b1a868d39f0d0e0c2242551e7b8deef800dc5a1691679b5a524640a5f741cf88`: legitimate prior arrival save, Ion pickup, actual fire/contact/kill, jump, first marsh checkpoint with health 100. Not a fresh playthrough or full map. |
+| Bridge scripts | Passed focused setup/restoration | `bridge-first/` same build/asset identity: exactly ten script-spawned skeets, one single-use Thunderskeet, path and ignore/aggressive states; save then fresh map and load preserves all eleven. Diagnostic activation/health excludes campaign acceptance. Death outputs and combat still unverified. |
+| Integrated build/contracts | Passed | `/tmp/dk3-runtime-247-bridge-rebuild.log`: three modules, 96 focused checks with assertions. Initial compile found a const admission caller; fixed before this coherent build. Aggregate pending batch checkpoint. |
+
+Save admission now loads dynamically spawned class animation metadata. Actor death
+uses authored deathtarget and item spawnname, not the unrelated navigation target.
+Affected prior actor, body-control, weapon and save scenarios need revalidation.
+Cambot/Crox/Rockgat, additional map traversal, tree interaction, water and connected
+persistence remain opening blockers. All later campaign, companion, MP and release
+requirements remain in scope. See `docs/native-acceptance.md` for the current matrix.
+
+## runtime-zig — sequence 248 (directional trigger bounds regression)
+
+Ordinary route development exposed a product defect: e1m1a transitioned to e1m1b
+near (410,-1750,488), far from the exit's authored x=-608..-592/y=-1480..-1288.
+The driver initially continued using old-map waypoints; it now rejects unexpected
+map changes during navigation/combat. This failed route is not map-traversal evidence.
+It did record a normal Ion kill of the first Froginator before the erroneous exit.
+
+Private behavioral review of trigger initialization and server linking established
+that trigger angles do not rotate their touch hull. ioquake's bmodel linking expanded
+the angled exit into a large sphere-derived box. Native projection now preserves the
+authored Transform but sends zero collision angles for trigger classes, on spawn,
+restoration and attached-brush publication. Solid rotating brushes keep their angles.
+No authored geometry, puzzle rule, damage or enemy behavior changed.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Defective-build regression | Failed as expected | `runtime-zig-248/trigger-before/`: exact remote point changed level. The regression detects the product defect. |
+| Corrected bounds and restoration | Passed focused regression | `trigger-after/`, identity `02a5fcdaf9752fbcfe8a91801ced0639e35ab6b07ab6d1ca986a3f664fba172c`: remote point remains e1m1a before/after save-load, actual exit interior reaches e1m1b. Diagnostic placement only. |
+| Consolidated checks | Passed | `/tmp/dk3-runtime-248-consolidated.log`: all three modules, 235 Zig + 48 Python checks and formatting, assertions enabled. Rotation preservation also has a focused contract. |
+| Normal marsh route after correction | In progress | `runtime-zig-248/marsh-trigger-fixed/`: legitimate sequence-247 checkpoint, no modified save or granted inventory. Not a fresh route. |
+
+Earlier angled-trigger travel/interaction scenarios require revalidation; the old
+241 travel result is now historical, not acceptance on this build. Full New Game
+through e1m2a must still be replayed after consolidation. Bridge script diagnostics
+remain narrow; live Thunderskeet combat/death outputs, tree use, missing Cambot/Crox/
+Rockgat and the rest of the accepted campaign/multiplayer port remain open.

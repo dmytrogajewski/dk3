@@ -120,7 +120,8 @@ pub fn publishAssembly(world: *data.World, projections: []abi.EntityProjection, 
             const projection = &projections[binding.slot];
             const transform = (try world.get(part.entity, data.Transform)).*;
             projection.shared.currentOrigin = transform.position;
-            projection.shared.currentAngles = transform.angles;
+            const object = world.get(part.entity, data.MapObject) catch null;
+            projection.shared.currentAngles = if (object) |value| @import("brushes.zig").collisionAngles(value.classname, transform.angles) else transform.angles;
             projection.state.pos.trType = c.TR_STATIONARY;
             projection.state.pos.trBase = transform.position;
             projection.state.apos.trType = c.TR_STATIONARY;

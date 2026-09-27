@@ -99,3 +99,12 @@ and supplied asset names. No Gold runtime, implementation, generated translation
 interface is a build input. The existing ioquake3 C interfaces supply entity,
 collision, damage, snapshot, renderer and audio services; original notices remain.
 The owner's explicit native-Zig scope supersedes the earlier C-only weapons guidance.
+
+Native-runtime sequences 244–248 independently implement opening cinematic execution,
+Protopod/Slaughterskeet/Froginator/Thunderskeet policies, supplied actor action programs,
+health trees, authored monster factories and death outputs. Private review established
+contracts and asset names; private source, headers, binaries and generated translations
+remain excluded. Trigger projection accounts for the reviewed difference between
+reference SOLID_TRIGGER bounds and ioquake's rotated bmodel bounds. Current acceptance
+is recorded separately in docs/native-acceptance.md; earlier runtime results above
+are historical and do not qualify the new native runtime.

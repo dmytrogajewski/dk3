@@ -12,29 +12,9 @@ const policy = @import("actor_catalog").froginator;
 const lifecycle = @import("weapon_entities.zig");
 pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: policy.Tuning, now: i64) !void {
     const random = try world.get(owner, data.Random);
-    const target_pose = (try world.get(target, data.Transform)).*;
-    const target_velocity = (try world.get(target, data.Velocity)).linear;
-    const basis = v.basis(pose.angles);
-    const origin = v.add(pose.position, v.add(v.scale(basis.right, tuning.offset[0]), v.add(v.scale(basis.forward, tuning.offset[1]), v.scale(v.cross(basis.right, basis.forward), tuning.offset[2]))));
-    // Reference leading follows target view direction, not velocity direction. Its
-    // supplied spread and vertical offset are unused in this projectile aim path.
-    var lead_angles = target_pose.angles;
-    var lead = @max(1, v.length(target_velocity) * 0.1);
-    const skill = engine.integer("g_spSkill");
-    const roll = random.next();
-    const deviation: f32 = if (skill <= 2 and roll > 0.25) 0.5 else if (skill == 3 and roll > 0.25 and lead > 80) 3 else if (skill >= 4 and roll > 0.85 and lead > 100) 6 else 0;
-    if (deviation != 0) {
-        lead = v.length(target_velocity) * 0.1;
-        if (random.next() > 0.5) lead = -lead;
-        lead_angles[1] += 30 / deviation * ((random.next() * 2 - 1) * (90 / deviation));
-        lead_angles[0] += 5 / deviation * ((random.next() * 2 - 1) * (10 / deviation));
-    }
-    var destination = v.add(target_pose.position, v.scale(v.basis(lead_angles).forward, lead));
-    if ((try world.get(target, data.Player)).ducked) {
-        const target_body = (try world.get(target, data.Body)).*;
-        destination[2] -= target_body.maxs[2] - target_body.mins[2];
-    }
-    const direction = v.normalize(v.subtract(destination, origin));
+    const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
+    const origin = aim.origin;
+    const direction = aim.direction;
     const amount = tuning.damage + random.next() * tuning.random_damage;
     const entity = try world.create(null, .{
         data.Transform{ .position = v.add(origin, .{ 0, 0, 10 }), .angles = .{ -std.math.atan2(direction[2], @sqrt(direction[0] * direction[0] + direction[1] * direction[1])) * 180 / std.math.pi, std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi, 0 } },

@@ -13,6 +13,11 @@ fn deadline(value: *?i64, delta: i64) !void {
 }
 pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)], delta: i64) !void {
     switch (id) {
+        .thunder_spray => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.stepped_ms, delta);
+            try shift(&value.next_ms, delta);
+        },
         .health_tree => {
             try shift(&value.ready_ms, delta);
             try shift(&value.changed_ms, delta);
@@ -121,6 +126,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.think_ms, delta);
             try shift(&value.scripted_ms, delta);
             try shift(&value.frog.started_ms, delta);
+            try shift(&value.thunder.started_ms, delta);
             try shift(&value.skeeter.started_ms, delta);
             try shift(&value.skeeter.until_ms, delta);
             try shift(&value.pod.next_ms, delta);

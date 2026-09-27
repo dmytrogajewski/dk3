@@ -252,6 +252,10 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Binding, data.Body });
             if (!std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "trigger_changelevel")) return error.InvalidSavedExit;
         }
+        if (world.get(entity, data.ThunderSpray) catch null) |spray| {
+            try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding, data.Lifetime });
+            if (spray.owner == 0 or spray.phase >= 12 or spray.scale <= 0 or spray.scale > 2 or spray.next_ms < spray.stepped_ms or spray.stepped_ms < spray.born_ms) return error.InvalidSavedThunderSpray;
+        }
         if (world.get(entity, data.HealthTree) catch null) |tree| {
             try require(world, entity, .{ data.MapObject, data.Binding, data.Body, data.Transform, data.Velocity, data.Random, data.Health });
             if (tree.maximum > 5 or tree.fruit > tree.maximum or tree.previous > 5 or !std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "misc_healthtree")) return error.InvalidSavedHealthTree;
@@ -578,6 +582,7 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     _ = try world.create(68, .{ data.Transform{}, data.Binding{ .slot = 85 }, data.MetaRing{ .owner = 7, .cube = 67, .damage = 40, .born_ms = 900, .next_ms = 1050 } });
     _ = try world.create(69, .{ data.Transform{}, data.Binding{ .slot = 86 }, data.Random{ .state = 30 }, data.MetaLaser{ .owner = 7, .cube = 67, .damage = 40, .next_ms = 1100, .expires_ms = 5900 } });
     _ = try world.create(73, .{ data.Transform{}, data.MapObject{ .classname = "info_aiscript" }, data.Script{ .name = "Skeet1Path", .active = true, .index = 2, .due_ms = 1800, .next_ms = 1050, .revision = 4 } });
+    _ = try world.create(75, .{ data.Transform{}, data.Body{ .mins = @splat(-1), .maxs = @splat(1) }, data.Binding{ .slot = 90, .model = 1 }, data.Velocity{ .linear = .{ 180, 0, 0 } }, data.Lifetime{ .expires_ms = 15500 }, data.ThunderSpray{ .owner = 7, .alternate = true, .born_ms = 500, .stepped_ms = 950, .next_ms = 1000, .phase = 11, .scale = 0.4, .delta = 0.25 } });
     _ = try world.create(74, .{ data.Transform{}, data.MapObject{ .classname = "misc_healthtree" }, data.Body{}, data.Binding{ .slot = 89, .model = 1 }, data.Velocity{}, data.Health{ .current = 100, .maximum = 100 }, data.Random{ .state = 8 }, data.HealthTree{ .fruit = 2, .previous = 3, .ready_ms = 1800, .changed_ms = 800 } });
     _ = try world.create(72, .{ data.Transform{}, data.Body{ .mins = @splat(-3), .maxs = @splat(3) }, data.Binding{ .slot = 88, .model = 1 }, data.Velocity{ .linear = .{ 400, 0, 0 } }, data.Lifetime{ .expires_ms = 5500 }, data.FrogSpit{ .owner = 7, .damage = 7, .born_ms = 500, .stepped_ms = 950 } });
     _ = try world.create(70, .{ data.Transform{}, data.MapObject{ .classname = "worldspawn" }, data.Cinematic{ .name = "intro", .shot = 20, .started_ms = 500, .active = true, .sounds = 2, .queued = .{3} ++ @as([127]u16, @splat(0)) } });
@@ -646,6 +651,11 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     try std.testing.expectEqual(@as(u16, 2), script.index);
     try std.testing.expectEqual(@as(i64, 9800), script.due_ms);
     try std.testing.expectEqual(@as(i64, 9050), script.next_ms);
+    const spray = (try loaded.world.get(loaded.world.find(75).?, data.ThunderSpray)).*;
+    try std.testing.expectEqual(@as(i64, 8500), spray.born_ms);
+    try std.testing.expectEqual(@as(i64, 8950), spray.stepped_ms);
+    try std.testing.expectEqual(@as(i64, 9000), spray.next_ms);
+    try std.testing.expectEqual(@as(u4, 11), spray.phase);
     const tree = (try loaded.world.get(loaded.world.find(74).?, data.HealthTree)).*;
     try std.testing.expectEqual(@as(u3, 2), tree.fruit);
     try std.testing.expectEqual(@as(i64, 9800), tree.ready_ms);
