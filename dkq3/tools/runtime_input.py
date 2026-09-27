@@ -11,7 +11,8 @@ from runtime_probe import send, wait
 
 def engine_failure(text):
     """Include client and engine drops, which leave a live process at the menu."""
-    return next((line for line in reversed(text.splitlines()) if line.startswith("ERROR: ")), None)
+    return next((line for line in reversed(text.splitlines()) if line.startswith("ERROR: ")
+                 or (line.startswith("Client ") and " dropped: " in line)), None)
 
 
 class NativeInput:
@@ -146,7 +147,9 @@ class NativeInput:
         before = len(self.text())
         self.issue(f"save {slot}")
         result = wait(self.process, self.log, lambda text: "dk3 zig: world saved" in text[before:]
-                      or "Save/load refused:" in text[before:], 10)[before:]
+                      or "Save/load refused:" in text[before:] or engine_failure(text[before:]), 10)[before:]
+        if failure := engine_failure(result):
+            raise RuntimeError(failure)
         if "Save/load refused:" in result:
             raise RuntimeError(next(line for line in result.splitlines() if "Save/load refused:" in line))
         path = self.home / f"state/dk3/saves/{slot}.sav"
@@ -159,7 +162,10 @@ class NativeInput:
         before = len(self.text())
         self.issue(f"load {slot}")
         result = wait(self.process, self.log, lambda text: ("saved world restored" in text[before:] and
-             "dk3 zig client: restoration applied" in text[before:]) or "Save/load refused:" in text[before:], 15)[before:]
+             "dk3 zig client: restoration applied" in text[before:]) or "Save/load refused:" in text[before:]
+             or engine_failure(text[before:]), 15)[before:]
+        if failure := engine_failure(result):
+            raise RuntimeError(failure)
         if "Save/load refused:" in result:
             raise RuntimeError(next(line for line in result.splitlines() if "Save/load refused:" in line))
         restored = self.until(lambda _: True, description="restored input processing")

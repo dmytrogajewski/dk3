@@ -7,6 +7,16 @@ from runtime_arena_combat import evade
 
 
 class NativeInputTests(unittest.TestCase):
+    def test_server_disconnect_invalidates_save_and_load_before_completion(self):
+        driver = NativeInput(None, None, None, None, [])
+        fatal = "Client Hiro dropped: Server command overflow"
+        for action in (driver.save, driver.load):
+            with self.subTest(action=action.__name__), patch.object(driver, "text", return_value="prior\n"), \
+                 patch.object(driver, "issue"), patch("runtime_input.wait", return_value="prior\n" + fatal) as wait:
+                with self.assertRaisesRegex(RuntimeError, "Server command overflow"):
+                    action("encounter")
+                self.assertTrue(wait.call_args.args[2]("prior\n" + fatal))
+
     def test_client_crash_is_reported_instead_of_waiting_for_an_absent_server(self):
         driver = NativeInput(None, None, None, None, [])
         fatal = "ERROR: Zig client: InvalidImpactEvent"

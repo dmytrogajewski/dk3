@@ -5329,3 +5329,48 @@ The exact build and asset hashes accompany each run. Shared wire changes require
 native effect/presentation and multiplayer replay; collector changes require party
 pickup replay. The complete fresh gate and all-episode/multiplayer/release scope
 remain open. No acceptance is inferred from the repaired code or passing contracts.
+
+## Sequence 288 — restoration-admission-and-route-diagnosis
+
+The sequence-287 surfacing replay reaches the authored factory arrival alive, saves
+and reloads its visited-world archive, then fails on the C→B return. The saved bridge
+resource registry is published only after ClientBegin, overflowing the engine's
+64-command reliable queue before the client can acknowledge. The resulting synchronous
+disconnect mutates the ECS while lightstyle publication holds a reader. First failure:
+`runtime-zig-287/bridge-surface-repaired/`, installation `5414bcb6…`; no visited-world
+acceptance transfers from historical results.
+
+The pending repair publishes admitted saved resources during map initialization,
+before the initial gamestate, and suspends fresh-world simulation while restoration
+is pending. Lightstyle queries release readers before engine callbacks. Neither
+reliable queue size nor authored gameplay timing changes. Implementation is unverified
+until the affected transition replay. Read-only bot route diagnostics are added to
+the existing match observation command. Body-aligned resting goals alone did not
+fix CTF/deathtag captures: both sequence-287 repaired matches time out without a
+carrier. No repeated unchanged broad or prolonged match runs are acceptance.
+
+The first repair replay also exposed same-map resource replacement from a fresh map
+into a late checkpoint. In-place loading now requires all saved resource identities
+to be an already published prefix; otherwise the existing admitted map-load path
+provides a fresh gamestate. Prefix, reordered and new-resource contracts execute in
+the native root. Client drops now retain server-side reasons, and save/load waits
+fail immediately on those drops. Build `fa467c30668dee2537bd194a18c872f57c3eb7d22f6bf1408655eaf743b48344`
+passes 220 native contracts and 12 driver checks. `visited-admission-repaired/`
+verifies actual same-map load, surfacing, factory arrival and the disk-backed C→B→C
+round trip. The later pipe approach fails after overshoot correction slides off its
+edge. A bounded safe takeoff region replaces that needless correction in the driver;
+`factory-pipe/` replays the legitimate checkpoint. No geometry or movement rule changes.
+
+Bot evidence identified alternating portal exits. Bundled botlib calculated portal
+travel costs but never populated the first-reachability array read by PredictRoute.
+The repair retains the existing chosen edge with its cost and rejects unavailable
+zero-cost portal routes. `portal-regression-before/` uses the new diagnostic module
+with the defective engine: four routes cycle after two edges, two local routes pass.
+On the coherent repaired engine, `portal-regression-after/` reaches all six goals,
+including a 77-edge objective path. These read-only diagnostics change no actor state.
+The natural `ctf/` match now passes pickup, actual attack/contact, death, respawn and
+one contested capture (identity `f8f36f36562e91ec87953b44071c878ed761bc0dff07bb6a212f33522093f961`).
+`deathtag/` still fails without a bomb carrier: blocked corridors and one submerged
+route remain. Its combat/respawn evidence does not establish captures. The complete
+fresh opening gate, remaining campaign/interaction/party scenarios and human network,
+rooms and independent release acceptance stay open.

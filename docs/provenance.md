@@ -168,3 +168,12 @@ and root LICENSE. Native lookup code is project-authored. This public data suppl
 the authored effect's existing byte-direction behavior; no private table/function is
 an input to generation, compilation or tests. Atlas coordinates and effect contracts
 were privately reviewed as behavior; original particle images remain local assets.
+
+Sequence 288 repairs the bundled GPL botlib portal cache: route prediction read
+a first-reachability index that the cache update never populated. The independent
+repair stores the selected existing area-cache index with its travel cost and rejects
+unavailable zero-cost portal routes. Six read-only e1ctf1 edge traversals retain two
+unaffected local routes; the defective engine cycles in the other four, while the
+repaired engine reaches all six goals. No private reference was needed or imported.
+Server disconnect reasons are also printed locally for failed native-run diagnosis.
+Original bundled notices remain unchanged.

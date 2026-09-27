@@ -686,6 +686,7 @@ void SV_DropClient( client_t *drop, const char *reason ) {
 	if ( drop->state == CS_ZOMBIE ) {
 		return;		// already dropped
 	}
+	Com_Printf( "Client %s dropped: %s\n", drop->name, reason );
 
 	if ( !isBot ) {
 		// see if we already have a challenge for this ip

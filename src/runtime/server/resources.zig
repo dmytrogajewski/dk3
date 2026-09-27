@@ -12,6 +12,11 @@ fn Registry(comptime limit: usize, comptime base: i32) type {
     return struct {
         names: [limit][c.MAX_QPATH]u8 = @splat(@splat(0)),
         count: usize = 1,
+        fn contains(self: *const @This(), saved: []const []const u8) bool {
+            if (saved.len >= self.count) return false;
+            for (saved, 1..) |name, index| if (!std.mem.eql(u8, name, std.mem.sliceTo(&self.names[index], 0))) return false;
+            return true;
+        }
         fn add(self: *@This(), path: []const u8) !u16 {
             if (path.len == 0) return 0;
             if (path.len >= c.MAX_QPATH or std.mem.indexOfScalar(u8, path, 0) != null) return error.InvalidResourcePath;
@@ -45,6 +50,11 @@ pub fn restore(saved: @import("../domain/snapshot.zig").Resources) !void {
     for (saved.models) |name| _ = try model(name);
     for (saved.sounds) |name| _ = try sound(name);
 }
+/// Rewinding the current resource prefix is safe without another gamestate.
+/// New or reordered identities must be admitted through map initialization.
+pub fn canRestoreInPlace(saved: @import("../domain/snapshot.zig").Resources) bool {
+    return models.contains(saved.models) and sounds.contains(saved.sounds);
+}
 pub fn model(path: []const u8) !u16 {
     return models.add(path);
 }
@@ -73,4 +83,17 @@ pub fn floorBounds(path: []const u8) !?@import("../domain/md3.zig").Bounds {
     };
     defer std.heap.c_allocator.free(bytes);
     return @import("../domain/md3.zig").bounds(bytes);
+}
+
+test "in-place restoration requires every saved resource identity already published" {
+    const t = std.testing;
+    var registry: Registry(4, 0) = .{};
+    @memcpy(registry.names[1][0..5], "first");
+    @memcpy(registry.names[2][0..6], "second");
+    registry.count = 3;
+    try t.expect(registry.contains(&.{}));
+    try t.expect(registry.contains(&.{"first"}));
+    try t.expect(registry.contains(&.{ "first", "second" }));
+    try t.expect(!registry.contains(&.{ "second", "first" }));
+    try t.expect(!registry.contains(&.{ "first", "second", "new" }));
 }

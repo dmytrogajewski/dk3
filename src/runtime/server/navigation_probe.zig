@@ -7,6 +7,45 @@ const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
 const c = abi.c;
 const v = @import("../domain/vector.zig");
+/// Follow real AAS edges without moving any actor. A repeated area invalidates
+/// the route even when each individual lookup reports a reachable destination.
+pub fn route() !void {
+    var argument: [32]u8 = undefined;
+    const from = try std.fmt.parseInt(i32, engine.argv(1, &argument), 10);
+    const goal = try std.fmt.parseInt(i32, engine.argv(2, &argument), 10);
+    var origin = std.mem.zeroes(c.aas_areainfo_t);
+    var target = std.mem.zeroes(c.aas_areainfo_t);
+    if (from <= 0 or goal <= 0 or engine.gateway.call(c.BOTLIB_AAS_AREA_INFO, .{ @as(isize, from), &origin }) == 0 or engine.gateway.call(c.BOTLIB_AAS_AREA_INFO, .{ @as(isize, goal), &target }) == 0) return error.InvalidNavigationAreas;
+    const flags = c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR | c.TFL_CROUCH | c.TFL_LADDER | c.TFL_SWIM | c.TFL_WATER | c.TFL_WALKOFFLEDGE | c.TFL_TELEPORT | c.TFL_ELEVATOR | c.TFL_FUNCBOB;
+    var seen: [1024]i32 = undefined;
+    var count: usize = 0;
+    var area = from;
+    var point = origin.center;
+    var status: []const u8 = "limit";
+    var message: [256]u8 = undefined;
+    while (count < seen.len) {
+        if (area == goal) {
+            status = "reached";
+            break;
+        }
+        if (std.mem.indexOfScalar(i32, seen[0..count], area) != null) {
+            status = "cycle";
+            break;
+        }
+        seen[count] = area;
+        count += 1;
+        var step = std.mem.zeroes(c.aas_predictroute_t);
+        _ = engine.gateway.call(c.BOTLIB_AAS_PREDICT_ROUTE, .{ &step, @as(isize, area), &point, @as(isize, goal), @as(isize, flags), @as(isize, 1), @as(isize, 0), @as(isize, 0), @as(isize, 0), @as(isize, 0), @as(isize, 0) });
+        if (step.stopevent == c.RSE_NOROUTE or step.time <= 0) {
+            status = "unreachable";
+            break;
+        }
+        engine.print(try std.fmt.bufPrintZ(&message, "dk3 route edge: from={d} to={d} flags={d}\n", .{ area, step.endarea, step.endtravelflags }));
+        area = step.endarea;
+        point = step.endpos;
+    }
+    engine.print(try std.fmt.bufPrintZ(&message, "dk3 route complete: from={d} goal={d} end={d} edges={d} status={s}\n", .{ from, goal, area, count, status }));
+}
 pub fn pickupRoutes(world: *data.World, slots: *const @import("../engine/slots.zig").Slots, service: @import("../domain/navigation.zig").Service) !void {
     var text: [512]u8 = undefined;
     for (slots.occupants[0..c.MAX_CLIENTS], 0..) |occupant, slot| {

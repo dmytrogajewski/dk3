@@ -109,14 +109,18 @@ pub fn use(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProj
 pub fn styles(world: *data.World, now: i64) void {
     var levels = policy.defaults(now);
     var revisions: [256]u64 = @splat(0);
-    var query = world.queryAccess(data.World.mask(.{data.WorldControl}), 0, 0);
-    defer query.deinit();
-    while (query.next()) |view| for (view.read(data.WorldControl)) |control| if (control.action == .light) {
-        const light = control.action.light;
-        if ((light.pattern.len == 0 and light.level == null) or light.revision < revisions[light.style]) continue;
-        levels[light.style] = light.level orelse policy.sample(light.pattern, now - light.phase_ms);
-        revisions[light.style] = light.revision;
-    };
+    {
+        var query = world.queryAccess(data.World.mask(.{data.WorldControl}), 0, 0);
+        defer query.deinit();
+        while (query.next()) |view| for (view.read(data.WorldControl)) |control| if (control.action == .light) {
+            const light = control.action.light;
+            if ((light.pattern.len == 0 and light.level == null) or light.revision < revisions[light.style]) continue;
+            levels[light.style] = light.level orelse policy.sample(light.pattern, now - light.phase_ms);
+            revisions[light.style] = light.revision;
+        };
+    }
+    // Config publication can synchronously disconnect a client; release readers
+    // before handing control back to the engine.
     const text = policy.encode(levels);
     engine.config(c.CS_DK3_LIGHTSTYLES, &text);
 }

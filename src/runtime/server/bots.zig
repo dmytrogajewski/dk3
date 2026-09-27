@@ -31,6 +31,23 @@ pub const State = struct {
     brains: [c.MAX_CLIENTS]?Brain = @splat(null),
     next_population: i64 = 0,
     serial: usize = 0,
+    /// Read-only route evidence for normal-input match diagnostics.
+    pub fn report(self: *const State) !void {
+        var buffer: [1024]u8 = undefined;
+        for (self.brains, 0..) |maybe, index| if (maybe) |brain| {
+            const route = brain.route;
+            const waypoint = route.waypoint orelse nav.Waypoint{ .point = @splat(0) };
+            engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 bot route: slot={d} goal={d} avoided={d} destination={d:.2},{d:.2},{d:.2} waypoint={d:.2},{d:.2},{d:.2} valid={d} areas={d},{d} jump={d} crouch={d} ladder={d} blocked={d} progress_ms={d} refresh_ms={d} jump_until={d} control={d} yielding={d}\n", .{
+                index,                                brain.goal,                                     brain.avoided,
+                route.destination[0],                 route.destination[1],                           route.destination[2],
+                waypoint.point[0],                    waypoint.point[1],                              waypoint.point[2],
+                @intFromBool(route.waypoint != null), waypoint.from_area,                             waypoint.to_area,
+                @intFromBool(waypoint.jump),          @intFromBool(waypoint.crouch),                  @intFromBool(waypoint.ladder),
+                @intFromBool(route.blocked),          route.progress_ms,                              route.refresh_ms,
+                brain.jump_until,                     if (brain.control) |control| control.id else 0, @intFromBool(brain.yield_point != null),
+            }));
+        };
+    }
     pub fn add(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, clients: *Clients, now: i64) !void {
         const allocated = engine.gateway.call(c.G_BOT_ALLOCATE_CLIENT, .{});
         if (allocated < 0 or allocated >= c.MAX_CLIENTS) return error.NoBotClientSlot;

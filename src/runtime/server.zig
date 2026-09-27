@@ -127,6 +127,10 @@ fn init(now: i64) !void {
         }
     }
     try rooms.init();
+    // Publish the saved resource registry while the engine is still loading the
+    // map. The initial gamestate must contain these identities; replacing them
+    // at ClientBegin can overflow reliable commands before any acknowledgement.
+    if (restore_pending) |saved| try @import("server/resources.zig").restore(saved.header.resources);
     var text: [160]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: isolated bootstrap, {d} map entities, {d} workers; gameplay not qualified\n", .{ world.?.count(), jobs }));
 }
@@ -186,12 +190,13 @@ fn saveCommand(command: []const u8) !bool {
         var owned = true;
         defer if (owned) loaded.deinit(std.heap.c_allocator);
         var name: [64]u8 = undefined;
-        if (std.mem.eql(u8, loaded.map, persistence.mapName(&name))) {
+        if (std.mem.eql(u8, loaded.map, persistence.mapName(&name)) and @import("server/resources.zig").canRestoreInPlace(loaded.header.resources)) {
             try restore(&loaded, false);
             owned = false;
         } else {
-            // Decode completely before scheduling a different BSP. The engine's
-            // existing atomic save service owns the internal transfer file.
+            // A different map or resource registry needs a fresh gamestate.
+            // Decode completely before restarting; the existing atomic save
+            // service owns the internal transfer file.
             const bytes = try @import("engine/save_storage.zig").read(std.heap.c_allocator, slot, previous);
             defer std.heap.c_allocator.free(bytes);
             try @import("engine/save_storage.zig").write("dk3-resume-internal", bytes, false);
@@ -249,11 +254,16 @@ fn consoleCommand() isize {
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_match")) {
+        bots.report() catch |err| runtimeFailure(err);
         @import("server/observation.zig").match(&world.?, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_pickup_routes")) {
         @import("server/navigation_probe.zig").pickupRoutes(&world.?, &slots, systems.navigation.service()) catch |err| runtimeFailure(err);
+        return 1;
+    }
+    if (std.mem.eql(u8, command, "dk3_runtime_route")) {
+        @import("server/navigation_probe.zig").route() catch |err| saveFeedback(err);
         return 1;
     }
     if (saveCommand(command) catch |err| {
@@ -461,7 +471,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 engine.fatal("Native runtime: invalid engine frame time");
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
-                if (campaign.departing) return 0;
+                if (campaign.departing or restore_pending != null) return 0;
                 rooms.tick(&world.?, &clients, clock.now_ms) catch |err| runtimeFailure(err);
                 systems.multiplayer.warmup = rooms.warmup_ms != 0;
                 campaign_module.endings(&world.?, &targets, clock.now_ms) catch |err| runtimeFailure(err);

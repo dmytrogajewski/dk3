@@ -69,13 +69,23 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
                 if phase != "factory-upper":
                     # The switch is on the upper pipe, not the lamp above the lower
                     # locked doorway. Climb the supplied sloping pipe approach first.
-                    for point in ((461, 2510, 403), (425, 2469, 376), (406, 2256, 408),
+                    for index, point in enumerate(((461, 2510, 403), (425, 2469, 376), (406, 2256, 408),
                                   (406, 2184, 444), (406, 2144, 464), (480, 2144, 456), (494, 2136, 456),
-                                  (530, 2144, 528), (530, 2281, 529)):
+                                  (530, 2144, 528), (530, 2281, 529))):
+                        if phase == "factory-pipe" and index < 6:
+                            continue
                         if point == (406, 2144, 464):
                             driver.issue("+movedown")
                             driver.until(lambda state: state["up"] < 0, description="processed crouch on the low pipe")
-                        walk(driver, point, capture, combat=False, tolerance=20 if point in ((530, 2144, 528), (461, 2510, 403), (425, 2469, 376)) else 8, jump=point == (530, 2144, 528))
+                        # The safe takeoff is a small region, not one coordinate.
+                        # Reversing across the sloped edge to correct an 8-unit
+                        # overshoot can slide the player off the lower pipe.
+                        tolerance = 12 if point == (494, 2136, 456) else 20 if point in ((530, 2144, 528), (461, 2510, 403), (425, 2469, 376)) else 8
+                        walk(driver, point, capture, combat=False, tolerance=tolerance, jump=point == (530, 2144, 528))
+                        if point == (494, 2136, 456):
+                            launch = driver.observe()["pos"]
+                            if not (480 < launch[0] < 500 and 2120 < launch[1] < 2150 and launch[2] >= 456):
+                                raise RuntimeError(f"Pipe takeoff is outside the actual upper edge: {launch}")
                         if point == (480, 2144, 456):
                             driver.issue("-movedown")
                             driver.until(lambda state: state["up"] == 0, description="processed crouch release")
