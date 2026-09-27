@@ -2,10 +2,13 @@
 const std = @import("std");
 const engine = @import("../engine/client.zig");
 const c = @import("../engine/abi.zig").c;
+var room: i32 = -1;
 var seen: [c.MAX_GENTITIES]u32 = @splat(0);
 var names: [c.MAX_SOUNDS][c.MAX_QPATH]u8 = @splat(@splat(0));
 var sounds: [c.MAX_SOUNDS]c.sfxHandle_t = @splat(0);
 pub fn reset() void {
+    room = -1;
+    environment(0) catch {};
     @import("impacts.zig").reset();
     for (0..c.MAX_GENTITIES) |slot| configure(@intCast(slot), null) catch {};
     @memset(&seen, 0);
@@ -88,4 +91,12 @@ pub fn command() !void {
     try configure(subject, params);
     const point: [3]f32 = values[0..3].*;
     if (handle != 0) _ = engine.gateway.call(c.CG_S_STARTSOUND, .{ &point, @as(isize, subject), @as(isize, c.CHAN_VOICE), @as(isize, handle) });
+}
+
+/// Listener state is authoritative, saved, and independent of user mixer settings.
+pub fn environment(value: i32) !void {
+    if (value < 0 or value > 26) return error.InvalidRoomPreset;
+    if (room == value) return;
+    room = value;
+    _ = engine.gateway.call(c.CG_DK3_SOUND_ENVIRONMENT_V1, .{ @as(isize, if (value == 0) 0 else value + 4), engine.floatArg(if (value == 0) 0 else 1), engine.floatArg(1) });
 }

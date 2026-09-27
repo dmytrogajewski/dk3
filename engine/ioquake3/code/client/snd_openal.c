@@ -29,6 +29,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "qal.h"
 #include "../thirdparty/openal-soft-1.24.3/include/AL/efx.h"
+#include "snd_dk3_reverb.h"
 
 // Console variables specific to OpenAL
 cvar_t *s_alPrecache;
@@ -2223,6 +2224,8 @@ static LPALGENEFFECTS environmentGenEffects;
 static LPALDELETEEFFECTS environmentDeleteEffects;
 static LPALEFFECTI environmentEffecti;
 static LPALEFFECTF environmentEffectf;
+static LPALEFFECTFV environmentEffectfv;
+static qboolean environmentEax;
 static LPALGENAUXILIARYEFFECTSLOTS environmentGenSlots;
 static LPALDELETEAUXILIARYEFFECTSLOTS environmentDeleteSlots;
 static LPALAUXILIARYEFFECTSLOTI environmentSloti;
@@ -2243,6 +2246,7 @@ static qboolean S_AL_EnvironmentInit(void) {
     ENV_FUNCTION(environmentDeleteEffects, LPALDELETEEFFECTS, "alDeleteEffects");
     ENV_FUNCTION(environmentEffecti, LPALEFFECTI, "alEffecti");
     ENV_FUNCTION(environmentEffectf, LPALEFFECTF, "alEffectf");
+    ENV_FUNCTION(environmentEffectfv, LPALEFFECTFV, "alEffectfv");
     ENV_FUNCTION(environmentGenSlots, LPALGENAUXILIARYEFFECTSLOTS, "alGenAuxiliaryEffectSlots");
     ENV_FUNCTION(environmentDeleteSlots, LPALDELETEAUXILIARYEFFECTSLOTS, "alDeleteAuxiliaryEffectSlots");
     ENV_FUNCTION(environmentSloti, LPALAUXILIARYEFFECTSLOTI, "alAuxiliaryEffectSloti");
@@ -2263,9 +2267,43 @@ static void S_AL_EnvironmentUpdate(void) {
     int i;
     if (environmentSerial != env->serial) {
         environmentSloti(environmentSlot, AL_EFFECTSLOT_EFFECT, AL_EFFECT_NULL);
-        environmentEffectf(environmentEffect, AL_REVERB_DECAY_TIME, decay[env->style]);
-        environmentEffectf(environmentEffect, AL_REVERB_GAINHF, env->style == 4 ? 0.1f : 0.65f);
-        environmentEffectf(environmentEffect, AL_REVERB_GAIN, 0.6f);
+        const EFXEAXREVERBPROPERTIES *room = DK3_RoomPreset(env->style);
+        /* Restore the effect type to clear parameters left by another preset. */
+        environmentEffecti(environmentEffect, AL_EFFECT_TYPE, AL_EFFECT_NULL);
+        environmentEffecti(environmentEffect, AL_EFFECT_TYPE, room ? AL_EFFECT_EAXREVERB : AL_EFFECT_REVERB);
+        environmentEax = room && qalGetError() == AL_NO_ERROR;
+        if (room && !environmentEax) environmentEffecti(environmentEffect, AL_EFFECT_TYPE, AL_EFFECT_REVERB);
+        if (room && environmentEax) {
+#define ROOM_F(parameter, field) environmentEffectf(environmentEffect, AL_EAXREVERB_##parameter, room->field)
+            ROOM_F(DENSITY, flDensity); ROOM_F(DIFFUSION, flDiffusion);
+            ROOM_F(GAIN, flGain); ROOM_F(GAINHF, flGainHF); ROOM_F(GAINLF, flGainLF);
+            ROOM_F(DECAY_TIME, flDecayTime); ROOM_F(DECAY_HFRATIO, flDecayHFRatio); ROOM_F(DECAY_LFRATIO, flDecayLFRatio);
+            ROOM_F(REFLECTIONS_GAIN, flReflectionsGain); ROOM_F(REFLECTIONS_DELAY, flReflectionsDelay);
+            ROOM_F(LATE_REVERB_GAIN, flLateReverbGain); ROOM_F(LATE_REVERB_DELAY, flLateReverbDelay);
+            ROOM_F(ECHO_TIME, flEchoTime); ROOM_F(ECHO_DEPTH, flEchoDepth);
+            ROOM_F(MODULATION_TIME, flModulationTime); ROOM_F(MODULATION_DEPTH, flModulationDepth);
+            ROOM_F(AIR_ABSORPTION_GAINHF, flAirAbsorptionGainHF);
+            ROOM_F(HFREFERENCE, flHFReference); ROOM_F(LFREFERENCE, flLFReference);
+            ROOM_F(ROOM_ROLLOFF_FACTOR, flRoomRolloffFactor);
+#undef ROOM_F
+            environmentEffectfv(environmentEffect, AL_EAXREVERB_REFLECTIONS_PAN, room->flReflectionsPan);
+            environmentEffectfv(environmentEffect, AL_EAXREVERB_LATE_REVERB_PAN, room->flLateReverbPan);
+            environmentEffecti(environmentEffect, AL_EAXREVERB_DECAY_HFLIMIT, room->iDecayHFLimit);
+        } else if (room) {
+#define ROOM_F(parameter, field) environmentEffectf(environmentEffect, AL_REVERB_##parameter, room->field)
+            ROOM_F(DENSITY, flDensity); ROOM_F(DIFFUSION, flDiffusion);
+            ROOM_F(GAIN, flGain); ROOM_F(GAINHF, flGainHF);
+            ROOM_F(DECAY_TIME, flDecayTime); ROOM_F(DECAY_HFRATIO, flDecayHFRatio);
+            ROOM_F(REFLECTIONS_GAIN, flReflectionsGain); ROOM_F(REFLECTIONS_DELAY, flReflectionsDelay);
+            ROOM_F(LATE_REVERB_GAIN, flLateReverbGain); ROOM_F(LATE_REVERB_DELAY, flLateReverbDelay);
+            ROOM_F(AIR_ABSORPTION_GAINHF, flAirAbsorptionGainHF); ROOM_F(ROOM_ROLLOFF_FACTOR, flRoomRolloffFactor);
+#undef ROOM_F
+            environmentEffecti(environmentEffect, AL_REVERB_DECAY_HFLIMIT, room->iDecayHFLimit);
+        } else {
+            environmentEffectf(environmentEffect, AL_REVERB_DECAY_TIME, decay[env->style]);
+            environmentEffectf(environmentEffect, AL_REVERB_GAINHF, env->style == 4 ? 0.1f : 0.65f);
+            environmentEffectf(environmentEffect, AL_REVERB_GAIN, 0.6f);
+        }
         environmentSloti(environmentSlot, AL_EFFECTSLOT_EFFECT, environmentEffect);
         environmentSlotf(environmentSlot, AL_EFFECTSLOT_GAIN, env->reverb);
         environmentSerial = env->serial;

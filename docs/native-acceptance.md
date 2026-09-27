@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–271): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–272): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -832,6 +832,45 @@ The initial targeted link caught type coercions, retained in
 the journal. No engine scenario, audible/rendered comparison or campaign acceptance
 is claimed. Fresh assets/build identity and all affected gameplay, restoration,
 sound and multiplayer regressions remain required in the consolidated pass.
+
+## Sequence 272 — authored-lasers-and-room-acoustics (implemented; unverified)
+
+`target_laser` now performs the authored 2048-unit, 100 ms ray trace, damages eligible
+bodies, continues through actors and stops at solid obstructions. Spawn-after-world
+resolution, named tracking, on/off, change-triggered contact sparks, optional loop
+sound and ray state connect to native persistence. Temporary trace exclusions always
+relink penetrated bodies. The native beam uses the supplied laser texture and the
+reference renderer's actual white half-alpha, radius-two taper; color/fat flags are
+not substituted for behavior that the supplied renderer ignores. The four supplied
+instances are 1000-damage hazards in e4m6c. Collision, disable/re-enable, multi-body
+penetration and restoration still require engine scenarios; no laser acceptance yet.
+
+`trigger_change_sfx` reads authored preset names case-insensitively, including e4m5a's
+`fxStyle=2`. Listener selection travels in the existing player-state field, survives
+save/load and clears on map travel. Intentional compatibility correction: the touching
+listener owns room changes; the reference broadcasts every player's room to everyone.
+User volume settings remain independent. Prior engine styles 0..4 retain their meanings;
+styles 5..30 map the 26 authored IDs to the already bundled OpenAL EFX definitions.
+OpenAL applies full EAX reverb when supported, with standard EFX common parameters on
+backends lacking EAX. Software mixing derives bounded delay feedback, damping and gain
+from those same presets; it is a distinct DSP realization, not claimed auditory parity.
+
+Private contract review: target.cpp laser trace/start/use and Triggers.cpp room touch,
+cl_ents.cpp actual RF_BEAM rendering, Audio.h preset numbering and sv_send.cpp broadcast.
+Public preset definitions are included directly from the pinned, already admitted
+OpenAL headers (`engine/UPSTREAM.json`); no private implementation was copied. Engine
+changes and new header hashes are recorded in DEVELOPMENT.json. Supplied property
+inventory: `/tmp/dk3-runtime-272-world-properties.json`, using the existing local asset
+manifest. Player-state round-trip coverage now includes room selection (unexecuted).
+
+Targeted compilation builds the native modules and bundled engine because this batch
+changes their audio contract. The first link's missing import is retained in
+`/tmp/dk3-runtime-272-laser-room-link.log`; the corrected attempt is
+`/tmp/dk3-runtime-272-laser-room-link-fixed.log` (exit 0: all native modules and engine products linked). No tests or engine sessions run.
+Consolidated verification must use the updated engine, modules and regenerated assets;
+prior audio, beam, restoration and campaign/multiplayer results need affected replay.
+Authored breakage/debris, effects, remaining dynamic behavior and full-port acceptance
+remain open. Main, installed playable build, saves and live service are unchanged.
 
 ## Remaining authored actor admission
 

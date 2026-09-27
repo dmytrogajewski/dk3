@@ -467,6 +467,7 @@ pub fn validate(snapshot: *Loaded) !void {
                 if (sequence.last < sequence.first or sequence.fps == 0 or sequence.fps > 240) return error.InvalidSavedPerformerAnimation;
             }
         }
+        if (world.get(entity, data.Character) catch null) |character| if (character.sound_environment > 26) return error.InvalidSavedRoom;
         if (world.get(entity, data.Health) catch null) |health| if (health.current < -1000000 or health.current > 1000000 or health.maximum < 1 or health.maximum > 1000000 or health.armor < 0 or health.armor > 1000000) return error.InvalidSavedHealth;
         if (world.get(entity, data.Mover) catch null) |mover| if (mover.motion.duration_ms <= 0 or mover.speed <= 0) return error.InvalidSavedMover;
         if (world.get(entity, data.Train) catch null) |train| if (train.position.duration_ms <= 0 or train.angles.duration_ms <= 0 or train.speed <= 0) return error.InvalidSavedTrain;
@@ -527,6 +528,8 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Transform });
             const classname = (try world.get(entity, data.MapObject)).classname;
             const expected = switch (control.action) {
+                .room => "trigger_change_sfx",
+                .laser => "target_laser",
                 .healer => |state| if (state.kind == .fountain) "misc_fountain" else "misc_hosportal",
                 .speaker => if (std.mem.eql(u8, classname, "sound_ambient")) "sound_ambient" else "target_speaker",
                 .timer => "func_timer", .push => "trigger_push", .teleport => "trigger_teleport",
@@ -535,6 +538,12 @@ pub fn validate(snapshot: *Loaded) !void {
             };
             if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
             switch (control.action) {
+                .room => |preset| if (preset > 25) return error.InvalidSavedRoom,
+                .laser => |laser| {
+                    try require(world, entity, .{data.Binding});
+                    if (laser.damage < 1 or laser.damage > 1000000 or laser.sound > snapshot.header.resources.sounds.len or laser.spark_count > 8) return error.InvalidSavedLaser;
+                    for (laser.direction ++ laser.endpoint ++ laser.normal) |value| if (!std.math.isFinite(value)) return error.InvalidSavedLaser;
+                },
                 .healer => |healer| {
                     try require(world, entity, .{ data.Binding, data.Body, data.Health });
                     if (healer.capacity > 1000000 or healer.charge > @max(100, healer.capacity) or (healer.phase == .giving and healer.recipient == 0) or (healer.phase != .giving and healer.recipient != 0) or (healer.phase == .ready) != (healer.next_ms == null)) return error.InvalidSavedHealer;

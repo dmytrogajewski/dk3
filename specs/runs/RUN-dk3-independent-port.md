@@ -3774,3 +3774,16 @@ and angle type coercions; corrected link log is
 unexecuted. No gameplay/audio/visual acceptance is claimed. Continue authored lasers,
 effects and broader campaign/multiplayer/release implementation before consolidated
 verification. Main, installed game, user saves and live service remain preserved.
+
+## Sequence 272 — authored-lasers-and-room-acoustics (implementation checkpoint)
+
+Continues after pushed `97f8994`. Authored laser hazards now share one saved on/off
+state for tracing, damage, presentation and optional sound. Room triggers connect
+listener restoration to the existing engine sound interface and pinned EFX preset
+metadata. The acceptance matrix records reference quirks, per-listener compatibility
+correction and software/visual qualification limits. Initial missing-import compile
+failure and corrected targeted engine/module link logs remain under `/tmp` as listed
+there; the corrected engine and three-module build exits 0. No tests, engine scenarios
+or connected acceptance ran. Continue authored
+breakage/debris, world effects and the complete episode/multiplayer/release scope.
+Main, installation, saves and service remain preserved; feature branch only.

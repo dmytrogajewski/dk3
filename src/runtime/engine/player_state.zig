@@ -88,11 +88,12 @@ pub fn characterParameters(slot: u16, character: data.Character, ailments: data.
     return result;
 }
 pub fn readCharacter(ps: *const c.playerState_t) data.Character {
-    var result: data.Character = .{ .attributes = ps.dk3Attributes, .invincible_until = ps.dk3InvincibleUntil, .invisible_until = ps.powerups[c.PW_INVIS], .environment_until = ps.dk3EnvUntil, .rings = @as(u32, @bitCast(ps.dk3Status)) & (16 | 32 | 64), .save_gems = ps.dk3SaveGems, .level = ps.dk3Level, .experience = ps.dk3Experience, .points = ps.dk3AttributePoints };
+    var result: data.Character = .{ .sound_environment = @intCast(@import("std").math.clamp(ps.dk3SoundEnvironment, 0, 26)), .attributes = ps.dk3Attributes, .invincible_until = ps.dk3InvincibleUntil, .invisible_until = ps.powerups[c.PW_INVIS], .environment_until = ps.dk3EnvUntil, .rings = @as(u32, @bitCast(ps.dk3Status)) & (16 | 32 | 64), .save_gems = ps.dk3SaveGems, .level = ps.dk3Level, .experience = ps.dk3Experience, .points = ps.dk3AttributePoints };
     for (&result.boost_until, ps.dk3BoostUntil) |*deadline, value| deadline.* = value;
     return result;
 }
 pub fn writeCharacter(ps: *c.playerState_t, character: data.Character, ailments: data.Ailments) void {
+    ps.dk3SoundEnvironment = character.sound_environment;
     ps.dk3Attributes = character.attributes;
     for (&ps.dk3BoostUntil, character.boost_until) |*deadline, value| deadline.* = @intCast(value);
     ps.dk3InvincibleUntil = @intCast(character.invincible_until);
@@ -109,7 +110,7 @@ pub fn writeCharacter(ps: *c.playerState_t, character: data.Character, ailments:
 
 test "character projections round-trip and use integer speed with float jump scaling" {
     const std = @import("std");
-    var character: data.Character = .{ .attributes = .{ 1, 2, 0, 0, 3 }, .boost_until = .{ 0, 0, 1000, 1000, 0 }, .rings = 16, .save_gems = 2 };
+    var character: data.Character = .{ .attributes = .{ 1, 2, 0, 0, 3 }, .boost_until = .{ 0, 0, 1000, 1000, 0 }, .rings = 16, .save_gems = 2, .sound_environment = 3 };
     var ps = std.mem.zeroes(c.playerState_t);
     writeCharacter(&ps, character, .{});
     try std.testing.expectEqualDeep(character, readCharacter(&ps));

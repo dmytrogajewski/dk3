@@ -61,6 +61,7 @@ pub const Traveler = struct {
         const delta = try std.math.sub(i64, now, self.at_ms);
         try @import("snapshot_time.zig").rebase(.character, &self.character, delta);
         self.character.liquid = .{};
+        self.character.sound_environment = 0;
         try @import("snapshot_time.zig").rebase(.weapons, &self.weapons, delta);
         for (&self.companions) |*maybe| if (maybe.*) |*follower| {
             try @import("snapshot_time.zig").rebase(.character, &follower.character, delta);

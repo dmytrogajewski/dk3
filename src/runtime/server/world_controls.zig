@@ -12,7 +12,7 @@ const prop = @import("properties.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const Router = @import("targets.zig").Router;
 pub fn owns(name: []const u8) bool {
-    for ([_][]const u8{ "misc_hosportal", "misc_fountain", "target_speaker", "sound_ambient", "func_timer", "trigger_push", "trigger_teleport", "trigger_secret", "trigger_toggle", "trigger_changemusic", "trigger_console", "trigger_remove_inventory_item" }) |item| if (std.mem.eql(u8, name, item)) return true;
+    for ([_][]const u8{ "trigger_change_sfx", "target_laser", "misc_hosportal", "misc_fountain", "target_speaker", "sound_ambient", "func_timer", "trigger_push", "trigger_teleport", "trigger_secret", "trigger_toggle", "trigger_changemusic", "trigger_console", "trigger_remove_inventory_item" }) |item| if (std.mem.eql(u8, name, item)) return true;
     return false;
 }
 pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
@@ -29,7 +29,16 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     for (ids[0..count]) |entity| {
         const object = (try world.get(entity, data.MapObject)).*;
         var action: rules.Action = undefined;
-        if (@import("healers.zig").owns(object.classname)) {
+        if (std.mem.eql(u8, object.classname, "trigger_change_sfx")) {
+            var preset: i32 = 0;
+            for (object.properties) |property| if (std.ascii.eqlIgnoreCase(property.key, "reverb") or std.ascii.eqlIgnoreCase(property.key, "fxstyle")) {
+                preset = @intFromFloat(try prop.number(object, property.key, 0));
+            };
+            if (preset < 0 or preset > 25) return error.InvalidRoomPreset;
+            action = .{ .room = @intCast(preset) };
+        } else if (std.mem.eql(u8, object.classname, "target_laser")) {
+            action = .{ .laser = try @import("lasers.zig").initialize(object, (try world.get(entity, data.Transform)).*, now) };
+        } else if (@import("healers.zig").owns(object.classname)) {
             action = .{ .healer = try @import("healers.zig").initialize(object) };
         } else if (@import("speakers.zig").owns(object.classname)) {
             action = .{ .speaker = try @import("speakers.zig").initialize(object, try world.persistentId(entity), now) };
@@ -65,6 +74,10 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             action = .{ .remove_item = prop.text(object, "item") orelse return error.MissingRemovedItem };
         }
         try world.put(entity, data.WorldControl{ .action = action });
+        if (action == .laser) {
+            try @import("weapon_entities.zig").bind(world, slots, projections, entity, "");
+            try @import("lasers.zig").publish(world, entity, projections);
+        }
         if (action == .healer) try @import("healers.zig").bind(world, slots, projections, entity);
         if (action == .speaker) {
             try @import("weapon_entities.zig").bind(world, slots, projections, entity, "");
@@ -81,6 +94,8 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     if (now < control.ready_ms) return;
     const object = (try world.get(entity, data.MapObject)).*;
     switch (control.action) {
+        .room => {}, // Touch-only room control.
+        .laser => try @import("lasers.zig").use(world, slots, projections, entity, now),
         .healer => try @import("healers.zig").use(world, slots, projections, entity, activator, now),
         .speaker => try @import("speakers.zig").use(world, slots, projections, entity, now),
         .timer => |*timer| {
@@ -161,17 +176,18 @@ pub fn touches(world: *data.World, entity: ecs.Entity, other: ecs.Entity) !bool 
     const player = (world.get(other, data.Player) catch null) != null;
     const companion = (world.get(other, data.Companion) catch null) != null;
     return switch (control.action) {
-        .timer, .speaker, .healer => false,
+        .timer, .speaker, .healer, .laser => false,
         .teleport => |state| state.named_subject.len == 0 and object.targetname.len == 0 and (player or (companion and object.flags & 1 == 0)),
         .toggle => if (object.flags & 8 != 0) companion else player or (companion and object.flags & 4 != 0),
         .music => (player and object.flags & 1 == 0) or (world.get(other, data.Performer) catch null) != null,
-        .push, .secret, .console, .remove_item => player,
+        .push, .secret, .console, .remove_item, .room => player,
     };
 }
 pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *Router, entity: ecs.Entity, other: ecs.Entity, now: i64) !void {
     const control = try world.get(entity, data.WorldControl);
     if (now < control.ready_ms or !@import("keys.zig").allows(world, (try world.get(entity, data.MapObject)).*, try world.persistentId(other))) return;
     switch (control.action) {
+        .room => |preset| (try world.get(other, data.Character)).sound_environment = preset + 1,
         .push => |push| {
             if (!push.enabled or (push.once and control.uses > 0)) return;
             (try world.get(other, data.Velocity)).linear = push.velocity;
@@ -210,6 +226,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (!world.alive(entity)) continue;
         const control = try world.get(entity, data.WorldControl);
         switch (control.action) {
+            .laser => try @import("lasers.zig").step(world, slots, projections, entity, now),
             .healer => try @import("healers.zig").step(world, slots, projections, entity, now),
             .speaker => try @import("speakers.zig").step(world, slots, projections, entity, now),
             .timer => |*timer| if (timer.next_ms) |at| {

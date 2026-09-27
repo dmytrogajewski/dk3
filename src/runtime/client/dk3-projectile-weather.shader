@@ -328,3 +328,13 @@ dk3/fx/healer-mist
    tcMod transform 0.24609375 0 0 0.5 0.251953125 0.00390625
  }
 }
+
+dk3/fx/authored-laser
+{
+ cull disable
+ { map pics/misc/laser.tga
+   blendFunc GL_SRC_ALPHA GL_ONE
+   rgbGen vertex
+   alphaGen vertex
+ }
+}

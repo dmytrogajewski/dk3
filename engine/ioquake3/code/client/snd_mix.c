@@ -25,6 +25,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "snd_local.h"
 #include "snd_public.h"
 
+#include "snd_dk3_reverb.h"
+
 static portable_samplepair_t paintbuffer[PAINTBUFFER_SIZE];
 static int snd_vol;
 
@@ -37,14 +39,19 @@ static void S_PaintEnvironment(int count) {
     const soundEnvironment_t *env = S_Environment();
     const float seconds[4] = {0.0297f, 0.0371f, 0.0411f, 0.0437f};
     int lengths[4], i, line, channel;
-    float feedback = 0.45f + env->style * 0.07f;
-    float damping = env->style == 4 ? 0.9f : 0.55f;
+    const EFXEAXREVERBPROPERTIES *room = DK3_RoomPreset(env->style);
+    float feedback[4];
+    float damping = room ? Com_Clamp(0.05f, 0.99f, 1 - room->flGainHF * 0.5f) : (env->style == 4 ? 0.9f : 0.55f);
+    float size = room ? 0.5f + room->flDensity * 1.5f : 1 + env->style * 0.4f;
+    float wetGain = room ? room->flGain * room->flLateReverbGain : 1;
     if (serial != env->serial || rate != dma.speed) {
         memset(delays, 0, sizeof(delays)); memset(lowpass, 0, sizeof(lowpass));
         serial = env->serial; rate = dma.speed; cursor = 0;
     }
-    for (line = 0; line < 4; ++line)
-        lengths[line] = (int)Com_Clamp(1, 32767, seconds[line] * rate * (1 + env->style * 0.4f));
+    for (line = 0; line < 4; ++line) {
+        lengths[line] = (int)Com_Clamp(1, 32767, seconds[line] * rate * size);
+        feedback[line] = room ? powf(0.001f, (float)lengths[line] / (rate * room->flDecayTime)) : 0.45f + env->style * 0.07f;
+    }
     for (i = 0; i < count; ++i, cursor = (cursor + 1) & 32767) {
         float input[2] = {paintbuffer[i].left * env->gain, paintbuffer[i].right * env->gain};
         float output[2] = {0, 0};
@@ -53,8 +60,8 @@ static void S_PaintEnvironment(int count) {
             for (channel = 0; channel < 2; ++channel) {
                 float wet = delays[line][at][channel];
                 lowpass[line][channel] = damping * lowpass[line][channel] + (1 - damping) * wet;
-                delays[line][cursor][channel] = input[channel] + feedback * lowpass[line][channel ^ 1];
-                output[channel] += wet * 0.25f;
+                delays[line][cursor][channel] = input[channel] + feedback[line] * lowpass[line][channel ^ 1];
+                output[channel] += wet * 0.25f * wetGain;
             }
         }
         paintbuffer[i].left = s_muted->integer ? 0 : (int)Com_Clamp(-1073741824, 1073741824, input[0] + output[0] * env->reverb);

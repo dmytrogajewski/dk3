@@ -23,6 +23,10 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             switch (value.action) {
                 .timer => |*timer| try deadline(&timer.next_ms, delta),
                 .speaker => |*speaker| try deadline(&speaker.next_ms, delta),
+                .laser => |*laser| {
+                    try shift(&laser.next_ms, delta);
+                    try deadline(&laser.spark_ms, delta);
+                },
                 .healer => |*healer| {
                     try deadline(&healer.next_ms, delta);
                     try deadline(&healer.effect_ms, delta);

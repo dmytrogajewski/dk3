@@ -13,6 +13,7 @@ pub const State = struct {
     rings: u32 = 0,
     save_gems: i32 = 0,
     secrets: u32 = 0,
+    sound_environment: u8 = 0, // zero: no authored override; 1..26: preset 0..25
     level: i32 = 1,
     experience: i32 = 0,
     points: i32 = 0,

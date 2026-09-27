@@ -1,6 +1,6 @@
 {
   "base": "UPSTREAM.json",
-  "description": "Independent dk3 native runtime and protocol 1344, native media/startup, campaign map mode, defined field offsets and JPEG encoding, authored audio and nine-bit AAS mover indices. Local restore world-hold service v1 and stationary native projectile handling. Local pause excludes menu elapsed time from the client simulation clock. Reserved powerup slot 15 for Gas Hands lifetime. Native equipped weapon sound loop for Gas Hands. Zero velocity before a delayed stop trajectory begins. Explicit per-axis actor scale and simulation-based animation ranges, render interpolation, cinematic facing, native HUD/menu hooks and bounded damage tint. Original loading art/progress, weapon contact audio and surface marks, supplied pain sounds, and cambot spotlight presentation. Save service accepts bounded campaign archives. Both renderers share cloud geometry across shader stages to avoid unreferenced duplicate vertices. Finite reverse turret animation and campaign death checkpoint restart. Standalone software gamma avoids compositor-dependent fullscreen darkening. Exact ignore exceptions preserve the complete pinned upstream tree in Git. Native trigger bounds contact and persistent fragment scale during tumbling. Projected additive lights modulate the surface material and its animated texture coordinates in both renderers. Native Ion flight and contact presentation entry points. Damageable missiles never clip their own hull, and setviewpos accepts an optional pitch. Save previews are written as small thumbnails so high-resolution menus can load them. Renderer dlight and pshadow bit masks use unsigned shifts so a full 32-light scene stays defined. Intermission and spectator placement fall back to team starts on maps without deathmatch spawns. Native Zig weapons own prediction, water protection, grants and kill hooks; C module callers use the narrow integration ABI. Weapon-owned self-damage scaling bypasses the stock second reduction; timed weapon holds freeze living clients during Nightmare reaps. Native liquid hazards preserve a distinct authored nitro contents bit without changing swimming masks.",
+  "description": "Independent dk3 native runtime and protocol 1344, native media/startup, campaign map mode, defined field offsets and JPEG encoding, authored audio and nine-bit AAS mover indices. Local restore world-hold service v1 and stationary native projectile handling. Local pause excludes menu elapsed time from the client simulation clock. Reserved powerup slot 15 for Gas Hands lifetime. Native equipped weapon sound loop for Gas Hands. Zero velocity before a delayed stop trajectory begins. Explicit per-axis actor scale and simulation-based animation ranges, render interpolation, cinematic facing, native HUD/menu hooks and bounded damage tint. Original loading art/progress, weapon contact audio and surface marks, supplied pain sounds, and cambot spotlight presentation. Save service accepts bounded campaign archives. Both renderers share cloud geometry across shader stages to avoid unreferenced duplicate vertices. Finite reverse turret animation and campaign death checkpoint restart. Standalone software gamma avoids compositor-dependent fullscreen darkening. Exact ignore exceptions preserve the complete pinned upstream tree in Git. Native trigger bounds contact and persistent fragment scale during tumbling. Projected additive lights modulate the surface material and its animated texture coordinates in both renderers. Native Ion flight and contact presentation entry points. Damageable missiles never clip their own hull, and setviewpos accepts an optional pitch. Save previews are written as small thumbnails so high-resolution menus can load them. Renderer dlight and pshadow bit masks use unsigned shifts so a full 32-light scene stays defined. Intermission and spectator placement fall back to team starts on maps without deathmatch spawns. Native Zig weapons own prediction, water protection, grants and kill hooks; C module callers use the narrow integration ABI. Weapon-owned self-damage scaling bypasses the stock second reduction; timed weapon holds freeze living clients during Nightmare reaps. Native liquid hazards preserve a distinct authored nitro contents bit without changing swimming masks. Authored room IDs map to the pinned OpenAL EFX preset definitions with full EAX parameters where available and preset-derived software response; prior native styles retain their semantics.",
   "files": {
     ".gitignore": {
       "current_sha256": "5300b0caf48f9694dff85321aaecf4ea38f926a0df2f7287442d6867c3242d57",
@@ -126,20 +126,24 @@
       "current_sha256": "2c9b87fd4903730099c4931931c758ba04818213602bd5b888bd20aafaaa3922",
       "upstream_sha256": "0b9aa919c95f64f41835e2d0b967801adef3d4445f019aa70559a31370d82e9d"
     },
+    "code/client/snd_dk3_reverb.h": {
+      "upstream_sha256": null,
+      "current_sha256": "4553dd1b9eaf455dd871b043d43002f6ecbe128c5e5a9820f9c5afd997a17812"
+    },
     "code/client/snd_dma.c": {
       "current_sha256": "959802eff16053c48df1d803a59358dcf6e23d78daf1506e5a0ed3057ae95ee2",
       "upstream_sha256": "062ed205132f3f7ff09141b587b86e2d3730ed2c0e0441aa94a60cf6c80e6767"
     },
     "code/client/snd_main.c": {
-      "current_sha256": "ac1596a4db5a6ee004faaae21094f4584c38a79666ccd86bf95cea578e9bcc9e",
+      "current_sha256": "03fd7027470cd7fbe602b4651d2e100310f4be666c78100e0b8a096ce7650f3a",
       "upstream_sha256": "3279fc2aac2461adee625863697c494ac01c4dd52cd2cccdf0214aa71f97ad1a"
     },
     "code/client/snd_mix.c": {
-      "current_sha256": "055c01bc4d8b196d18a80f6810dad9ad3bd9a30a5522e2d1b1cd16f6ab1185d1",
+      "current_sha256": "7ecf250baf0d58072eba52d6ffac39e57f8ddf145fde292e7188c465f09cd844",
       "upstream_sha256": "123f7a6e600f694fb4e0cac02db9f58ae9087a74d41abf6c01e2472b14c1cc31"
     },
     "code/client/snd_openal.c": {
-      "current_sha256": "c9eda56477dbc5608733f3ac3e0a2c990f35205e605d761391c50999e3eccb70",
+      "current_sha256": "b70d914a649bc90e0291f3bee74d1c34ddae1f572501f03e43a19dbef668c1d6",
       "upstream_sha256": "697bc4b859ba7af2e5d7484d56f7fdc0da24c79d0b2dde24dfd8b1508d733f28"
     },
     "code/client/snd_public.h": {

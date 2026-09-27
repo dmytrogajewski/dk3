@@ -59,7 +59,7 @@ pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").Stat
         if (loaded.world.get(entity, data.Actor) catch null) |actor| try systems.actors.ensure(actor.definition);
         if (loaded.world.get(entity, data.Binding) catch null) |binding| {
             if ((loaded.world.get(entity, data.Hammer) catch null) != null or (loaded.world.get(entity, data.Shockwave) catch null) != null or (loaded.world.get(entity, data.Nova) catch null) != null or (loaded.world.get(entity, data.Flashlight) catch null) != null or (loaded.world.get(entity, data.Zeus) catch null) != null or (loaded.world.get(entity, data.ZeusBolt) catch null) != null or (loaded.world.get(entity, data.Nightmare) catch null) != null or (loaded.world.get(entity, data.MetaRing) catch null) != null or (loaded.world.get(entity, data.MetaLaser) catch null) != null) continue;
-            if (loaded.world.get(entity, data.WorldControl) catch null) |control| if (control.action == .speaker or control.action == .healer) {
+            if (loaded.world.get(entity, data.WorldControl) catch null) |control| if (control.action == .speaker or control.action == .laser or control.action == .healer) {
                 if (control.action == .healer) {
                     if (binding.model == 0 or binding.model > loaded.header.resources.models.len or !std.mem.eql(u8, loaded.header.resources.models[binding.model - 1], @import("item_catalog").hosportal.definition(control.action.healer.kind).model)) return error.InvalidSavedHealer;
                     continue;
@@ -117,7 +117,11 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
             try clients.publish(world, projections, states, 0, now);
             continue;
         }
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .healer or control.action == .speaker) {
+        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .healer or control.action == .laser or control.action == .speaker) {
+            if (control.action == .laser) {
+                try @import("lasers.zig").publish(world, entity, projections);
+                continue;
+            }
             if (control.action == .healer) {
                 try @import("healers.zig").publish(world, entity, projections);
                 continue;

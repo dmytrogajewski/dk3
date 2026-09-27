@@ -136,6 +136,7 @@ fn draw(now: i32) !void {
     if (!have_snapshot or snapshot_number < 0 or snapshot.ps.clientNum != client_number) return;
     if (snapshot.numEntities < 0 or snapshot.numEntities > snapshot.entities.len) return error.InvalidSnapshot;
     try @import("client/music.zig").update(&game);
+    try @import("client/events.zig").environment(snapshot.ps.dk3SoundEnvironment);
     engine.setSnapshot(snapshot.entities[0..@intCast(snapshot.numEntities)], now);
     try @import("client/events.zig").consume(&game, snapshot.entities[0..@intCast(snapshot.numEntities)]);
     if (selected_weapon == 0 or snapshot.ps.dk3Inventory != inventory_mask) {
@@ -313,6 +314,11 @@ fn draw(now: i32) !void {
             continue;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("item_catalog").hosportal.render_tag) @import("client/healers.zig").draw(entity, now);
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/laser.zig").render_tag) {
+            try @import("client/events.zig").loop(&game, entity, @import("engine/trajectory.zig").evaluate(entity.pos, now));
+            @import("client/lasers.zig").draw(entity, now, &ref);
+            continue;
+        }
         var handle: c.qhandle_t = 0;
         if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
             handle = inline_models[@intCast(entity.modelindex)];
