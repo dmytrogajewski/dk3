@@ -10,8 +10,9 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 fn alivePlayer(world: *data.World, entity: ecs.Entity) bool {
-    const player = world.get(entity, data.Player) catch return false;
-    if (player.mode == .dead or player.mode == .noclip or player.mode == .spectator) return false;
+    if (world.get(entity, data.Player) catch null) |player| {
+        if (player.mode != .normal) return false;
+    } else if ((world.get(entity, data.Companion) catch null) == null) return false;
     return if (world.get(entity, data.Health)) |health| health.current > 0 else |_| false;
 }
 fn trace(start: v.Vec3, end: v.Vec3, slot: u16, mask: u32) !@import("../domain/collision.zig").Trace {

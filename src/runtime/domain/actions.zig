@@ -3,8 +3,14 @@
 const std = @import("std");
 const Reader = @import("tables.zig").Reader;
 pub const Action = struct { name: []const u8, args: []const []const u8 };
-pub const Script = struct { name: []const u8, owner: []const u8, loops: i32, actions: []const Action };
+pub const Script = struct { used: bool = false, name: []const u8, owner: []const u8, loops: i32, actions: []const Action };
+pub const Frame = struct { name: []const u8 = "", index: u16 = 0, remaining: i32 = 1, when_used: bool = false, activator: u32 = 0 };
 pub const Execution = struct {
+    when_used: bool = false,
+    stack: [16]Frame = @splat(.{}),
+    depth: u8 = 0,
+    moving: bool = false,
+    destination: [3]f32 = @splat(0),
     name: []const u8 = "",
     index: u16 = 0,
     remaining: i32 = 1,
@@ -18,7 +24,11 @@ pub const Execution = struct {
 pub const Program = struct {
     scripts: []const Script = &.{},
     pub fn find(self: Program, name: []const u8) ?Script {
-        for (self.scripts) |script| if (std.ascii.eqlIgnoreCase(script.name, name)) return script;
+        for (self.scripts) |script| if (!script.used and std.ascii.eqlIgnoreCase(script.name, name)) return script;
+        return null;
+    }
+    pub fn onUse(self: Program, name: []const u8) ?Script {
+        for (self.scripts) |script| if (script.used and std.ascii.eqlIgnoreCase(script.name, name)) return script;
         return null;
     }
     pub fn parse(allocator: std.mem.Allocator, bytes: []const u8) !Program {
@@ -27,13 +37,14 @@ pub const Program = struct {
         if (!std.mem.eql(u8, try token(&reader), "dk3_actions") or !std.mem.eql(u8, try token(&reader), "1")) return error.InvalidActionProgram;
         var scripts: std.ArrayList(Script) = .empty;
         while (try reader.token()) |tag| {
-            if (!std.mem.eql(u8, tag, "script") or scripts.items.len == 1024) return error.InvalidScriptHeader;
+            const used = std.mem.eql(u8, tag, "used");
+            if ((!used and !std.mem.eql(u8, tag, "script")) or scripts.items.len == 1024) return error.InvalidScriptHeader;
             const name = try token(&reader);
             const owner = try token(&reader);
             const loops = try std.fmt.parseInt(i32, try token(&reader), 10);
             const count = try std.fmt.parseInt(u16, try token(&reader), 10);
-            if (name.len == 0 or name.len > 64 or owner.len > 64 or count > 1024 or loops < -1 or loops > 10000) return error.InvalidScriptBounds;
-            for (scripts.items) |script| if (std.ascii.eqlIgnoreCase(script.name, name)) return error.DuplicateScript;
+            if (name.len == 0 or name.len > 64 or owner.len > 64 or count > 1024 or loops < -1 or loops > (if (used) @as(i32, 3600000) else 10000)) return error.InvalidScriptBounds;
+            for (scripts.items) |script| if (script.used == used and std.ascii.eqlIgnoreCase(script.name, name)) return error.DuplicateScript;
             const actions = try allocator.alloc(Action, count);
             for (actions) |*action| {
                 const kind = try token(&reader);
@@ -46,7 +57,7 @@ pub const Program = struct {
                 }
                 action.* = .{ .name = kind, .args = args };
             }
-            try scripts.append(allocator, .{ .name = name, .owner = owner, .loops = loops, .actions = actions });
+            try scripts.append(allocator, .{ .used = used, .name = name, .owner = owner, .loops = loops, .actions = actions });
         }
         return .{ .scripts = try scripts.toOwnedSlice(allocator) };
     }

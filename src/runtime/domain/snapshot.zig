@@ -235,12 +235,24 @@ pub fn validate(snapshot: *Loaded) !void {
             occupied[binding.slot] = true;
             if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null and (world.get(entity, data.Shockwave) catch null) == null and (world.get(entity, data.Nova) catch null) == null and (world.get(entity, data.Flashlight) catch null) == null and (world.get(entity, data.Zeus) catch null) == null and (world.get(entity, data.ZeusBolt) catch null) == null and (world.get(entity, data.Nightmare) catch null) == null and (world.get(entity, data.MetaRing) catch null) == null and (world.get(entity, data.MetaLaser) catch null) == null) try require(world, entity, .{data.Body});
         }
+        if (world.get(entity, data.Exit) catch null) |exit| {
+            if (exit.ending_started != null) {
+                const viewer = world.find(exit.ending_player) orelse return error.InvalidSavedEnding;
+                if ((try world.get(viewer, data.Body)).motion_owner != try world.persistentId(entity) or (try world.get(viewer, data.Player)).mode != .frozen) return error.InvalidSavedEnding;
+            } else if (exit.ending_player != 0) return error.InvalidSavedEnding;
+        }
         if (world.get(entity, data.Body) catch null) |body| {
             if (body.mass <= 0 or body.mass > 100000) return error.InvalidSavedMass;
             for (body.mins, body.maxs) |low, high| if (low > high or @abs(low) > 8192 or @abs(high) > 8192) return error.InvalidSavedBounds;
             if (body.motion_owner) |owner_id| {
                 const owner = world.find(owner_id) orelse return error.InvalidSavedMotionOwner;
-                if (world.get(owner, data.Nightmare) catch null) |ritual| {
+                if (world.get(owner, data.Cinematic) catch null) |cinematic| {
+                    if (!cinematic.active or cinematic.viewer != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
+                } else if (world.get(owner, data.Exit) catch null) |exit| {
+                    if (exit.ending_started == null or exit.ending_player != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
+                } else if (world.get(owner, data.Monitor) catch null) |monitor| {
+                    if (monitor.viewer != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
+                } else if (world.get(owner, data.Nightmare) catch null) |ritual| {
                     if (ritual.victim != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
                 } else {
                     const projectile = world.get(owner, data.Projectile) catch return error.InvalidSavedMotionOwner;
@@ -252,6 +264,16 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Binding, data.Body });
             if (!std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "trigger_changelevel")) return error.InvalidSavedExit;
         }
+        if (world.get(entity, data.Monitor) catch null) |monitor| {
+            try require(world, entity, .{ data.MapObject, data.Binding, data.Body });
+            if (!std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "func_monitor") or monitor.duration_ms < 750 or monitor.duration_ms > 3600000 or (monitor.viewer == null) != (monitor.until_ms == null)) return error.InvalidSavedMonitor;
+            if (monitor.viewer) |viewer_id| {
+                const viewer = world.find(viewer_id) orelse return error.InvalidSavedMonitor;
+                try require(world, viewer, .{ data.Player, data.Body, data.Health });
+                if ((try world.get(viewer, data.Body)).motion_owner != try world.persistentId(entity) or (try world.get(viewer, data.Player)).mode != .frozen) return error.InvalidSavedMonitor;
+                if (world.find(monitor.camera) == null or world.find(monitor.target) == null) return error.InvalidSavedMonitor;
+            }
+        }
         if (world.get(entity, data.ThunderSpray) catch null) |spray| {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding, data.Lifetime });
             if (spray.owner == 0 or spray.phase >= 12 or spray.scale <= 0 or spray.scale > 2 or spray.next_ms < spray.stepped_ms or spray.stepped_ms < spray.born_ms) return error.InvalidSavedThunderSpray;
@@ -261,7 +283,55 @@ pub fn validate(snapshot: *Loaded) !void {
             if (tree.maximum > 5 or tree.fruit > tree.maximum or tree.previous > 5 or !std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "misc_healthtree")) return error.InvalidSavedHealthTree;
         }
         if (world.get(entity, data.Script) catch null) |script| {
-            if (script.name.len == 0 or script.name.len > 64 or script.remaining < -1 or script.remaining > 10000) return error.InvalidSavedScript;
+            if (script.name.len == 0 or script.name.len > 64 or script.remaining < -1 or script.remaining > 10000 or script.depth > script.stack.len) return error.InvalidSavedScript;
+        }
+        if (world.get(entity, data.Firefly) catch null) |fly| {
+            try require(world, entity, .{ data.Binding, data.Body, data.Transform, data.Velocity, data.Random });
+            if (fly.source == 0 or fly.distance < 20 or fly.distance > 200 or fly.speed < 1 or fly.speed > 500 or fly.personality < 0.25 or fly.personality > 1 or fly.phase >= 12 or fly.scale <= 0 or fly.scale > 10000 or fly.maximum_alpha < 0 or fly.maximum_alpha > 1 or fly.delta_alpha < 0 or fly.delta_alpha > 1 or fly.color_fraction < 0 or fly.color_fraction > 1.25) return error.InvalidSavedFirefly;
+            if (world.find(fly.source)) |source| if (!std.mem.eql(u8, (try world.get(source, data.MapObject)).classname, @import("actor_catalog").firefly.classname)) return error.InvalidSavedFirefly;
+        }
+        if (world.get(entity, data.Scenery) catch null) |scenery| {
+            try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
+            if (scenery.model.len == 0 or scenery.model.len >= 64 or scenery.sequence.last < scenery.sequence.first or scenery.sequence.fps == 0 or scenery.sequence.fps > 240 or scenery.alpha < 0 or scenery.alpha > 1 or scenery.damage < 0 or scenery.damage > 1000000) return error.InvalidSavedScenery;
+            for (scenery.scale) |scale| if (scale <= 0 or scale > 10000) return error.InvalidSavedScenery;
+            if (!scenery.fragment and !scenery.explosion) {
+                try require(world, entity, .{ data.MapObject, data.Random });
+                if (!@import("scenery.zig").owns((try world.get(entity, data.MapObject)).classname)) return error.InvalidSavedScenery;
+            } else if (scenery.breakable or scenery.expires_ms == null) return error.InvalidSavedScenery;
+            if (scenery.breakable) try require(world, entity, .{ data.Health, data.Hurt });
+            if (scenery.broken and (!scenery.breakable or (try world.get(entity, data.Health)).current > 0 or (try world.get(entity, data.Body)).contents != 0)) return error.InvalidSavedScenery;
+        }
+        if (world.get(entity, data.DwarfAxe) catch null) |axe| {
+            try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
+            if (axe.owner == 0 or axe.damage <= 0 or axe.damage > 1000000 or axe.stepped_ms < axe.born_ms or (axe.phase == .flying) != (axe.contact_ms == null)) return error.InvalidSavedDwarfAxe;
+        }
+        if (world.get(entity, data.ActorAttack) catch null) |attack| {
+            try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
+            if (attack.owner == 0 or attack.stepped_ms < attack.born_ms) return error.InvalidSavedActorAttack;
+            switch (attack.attack) {
+                .vermin_rocket => |rocket| {
+                    if (rocket.damage <= 0 or rocket.damage > 1000000 or rocket.speed <= 0 or rocket.speed > 65536 or rocket.divisor == 0 or rocket.frame > 2 or attack.stepped_ms > attack.born_ms + 4000 or rocket.next_ms <= attack.stepped_ms or rocket.next_ms > attack.stepped_ms + 100) return error.InvalidSavedActorAttack;
+                },
+                .knight_flame => |fire| {
+                    if (fire.damage <= 0 or fire.damage > 1000000 or attack.stepped_ms > attack.born_ms + 5000 or fire.drift_ms <= attack.stepped_ms or fire.drift_ms > attack.stepped_ms + 100) return error.InvalidSavedActorAttack;
+                },
+                .knight_zap => |zap| {
+                    if (zap.target == 0 or zap.emitted > 2 or attack.stepped_ms > attack.born_ms + 500) return error.InvalidSavedActorAttack;
+                    for (zap.bolts, 0..) |maybe, i| if (maybe) |bolt| {
+                        if (i >= zap.emitted or bolt.born_ms != attack.born_ms + @as(i64, @intCast(i + 1)) * 100 or bolt.next_ms <= bolt.born_ms or bolt.next_ms > bolt.born_ms + 400) return error.InvalidSavedActorAttack;
+                    };
+                },
+                .knight_punch => {},
+            }
+        }
+        if (world.get(entity, data.ActorLaser) catch null) |laser| {
+            try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
+            if (laser.owner == 0 or laser.damage < 0 or laser.damage > 1000000 or laser.stepped_ms < laser.born_ms or laser.stepped_ms > laser.born_ms + 10000) return error.InvalidSavedActorLaser;
+            if (laser.contact_ms) |at| if (at < laser.born_ms) return error.InvalidSavedActorLaser;
+        }
+        if (world.get(entity, data.CryoSpray) catch null) |spray| {
+            try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
+            if (spray.owner == 0 or spray.damage < 0 or spray.damage > 1000000 or spray.stepped_ms < spray.born_ms or spray.stepped_ms > spray.born_ms + 800) return error.InvalidSavedCryoSpray;
         }
         if (world.get(entity, data.FrogSpit) catch null) |spit| {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding, data.Lifetime });
@@ -288,7 +358,8 @@ pub fn validate(snapshot: *Loaded) !void {
             if (try world.persistentId(entity) != snapshot.header.player_id or state.timer_ms > 2147483647 or state.view_height < -64 or state.view_height > 128 or state.ground_entity > 2047) return error.InvalidSavedPlayer;
         }
         if (world.get(entity, data.Weapons) catch null) |weapons| {
-            if (weapons.weapon < 1 or weapons.weapon > 28 or weapons.weaponstate < 0 or weapons.weaponstate > 3 or weapons.dk3GlockClip < 0 or weapons.dk3GlockClip > 10 or weapons.dk3SwordExperience < 0) return error.InvalidSavedWeapons;
+            const unarmed_companion = (world.get(entity, data.Companion) catch null) != null and weapons.weapon == 0 and weapons.dk3Inventory == 0;
+            if ((!unarmed_companion and weapons.weapon < 1) or weapons.weapon > 28 or weapons.weaponstate < 0 or weapons.weaponstate > 3 or weapons.dk3GlockClip < 0 or weapons.dk3GlockClip > 10 or weapons.dk3SwordExperience < 0) return error.InvalidSavedWeapons;
             for (weapons.ammo) |amount| if (amount < 0 or amount > 1000000) return error.InvalidSavedWeapons;
             if (weapons.last_fire_ms) |at| if (at > snapshot.header.at_ms + 200) return error.InvalidSavedWeapons;
         }
@@ -301,6 +372,17 @@ pub fn validate(snapshot: *Loaded) !void {
             };
             try require(world, entity, .{ data.Velocity, data.Body, data.Health, data.Hurt, data.Binding, data.MapObject });
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
+            if (actor.lycanthir.phase != .living and (@import("actor_catalog").entries[actor.definition].kind != .lycanthir or actor.lycanthir.wake_ms < actor.lycanthir.started_ms and actor.lycanthir.phase == .collapsed)) return error.InvalidSavedResurrection;
+        }
+        if (world.get(entity, data.Companion) catch null) |companion| {
+            try require(world, entity, .{ data.Actor, data.Health, data.Weapons, data.Character, data.Keys, data.Ailments });
+            const kind = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition];
+            if (kind.kind != .companion or companion.carrying != std.mem.eql(u8, kind.classname, "mikikofly") or (companion.identity == .mikiko) != std.mem.eql(u8, kind.classname, "mikiko")) return error.InvalidSavedCompanion;
+            if (companion.owner != 0) {
+                const owner = world.find(companion.owner) orelse return error.InvalidSavedCompanionOwner;
+                try require(world, owner, .{data.Player});
+            }
+            if (companion.animation_until != null and (companion.authored == .none or (try world.get(entity, data.Actor)).scripted_pose == null)) return error.InvalidSavedCompanionAction;
         }
         if (world.get(entity, data.Projectile) catch null) |projectile| {
             if (projectile.lifetime_ms < 0 or projectile.lifetime_ms > 3600000 or projectile.speed < 0 or projectile.speed > 100000) return error.InvalidSavedProjectile;
@@ -734,4 +816,26 @@ test "portable native snapshots own strings and preserve IDs before rebasing" {
     const duplicate_slot = try capture(allocator, &bytes, &world, "e1m3a", 3, .{ .at_ms = 1000, .episode = 1, .player_id = 7, .next_id = 100 });
     try std.testing.expectError(error.InvalidSavedBinding, decode(allocator, duplicate_slot));
     try std.testing.expectEqual(@as(i32, 100), (try world.get(world.find(7).?, data.Health)).current);
+}
+
+test "monitor restoration retains camera and remaining duration and rejects detached ownership" {
+    const memory = std.testing.allocator;
+    var world = data.World.init(memory, 8);
+    defer world.deinit();
+    _ = try world.create(1, .{ data.Transform{ .angles = .{ 0, 45, 0 } }, data.Velocity{}, data.Player{ .mode = .frozen }, data.Body{ .motion_owner = 2 }, data.Binding{ .slot = 0 }, data.Health{}, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    _ = try world.create(2, .{ data.Transform{}, data.Body{}, data.Binding{ .slot = 64 }, data.MapObject{ .classname = "func_monitor" }, data.Monitor{ .duration_ms = 8000, .viewer = 1, .until_ms = 8500, .camera = 3, .target = 4, .origin = .{ 1824, 832, 520 }, .angles = .{ 20, 180, 0 } } });
+    _ = try world.create(3, .{ data.Transform{}, data.MapObject{ .classname = "info_camera" } });
+    _ = try world.create(4, .{ data.Transform{}, data.MapObject{ .classname = "info_notnull" } });
+    var buffer: [32768]u8 = undefined;
+    const bytes = try capture(memory, &buffer, &world, "e1m1c", 3, .{ .at_ms = 1000, .next_id = world.next_id, .player_id = 1, .episode = 1 });
+    var loaded = try decode(memory, bytes);
+    defer loaded.deinit(memory);
+    try loaded.rebase(10000);
+    const monitor = try loaded.world.get(loaded.world.find(2).?, data.Monitor);
+    try std.testing.expectEqual(@as(?i64, 17500), monitor.until_ms);
+    try std.testing.expectEqual(@as(i32, 8000), monitor.duration_ms);
+    try std.testing.expectEqual(data.Vec3{ 1824, 832, 520 }, monitor.origin);
+    try std.testing.expectEqual(data.Vec3{ 0, 45, 0 }, (try loaded.world.get(loaded.world.find(1).?, data.Transform)).angles);
+    (try loaded.world.get(loaded.world.find(1).?, data.Body)).motion_owner = null;
+    try std.testing.expectError(error.InvalidSavedMonitor, validate(&loaded));
 }

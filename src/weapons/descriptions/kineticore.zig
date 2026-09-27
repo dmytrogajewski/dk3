@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 24;
 pub const spec: profiles.Spec = .{
+    .player_grip = .shoulder,
     .combat = .projectile,
     .projectile = .{ .mins = @splat(-8), .maxs = @splat(8), .inertial = true, .recoil = 90, .collide_owner_after_bounce = true, .remove_when_resting = true, .loop_sound = "e4/we_kcoreflybya.wav" },
     .ammo_class = "ammo_kineticore", // kineticore

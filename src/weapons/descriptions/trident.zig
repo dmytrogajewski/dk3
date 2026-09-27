@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 13;
 pub const spec: profiles.Spec = .{
+    .player_grip = .rifle,
     .combat = .trident,
     .protects_water = true,
     .ammo_class = "ammo_tritips", // trident

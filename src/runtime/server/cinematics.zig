@@ -12,71 +12,117 @@ const Slots = @import("../engine/slots.zig").Slots;
 const Router = @import("targets.zig").Router;
 const Definition = struct { classname: []const u8, model: []const u8, metadata: []const u8, scale: v.Vec3 = @splat(1), walk: f32 = 25, run: f32 = 125, yaw: f32 = 20 };
 pub const State = struct {
+    allocator: std.mem.Allocator = undefined,
+    programs: [64]struct { name: []const u8, value: rules.Program } = undefined,
+    program_count: usize = 0,
     program: ?rules.Program = null,
     name: []const u8 = "",
-    definitions: [32]Definition = undefined,
+    definitions: [128]Definition = undefined,
     count: usize = 0,
     pub fn spawn(self: *State, allocator: std.mem.Allocator, world: *data.World) !void {
         engine.register("dk3_cinematics", "1", 0);
-        if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER or engine.integer("dk3_cinematics") == 0) return;
+        if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return;
+        self.allocator = allocator;
         var controller: ?ecs.Entity = null;
-        var name: []const u8 = "";
+        var intro: []const u8 = "";
+        var names: [64][]const u8 = undefined;
+        var count: usize = 0;
         {
             var query = world.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
             defer query.deinit();
             while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| {
-                if (!std.mem.eql(u8, object.classname, "worldspawn")) continue;
-                name = @import("properties.zig").text(object, "cinematic_intro") orelse "";
-                if (name.len > 0) controller = entity;
+                const prop = @import("properties.zig");
+                if (std.mem.eql(u8, object.classname, "worldspawn")) {
+                    controller = entity;
+                    intro = prop.text(object, "cinematic_intro") orelse "";
+                }
+                const name = prop.text(object, "cinescript") orelse prop.text(object, "cinematic") orelse prop.text(object, "cinematic_intro") orelse "";
+                if (name.len == 0) continue;
+                var duplicate = false;
+                for (names[0..count]) |previous| if (std.mem.eql(u8, previous, name)) {
+                    duplicate = true;
+                    break;
+                };
+                if (duplicate) continue;
+                if (count == names.len) return error.CinematicProgramCapacity;
+                names[count] = name;
+                count += 1;
             };
         }
-        const entity = controller orelse return;
+        for (names[0..count]) |name| try self.load(allocator, name);
+        if (intro.len > 0) {
+            try self.select(intro);
+            try world.put(controller orelse return error.MissingCinematicController, data.Cinematic{ .name = intro });
+        }
+    }
+    fn select(self: *State, name: []const u8) !void {
+        for (self.programs[0..self.program_count]) |program| if (std.mem.eql(u8, program.name, name)) {
+            self.name = program.name;
+            self.program = program.value;
+            return;
+        };
+        return error.UnavailableCinematicProgram;
+    }
+    pub fn trigger(self: *State, world: *data.World, entity: ecs.Entity, name: []const u8, activator: u32) !bool {
+        if (active(world)) return false;
+        const player = world.find(activator) orelse return false;
+        if ((world.get(player, data.Player) catch return false).mode != .normal) return false;
+        if ((try world.get(player, data.Body)).motion_owner != null) return false;
+        try self.select(name);
+        const controller = findController(world) orelse entity;
+        try world.put(controller, data.Cinematic{ .name = self.name, .trigger = try world.persistentId(entity), .viewer = activator });
+        return true;
+    }
+    fn load(self: *State, allocator: std.mem.Allocator, name: []const u8) !void {
         if (!@import("../domain/snapshot.zig").validName(name)) return error.InvalidCinematicName;
         var path: [96]u8 = undefined;
         const program_path = try std.fmt.bufPrintZ(&path, "dk3/cinematics/{s}.cfg", .{name});
         const bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, program_path, 4 * 1024 * 1024);
-        self.program = try rules.parse(allocator, bytes);
-        self.name = name;
-        if (self.program.?.shots.len == 0) return error.EmptyCinematic;
+        const program = try rules.parse(allocator, bytes);
+        if (program.shots.len == 0) return error.EmptyCinematic;
         const tuning = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, "dk3/tables/aidata.cfg", 4 * 1024 * 1024);
         var map_buffer: [64]u8 = undefined;
         const map_name = @import("persistence.zig").mapName(&map_buffer);
-        for (self.program.?.shots) |shot| for (shot.tracks) |track| {
+        for (program.shots) |shot| for (shot.tracks) |track| {
             if (self.definition(track.classname) != null) continue;
             if (self.count == self.definitions.len) return error.CinematicClassCapacity;
             var actor_definition: Definition = .{ .classname = track.classname, .model = "", .metadata = "" };
             // Cine classes select the supplied map-family performance model.
-            const prefix: ?[]const u8 = if (std.mem.eql(u8, track.classname, "cine_hiro")) "hiro" else if (std.mem.eql(u8, track.classname, "cine_toshiro")) "tosh" else if (std.mem.eql(u8, track.classname, "cine_usagi")) "usagi" else if (std.mem.eql(u8, track.classname, "cine_osaka")) "osaka" else if (std.mem.eql(u8, track.classname, "cine_inshiro")) "inshiro" else if (std.mem.eql(u8, track.classname, "cine_ninja")) "ninja" else null;
-            if (prefix) |stem| {
-                actor_definition.model = try std.fmt.allocPrint(allocator, "models/cinematic/c_{s}_{s}.dkm", .{ stem, map_name[0..@min(4, map_name.len)] });
-            } else {
-                var reader = try @import("../domain/tables.zig").Reader.init(tuning);
-                while (try reader.next()) |row| {
-                    if (!std.mem.eql(u8, row.field("classname") orelse "", track.classname)) continue;
-                    actor_definition.model = row.field("model_name") orelse return error.MissingCinematicModel;
-                    actor_definition.walk = try row.number("walk_speed", 25);
-                    actor_definition.run = try row.number("run_speed", 125);
-                    if (row.field("render_scale")) |scale| if (scale.len > 0) {
-                        actor_definition.scale = try @import("map.zig").vector(scale);
-                    };
-                    if (row.field("angle_speed")) |speed| if (speed.len > 0) {
-                        actor_definition.yaw = (try @import("map.zig").vector(speed))[1];
-                    };
-                }
+            const prefix: ?[]const u8 = if (std.mem.startsWith(u8, track.classname, "cine_")) blk: {
+                const aliases = .{ .{ "superfly", "super" }, .{ "toshiro", "tosh" }, .{ "gharroth", "ghar" }, .{ "pgharroth", "pghar" }, .{ "charon", "char" }, .{ "fatworker", "fat" }, .{ "thinworker", "thin" } };
+                inline for (aliases) |alias| if (std.mem.eql(u8, track.classname[5..], alias[0])) break :blk alias[1];
+                break :blk track.classname[5..];
+            } else null;
+            var reader = try @import("../domain/tables.zig").Reader.init(tuning);
+            while (try reader.next()) |row| {
+                if (!std.mem.eql(u8, row.field("classname") orelse "", track.classname)) continue;
+                actor_definition.model = row.field("model_name") orelse return error.MissingCinematicModel;
+                actor_definition.walk = try row.number("walk_speed", 25);
+                actor_definition.run = try row.number("run_speed", 125);
+                if (row.field("render_scale")) |scale| if (scale.len > 0) {
+                    actor_definition.scale = try @import("map.zig").vector(scale);
+                };
+                if (row.field("angle_speed")) |speed| if (speed.len > 0) {
+                    actor_definition.yaw = (try @import("map.zig").vector(speed))[1];
+                };
             }
+            if (prefix) |stem| actor_definition.model = try std.fmt.allocPrint(allocator, "models/cinematic/c_{s}_{s}.dkm", .{ stem, map_name[0..@min(4, map_name.len)] });
             if (actor_definition.model.len == 0) return error.UnknownCinematicClass;
             const metadata_path = try std.fmt.bufPrintZ(&path, "{s}.anim", .{actor_definition.model});
             actor_definition.metadata = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, metadata_path, 1 << 20);
             self.definitions[self.count] = actor_definition;
             self.count += 1;
         };
-        try world.put(entity, data.Cinematic{ .name = name });
+        if (self.program_count == self.programs.len) return error.CinematicProgramCapacity;
+        self.programs[self.program_count] = .{ .name = name, .value = program };
+        self.program_count += 1;
     }
     fn definition(self: *const State, classname: []const u8) ?Definition {
         for (self.definitions[0..self.count]) |definition_value| if (std.mem.eql(u8, definition_value.classname, classname)) return definition_value;
         return null;
     }
-    pub fn admit(self: *const State, world: *data.World) !void {
+    pub fn admit(self: *State, world: *data.World) !void {
+        if (findController(world)) |controller| try self.select((try world.get(controller, data.Cinematic)).name);
         var query = world.queryAccess(0, 0, 0);
         defer query.deinit();
         while (query.next()) |view| for (view.entities()) |entity| {
@@ -103,10 +149,17 @@ pub const State = struct {
         const controller = findController(world) orelse return;
         var playback = (try world.get(controller, data.Cinematic)).*;
         if (playback.finished) return;
+        if (engine.integer("dk3_cinematics") == 0) {
+            try finish(world, slots, projections, router, viewer, now);
+            if (playback.exit != 0) router.travel = .{ .exit = playback.exit, .player = try world.persistentId(viewer) } else if (world.find(playback.trigger)) |trigger_entity| try router.fire(world, slots, projections, trigger_entity, try world.persistentId(viewer), now);
+            return;
+        }
         if (!playback.active) {
             playback.active = true;
             playback.started_ms = now;
             try @import("weapon_actions.zig").cancel(world, slots, projections, viewer);
+            (try world.get(viewer, data.Body)).motion_owner = try world.persistentId(controller);
+            playback.viewer = try world.persistentId(viewer);
             (try world.get(viewer, data.Player)).mode = .frozen;
             (try world.get(viewer, data.Velocity)).linear = @splat(0);
             engine.print("dk3 cinematic: started\n");
@@ -121,7 +174,11 @@ pub const State = struct {
             playback.shot += 1;
             if (playback.shot >= program.shots.len) {
                 (try world.get(controller, data.Cinematic)).* = playback;
-                try finish(world, slots, projections, viewer);
+                const trigger_id = playback.trigger;
+                try finish(world, slots, projections, router, viewer, now);
+                if (playback.exit != 0) {
+                    router.travel = .{ .exit = playback.exit, .player = try world.persistentId(viewer) };
+                } else if (world.find(trigger_id)) |trigger_entity| try router.fire(world, slots, projections, trigger_entity, try world.persistentId(viewer), now);
                 return;
             }
             engine.send(0, "dk3_cine_stop");
@@ -143,10 +200,20 @@ pub const State = struct {
                 const task = program.tasks[task_id];
                 if (task.when * 1000 > @as(f32, @floatFromInt(elapsed))) break;
                 const unique = if (task.unique.len > 0) task.unique else track.unique;
-                const actor = resolveActor(world, task.kind, unique, track.classname);
+                var actor = resolveActor(world, task.kind, unique, track.classname);
+                if (actor == null) if (@import("scripts.zig").unique(world, unique)) |existing| {
+                    if ((world.get(existing, data.Actor) catch null) != null) {
+                        try self.adopt(world, existing, track.classname, unique, now);
+                        actor = existing;
+                    }
+                };
                 switch (task.kind) {
                     .spawn => {
-                        if (actor != null) return error.DuplicateCinematicActor;
+                        if (actor) |existing| {
+                            (try world.get(existing, data.Transform)).* = .{ .position = task.destination, .angles = task.angles };
+                            playback.queued[index] += 1;
+                            continue;
+                        }
                         const definition_value = self.definition(track.classname) orelse return error.UnknownCinematicClass;
                         const idle: @import("../domain/animation.zig").Sequence = try @import("../domain/animation.zig").find(definition_value.metadata, "amba") orelse .{};
                         const movement = try @import("../domain/animation.zig").find(definition_value.metadata, "walka") orelse idle;
@@ -194,6 +261,17 @@ pub const State = struct {
             playback.sounds += 1;
         }
     }
+    fn adopt(self: *State, world: *data.World, entity: ecs.Entity, classname: []const u8, unique: []const u8, now: i64) !void {
+        const definition_value = self.definition(classname) orelse return error.UnknownCinematicClass;
+        const binding = (try world.get(entity, data.Binding)).*;
+        const body = (try world.get(entity, data.Body)).*;
+        const idle = try @import("../domain/animation.zig").find(definition_value.metadata, "amba") orelse try @import("../domain/animation.zig").find(definition_value.metadata, "aamba") orelse @import("../domain/animation.zig").Sequence{};
+        const walking = try @import("../domain/animation.zig").find(definition_value.metadata, "walka") orelse idle;
+        try world.put(entity, data.Performer{ .unique = unique, .classname = classname, .model = definition_value.model, .scale = definition_value.scale, .walk_speed = definition_value.walk, .run_speed = definition_value.run, .yaw_speed = definition_value.yaw, .animation = idle, .idle = idle, .movement = walking, .animation_ms = now, .next_ms = now, .borrowed = true, .original_model = binding.model, .original_contents = body.contents });
+        (try world.get(entity, data.Binding)).model = try @import("resources.zig").model(definition_value.model);
+        (try world.get(entity, data.Body)).contents = 0;
+        (try world.get(entity, data.Velocity)).linear = @splat(0);
+    }
     fn perform(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *Router, viewer: ecs.Entity, now: i64) !void {
         const occupants = slots.occupants;
         for (occupants) |occupant| {
@@ -224,7 +302,10 @@ pub const State = struct {
                             performer.animation_ms = now;
                         },
                         .wait => performer.due_ms = now + @as(i64, @intFromFloat(@max(0, task.attribute) * 1000)),
-                        .head => return error.CinematicHeadPlaybackNotImplemented,
+                        .head => {
+                            performer.head_ms = now;
+                            performer.due_ms = now + @as(i64, @intCast(task.head.len + 1)) * 200;
+                        },
                         else => {},
                     }
                 }
@@ -282,7 +363,19 @@ pub const State = struct {
                     .walk_speed => performer.walk_speed = task.attribute,
                     .run_speed => performer.run_speed = task.attribute,
                     .yaw_speed => performer.yaw_speed = task.attribute,
-                    .backup, .restore, .sound, .head => return error.CinematicTaskNotImplemented,
+                    .backup => performer.backup = .{ performer.run_speed, performer.walk_speed, performer.yaw_speed },
+                    .restore => if (performer.backup) |values| {
+                        performer.run_speed = values[0];
+                        performer.walk_speed = values[1];
+                        performer.yaw_speed = values[2];
+                    },
+                    .sound => if (task.sound.len > 0) {
+                        try @import("events.zig").sound(world, slots, projections, task.sound, pose.position, (try world.get(entity, data.Binding)).slot, c.CHAN_VOICE, now);
+                    },
+                    .head => {
+                        pose.angles = task.headAngles(now - performer.head_ms);
+                        complete = now >= performer.due_ms;
+                    },
                     .spawn, .remove, .clear => unreachable,
                 }
                 if (!complete) break;
@@ -329,6 +422,7 @@ pub fn findController(world: *data.World) ?ecs.Entity {
     return null;
 }
 pub fn active(world: *data.World) bool {
+    if (@import("monitors.zig").active(world)) return true;
     const entity = findController(world) orelse return false;
     return (world.get(entity, data.Cinematic) catch unreachable).active;
 }
@@ -369,18 +463,58 @@ fn remove(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
     try slots.release(slot, entity);
     try world.destroy(entity);
 }
-pub fn finish(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ecs.Entity) !void {
+pub fn finish(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *Router, player: ecs.Entity, now: i64) !void {
+    var name: []const u8 = "";
     if (findController(world)) |entity| {
         const playback = try world.get(entity, data.Cinematic);
+        if (playback.finished) return;
+        name = playback.name;
         playback.active = false;
         playback.finished = true;
+        if ((try world.get(player, data.Body)).motion_owner == try world.persistentId(entity)) (try world.get(player, data.Body)).motion_owner = null;
     }
+    if (name.len == 0) return;
     for (slots.occupants) |occupant| if (occupant) |entity| {
-        if ((world.get(entity, data.Performer) catch null) != null) try remove(world, slots, projections, entity);
+        if (world.get(entity, data.Performer) catch null) |performer| {
+            if (performer.borrowed) {
+                (try world.get(entity, data.Binding)).model = performer.original_model;
+                (try world.get(entity, data.Body)).contents = performer.original_contents;
+                try world.remove(entity, data.Performer);
+                projections[(try world.get(entity, data.Binding)).slot].state.modelindex = (try world.get(entity, data.Binding)).model;
+                projections[(try world.get(entity, data.Binding)).slot].shared.contents = @bitCast((try world.get(entity, data.Body)).contents);
+                engine.link(&projections[(try world.get(entity, data.Binding)).slot]);
+            } else try remove(world, slots, projections, entity);
+        }
     };
     const state = try world.get(player, data.Player);
     if (state.mode == .frozen) state.mode = if ((try world.get(player, data.Health)).current > 0) .normal else .dead;
     engine.send(0, "dk3_cine_stop");
+    // Completion targets run after performers are removed and the viewer is released.
+    // Capture identities before routing: a use can remove another completion target.
+    var completion: [ecs.max_entities]u32 = undefined;
+    var count: usize = 0;
+    {
+        var query = world.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
+        defer query.deinit();
+        while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| {
+            const prop = @import("properties.zig");
+            if (std.mem.eql(u8, prop.text(object, "cinetrigger") orelse "", name) or std.mem.eql(u8, prop.text(object, "cinekill") orelse "", name)) {
+                completion[count] = try world.persistentId(entity);
+                count += 1;
+            }
+        };
+    }
+    for (completion[0..count]) |id| if (world.find(id)) |entity| {
+        const object = (try world.get(entity, data.MapObject)).*;
+        if (std.mem.eql(u8, @import("properties.zig").text(object, "cinetrigger") orelse "", name)) try router.activate(world, slots, projections, entity, try world.persistentId(player), now);
+        if (std.mem.eql(u8, @import("properties.zig").text(object, "cinekill") orelse "", name) and world.alive(entity)) {
+            if (slots.find(entity)) |slot| {
+                engine.unlink(&projections[slot]);
+                try slots.release(slot, entity);
+            }
+            try world.destroy(entity);
+        }
+    };
     engine.print("dk3 cinematic: completed\n");
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {

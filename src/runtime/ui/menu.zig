@@ -7,7 +7,7 @@ const domain = @import("../domain/menu.zig");
 const settings = @import("settings.zig");
 const controls = @import("controls.zig");
 const art_module = @import("art.zig");
-const Action = union(enum) { difficulty: usize, setting: usize, bind: usize, save_pick: usize, save_commit, invert_mouse, video_apply, input_apply, config_save, config_load, back, quit, options };
+const Action = union(enum) { multiplayer: @import("multiplayer.zig").Action, difficulty: usize, setting: usize, bind: usize, save_pick: usize, save_commit, invert_mouse, video_apply, input_apply, config_save, config_load, back, quit, options };
 const Widget = struct { rect: domain.Rect, action: Action };
 pub const Menu = struct {
     active: bool = false,
@@ -27,10 +27,12 @@ pub const Menu = struct {
     control_page: usize = 0,
     feedback: [256]u8 = @splat(0),
     saves: @import("saves.zig").Browser = .{},
+    multiplayer: @import("multiplayer.zig").Browser = .{},
     pub fn init(self: *Menu) !void {
         self.* = .{};
         try self.art.init();
         settings.init();
+        self.multiplayer.init();
         self.resize();
     }
     fn resize(self: *Menu) void {
@@ -60,7 +62,7 @@ pub const Menu = struct {
         self.count = 0;
         engine.catchInput(true);
     }
-    fn message(self: *Menu, value: []const u8) void {
+    pub fn message(self: *Menu, value: []const u8) void {
         @memset(&self.feedback, 0);
         const len = @min(value.len, self.feedback.len - 1);
         @memcpy(self.feedback[0..len], value[0..len]);
@@ -89,7 +91,7 @@ pub const Menu = struct {
         self.widgets[self.count] = .{ .rect = rect, .action = action };
         self.count += 1;
     }
-    fn button(self: *Menu, x: f32, y: f32, width: f32, label: []const u8, action: Action) void {
+    pub fn button(self: *Menu, x: f32, y: f32, width: f32, label: []const u8, action: Action) void {
         self.add(.{ .x = x, .y = y, .width = width, .height = 22 }, label, action);
     }
     fn group(self: *Menu, value: settings.Group) !void {
@@ -119,7 +121,7 @@ pub const Menu = struct {
                 }
                 self.button(330, 390, 125, "Extra Options", .options);
             },
-            1 => self.art.text(self.layout, 90, 160, "Multiplayer migration is in progress.", true),
+            1 => try self.multiplayer.render(self),
             2, 3 => {
                 const writing = self.page == 3;
                 self.art.text(self.layout, 90, 110, if (writing) "Save Game" else "Load Game", true);
@@ -212,6 +214,7 @@ pub const Menu = struct {
     }
     pub fn key(self: *Menu, code: i32, down: bool) !void {
         if (!self.active or !down) return;
+        if (self.page == 1 and self.multiplayer.key(code)) return;
         if (self.capture.key(code)) return;
         if (code == c.K_ESCAPE or code == c.K_MOUSE2) {
             if (engine.inGame()) self.close() else self.selectPage(0);
@@ -260,6 +263,7 @@ pub const Menu = struct {
     fn activate(self: *Menu, action: Action, direction: i32) !void {
         engine.sound("sounds/menus/button_003.wav");
         switch (action) {
+            .multiplayer => |choice| try self.multiplayer.activate(self, choice),
             .difficulty => |skill| {
                 engine.setNumber("g_spSkill", @floatFromInt(1 + skill * 2));
                 engine.set("g_gametype", "2");

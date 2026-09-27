@@ -36,11 +36,17 @@ def nearest_hostile(driver, distance=500, expected_map=None):
     return min(candidates, default=None)
 
 
-def fight(driver, capture, expected_map):
+def fight(driver, capture, expected_map, target_id=None):
     state = driver.observe()
     if state["health"] <= 0:
         raise RuntimeError("Player died before the encounter")
-    target = nearest_hostile(driver, expected_map=expected_map)
+    if target_id is None:
+        target = nearest_hostile(driver, expected_map=expected_map)
+    else:
+        row = actors(driver).get(target_id)
+        if row is None or row["health"] <= 0 or row.get("sight") != "1":
+            return False
+        target = (math.dist(state["pos"], row["pos"]), target_id, row)
     if target is None:
         return False
     _, identity, row = target
@@ -76,7 +82,8 @@ def fight(driver, capture, expected_map):
             elapsed = max(1, int(row["now"]) - int(previous["now"]))
             velocity = [(row["pos"][i] - previous["pos"][i]) * 1000 / elapsed for i in range(3)]
             lead = min(0.5, math.dist(row["aim"], state["pos"]) / 1800 + 0.05) if weapon == 2 else 0
-            point = [row["aim"][i] + velocity[i] * lead for i in range(3)]
+            aim = (row["pos"][0], row["pos"][1], row["pos"][2] + 7) if row["class"] == "monster_crox" else row["aim"]
+            point = [aim[i] + velocity[i] * lead for i in range(3)]
             delta = [point[i] - state["pos"][i] for i in range(3)]
             delta[2] -= 22
             yaw = math.degrees(math.atan2(delta[1], delta[0]))

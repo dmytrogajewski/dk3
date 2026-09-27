@@ -12,41 +12,7 @@ const v = @import("../domain/vector.zig");
 const policy = @import("actor_catalog").crox;
 const Routes = @import("air_routes.zig").Routes;
 
-pub fn waterLevel(point: v.Vec3, body: data.Body, slot: u16) !u2 {
-    var level: u2 = 0;
-    for ([_]f32{ body.mins[2] + 1, 0, body.maxs[2] - 1 }) |height| {
-        if (try engine.collisionService().contents(v.add(point, .{ 0, 0, height }), slot) & c.MASK_WATER == 0) break;
-        level += 1;
-    }
-    return level;
-}
-
-fn wander(routes: *const Routes, pose: data.Transform, state: policy.State, definition: rules.Definition, random: *data.Random) ?v.Vec3 {
-    var nearest: usize = 0;
-    var distance = std.math.inf(f32);
-    if (routes.nodes.len == 0) return null;
-    for (routes.nodes, 0..) |node, i| {
-        const separation = v.length(v.subtract(node.position, pose.position));
-        if (separation < distance) {
-            nearest = i;
-            distance = separation;
-        }
-    }
-    const links = routes.nodes[nearest].links;
-    if (links.len == 0) return null;
-    var eligible: [6]usize = undefined;
-    var count: usize = 0;
-    for (links, 0..) |link, i| {
-        const point = routes.nodes[routes.indices[@intCast(link[1])].?].position;
-        const offset = v.subtract(point, pose.position);
-        if (!policy.wanderCandidate(v.length(v.subtract(point, state.start)), definition.sight_range, @sqrt(offset[0] * offset[0] + offset[1] * offset[1]), offset[2], std.math.atan2(offset[1], offset[0]) * 180 / std.math.pi - pose.angles[1], definition.walk_speed)) continue;
-        eligible[count] = i;
-        count += 1;
-    }
-    const fraction = random.next();
-    const index = if (count == 0) @as(usize, @intFromFloat(fraction * @as(f32, @floatFromInt(links.len)))) else eligible[@intFromFloat(fraction * @as(f32, @floatFromInt(count)))];
-    return routes.nodes[routes.indices[@intCast(links[index][1])].?].position;
-}
+pub const waterLevel = @import("actor_water.zig").level;
 
 fn strike(world: *data.World, slots: *Slots, entity: ecs.Entity, enemy: ecs.Entity, pose: data.Transform, definition: rules.Definition, now: i64) !void {
     const direction = v.normalize(v.subtract((try world.get(enemy, data.Transform)).position, pose.position));
@@ -86,7 +52,7 @@ pub fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *
     if (state.wandering) {
         state.attacking = false;
         if (state.destination == null or now >= state.wander_until_ms or v.length(v.subtract(state.destination.?, pose.position)) < definition.walk_speed * 0.2) {
-            state.destination = wander(&actors.crox_routes, pose.*, state.*, definition, try world.get(entity, data.Random));
+            state.destination = try @import("actor_wander.zig").next(&actors.water_routes, pose.*, state.start, definition, try world.get(entity, data.Random), null);
             if (state.destination) |destination| state.wander_until_ms = now + @as(i64, @intFromFloat(v.length(v.subtract(destination, pose.position)) / definition.walk_speed * 1000)) + 1000;
         }
         if (state.destination) |destination| actor.threat_position = destination;
@@ -134,25 +100,5 @@ pub fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *
 }
 
 pub fn swim(actors: *@import("actors.zig").Actors, actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocity: *data.Velocity, definition: rules.Definition, slot: u16, elapsed: u32, slow: f32) !void {
-    if (actor.mode == .chase) {
-        if (try actors.crox_routes.next(pose.position, actor.threat_position, body.*, slot)) |destination| {
-            velocity.linear = v.scale(v.normalize(v.subtract(destination, pose.position)), definition.speed * slow);
-            const delta = velocity.linear;
-            pose.angles = .{ -std.math.atan2(delta[2], @sqrt(delta[0] * delta[0] + delta[1] * delta[1])) * 180 / std.math.pi, std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi, 0 };
-        } else velocity.linear = @splat(0);
-    } else velocity.linear = @splat(0);
-    var motion: @import("../domain/slide.zig").State = .{ .position = pose.position, .velocity = velocity.linear };
-    var remaining = elapsed;
-    while (remaining > 0) {
-        const slice = @min(50, remaining);
-        remaining -= slice;
-        actor.crox.water = try waterLevel(motion.position, body.*, slot);
-        const floor = try engine.collisionService().trace(.{ .start = motion.position, .end = v.add(motion.position, .{ 0, 0, -0.25 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
-        body.grounded = !floor.start_solid and floor.fraction < 1 and floor.normal[2] >= 0.7;
-        actor.ground_entity = if (body.grounded) floor.entity else c.ENTITYNUM_NONE;
-        var context: @import("../domain/slide.zig").Context = .{ .service = engine.collisionService(), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask, .delta = @as(f32, @floatFromInt(slice)) * 0.001, .gravity = if (actor.crox.water == 3 or body.grounded) 0 else 800 };
-        _ = try context.move(&motion);
-    }
-    pose.position = motion.position;
-    velocity.linear = motion.velocity;
+    actor.crox.water = try @import("actor_water.zig").move(&actors.water_routes, actor, pose, body, velocity, definition.speed * slow, slot, elapsed);
 }

@@ -115,7 +115,9 @@ pub const Combat = union(enum) {
     ion: struct { radius: f32, water_radius: f32, bounce_retention: f32, max_bounces: u8, cleanup_ms: i64 },
 };
 
+pub const PlayerGrip = enum { glove, pistol, rifle, shoulder };
 pub const Spec = struct {
+    player_grip: PlayerGrip,
     reselect_command: ?[:0]const u8 = null,
     combat: Combat = .pending,
     impact: @import("impact.zig").Style = .none,

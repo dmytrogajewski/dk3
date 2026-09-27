@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 9;
-pub const spec: profiles.Spec = .{ // discus
+pub const spec: profiles.Spec = .{
+    .player_grip = .glove, // discus
     .combat = .discus,
     .visual = .{ .projectile_model = "models/e2/we_discus.dkm", .glow = false },
     .world_model = "models/e2/a_discus.dkm",

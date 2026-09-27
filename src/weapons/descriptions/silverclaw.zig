@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 15;
 pub const spec: profiles.Spec = .{
+    .player_grip = .glove,
     .combat = .melee,
     .equipped = false,
     .start_episode = 3, // silverclaw

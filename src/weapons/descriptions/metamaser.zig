@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 26;
 pub const spec: profiles.Spec = .{
+    .player_grip = .rifle,
     .combat = .metamaser,
     .ammo_class = "ammo_metamaser", // metamaser
     .projectile = .{ .gravity = true, .action_delay_ms = 300, .mins = .{ -6, -6, 0 }, .maxs = .{ 6, 6, 12 } },

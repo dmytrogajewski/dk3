@@ -37,6 +37,8 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
 fn runtimeModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, source: []const u8) *std.Build.Module {
     const module = b.createModule(.{ .root_source_file = b.path(source), .target = target, .optimize = optimize, .link_libc = true });
     for ([_]struct { name: []const u8, path: []const u8 }{
+        .{ .name = "appearance_catalog", .path = "src/multiplayer/appearance.zig" },
+        .{ .name = "online_api", .path = "src/online/api.zig" },
         .{ .name = "inventory_rules", .path = "src/weapons/inventory_rules.zig" },
         .{ .name = "weapon_catalog", .path = "src/weapons/catalog.zig" },
         .{ .name = "item_catalog", .path = "src/items/catalog.zig" },

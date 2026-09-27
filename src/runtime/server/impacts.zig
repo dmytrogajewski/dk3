@@ -13,6 +13,13 @@ pub fn contact(world: *data.World, slots: *Slots, projections: []abi.EntityProje
     if (hit.contents & abi.c.MASK_WATER != 0) kind = .water else if (hit.entity < slots.occupants.len) {
         if (slots.occupants[hit.entity]) |target| if ((world.get(target, data.Actor) catch null) != null or (world.get(target, data.Player) catch null) != null) {
             kind = .flesh;
+        } else if (world.get(target, data.Scenery) catch null) |scenery| {
+            kind = switch (scenery.material) {
+                .metal => .metal,
+                .wood => .wood,
+                .flesh => .flesh,
+                else => kind,
+            };
         };
     }
     try @import("events.zig").impact(world, slots, projections, .{ .weapon = weapon, .kind = kind, .normal = hit.normal, .charged = options.charged, .detonation = options.detonation, .sequence = options.sequence }, hit.end, now);

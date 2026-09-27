@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 11;
 pub const spec: profiles.Spec = .{
+    .player_grip = .rifle,
     .combat = .projectile,
     .projectile = .{ .mins = .{ -8, -8, -2 }, .maxs = .{ 8, 8, 14 }, .inertial = true, .lifetime_scale = 2, .action_delay_ms = 350, .contact_when_resting = true, .resting_lifetime_scale = 0.5 },
     .companion_episode = 2,

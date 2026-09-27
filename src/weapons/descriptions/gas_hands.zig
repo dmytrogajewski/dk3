@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 7;
 pub const spec: profiles.Spec = .{
+    .player_grip = .glove,
     .combat = .melee,
     .equipped = false,
     .companion_pickup = false, // gashands

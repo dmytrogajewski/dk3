@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Read-only concrete weapon descriptions, shared without linking legacy behavior.
 pub const weapons = .{ @import("descriptions/disruptor.zig"), @import("descriptions/ion.zig"), @import("descriptions/c4.zig"), @import("descriptions/shotcycler.zig"), @import("descriptions/sidewinder.zig"), @import("descriptions/shockwave.zig"), @import("descriptions/gas_hands.zig"), @import("descriptions/sword.zig"), @import("descriptions/discus.zig"), @import("descriptions/sunflare.zig"), @import("descriptions/venom.zig"), @import("descriptions/hammer.zig"), @import("descriptions/trident.zig"), @import("descriptions/zeus.zig"), @import("descriptions/silverclaw.zig"), @import("descriptions/bolter.zig"), @import("descriptions/stavros.zig"), @import("descriptions/ballista.zig"), @import("descriptions/wyndrax.zig"), @import("descriptions/nightmare.zig"), @import("descriptions/glock.zig"), @import("descriptions/ripgun.zig"), @import("descriptions/slugger.zig"), @import("descriptions/kineticore.zig"), @import("descriptions/novabeam.zig"), @import("descriptions/metamaser.zig"), @import("descriptions/cordite.zig"), @import("descriptions/flashlight.zig") };
+pub const PlayerGrip = @import("profiles.zig").PlayerGrip;
 pub const Spec = @import("profiles.zig").Spec;
 pub const ballistics = @import("ballistics.zig");
 pub const melee = @import("melee.zig");
 pub const affliction = @import("affliction.zig");
 pub const ion = @import("descriptions/ion.zig");
 pub const c4 = @import("descriptions/c4.zig");
+pub const silverclaw = @import("descriptions/silverclaw.zig");
 pub const hammer = @import("descriptions/hammer.zig");
 pub const shockwave = @import("descriptions/shockwave.zig");
 pub const trident = @import("descriptions/trident.zig");

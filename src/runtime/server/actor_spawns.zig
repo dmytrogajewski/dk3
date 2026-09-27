@@ -46,9 +46,13 @@ pub fn death(actors: *Actors, world: *data.World, slots: *Slots, projections: []
     if (prop.text(object, "deathtarget")) |name| try router.fireNamed(world, slots, projections, name, entity, identity, now);
     if (prop.text(object, "spawnname")) |classname| {
         if (classname.len == 0) return;
-        if (@import("actor_catalog").find(classname) != null or std.mem.startsWith(u8, classname, "monster_")) return error.ActorDeathSpawnNotImplemented;
         pose.position[2] += 0.03125;
-        _ = try @import("items.zig").spawnDynamic(world, slots, projections, classname, pose, now, actors.episode);
+        if (@import("actor_catalog").find(classname) != null) {
+            _ = try actors.spawnDynamic(world, slots, projections, classname, pose.position, pose.angles, now);
+        } else {
+            if (std.mem.startsWith(u8, classname, "monster_")) return error.UnknownActorClass;
+            _ = try @import("items.zig").spawnDynamic(world, slots, projections, classname, pose, now, actors.episode);
+        }
     }
 }
 test "authored monster factory preserves death outputs and maps the unique id" {

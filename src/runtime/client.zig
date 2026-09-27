@@ -29,6 +29,8 @@ export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
+    @import("client/scoreboard.zig").reset();
+    @import("client/messages.zig").reset();
     @import("client/cinematics.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
@@ -73,7 +75,7 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     snapshot_number = server_message - 1;
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "viewpos")});
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "use")});
-    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev", "attribute", "inventory", "invnext", "invprev", "attribute_next", "attribute_increase", "save", "load" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
+    for ([_][*:0]const u8{ "weapon", "weapnext", "weapprev", "attribute", "inventory", "invnext", "invprev", "attribute_next", "attribute_increase", "save", "load", "+scores", "-scores", "say", "say_team", "ready", "team", "callvote", "vote" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
     engine.print("dk3 zig: shared movement prediction initialized\n");
 }
 fn draw(now: i32) !void {
@@ -98,7 +100,10 @@ fn draw(now: i32) !void {
             command_sequence += 1;
             if (engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)}) != 0) {
                 try @import("client/cinematics.zig").command();
+                @import("client/messages.zig").command(now);
+                @import("client/scoreboard.zig").command();
                 if (@import("client/commands.zig").restored()) |restored| {
+                    @import("client/messages.zig").reset();
                     @import("client/models.zig").reset();
                     @import("client/events.zig").reset();
                     weapon_view.init();
@@ -193,17 +198,50 @@ fn draw(now: i32) !void {
             @import("client/sprites.zig").drawPlane(sprite, 0, @import("engine/trajectory.zig").evaluate(entity.pos, now), entity.angles2[0], true, v.scale(ref.viewaxis[1], -1), ref.viewaxis[2], .{ 255, 255, 255, 115 });
             continue;
         }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").vermin.render_tag) {
+            const origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
+            const glow = try @import("client/sprites.zig").register(@import("actor_catalog").vermin.glow);
+            @import("client/sprites.zig").draw(glow, 0, origin, 1.45, true, &ref);
+            _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &origin, engine.floatArg(145), engine.floatArg(0.75), engine.floatArg(0.45), engine.floatArg(0.15) });
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").knights.render_tag) {
+            if (try @import("client/knights.zig").draw(entity, now, &ref)) continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").laser.render_tag) {
+            try @import("client/actor_lasers.zig").draw(entity, now, &ref);
+            continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").cryotech.render_tag) {
+            @import("client/cryo_spray.zig").draw(entity, now, &ref);
+            continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").firefly.render_tag) {
+            if (entity.frame < 0 or entity.frame >= @import("actor_catalog").firefly.models.len) return error.InvalidFireflyShape;
+            const sprite = try @import("client/sprites.zig").register(@import("actor_catalog").firefly.models[@intCast(entity.frame)]);
+            var color: [4]u8 = undefined;
+            for (entity.origin2, color[0..3]) |axis, *channel| channel.* = @intFromFloat(std.math.clamp(axis, 0, 1) * 255);
+            color[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
+            @import("client/sprites.zig").drawPlane(sprite, 0, @import("engine/trajectory.zig").evaluate(entity.pos, now), entity.angles2[0], false, v.scale(ref.viewaxis[1], -1), ref.viewaxis[2], color);
+            continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/scenery.zig").explosion_tag) {
+            const sprite = try @import("client/sprites.zig").register("models/global/we_expl.sp2");
+            @import("client/sprites.zig").draw(sprite, @intCast(entity.frame), @import("engine/trajectory.zig").evaluate(entity.pos, now), entity.angles2[0], false, &ref);
+            continue;
+        }
         if (entity.eType == c.ET_MISSILE and try @import("client/projectiles.zig").sprite(entity, now, &ref)) continue;
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").stavros.id) try @import("client/stavros.zig").draw(entity, now, &ref);
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").wyndrax.id) try @import("client/wyndrax.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").metamaser.id) try @import("client/metamaser.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
+        if (entity.eType == c.ET_PLAYER and entity.number == client_number) continue;
         var handle: c.qhandle_t = 0;
         if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
             handle = inline_models[@intCast(entity.modelindex)];
-        } else if (entity.eType == c.ET_DK3_ITEM or entity.eType == c.ET_MISSILE or entity.eType == c.ET_GENERAL) handle = try @import("client/models.zig").get(&game, entity.modelindex);
+        } else if (entity.eType == c.ET_PLAYER or entity.eType == c.ET_DK3_ITEM or entity.eType == c.ET_MISSILE or entity.eType == c.ET_GENERAL) handle = try @import("client/models.zig").get(&game, entity.modelindex);
         if (handle == 0) continue;
         var rendered = std.mem.zeroes(c.refEntity_t);
         rendered.hModel = handle;
+        if (entity.eType == c.ET_PLAYER) rendered.customSkin = try @import("client/models.zig").playerSkin(&game, entity.clientNum);
         rendered.frame = entity.frame;
         rendered.oldframe = entity.frame;
         rendered.reType = c.RT_MODEL;
@@ -218,6 +256,8 @@ fn draw(now: i32) !void {
             rendered.nonNormalizedAxes = c.qtrue;
         }
         rendered.shaderRGBA = @splat(255);
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/scenery.zig").render_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").dwarf.axe_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(@divTrunc((@as(i64, entity.time2) - now) * 255, 1000), 0, 255));
         if (entity.eType == c.ET_MISSILE) try @import("client/projectiles.zig").decorate(&rendered, entity, now);
         try @import("client/events.zig").loop(&game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
@@ -236,12 +276,15 @@ fn draw(now: i32) !void {
         try hud.render(display, .{ .current = snapshot.ps.stats[c.STAT_HEALTH], .armor = snapshot.ps.stats[c.STAT_ARMOR] }, character.*, .{ .mask = @bitCast(snapshot.ps.dk3Keys), .quest = @bitCast(snapshot.ps.dk3Quest) }, loadout.*, &weapon_table, selected_weapon, now);
     }
     _ = engine.gateway.call(c.CG_S_RESPATIALIZE, .{ @as(isize, client_number), &ref.vieworg, &ref.viewaxis, @as(isize, @intFromBool(player.water_level == 3)) });
+    @import("client/messages.zig").render(hud.font, display, now);
+    try @import("client/scoreboard.zig").render(hud.font, display, &game, &snapshot.ps, now);
 }
 fn console() isize {
     var buffer: [128]u8 = @splat(0);
     _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 0), &buffer, @as(isize, buffer.len) });
     const name = std.mem.sliceTo(&buffer, 0);
     if (world == null or !have_snapshot) return 0;
+    if (@import("client/scoreboard.zig").input(name)) return 1;
     if (hud.command(name)) return 1;
     if (std.mem.eql(u8, name, "weapon")) {
         _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 1), &buffer, @as(isize, buffer.len) });

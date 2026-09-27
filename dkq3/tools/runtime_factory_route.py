@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Ordinary-input e1m1c progression, using its authored gates and outside path."""
 import json
+import math
 import re
 import time
 
-from runtime_bridge_route import aim_at, checkpoint, resupply, shoot_control
+from runtime_bridge_route import aim_at, checkpoint, resupply, shoot_control, world_rows
 from runtime_opening_route import actors, walk
 
 
@@ -41,6 +42,8 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
     if state["map"] != "e1m1c" or state["skill"] != 3 or state["health"] <= 0:
         raise RuntimeError("Factory route requires a legitimate normal-difficulty arrival")
     try:
+        if phase in ("factory-interior", "factory-switch"):
+            return factory_interior(driver, capture, report, phase)
         if phase in ("factory-arrival", "factory-outside"):
             for index, point in enumerate(((-814, 1574, 664), (-566, 1587, 641),
                     (-502, 1831, 633), (-413, 2069, 632), (-217, 2027, 536),
@@ -61,37 +64,51 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
                     checkpoint(driver, capture, report, f"factory_outside_{index}")
             walk(driver, (480, 2576, 408), capture, combat=True, tolerance=20)
             checkpoint(driver, capture, report, "factory_before_gate")
-        if phase != "factory-yard":
-            # The switch is on the upper pipe, not the lamp above the lower
-            # locked doorway. Climb the supplied sloping pipe approach first.
-            for point in ((461, 2510, 403), (425, 2469, 376), (406, 2256, 408),
-                          (406, 2184, 444), (406, 2144, 464), (480, 2144, 456),
-                          (530, 2144, 528), (530, 2281, 529), (424, 2424, 584),
-                          (488, 2568, 664)):
-                if point == (406, 2144, 464):
-                    driver.issue("+movedown")
-                    driver.until(lambda state: state["up"] < 0, description="processed crouch on the low pipe")
-                walk(driver, point, capture, combat=False, tolerance=8, jump=point == (530, 2144, 528))
-                if point == (480, 2144, 456):
-                    driver.issue("-movedown")
-                    driver.until(lambda state: state["up"] == 0, description="processed crouch release")
-                capture(f"pipe-{point[0]}-{point[1]}")
-            if driver.observe()["pos"][2] < 640:
-                raise RuntimeError("Gate firing position did not reach the upper pipe")
-            checkpoint(driver, capture, report, "factory_upper_control")
-            # The overhead breakable starts the supplied delayed gate sequence.
-            shoot_control(driver, capture, 130)
-            await_open(driver, 132)
-            for point in ((480, 2656, 664), (555, 2748, 408)):
-                walk(driver, point, capture, combat=True, tolerance=20)
-            for point in ((504, 2656, 408), (408, 2736, 424), (408, 2768, 424), (555, 2748, 408)):
+        if phase not in ("factory-yard", "factory-yard-turn"):
+            if phase != "factory-passage":
+                if phase != "factory-upper":
+                    # The switch is on the upper pipe, not the lamp above the lower
+                    # locked doorway. Climb the supplied sloping pipe approach first.
+                    for point in ((461, 2510, 403), (425, 2469, 376), (406, 2256, 408),
+                                  (406, 2184, 444), (406, 2144, 464), (480, 2144, 456), (494, 2136, 456),
+                                  (530, 2144, 528), (530, 2281, 529)):
+                        if point == (406, 2144, 464):
+                            driver.issue("+movedown")
+                            driver.until(lambda state: state["up"] < 0, description="processed crouch on the low pipe")
+                        walk(driver, point, capture, combat=False, tolerance=20 if point in ((530, 2144, 528), (461, 2510, 403), (425, 2469, 376)) else 8, jump=point == (530, 2144, 528))
+                        if point == (480, 2144, 456):
+                            driver.issue("-movedown")
+                            driver.until(lambda state: state["up"] == 0, description="processed crouch release")
+                            checkpoint(driver, capture, report, "factory_pipe_launch")
+                        capture(f"pipe-{point[0]}-{point[1]}")
+                    walk(driver, (548, 2330, 528), capture, tolerance=8, jump=False)
+                    checkpoint(driver, capture, report, "factory_pipe_crossing")
+                    pipe_jump(driver, capture, (424, 2424, 584))
+                    checkpoint(driver, capture, report, "factory_pipe_upper")
+                    for point in ((424, 2464, 600), (424, 2504, 624), (480, 2544, 648), (488, 2568, 664)):
+                        walk(driver, point, capture, tolerance=12, jump=False)
+                    if driver.observe()["pos"][2] < 640:
+                        raise RuntimeError("Gate firing position did not reach the upper pipe")
+                    checkpoint(driver, capture, report, "factory_upper_control")
+                # The overhead breakable starts the supplied delayed gate sequence.
+                shoot_control(driver, capture, 130)
+                await_open(driver, 132)
+                checkpoint(driver, capture, report, "factory_gate_open")
+                for point in ((370, 2460, 376), (425, 2469, 376), (461, 2510, 403), (480, 2576, 408)):
+                    walk(driver, point, capture, combat=False, tolerance=20)
+                if driver.observe()["pos"][2] > 440:
+                    raise RuntimeError("Gate approach did not return to the lower passage")
+                checkpoint(driver, capture, report, "factory_lower_approach")
+            for point in ((504, 2656, 408), (504, 2748, 408), (555, 2748, 408)):
                 walk(driver, point, capture, combat=True, tolerance=20)
             checkpoint(driver, capture, report, "factory_gate_passed")
         for index, point in enumerate(((787, 2765, 408), (969, 2701, 411),
                 (1139, 2565, 481), (1260, 2526, 522), (1412, 2473, 568),
                 (1562, 2480, 613), (1721, 2479, 660), (1911, 2463, 708),
                 (2112, 2373, 744), (2208, 2178, 777), (2202, 2037, 792),
-                (2215, 1900, 824), (2030, 1789, 800), (1992, 1624, 816), (2056, 1472, 800))):
+                (2072, 1976, 792), (1944, 1920, 792), (1888, 1768, 792), (1855, 1570, 792), (1794, 1441, 785))):
+            if phase == "factory-yard-turn" and index < 11:
+                continue
             walk(driver, point, capture, combat=True)
             if index in (6, 11):
                 checkpoint(driver, capture, report, f"factory_yard_{index}")
@@ -100,11 +117,97 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
             raise RuntimeError("Authored yard worker is missing")
         shoot_control(driver, capture, 113, 124)
         await_open(driver, 114)
+        walk(driver, (1744, 1440, 792), capture, tolerance=20)
+        resupply(driver, 122)
         checkpoint(driver, capture, report, "factory_yard_control")
-        return {"scope": "Ordinary e1m1c outer gate and yard turret control only; interior/lift/e1m2a exit remain unverified.",
-                "state": driver.observe(), "worker": worker}
+        return {"yard_worker": worker, "interior": factory_interior(driver, capture, report)}
     except Exception as error:
         capture("factory-failure")
         (report / "factory-failure.json").write_text(json.dumps({"error": str(error), "state": driver.observe(),
                                                                "actors": actors(driver)}, indent=2) + "\n")
         raise
+
+
+def use_button(driver, identity, point):
+    state = aim_at(driver, point)
+    if sum((point[i] - state["pos"][i] - (22 if i == 2 else 0)) ** 2 for i in range(3)) > 96 ** 2:
+        raise RuntimeError(f"Button {identity} is outside actual use reach")
+    trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
+    if int(re.search(r"dk3 ion aimtrace: [^\n]*?\btarget=(\d+)", trace)[1]) != identity:
+        raise RuntimeError(f"Button {identity} use line is obstructed: {trace}")
+    if identity not in movers(driver):
+        raise RuntimeError(f"Button controller {identity} is missing")
+    driver.issue("use")
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        if movers(driver)[identity]["state"] != "closed":
+            return
+    raise TimeoutError(f"Button {identity} never activated")
+
+
+def factory_interior(driver, capture, report, phase="factory-interior"):
+    for point in ((1794, 1441, 785), (1855, 1570, 792), (1888, 1768, 792),
+                  (1944, 1920, 792), (2072, 1976, 792), (2202, 2037, 792),
+                  (2215, 1900, 824), (2214, 1696, 849), (2401, 1737, 806), (2398, 1632, 824)):
+        if phase != "factory-switch":
+            walk(driver, point, capture, combat=True, tolerance=20)
+    checkpoint(driver, capture, report, "factory_before_switch")
+    use_button(driver, 216, (2446, 1632, 848))
+    verify_monitor(driver, capture, report)
+    # These are three real door controllers driven by separate delayed relays.
+    for identity in (313, 214, 215):
+        await_open(driver, identity)
+    checkpoint(driver, capture, report, "factory_exit_unlocked")
+    return {"scope": "Outer gate, yard and exit-unlocking switch only; interior lift and e1m2a contact remain open.",
+            "state": driver.observe()}
+
+
+def pipe_jump(driver, capture, destination):
+    state = driver.stop_forward()
+    start = state["pos"]
+    aim_at(driver, (destination[0], destination[1], start[2] + 22))
+    driver.issue("-speed")
+    driver.issue("+forward")
+    try:
+        state = driver.until(lambda s: s["forward"] == 127 and math.dist(s["pos"][:2], start[:2]) >= 6,
+                             seconds=2, description="running takeoff on the pipe")
+        launch_height = state["pos"][2]
+        driver.issue("+moveup")
+        try:
+            driver.until(lambda s: s["up"] > 0 and s["pos"][2] > launch_height + 8,
+                         seconds=2, description="actual running pipe jump")
+        finally:
+            driver.issue("-moveup")
+        driver.until(lambda s: math.dist(s["pos"][:2], destination[:2]) < 32 and s["pos"][2] > destination[2] - 32,
+                     seconds=3, description="airborne crossing reaches the upper pipe")
+    finally:
+        state = driver.stop_forward(settle_vertical=True)
+    if state["pos"][2] < destination[2] - 32:
+        capture("pipe-jump-failed")
+        raise RuntimeError("Pipe jump landed below the authored upper route")
+
+
+def verify_monitor(driver, capture, report):
+    started = driver.until(lambda state: state["mode"] == "frozen", seconds=3,
+                           description="authored monitor freezes the real player")
+    monitor = world_rows(driver, "monitor").get(177)
+    if monitor is None or int(monitor["viewer"]) == 0 or int(monitor["camera"]) != 211:
+        raise RuntimeError("Factory monitor did not resolve its authored viewer and camera")
+    driver.until(lambda state: state["now"] >= started["now"] + 2500 and state["mode"] == "frozen",
+                 seconds=5, description="actual partial monitor playback before saving")
+    before = world_rows(driver, "monitor")[177]
+    remaining = int(before["until"]) - driver.observe()["now"]
+    checkpoint(driver, capture, report, "factory_monitor_active")
+    restored = driver.load("factory_monitor_active")
+    after = world_rows(driver, "monitor")[177]
+    if restored["mode"] != "frozen" or after["camera"] != before["camera"] or after["pos"] != before["pos"] or after["angles"] != before["angles"]:
+        raise RuntimeError("Monitor restore lost its camera or frozen control")
+    if not 0 < int(after["until"]) - restored["now"] <= remaining + 500:
+        raise RuntimeError("Monitor duration restarted or expired across save/load")
+    capture("factory-monitor-restored")
+    finished = driver.until(lambda state: state["mode"] == "normal", seconds=10,
+                            description="authored monitor releases player control")
+    if int(world_rows(driver, "monitor")[177]["viewer"]) != 0:
+        raise RuntimeError("Monitor retained its viewer after release")
+    (report / "monitor-restoration.json").write_text(json.dumps({"before": before, "after": after,
+        "remaining_before": remaining, "restored_player": restored, "released_player": finished}, indent=2) + "\n")

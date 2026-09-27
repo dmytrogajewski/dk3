@@ -33,9 +33,7 @@ pub fn beyondHeight(vertical: f32) bool {
 pub fn facing(yaw_delta: f32) bool {
     return @abs(@mod(yaw_delta + 180, 360) - 180) < 5;
 }
-pub fn wanderCandidate(distance_from_start: f32, active_range: f32, horizontal: f32, vertical: f32, yaw_delta: f32, walk_speed: f32) bool {
-    return !(horizontal < walk_speed * 0.2 and @abs(vertical) < 32) and distance_from_start < active_range and @abs(@mod(yaw_delta + 180, 360) - 180) <= 90;
-}
+pub const wanderCandidate = @import("wander.zig").candidate;
 test "Crox chooses four authored poses at actual water boundary and resumes within height band" {
     const t = std.testing;
     try t.expectEqual(@as(u2, 2), attackPose(2, 0.665));

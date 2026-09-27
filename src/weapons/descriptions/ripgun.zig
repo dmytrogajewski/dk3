@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 22;
 pub const spec: profiles.Spec = .{
+    .player_grip = .rifle,
     .combat = .{ .hitscan = .{} },
     .impact = .bullet,
     .muzzle = .{ .model = "models/global/genflash.dkm", .scale = 8, .light_radius = 175, .offset = -2, .shader = "dk3/fx/shotcycler-flash" },

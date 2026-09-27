@@ -3422,3 +3422,84 @@ and contact. Failed setup/blocked flight does not pass. Precise approaches relea
 from observed speed and verify actual stopping, preventing overshoot oscillation.
 Factory pipe exploration is still driver development; none of its failed paths counts
 as traversal. Main, installed game, user saves and live service remain preserved.
+
+
+## Sequence 255 — connected-native-coding-pass (in progress)
+
+The owner directed a broad implementation pass across the remaining four-episode and
+multiplayer scope before systematic scenario verification. The current outcome matrix
+is `docs/native-acceptance.md`; this entry records code work, not completed acceptance.
+
+Connected code includes action-script replacement/used-goal suspension, class-owned
+party combat and authored party controls, borrowed cinematic actors, intermission
+ending flow, selective party/visited-world transfer, and additional ground combat
+policies. Dwarf axes and Lycanthir resurrection have typed saved state. Missing
+monster controllers now name the unsupported authored class instead of disappearing.
+
+Native multiplayer code now has menu-to-server room controls, membership/reconnect
+state, ready countdown, identity-bound votes and moderation, worker presence/control
+files, permanent-room bot filling and rotation, objective release at disconnect/team
+change, team chat, scoreboard and player skin binding. Existing online allocation and
+transport remain their owners; the live deployment is unchanged.
+
+| Scenario | State | Evidence / limit |
+|---|---|---|
+| Intermediate server/client/UI linking | Passed compile only | `/tmp/dk3-runtime-255-multiplayer-link-fixed.log`; isolated `zig-out/native-dev`, subsequently superseded by Cryotech/surgeon changes. No fresh engine/asset manifest. |
+| Additional actor classes, attack completion, axes and resurrection | Unrun | Code and explicit class test roots written. Pain/evasion/gib/presentation and remaining authored classes still need completion. |
+| Party rescue, commands, death, transfer and restoration | Unrun | Native code written; affected historical travel/script/damage/cinematic cases need replay. |
+| Ending and credits entry | Unrun | Authored exit intermission wired; no campaign completion claim. |
+| Native rooms, LAN/Internet, readiness, moderation, chat and scores | Unrun | Module/UI connections written. No acceptance inherited from the preserved runtime. |
+| Fresh consolidated opening campaign | Unrun | Previous route/checkpoint results remain separate; full intro→e1m2a remains mandatory after consolidation. |
+
+Private reference was read to establish behavioral contracts; no private runtime code
+or assets were admitted. Compatibility corrections and unresolved parity are recorded
+in the current acceptance matrix. Work remains on `rewrite/native-zig-runtime`; main,
+the playable installation, user saves and the online service are preserved.
+
+Sequence-255 continuation, implemented/unverified: episode decoration definitions,
+collision, animation, breakage/material debris/drops; persistent firefly swarms;
+large/small spider attack and retreat controllers; Cryotech combat and scripted sprays
+with saved damage pulses and native atlas particles; surgeon cower/script suspension;
+cinematic completion triggers/kills; weapon-owned remote grip/character animation;
+objective toss, countdown, armor-respecting deathtag damage and CTF capture bonuses;
+bot weapon/ammunition eligibility, Hammer release and useful pickup selection.
+
+Private review confirmed deathtag pack damage intentionally names each victim as its
+own attacker; that attribution is preserved. No speculative planter attribution was
+introduced. Reviewed sound names also retain the original pickup sound. The current
+matrix records presentation gaps and compatibility corrections explicitly. New pose,
+objective, bot and actor contract tests are written but not yet executed. No native
+engine scenarios or live-service operations were performed in this continuation.
+
+Further sequence-255 coding: patrolling hostiles now run target acquisition before
+path movement while preserving injury receipts for their own combat controller.
+Lab monkeys have distance-specific attacks/leaps, lateral hops and authored use
+activation. Inmater has melee, ordinary laser and six-event sweep, close/ranged mode
+changes and ally-obstruction sidestepping; Lasergat remains stationary, turns in yaw
+and pitch, and fires its supplied sequence. Their shared native laser retains direct
+collision, ten-second scheduled expiry, wall sparks and saved state. Private reference
+contains prisoner-execution routines without a call site; these were not made into an
+invented ambient execution loop. Muzzle attachments, gibs and reaction parity remain.
+
+`/tmp/dk3-runtime-255-cryo-link-fixed.log` linked all three modules before the patrol /
+monkey / laser batch. The subsequent laser link found a client timestamp-width error;
+that call signature is repaired, with relinking pending. All these outcomes remain
+implemented/unverified; no campaign, multiplayer or reference playback acceptance.
+
+Sequence-255 continuation: native Knight1/Knight2 attacks connect to typed attack
+entities, save rebasing/admission and rendering. `/tmp/dk3-runtime-255-knight-link.log`
+linked all three modules; later Cerberus/rats changes supersede this intermediate
+compile result. Knight2's missing authored melee sequence is handled by the narrow
+compatibility mapping described in `docs/native-acceptance.md`. Civilian panic now
+interrupts authored paths/scripts. Model-less Cryotech save admission was repaired.
+Cerberus and Pipe/Plague Rat policies, supplied attacks/poison, evasion and shared water
+movement are written. All these engine/restoration/connected scenarios are unrun;
+shared water extraction additionally requires Crox regression replay.
+
+The coherent creature batch links all three native modules in
+`/tmp/dk3-runtime-255-creatures-link.log`. Shark dry/submerged target suspension,
+water-only routes/wandering and VenomVermin poison/leap/accelerating missiles are now
+connected. Supplied absent-animation behavior, water containment and incomplete
+evasion/presentation are explicit in the matrix. This feature-branch checkpoint is
+implemented/unverified: no new contract suite or engine scenario has run in this pass.
+The remaining actor/boss, campaign, companion, mode and release scope remains open.

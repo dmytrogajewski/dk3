@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 12;
 pub const spec: profiles.Spec = .{
+    .player_grip = .rifle,
     .combat = .hammer,
     .bot_charge_ms = 900,
     .bot_range = 110,

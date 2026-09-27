@@ -42,6 +42,17 @@ pub fn prepare(transfer: *snapshot.Loaded, destination: []const u8, now: i64, ta
     }
     const memory = result.state.arena.allocator();
     var entries: std.ArrayList(snapshot.Archive) = .empty;
+    var traveler = try travel.Traveler.capture(&transfer.world, transfer.world.find(transfer.header.player_id).?, transfer.header.episode, transfer.header.at_ms);
+    if (journey.kind == .submap) for (&traveler.companions, 0..) |*follower, index| {
+        if (journey.companions & (@as(u2, 1) << @as(u1, @intCast(index))) == 0) {
+            follower.* = null;
+        } else if (follower.*) |value| {
+            // Traveling party members are absent from the archived world. Those
+            // deliberately left behind retain their own position and inventory.
+            if (@import("companions.zig").find(&transfer.world, value.state.identity)) |entity| try transfer.world.destroy(entity);
+        }
+    };
+
     if (journey.kind == .submap) {
         for (transfer.visited) |archive| {
             if (std.mem.eql(u8, archive.map, destination)) {
@@ -59,7 +70,6 @@ pub fn prepare(transfer: *snapshot.Loaded, destination: []const u8, now: i64, ta
         try entries.append(memory, archive);
     }
     result.state.visited = entries.items;
-    var traveler = try travel.Traveler.capture(&transfer.world, transfer.world.find(transfer.header.player_id).?, transfer.header.episode, transfer.header.at_ms);
     const episode = if (destination.len >= 2 and destination[0] == 'e' and destination[1] >= '1' and destination[1] <= '4') destination[1] - '0' else transfer.header.episode;
     try traveler.arrive(episode, now, table);
     var owned = journey;
@@ -90,10 +100,37 @@ pub fn depart(state: *State, world: *data.World, clients: *const @import("client
     const player = clients.entities[0] orelse return error.MissingTraveler;
     if (try world.persistentId(player) != request.player or (try world.get(player, data.Health)).current <= 0) return error.InvalidTraveler;
     const object = (try world.get(exit, data.MapObject)).*;
-    // These requirements remain explicit until their owning systems are connected.
-    if (object.flags & 6 != 0) return error.ExitRequiresCompanions;
-    if (object.flags & 8 != 0) return error.ExitRequiresEnding;
-    if (@import("properties.zig").nonempty(object, "cinematic")) return error.ExitRequiresCinematic;
+    if (!try @import("companions.zig").required(world, player, object.flags)) return error.ExitRequiresCompanions;
+    if (@import("properties.zig").text(object, "cinematic")) |name| if (name.len > 0) {
+        const controller = @import("cinematics.zig").findController(world);
+        const completed = if (controller) |entity| blk: {
+            const playback = (try world.get(entity, data.Cinematic)).*;
+            break :blk playback.finished and playback.exit == request.exit;
+        } else false;
+        if (!completed) {
+            if (try systems.cinematics.trigger(world, exit, name, request.player)) {
+                (try world.get(@import("cinematics.zig").findController(world).?, data.Cinematic)).exit = request.exit;
+            }
+            return;
+        }
+    };
+    if (object.flags & 8 != 0) {
+        const ending = try world.get(exit, data.Exit);
+        if (ending.ending_started == null) {
+            ending.ending_player = request.player;
+            ending.ending_started = now;
+            ending.camera = try intermissionPose(world);
+            (try world.get(player, data.Player)).mode = .frozen;
+            (try world.get(player, data.Body)).motion_owner = request.exit;
+            (try world.get(player, data.Velocity)).linear = @splat(0);
+            engine.send(0, "cp \"Campaign complete\nPress a key after the intermission to continue\"");
+            return;
+        }
+        if (now <= ending.ending_started.? + 5000) return;
+        var input: c.usercmd_t = undefined;
+        engine.usercmd(0, &input);
+        if (input.buttons & c.BUTTON_ANY == 0) return;
+    }
     const destination = @import("properties.zig").text(object, "map") orelse return error.MissingExitMap;
     if (!snapshot.validName(destination)) return error.InvalidExitMap;
     var name: [64]u8 = undefined;
@@ -108,7 +145,7 @@ pub fn depart(state: *State, world: *data.World, clients: *const @import("client
     const projection = projections[(try world.get(exit, data.Binding)).slot];
     const v = @import("../domain/vector.zig");
     const pose = (try world.get(player, data.Transform)).*;
-    const journey: travel.Journey = .{ .destination = destination, .spawn = object.target, .offset = v.add(pose.position, v.scale(v.add(projection.shared.absmin, projection.shared.absmax), -0.5)), .angles = pose.angles, .kind = travel.kind(current, destination) };
+    const journey: travel.Journey = .{ .destination = destination, .spawn = object.target, .offset = v.add(pose.position, v.scale(v.add(projection.shared.absmin, projection.shared.absmax), -0.5)), .angles = pose.angles, .kind = travel.kind(current, destination), .companions = @as(u2, if (object.flags & 4 != 0) 1 else 0) | @as(u2, if (object.flags & 2 != 0) 2 else 0) };
     var scratch = std.heap.ArenaAllocator.init(allocator);
     defer scratch.deinit();
     const buffer = try scratch.allocator().alloc(u8, snapshot.maximum);
@@ -132,4 +169,51 @@ pub fn disarmArrival(world: *data.World, projections: []const @import("../engine
     while (query.next()) |view| for (view.write(data.Exit), view.read(data.Binding)) |*exit, binding| {
         exit.latched = @import("interactions.zig").overlap(&projections[player_slot], &projections[binding.slot], 0);
     };
+}
+
+fn intermissionPose(world: *data.World) !data.Transform {
+    var best: ?data.Transform = null;
+    var target: []const u8 = "";
+    var best_id: u32 = std.math.maxInt(u32);
+    var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.Transform }), 0, 0);
+    {
+        defer query.deinit();
+        while (query.next()) |view| for (view.entities(), view.read(data.MapObject), view.read(data.Transform)) |entity, object, pose| {
+            if (!std.mem.eql(u8, object.classname, "info_player_intermission")) continue;
+            const id = try world.persistentId(entity);
+            if (id < best_id) {
+                best = pose;
+                target = object.target;
+                best_id = id;
+            }
+        };
+    }
+    var pose = best orelse (try @import("spawns.zig").select(world, "")).pose;
+    if (target.len > 0) if (@import("scripts.zig").named(world, target)) |entity| {
+        const v = @import("../domain/vector.zig");
+        const delta = v.subtract((try world.get(entity, data.Transform)).position, pose.position);
+        pose.angles = .{ -std.math.atan2(delta[2], @sqrt(delta[0] * delta[0] + delta[1] * delta[1])) * 180 / std.math.pi, std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi, 0 };
+    };
+    return pose;
+}
+pub fn endings(world: *data.World, router: *@import("targets.zig").Router, now: i64) !void {
+    var query = world.queryAccess(data.World.mask(.{data.Exit}), 0, 0);
+    defer query.deinit();
+    while (query.next()) |view| for (view.entities(), view.read(data.Exit)) |entity, exit| if (exit.ending_started) |started| {
+        if (now > started + 5000 and router.travel == null) {
+            var input: c.usercmd_t = undefined;
+            engine.usercmd(0, &input);
+            if (input.buttons & c.BUTTON_ANY != 0) router.travel = .{ .exit = try world.persistentId(entity), .player = exit.ending_player };
+        }
+    };
+}
+pub fn camera(world: *data.World, player: @import("../ecs/world.zig").Entity, ps: *c.playerState_t) !void {
+    const owner = (try world.get(player, data.Body)).motion_owner orelse return;
+    const exit = world.get(world.find(owner) orelse return, data.Exit) catch return;
+    if (exit.ending_started == null) return;
+    ps.dk3CameraActive = 4;
+    ps.dk3CameraOrigin = exit.camera.position;
+    ps.dk3CameraAngles = exit.camera.angles;
+    ps.dk3CameraFov = 90;
+    ps.dk3CameraBlend = @splat(0);
 }

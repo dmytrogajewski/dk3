@@ -114,15 +114,20 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         }
         try publish(world, entity, projections);
         if (!pickup.visible) continue;
-        for (occupants[0..Slots.clients]) |client| {
+        for (occupants) |client| {
             const player = client orelse continue;
             if (!world.alive(player)) continue;
-            if ((try world.get(player, data.Player)).mode != .normal) continue;
+            if (world.get(player, data.Player) catch null) |state| {
+                if (state.mode != .normal) continue;
+            } else if (world.get(player, data.Companion) catch null) |companion| {
+                if (companion.order != .collect or companion.target != try world.persistentId(entity)) continue;
+                if (pickup.kind == .key or pickup.kind == .save_gem) continue;
+            } else continue;
             const player_slot = (try world.get(player, data.Binding)).slot;
             if (!@import("interactions.zig").overlap(&projections[slot], &projections[player_slot], 0)) continue;
             if (!rules.give(pickup.*, .{ .keys = try world.get(player, data.Keys), .health = try world.get(player, data.Health), .loadout = try world.get(player, data.Weapons), .character = try world.get(player, data.Character), .ailments = try world.get(player, data.Ailments) }, table, now, engine.integer("g_gametype") == c.GT_SINGLE_PLAYER)) continue;
             pickup.visible = false;
-            if (pickup.kind == .weapon) {
+            if (pickup.kind == .weapon and player_slot < Slots.clients) {
                 var command: [48]u8 = undefined;
                 const selected = (try world.get(player, data.Weapons)).weapon;
                 engine.send(player_slot, try std.fmt.bufPrintZ(&command, "dk3_weapon {d}", .{selected}));

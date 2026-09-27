@@ -5,14 +5,68 @@ saves and the online service are preserved. Full four-episode campaign, companio
 multiplayer modes/bots, persistence, UI and release remain in scope. Removed-runtime
 results never transfer to native acceptance.
 
+## Active implementation pass
+
+Owner-directed broad coding pass (sequence 255): remaining episode and multiplayer
+systems are developed together before consolidated verification and repairs. Opening
+route driver iteration is paused. Complete four-episode/companion/multiplayer scope
+and the fresh New Game→e1m2a integration gate remain required.
+
+Written, **unverified**: factory monitors; actor action replacement/interrupt semantics,
+script-owned actors, streamed dialogue and random/ordinal use programs; cinematic
+program selection, actor borrowing, head tracks and attribute backup; companion
+rescue/toggle/stop/teleport, orders, class-owned weapons, death failure/camera and
+exit-selected party transfer; final ending intermission and authored credits travel.
+Ground combat now includes Rage, Skeleton, Satyr, Column, Dwarf and Lycanthir policies,
+with supplied attack events, Dwarf axe lifecycle and Lycanthir resurrection. Large and
+small spiders have bite/leap/retreat controllers; Cryotech has timed combat and scripted
+spray pulses; surgeon cowering and civilian panic pause/resume action scripts; lab monkeys own melee,
+leap, hop and activation rules. Inmater and Lasergat connect their distinct attack
+controllers to persistent lasers. Both episode-three knights now connect melee, fireball
+and delayed lightning attacks to persistence and client effects. Patrolling hostiles now acquire targets before path
+following, without consuming the combat controller's injury receipt. Episode decorations now
+provide authored collision, animation, breakage, drops and debris; firefly emitters
+create persistent swarms. Cinematic completion dispatches authored `cinetrigger` and
+`cinekill` entities, including when playback is disabled. These are
+active implementations, not complete class parity or campaign acceptance.
+
+Multiplayer code connects native team/session lifecycle, authored spawning,
+respawn/scoring, CTF/deathtag objectives and ordinary-input bots. Room admission,
+identity-bound votes/bans, operator controls, presence, ready countdown, reconnect
+scores, permanent-room fill/rotation, chat and scoreboard connect to existing native
+online services. Native menus expose browser/create/private-room/LAN/player/lobby
+controls; remote player skins use the admitted appearance catalog. Weapon classes
+own remote grip selection; supplied character sequences drive movement, crouch, jump,
+transitions and death. Objective drops toss physically, countdowns and capture bonuses
+follow reviewed mode rules, and bots evaluate actual inventory/pickup eligibility and
+release charged Hammer attacks. No live service,
+installed profile or user save has been changed. Networking and room flows are unrun
+on this candidate; earlier-runtime Internet acceptance does not transfer.
+
+Coding-pass blockers remain: missing authored actor controllers/abilities and boss
+progression, complete companion/cinematic progression, dynamic navigation/bot goals,
+complete player/multiplayer presentation, CTF/deathtag interaction parity and
+release integration. Unknown `monster_*` entities now fail admission with their
+classname instead of silently disappearing. All four episodes and multiplayer remain
+open as complete outcomes. There is no verified build/asset identity for sequence 255.
+Targeted link logs are compile evidence only; the last successful intermediate link
+was `/tmp/dk3-runtime-255-creatures-link.log`, covering the connected knight,
+Cerberus, rat, Shark and VenomVermin batches. `/tmp/dk3-runtime-255-multiplayer-link-fixed.log` linked the prior batch. Earlier `/tmp/dk3-runtime-255-world-link.log` also linked. These isolated
+link checks establish compilation only; new contracts have not yet been executed.
+
+Shared changes invalidate prior script/cinematic, damage, actor perception,
+restoration/travel and multiplayer coverage on the developing build. Historical
+manifests remain valid only for their recorded narrower builds and setups.
+
 ## Current outcome matrix
 
 | Milestone | Implemented / contract-tested | Running native engine / connected authored gameplay | Blockers and evidence limits |
 |---|---|---|---|
 | Weapon controllers | All 28 class-owned policies connected; Zeus, Wyndrax, Nightmare and Metamaser included. | Focused interactions passed in sequences 232–243. Sequence 251 repairs and exercises close Ion aiming. | Dispatch coverage does not establish all weapon interactions. Most fixtures grant equipment/health or place targets. Trident merge setup and Sunflare bright sprite edges remain open. |
 | Fresh opening campaign | Intro, opening actors, action programs, world controls and native saves connected. | **Full gate not accepted:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. | No coherent full-route build accepted. Checkpoint development now defeats the bridge boss, restores the defeated encounter, collects its authored Megashield and reaches e1m1c. The factory approach reaches the first gate. Factory traversal, authored e1m2a exit and a fresh consolidated replay remain. |
-| Native restoration | Typed snapshots, controller state and visited archives have executing contracts. | Actor/action restoration has focused engine evidence. Arrival save/load exercised. | Connected natural death/reload has narrow sequence-253 evidence. Visited-world persistence still needs replay. Sequence-241 travel is historical and needs replay after trigger-bounds changes. |
-| Remaining campaign and multiplayer | Partial native implementations; no legacy backend. | Unrun as complete native outcomes. | Most later actors, companions/cinematic progression, four episodes, multiplayer modes/bots, network and release acceptance remain open. |
+| Native restoration | Typed snapshots, controller state and visited archives have executing contracts. | Actor/action restoration has focused engine evidence. Arrival save/load exercised. | Connected natural death/reload has narrow sequence-253 evidence. Sequence 254 verifies C→B→C visited restoration after a disk load, including retained boss/control/pickup state; the current broad changes require replay. Sequence-241 travel is historical and needs replay after trigger-bounds changes. |
+| Remaining campaign | Party triggers/travel, ending intermission and additional ground actor controllers written; no legacy backend. | Unrun on sequence 255; no verified build/asset manifest. | Missing classes, abilities, bosses and connected progression. New class registration or reference-contract review does not count as encounter acceptance. |
+| Multiplayer and online rooms | Session/objective lifecycle, bots, room membership/moderation/readiness, chat, scoreboard and native menus written. | Unrun on sequence 255; no native network/room acceptance. | Animation/equipment presentation qualification, dynamic bot goals, full mode interactions and consolidated network/hosting replay remain. Live service is untouched. |
 
 ## Exact verified segments
 
@@ -70,7 +124,7 @@ in [the journal](../specs/runs/RUN-dk3-independent-port.md), sequences 232–253
   attempts are superseded by this legitimate resupply route.
 - Next connected work: qualify the factory upper control route, yard, interior/lift,
   e1m2a exit and visited-world round trip; then finish the fresh consolidated gate.
-  A fresh New Game replay is in progress. All checkpoint results remain separate.
+  The sequence-253 fresh replay failed at river target priority after reaching the bridge; no fresh replay is currently running. All checkpoint results remain separate.
 - Crox amphibious steering/avoidance, floor orientation and all attack poses; Cambot
   search cone, vertical avoidance, post-death wandering and inertia; Thunderskeet
   combat/death outputs; actor pain/gibs and complete audiovisual parity remain open.
@@ -78,14 +132,94 @@ in [the journal](../specs/runs/RUN-dk3-independent-port.md), sequences 232–253
 - Explicit compatibility departures: Cambot alarm recipients use PVS instead of PHS,
   dodge uses crosshair contact pending auto-aim; Thunderskeet's unsafe twelve-entry
   cycle is bounded. Reference source review is distinct from playback comparison.
-- Pod shell monster/experience classification, triggered cinematics, earthquake/debris
-  presentation and later campaign classes remain implementation gaps. Shared action
+- Pod shell monster/experience classification, complete triggered-cinematic progression,
+  earthquake/debris presentation and later campaign classes remain implementation gaps. Shared action
   cleanup/body-control, death outputs, perception and travel need applicable regressions.
 - Aggregate checkpoint `/tmp/dk3-runtime-253-aggregate.log`: 242 Zig + 54 Python
   checks, formatting and three modules passed. Assertions are enabled and all explicit
   test roots execute. Subsequent factory driver waypoint/crouch refinements remain
   under gameplay qualification; they do not alter the verified native build.
 
+
+
+Sequence-255 compatibility details and limitations:
+
+- Companion selectors interpret the authored `mikiko`/`superfly` name directly rather
+  than reproducing the reference's inverted string comparison. Teleport search tests
+  evenly spaced directions and keeps a blocked action pending; it does not reproduce
+  cumulative-angle search or ignore failed clearance. Neither behavior is engine-qualified.
+- Only companions requested by a submap exit are removed from its visited archive and
+  transported. Other party members retain their local world state. This changes save
+  and restoration coverage and requires both leave-behind and return-with-party replay.
+- Ending intermission uses the first stable authored camera rather than a random one;
+  target-facing, five-second input delay, frozen/invulnerable player and destination
+  credits map follow the reviewed contract. It remains unrun, including reload during it.
+- Column non-Hammer immunity avoids the reference's lethal-hit clamp-to-one anomaly.
+  Complete Column reaction/quake presentation remains unfinished.
+- Dwarf axes use a launch-relative five-second expiry instead of inheriting an unset
+  reference timestamp. Contact starts its own five-second fade lifetime. These native
+  projectiles persist through saves although the reference marked them transient.
+- Lycanthir recovery checks the full standing hull before rising, extending the
+  reference's corpse-hull occupancy check to avoid materializing into a player/mover.
+  Evasion, terminal gibs, sound parity and the complete encounter still require work.
+- Ground attack events are delivered before ending an elapsed sequence; the previous
+  ordering could lose a final strike on a long frame. Earlier ground-combat results
+  require replay. A before/after regression is required at consolidated verification.
+
+
+- Decoration hulls retain authored zero coordinates instead of the reference helper's
+  zero-to-minus-sixteen substitution. Breakage retains an inert source identity for
+  delayed target dispatch and visited-world persistence. Flesh debris currently uses
+  the decoration fragment lifecycle; full gib behavior remains open.
+- Firefly personalities are bounded below by 0.25, extending the reference reroll
+  guard to initial spawn so its steering divisor cannot be zero.
+- Hiro and Superfly supply no `bjump` sequences. Native moving jumps use their
+  supplied `ajump` grip variants; Mikiko uses the authored `bjump` variants.
+- Deathtag explosion attribution deliberately remains self-damage, as established by
+  the reference contract. Armor/invulnerability now participate instead of being
+  bypassed. Pickup/alarm/victory/return/tick sounds are class-mode selections; exact
+  attenuation, heartbeat volume ramp and the layered polygon explosion remain open.
+  CTF/deathtag carrier attachment, skins and additional defensive bonuses still need work.
+- Cryotech keeps separate 800 ms damage-pulse and 1500 ms particle lifetimes. Spray
+  particles use the supplied atlas rectangle, color, spread and speed; post-half-second
+  growth is elapsed-time based (60 units/second) instead of reference frame-count growth.
+  Pain variants, absent authored `diec`, ambient audio and playback comparison remain open.
+- Inmater/Lasergat lasers retain the scheduled ten-second lifetime (the reference
+  also writes an unused three-second delay). Inmater crouched-target direct damage
+  follows its reviewed callback; sweep yaw adjustments are unused in that reference
+  callback. Muzzle attachment, robotic gibs and complete reaction/presentation remain
+  open. Uncalled prisoner-execution routines were not invented as ambient behavior.
+- Patrol acquisition changes invalidate authored path/aggression regression coverage.
+  The repair and new classes have no running-engine acceptance yet.
+- Surgeon cowering preserves its interrupted script timing. Broader worker alert,
+  wandering and pain/gib behavior remain unqualified. These additions do not establish
+  complete class parity or transfer campaign acceptance from another build.
+
+
+- Knight2's supplied model/events have no `ataka` or `atakb`. Its native close
+  punch uses the supplied `atakc` stroke and strike event; this is an intentional
+  animation compatibility correction, not reference playback parity. Fireball world-X
+  drift is retained but collision-traced; its first native drift tick is 100 ms.
+  Knight lightning retains two captured-contact blasts, three 5-damage/90-radius ticks
+  each, and separate 250 ms child lifetimes. Sword attachments, fire trails and exact
+  subtractive-light presentation remain unqualified.
+- Save admission now allows model-less Cryotech spray and typed knight effects.
+  Actual restoration must be replayed; a compile result does not establish this path.
+- Cerberus bite/leap and Pipe/Plague Rat combat, poison selection and amphibious
+  locomotion are implemented, unverified. Shared water movement was extracted from
+  Crox, invalidating its previous movement/restoration evidence for this build.
+  Rat close/leap choice retains the reference's second probabilistic range check.
+
+- Shark suspension uses actual water levels: stop pursuing a dry target; resume
+  that target at level 3. Wet route filtering and movement prevent a route through
+  air. Surface targets are approached at the shark's current depth. This is a narrow
+  native containment correction; steering and exact water-boundary parity need replay.
+- VenomVermin owns poison bite/leap bands and its seven-to-one missile acceleration,
+  10 ms first update, 100 ms following updates and silent four-second expiry. Its
+  supplied model lacks `atakd`; as in the reference's failed sequence change, the
+  running sequence continues. A supplied `atakd` is used when present. Ranged cooldown
+  and attack/missile state persist. Evasive targeting/actions, smoke trail, polygon
+  explosion and full pain/presentation remain unfinished. No encounter claim is made.
 
 ## Acceptance rules
 

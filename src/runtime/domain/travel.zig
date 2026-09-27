@@ -10,16 +10,35 @@ pub const Journey = struct {
     offset: data.Vec3 = @splat(0),
     angles: data.Vec3 = @splat(0),
     kind: Kind,
+    companions: u2 = 0,
 };
 pub const Request = struct { exit: u32, player: u32 };
-pub const Exit = struct { latched: bool = false, ready_ms: i64 = 0 };
+pub const Exit = struct {
+    latched: bool = false,
+    ready_ms: i64 = 0,
+    ending_player: u32 = 0,
+    ending_started: ?i64 = null,
+    camera: data.Transform = .{},
+};
 pub fn kind(source: []const u8, destination: []const u8) Kind {
     if (source.len < 2 or destination.len < 2 or source[1] != destination[1]) return .episode;
     const prefix = destination.len - 1;
     if (destination[prefix] != 'a' or (source.len >= prefix and std.mem.eql(u8, source[0..prefix], destination[0..prefix]))) return .submap;
     return .chapter;
 }
+pub const Follower = struct {
+    classname: []const u8,
+    offset: data.Vec3 = @splat(0),
+    angles: data.Vec3 = @splat(0),
+    state: data.Companion,
+    health: data.Health,
+    weapons: data.Weapons,
+    character: data.Character,
+    keys: data.Keys,
+    ailments: data.Ailments,
+};
 pub const Traveler = struct {
+    companions: [2]?Follower = @splat(null),
     health: data.Health,
     weapons: data.Weapons,
     character: data.Character,
@@ -28,12 +47,44 @@ pub const Traveler = struct {
     episode: u8,
     at_ms: i64,
     pub fn capture(world: *data.World, player: @import("../ecs/world.zig").Entity, episode: u8, now: i64) !Traveler {
-        return .{ .health = (try world.get(player, data.Health)).*, .weapons = (try world.get(player, data.Weapons)).*, .character = (try world.get(player, data.Character)).*, .keys = (try world.get(player, data.Keys)).*, .ailments = (try world.get(player, data.Ailments)).*, .episode = episode, .at_ms = now };
+        var result: Traveler = .{ .health = (try world.get(player, data.Health)).*, .weapons = (try world.get(player, data.Weapons)).*, .character = (try world.get(player, data.Character)).*, .keys = (try world.get(player, data.Keys)).*, .ailments = (try world.get(player, data.Ailments)).*, .episode = episode, .at_ms = now };
+        var query = world.queryAccess(data.World.mask(.{data.Companion}), 0, 0);
+        defer query.deinit();
+        while (query.next()) |view| for (view.entities(), view.read(data.Companion)) |entity, state| {
+            if (state.owner != try world.persistentId(player)) continue;
+            const pose = (try world.get(entity, data.Transform)).*;
+            result.companions[@intFromEnum(state.identity)] = .{ .offset = @import("vector.zig").subtract(pose.position, (try world.get(player, data.Transform)).position), .angles = pose.angles, .classname = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition].classname, .state = state, .health = (try world.get(entity, data.Health)).*, .weapons = (try world.get(entity, data.Weapons)).*, .character = (try world.get(entity, data.Character)).*, .keys = (try world.get(entity, data.Keys)).*, .ailments = (try world.get(entity, data.Ailments)).* };
+        };
+        return result;
     }
     pub fn arrive(self: *Traveler, episode: u8, now: i64, table: *const @import("weapons.zig").Table) !void {
         const delta = try std.math.sub(i64, now, self.at_ms);
         try @import("snapshot_time.zig").rebase(.character, &self.character, delta);
         try @import("snapshot_time.zig").rebase(.weapons, &self.weapons, delta);
+        for (&self.companions) |*maybe| if (maybe.*) |*follower| {
+            try @import("snapshot_time.zig").rebase(.character, &follower.character, delta);
+            try @import("snapshot_time.zig").rebase(.weapons, &follower.weapons, delta);
+            follower.state.target = 0;
+            follower.state.owner = 0;
+            follower.state.order = .follow;
+            follower.state.authored = .none;
+            follower.state.animation_until = null;
+            follower.state.stopped = false;
+            follower.state.next_ms = now;
+            follower.state.last_ms = now;
+            follower.ailments.cure();
+            follower.weapons.weaponTime = 0;
+            follower.weapons.weaponstate = 0;
+            follower.weapons.dk3AttackHeld = 0;
+            if (episode != self.episode) {
+                follower.keys = .{};
+                follower.weapons = .{};
+                if (episode == 1 and !follower.state.carrying) {
+                    const initial = catalog.starting(episode);
+                    _ = follower.weapons.acquire(table, initial, table.entries[initial].initialAmmo);
+                }
+            }
+        };
         self.at_ms = now;
         self.ailments.mask &= 120;
         self.ailments.freeze_level = 0;

@@ -11,15 +11,37 @@ const weapons = @import("../domain/weapons.zig");
 pub const Clients = struct {
     weapon_table: weapons.Table = .{},
     entities: [c.MAX_CLIENTS]?ecs.Entity = @splat(null),
+    returning: [c.MAX_CLIENTS]?data.Session = @splat(null),
     episode: u8 = 1,
+    poses: [3]?@import("../domain/player_pose.zig").Set = @splat(null),
     pub fn begin(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, index: usize, now: i64, journey: ?@import("../domain/travel.zig").Journey) !void {
         if (index >= self.entities.len) return error.InvalidClient;
-        try self.disconnect(world, slots, projections, index);
-        const transform = try arrivalPose(world, journey, @intCast(index));
+        var session: data.Session = .{ .team = @import("multiplayer.zig").chooseTeam(world), .joined_ms = now };
+        if (self.returning[index]) |prior| {
+            session = prior;
+            session.respawn_ms = 0;
+            self.returning[index] = null;
+        }
+        if (self.entities[index]) |previous| if (world.get(previous, data.Session) catch null) |member| {
+            session = member.*;
+            session.respawn_ms = 0;
+        };
+        session.pose = .{};
+        try self.disconnect(world, slots, projections, index, now);
+        const multiplayer = @import("multiplayer.zig").enabled();
+        const transform = if (multiplayer) try @import("multiplayer.zig").spawnPose(world, session, @intCast(index), session.deaths + @as(u32, @intCast(index))) else try arrivalPose(world, journey, @intCast(index));
         const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Hurt{}, data.Keys{}, data.Character{}, data.Ailments{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
         errdefer world.destroy(entity) catch unreachable;
         _ = try slots.acquire(entity, @intCast(index));
         self.entities[index] = entity;
+        if (multiplayer) {
+            try world.put(entity, session);
+            try self.userinfo(world, index);
+            if (session.team == .spectator) {
+                (try world.get(entity, data.Player)).mode = .spectator;
+                (try world.get(entity, data.Body)).contents = 0;
+            } else try @import("multiplayer.zig").telefrag(world, entity, now);
+        }
         const loadout = try world.get(entity, data.Weapons);
         const initial = @import("weapon_catalog").starting(self.episode);
         _ = loadout.acquire(&self.weapon_table, initial, self.weapon_table.entries[initial].initialAmmo);
@@ -31,7 +53,7 @@ pub const Clients = struct {
         states[index].speed = 320;
         states[index].gravity = 800;
         states[index].stats[c.STAT_MAX_HEALTH] = 100;
-        try self.publish(world, projections, states, index);
+        try self.publish(world, projections, states, index, now);
         engine.print("dk3 zig: player entered isolated movement runtime\n");
     }
     pub fn arrivalPose(world: *data.World, journey: ?@import("../domain/travel.zig").Journey, index: u16) !data.Transform {
@@ -48,13 +70,16 @@ pub const Clients = struct {
         };
         return transform;
     }
-    pub fn arrive(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, arrival: @import("campaign.zig").Arrival, now: i64) !void {
+    pub fn arrive(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, arrival: @import("campaign.zig").Arrival, actors: *@import("actors.zig").Actors, now: i64) !void {
         const entity = self.entities[0] orelse return error.MissingTraveler;
         const pose = try arrivalPose(world, arrival.journey, 0);
+        try @import("monitors.zig").detach(world, entity);
         try @import("ballista.zig").detach(world, entity);
         try @import("weapon_actions.zig").cancel(world, slots, projections, entity);
         try arrival.traveler.apply(world, entity);
         (try world.get(entity, data.Transform)).* = pose;
+        try @import("companions.zig").start(actors, world, slots, projections, entity, arrival.journey.spawn, if (arrival.journey.kind == .submap) arrival.journey.companions else null, now);
+        try @import("companions.zig").arrive(actors, world, slots, projections, entity, arrival.traveler, arrival.journey, now);
         (try world.get(entity, data.Velocity)).* = .{};
         (try world.get(entity, data.Hurt)).* = .{};
         (try world.get(entity, data.Body)).* = .{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID };
@@ -64,15 +89,17 @@ pub const Clients = struct {
         engine.usercmd(0, &input);
         for (pose.angles, 0..) |angle, i| player.delta_angles[i] = @as(i32, @intFromFloat(@mod(angle, 360) * (65536.0 / 360.0))) -% input.angles[i];
         self.episode = arrival.traveler.episode;
-        try self.publish(world, projections, states, 0);
+        try self.publish(world, projections, states, 0, now);
         try @import("campaign.zig").disarmArrival(world, projections, entity);
         engine.send(0, "dk3_restored");
         var text: [128]u8 = undefined;
         engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: traveler entered authored landing health={d} weapon={d}\n", .{ (try world.get(entity, data.Health)).current, (try world.get(entity, data.Weapons)).weapon }));
     }
-    pub fn disconnect(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, index: usize) !void {
+    pub fn disconnect(self: *Clients, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, index: usize, now: i64) !void {
         if (index >= self.entities.len) return error.InvalidClient;
         if (self.entities[index]) |entity| {
+            try @import("multiplayer.zig").release(world, projections, entity, now);
+            try @import("monitors.zig").detach(world, entity);
             try @import("ballista.zig").detach(world, entity);
             try @import("weapon_actions.zig").cancel(world, slots, projections, entity);
             engine.unlink(&projections[index]);
@@ -86,6 +113,12 @@ pub const Clients = struct {
         const entity = self.entities[index] orelse return;
         var input: c.usercmd_t = undefined;
         engine.usercmd(@intCast(index), &input);
+        if (world.get(entity, data.Session) catch null) |session| {
+            const force = engine.integer("g_forcerespawn");
+            if ((try world.get(entity, data.Player)).mode == .dead and now >= session.respawn_ms and ((input.buttons & c.BUTTON_ATTACK != 0 or input.upmove > 0) or (force > 0 and now >= session.respawn_ms + @as(i64, force) * 1000))) {
+                return self.begin(world, slots, projections, states, index, now, null);
+            }
+        }
         input.serverTime = @intCast(std.math.clamp(@as(i64, input.serverTime), now - 1000, now + 200));
         const player = try world.get(entity, data.Player);
         bridge.holdView(player, (try world.get(entity, data.Transform)).angles, input);
@@ -120,14 +153,44 @@ pub const Clients = struct {
         body.mins = result.mins;
         body.maxs = result.maxs;
         body.grounded = player.ground_entity != c.ENTITYNUM_NONE;
-        try self.publish(world, projections, states, index);
+        try self.publish(world, projections, states, index, now);
         // Dispatch after movement/projection: spawning events may relocate ECS columns.
         for (events.values[0..events.count]) |event| switch (event) {
             .fired => |shot| try @import("combat.zig").fire(world, slots, projections, entity, shot, &self.weapon_table, now),
             .no_ammo => {},
         };
     }
-    pub fn publish(self: *Clients, world: *data.World, projections: []abi.EntityProjection, states: []c.playerState_t, index: usize) !void {
+    pub fn userinfo(self: *Clients, world: *data.World, index: usize) !void {
+        const entity = self.entities[index] orelse return;
+        const session = world.get(entity, data.Session) catch return;
+        var buffer: [c.MAX_INFO_STRING]u8 = @splat(0);
+        _ = engine.gateway.call(c.G_GET_USERINFO, .{ @as(isize, @intCast(index)), &buffer, @as(isize, buffer.len) });
+        const info = std.mem.sliceTo(&buffer, 0);
+        const catalog = @import("appearance_catalog");
+        const prior_appearance = session.appearance;
+        session.appearance = @intCast(catalog.parse(@import("../engine/info.zig").get(info, "model") orelse "hiro/0") orelse 0);
+        if (prior_appearance % 3 != session.appearance % 3) session.pose = .{};
+        const selection = catalog.entries[session.appearance];
+        if (self.poses[session.appearance % 3] == null) {
+            var path: [128]u8 = undefined;
+            const bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, std.heap.c_allocator, try std.fmt.bufPrintZ(&path, "{s}.anim", .{selection.model}), 1024 * 1024);
+            defer std.heap.c_allocator.free(bytes);
+            self.poses[session.appearance % 3] = try @import("../domain/player_pose.zig").Set.read(bytes);
+        }
+        (try world.get(entity, data.Binding)).model = try @import("resources.zig").model(selection.model);
+        var text: [c.MAX_INFO_STRING]u8 = undefined;
+        const supplied = @import("../engine/info.zig").get(info, "name") orelse "Player";
+        var clean: [32]u8 = undefined;
+        var length: usize = 0;
+        for (supplied) |byte| {
+            if (length == clean.len) break;
+            if (byte < 32 or byte == 127 or byte == '\"' or byte == '\\' or byte == ';') continue;
+            clean[length] = byte;
+            length += 1;
+        }
+        engine.config(c.CS_PLAYERS + @as(i32, @intCast(index)), try std.fmt.bufPrintZ(&text, "\\n\\{s}\\t\\{d}\\model\\{s}\\skin\\{s}", .{ clean[0..length], @intFromEnum(session.team), selection.model, selection.skin }));
+    }
+    pub fn publish(self: *Clients, world: *data.World, projections: []abi.EntityProjection, states: []c.playerState_t, index: usize, now: i64) !void {
         const entity = self.entities[index].?;
         const transform = (try world.get(entity, data.Transform)).*;
         const velocity = (try world.get(entity, data.Velocity)).*;
@@ -148,15 +211,37 @@ pub const Clients = struct {
         bridge.writeCharacter(ps, character, ailments);
         ps.speed = @intFromFloat(bridge.characterParameters(@intCast(index), character, ailments, ps.commandTime).speed);
         ps.dk3Episode = self.episode;
+        if (world.get(entity, data.Session) catch null) |session| {
+            ps.persistant[c.PERS_TEAM] = @intFromEnum(session.team);
+            ps.persistant[c.PERS_SCORE] = session.score;
+            ps.persistant[c.PERS_KILLED] = @intCast(session.deaths);
+            ps.persistant[c.PERS_CAPTURES] = @intCast(session.captures);
+            ps.dk3Objective = 0;
+            ps.dk3ObjectiveUntil = 0;
+            if (@import("multiplayer.zig").held(world, try world.persistentId(entity))) |flag| {
+                ps.dk3Objective = @intFromEnum(flag.team);
+                ps.dk3ObjectiveUntil = @intCast(flag.deadline orelse 0);
+            }
+        }
         bridge.writeWeapons(ps, inventory);
         const projection = &projections[index];
         projection.state.number = @intCast(index);
         projection.state.clientNum = @intCast(index);
         projection.state.eType = c.ET_PLAYER;
+        projection.state.modelindex = (try world.get(entity, data.Binding)).model;
+        projection.state.angles2 = @splat(1);
+        projection.state.dk3Team = ps.persistant[c.PERS_TEAM];
+        projection.shared.svFlags = if ((try world.get(entity, data.Player)).mode == .spectator) c.SVF_NOCLIENT else 0;
         projection.state.pos.trType = c.TR_INTERPOLATE;
         projection.state.pos.trBase = transform.position;
         projection.state.apos.trType = c.TR_INTERPOLATE;
-        projection.state.apos.trBase = transform.angles;
+        projection.state.apos.trBase = .{ 0, transform.angles[1], 0 };
+        if (world.get(entity, data.Session) catch null) |session| {
+            const pose_set = &(self.poses[session.appearance % 3] orelse return error.MissingPlayerAnimation);
+            const player = (try world.get(entity, data.Player)).*;
+            const weapon = @import("weapon_catalog").find(@intCast(inventory.weapon)) orelse return error.UnknownPlayerWeapon;
+            projection.state.frame = pose_set.frame(&session.pose, .{ .velocity = velocity.linear, .yaw = transform.angles[1], .ducked = player.ducked, .jumping = player.jump_held and player.ground_entity == c.ENTITYNUM_NONE and player.water_level < 2, .dead = health.current <= 0 }, weapon.spec.player_grip, now);
+        }
         projection.state.groundEntityNum = ps.groundEntityNum;
         projection.state.weapon = ps.weapon;
         projection.shared.currentOrigin = transform.position;
@@ -165,6 +250,9 @@ pub const Clients = struct {
         projection.shared.maxs = body.maxs;
         projection.shared.contents = @bitCast(body.contents);
         projection.shared.ownerNum = c.ENTITYNUM_NONE;
+        if (world.get(entity, data.Session) catch null) |session| if (session.bot) {
+            projection.shared.svFlags |= c.SVF_BOT;
+        };
         engine.link(projection);
     }
 };

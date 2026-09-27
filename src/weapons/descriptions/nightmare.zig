@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 20;
-pub const spec: profiles.Spec = .{ // nightmare
+pub const spec: profiles.Spec = .{
+    .player_grip = .pistol, // nightmare
     .combat = .nightmare,
     .visual = .{ .projectile_model = "models/e3/we_nnreaper.dkm", .color = .{ 0.9, 0.2, 1 } },
     .world_model = "models/e3/a_nmare.dkm",

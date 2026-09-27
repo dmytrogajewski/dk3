@@ -68,12 +68,14 @@ pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").Stat
                 // Authored invisible trains carry attachments without a BSP model.
                 if (binding.model != 0 or (try loaded.world.get(entity, data.Body)).contents != 0) return error.InvalidSavedTrain;
             } else if ((loaded.world.get(entity, data.Player) catch null) == null) {
-                if (binding.model == 0 or binding.model > loaded.header.resources.models.len) {
+                const model_optional = (loaded.world.get(entity, data.CryoSpray) catch null) != null or
+                    (if (loaded.world.get(entity, data.ActorAttack) catch null) |attack| (attack.attack == .knight_zap or attack.attack == .knight_punch) else false);
+                if ((!model_optional and binding.model == 0) or binding.model > loaded.header.resources.models.len) {
                     var text: [192]u8 = undefined;
                     engine.print(try std.fmt.bufPrintZ(&text, "dk3 save: invalid model on entity {d} ({s}), model={d}, registered={d}\n", .{ try loaded.world.persistentId(entity), if (object) |value| value.classname else "dynamic", binding.model, loaded.header.resources.models.len }));
                     return error.InvalidSavedModel;
                 }
-                if ((loaded.world.get(entity, data.Actor) catch null) == null and (loaded.world.get(entity, data.Pickup) catch null) == null and (loaded.world.get(entity, data.Projectile) catch null) == null and (loaded.world.get(entity, data.Charge) catch null) == null and (loaded.world.get(entity, data.Performer) catch null) == null and (loaded.world.get(entity, data.FrogSpit) catch null) == null and (loaded.world.get(entity, data.HealthTree) catch null) == null and (loaded.world.get(entity, data.ThunderSpray) catch null) == null) return error.UnsupportedSavedEntity;
+                if ((loaded.world.get(entity, data.ActorAttack) catch null) == null and (loaded.world.get(entity, data.ActorLaser) catch null) == null and (loaded.world.get(entity, data.CryoSpray) catch null) == null and (loaded.world.get(entity, data.Firefly) catch null) == null and (loaded.world.get(entity, data.Scenery) catch null) == null and (loaded.world.get(entity, data.Actor) catch null) == null and (loaded.world.get(entity, data.Pickup) catch null) == null and (loaded.world.get(entity, data.Projectile) catch null) == null and (loaded.world.get(entity, data.Charge) catch null) == null and (loaded.world.get(entity, data.Performer) catch null) == null and (loaded.world.get(entity, data.DwarfAxe) catch null) == null and (loaded.world.get(entity, data.FrogSpit) catch null) == null and (loaded.world.get(entity, data.HealthTree) catch null) == null and (loaded.world.get(entity, data.ThunderSpray) catch null) == null) return error.UnsupportedSavedEntity;
             }
         }
     };
@@ -104,7 +106,15 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         // independent persistent IDs and stale ECS handles are never reused.
         slots.occupants[binding.slot] = entity;
         if (binding.slot == 0) {
-            try clients.publish(world, projections, states, 0);
+            try clients.publish(world, projections, states, 0, now);
+            continue;
+        }
+        if ((world.get(entity, data.Firefly) catch null) != null) {
+            try @import("fireflies.zig").publish(world, entity, projections);
+            continue;
+        }
+        if ((world.get(entity, data.Scenery) catch null) != null) {
+            try @import("scenery.zig").publish(world, entity, projections, now);
             continue;
         }
         if ((world.get(entity, data.ThunderSpray) catch null) != null) {
@@ -113,6 +123,22 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         }
         if ((world.get(entity, data.HealthTree) catch null) != null) {
             try @import("healthtrees.zig").publish(world, entity, projections, now);
+            continue;
+        }
+        if ((world.get(entity, data.DwarfAxe) catch null) != null) {
+            try @import("dwarf_axes.zig").publish(world, entity, projections, now);
+            continue;
+        }
+        if ((world.get(entity, data.ActorAttack) catch null) != null) {
+            try @import("actor_attacks.zig").publish(world, entity, projections, now);
+            continue;
+        }
+        if ((world.get(entity, data.ActorLaser) catch null) != null) {
+            try @import("actor_lasers.zig").publish(world, entity, projections, now);
+            continue;
+        }
+        if ((world.get(entity, data.CryoSpray) catch null) != null) {
+            try @import("cryo_spray.zig").publish(world, entity, projections, now);
             continue;
         }
         if ((world.get(entity, data.FrogSpit) catch null) != null) {

@@ -17,6 +17,17 @@ pub const Task = struct {
     unique: []const u8,
     head: []const [12]f32 = &.{},
     head_initial: v.Vec3 = @splat(0),
+    pub fn headAngles(self: Task, elapsed_ms: i64) v.Vec3 {
+        if (self.head.len == 0 or elapsed_ms < 0) return self.head_initial;
+        const part = @min(self.head.len - 1, @as(usize, @intCast(@divTrunc(elapsed_ms, 200))));
+        const seconds = @as(f32, @floatFromInt(@min(@as(i64, 200), elapsed_ms - @as(i64, @intCast(part)) * 200))) * 0.001;
+        var result: v.Vec3 = undefined;
+        for (&result, 0..) |*axis, i| {
+            const curve = self.head[part][i * 4 ..][0..4];
+            axis.* = ((curve[0] * seconds + curve[1]) * seconds + curve[2]) * seconds + curve[3];
+        }
+        return result;
+    }
 };
 pub const Track = struct { classname: []const u8, unique: []const u8, first: u16, count: u16 };
 pub const Sound = struct { path: []const u8, loop: bool, channel: u8, when: f32 };
@@ -182,6 +193,9 @@ pub fn parse(allocator: std.mem.Allocator, bytes: []const u8) !Program {
 }
 // Native save state is separate from immutable supplied program data.
 pub const Playback = struct {
+    trigger: u32 = 0,
+    exit: u32 = 0,
+    viewer: u32 = 0,
     name: []const u8,
     shot: u16 = 0,
     started_ms: i64 = 0,
@@ -192,6 +206,11 @@ pub const Playback = struct {
     inherited: Camera = .{ .position = @splat(0), .angles = @splat(0) },
 };
 pub const Performer = struct {
+    borrowed: bool = false,
+    original_model: u16 = 0,
+    original_contents: u32 = 0,
+    backup: ?[3]f32 = null,
+    head_ms: i64 = 0,
     unique: []const u8,
     classname: []const u8,
     model: []const u8,

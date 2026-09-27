@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 5;
 pub const spec: profiles.Spec = .{
+    .player_grip = .rifle,
     .combat = .projectile,
     .splash_hazard = true,
     .ammo_class = "ammo_rockets", // sidewinder

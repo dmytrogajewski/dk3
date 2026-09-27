@@ -15,6 +15,7 @@ pub const Router = struct {
     pending: @import("../domain/target_actions.zig").Queue = @splat(null),
     depth: usize = 0,
     scripts: ?*const @import("scripts.zig").State = null,
+    cinematics: ?*@import("cinematics.zig").State = null,
     actors: ?*@import("actors.zig").Actors = null,
     travel: ?@import("../domain/travel.zig").Request = null,
     pub fn activate(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {
@@ -26,6 +27,7 @@ pub const Router = struct {
         defer self.depth -= 1;
         const object = (try world.get(entity, data.MapObject)).*;
         if (!@import("keys.zig").allows(world, object, activator)) return;
+        if (@import("companion_triggers.zig").owns(object.classname)) return @import("companion_triggers.zig").use(self.actors orelse return error.MissingActorDefinitions, world, slots, projections, entity, activator, now);
         if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .rockgat) {
             if ((try world.get(entity, data.Health)).current > 0) {
                 actor.rockgat.use();
@@ -33,12 +35,29 @@ pub const Router = struct {
             }
             return;
         };
+        if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .labmonkey) {
+            if ((try world.get(entity, data.Health)).current > 0) {
+                actor.ignore_player = false;
+                const actors = self.actors orelse return error.MissingActorDefinitions;
+                try @import("actor_perception.zig").acquire(world, slots, entity, actor, (try world.get(entity, data.Transform)).*, actors.table.definitions[actor.definition], now);
+            }
+            return;
+        };
+        if (self.scripts) |scripts| if (try scripts.use(world, entity, activator, now)) return;
+        if ((world.get(entity, data.Monitor) catch null) != null) return @import("monitors.zig").use(world, slots, projections, entity, activator, now);
         if (std.mem.eql(u8, object.classname, "target_monster_spawn")) return @import("actor_spawns.zig").use(self.actors orelse return error.MissingActorDefinitions, world, slots, projections, entity, source, now);
         if ((world.get(entity, data.HealthTree) catch null) != null) return @import("healthtrees.zig").use(world, slots, projections, entity, activator, now);
         if (std.mem.eql(u8, object.classname, "trigger_script")) {
             const trigger = try world.get(entity, data.Trigger);
             if (now < trigger.ready_ms or (trigger.limit > 0 and trigger.uses >= trigger.limit)) return;
-            if (prop.nonempty(object, "cinescript")) return error.TriggeredCinematicNotImplemented;
+            if (prop.nonempty(object, "cinescript")) {
+                const cine = self.cinematics orelse return error.MissingCinematicPrograms;
+                if (!try cine.trigger(world, entity, prop.text(object, "cinescript").?, activator)) return;
+                const used = try world.get(entity, data.Trigger);
+                used.uses += 1;
+                used.ready_ms = now + used.wait_ms;
+                return;
+            }
             const name = prop.text(object, "aiscript") orelse return error.MissingAuthoredScript;
             try (self.scripts orelse return error.MissingScriptPrograms).start(world, entity, name, activator, true);
             const used = try world.get(entity, data.Trigger);
@@ -111,6 +130,7 @@ pub const Router = struct {
             for (victims.ids[0..victims.count]) |id| {
                 if (id == own_id) continue;
                 const victim = world.find(id) orelse continue;
+                try @import("monitors.zig").stop(world, victim);
                 if (slots.find(victim)) |slot| {
                     engine.unlink(&projections[slot]);
                     try slots.release(slot, victim);

@@ -6,6 +6,23 @@ const animation = @import("animation.zig");
 pub const Mode = enum { idle, flee, chase, attack, reload, dead };
 pub const State = struct {
     definition: u8,
+    melee: catalog.melee_cycle.State = .{},
+    spider: catalog.spider.State = .{},
+    cryotech: catalog.cryotech.State = .{},
+    surgeon: catalog.surgeon.State = .{},
+    cerberus: catalog.cerberus.State = .{},
+    vermin: catalog.vermin.State = .{},
+    shark: catalog.shark.State = .{},
+    rat: catalog.rats.State = .{},
+    knight: catalog.knights.State = .{},
+    inmater: catalog.inmater.State = .{},
+    lasergat: catalog.lasergat.State = .{},
+    lycanthir: catalog.lycanthir.State = .{},
+    column: catalog.column.State = .{},
+    reaction: ?animation.Sequence = null,
+    reaction_started_ms: i64 = 0,
+    reaction_until_ms: ?i64 = null,
+    death_pose: ?animation.Sequence = null,
     guard: catalog.mishima.State = .{},
     skeeter: catalog.skeeter.State = .{},
     pod: catalog.protopod.State = .{},
@@ -14,6 +31,8 @@ pub const State = struct {
     cambot: catalog.cambot.State = .{},
     crox: catalog.crox.State = .{},
     rockgat: catalog.rockgat.State = .{},
+    uses: u32 = 0,
+    use_ready_ms: i64 = 0,
     think_ms: i64 = 0,
     unique: []const u8 = "",
     ignore_player: bool = false,
@@ -21,6 +40,7 @@ pub const State = struct {
     scripted_pose: ?animation.Sequence = null,
     moving_pose: ?animation.Sequence = null,
     scripted_ms: i64 = 0,
+    script_paused_ms: ?i64 = null,
 
     mode: Mode = .idle,
     changed_ms: i64 = 0,
@@ -46,6 +66,12 @@ pub const State = struct {
 };
 pub const Definition = struct {
     loaded: bool = false,
+    dwarf: catalog.dwarf.Tuning = .{},
+    vermin_rocket: catalog.weapon.Tuning = .{},
+    vermin_has_leap: bool = false,
+    rat_poison: catalog.weapon.Tuning = .{},
+    knight_ranged: catalog.knights.Weapon = .{},
+    laser: catalog.laser.Tuning = .{},
     frog: catalog.froginator.Tuning = .{},
     model: []const u8 = "",
     health: i32 = 0,
@@ -57,16 +83,19 @@ pub const Definition = struct {
     idle: animation.Sequence = .{},
     run: animation.Sequence = .{},
     death: animation.Sequence = .{},
-    attacks: [4]animation.Sequence = @splat(.{}),
-    strikes: [4]u16 = @splat(1),
-    second_strikes: [4]?u16 = @splat(null),
-    attack_sounds: [4][]const u8 = @splat(""),
-    attack_sound_ms: [4]i64 = @splat(0),
-    second_attack_sounds: [4][]const u8 = @splat(""),
-    second_sound_ms: [4]?i64 = @splat(null),
+    attacks: [8]animation.Sequence = @splat(.{}),
+    strikes: [8]u16 = @splat(1),
+    second_strikes: [8]?u16 = @splat(null),
+    attack_sounds: [8][]const u8 = @splat(""),
+    attack_sound_ms: [8]i64 = @splat(0),
+    second_attack_sounds: [8][]const u8 = @splat(""),
+    second_sound_ms: [8]?i64 = @splat(null),
     swim: animation.Sequence = .{},
     walk: animation.Sequence = .{},
     death_b: animation.Sequence = .{},
+    death_d: animation.Sequence = .{},
+    awakening: animation.Sequence = .{},
+    pain: [2]?animation.Sequence = @splat(null),
     hatch_sound: []const u8 = "",
     reload: animation.Sequence = .{},
     hatch: animation.Sequence = .{},
@@ -74,6 +103,10 @@ pub const Definition = struct {
     attack_range: f32 = 0,
     fov: f32 = 180,
     yaw_speed: f32 = 20,
+    pitch_speed: f32 = 20,
+    upward_speed: f32 = 0,
+    jump_strike_ms: i64 = 0,
+    jump_distance: f32 = 0,
     damage: f32 = 0,
     random_damage: f32 = 0,
     range: f32 = 0,
@@ -115,6 +148,9 @@ pub const Table = struct {
             const health = try row.number("health", 0);
             entry.speed = try row.number("run_speed", 0);
             entry.walk_speed = try row.number("walk_speed", 0);
+            entry.jump_distance = try row.number("jump_attack_distance", 0);
+            entry.upward_speed = try row.number("upward_velocity", 0);
+            if (entry.upward_speed < 0 or entry.upward_speed > 2000) return error.InvalidActorJump;
             if (health <= 0 or health > 1000000 or entry.speed < 0 or entry.speed > 2000) return error.InvalidActorTuning;
             entry.health = @intFromFloat(health);
             entry.mass = try row.number("mass", 100);
@@ -124,8 +160,9 @@ pub const Table = struct {
             entry.fov = try row.number("fov", 180);
             if (row.field("angle_speed")) |angles| {
                 var parts = std.mem.tokenizeAny(u8, angles, " \t");
-                _ = parts.next();
+                entry.pitch_speed = try std.fmt.parseFloat(f32, parts.next() orelse return error.InvalidActorAngles);
                 entry.yaw_speed = try std.fmt.parseFloat(f32, parts.next() orelse return error.InvalidActorAngles);
+                if (!std.math.isFinite(entry.pitch_speed) or entry.pitch_speed < 0 or entry.pitch_speed > 360) return error.InvalidActorAngles;
                 if (!std.math.isFinite(entry.yaw_speed) or entry.yaw_speed <= 0 or entry.yaw_speed > 360) return error.InvalidActorAngles;
             }
             entry.damage = try row.number("weapon1_base_damage", 0);
@@ -150,6 +187,36 @@ pub const Table = struct {
                 if (entry.mins[i] >= entry.maxs[i] or @abs(entry.mins[i]) > 1024 or @abs(entry.maxs[i]) > 1024) return error.InvalidActorBounds;
             }
             if (catalog.entries[id].kind == .froginator) entry.frog = try catalog.froginator.Tuning.parse(row);
+            if (catalog.entries[id].kind == .dwarf) entry.dwarf = try catalog.dwarf.Tuning.parse(row);
+            if (catalog.entries[id].kind == .inmater) entry.laser = try catalog.laser.Tuning.parse(row, "weapon2_");
+            if (catalog.entries[id].kind == .lasergat) entry.laser = try catalog.laser.Tuning.parse(row, "weapon1_");
+            if (catalog.entries[id].kind == .cryotech) {
+                entry.damage = try row.number("weapon2_base_damage", 0);
+                entry.random_damage = try row.number("weapon2_random_damage", 0);
+                entry.range = try row.number("weapon2_distance", 0);
+                if (entry.damage < 0 or entry.random_damage < 0 or entry.range <= 0) return error.InvalidCryotechWeapon;
+            }
+            if (catalog.entries[id].kind == .venomvermin) {
+                entry.vermin_rocket = try catalog.weapon.Tuning.parse(row, "weapon3_");
+                const bite = try catalog.weapon.Tuning.parse(row, "weapon2_");
+                entry.damage = bite.damage;
+                entry.random_damage = bite.random_damage;
+                entry.range = bite.range;
+                entry.offset = bite.offset;
+                entry.spread = bite.spread;
+                if (entry.vermin_rocket.speed <= 0) return error.InvalidVerminRocket;
+            }
+            if (catalog.entries[id].kind == .plague_rat) entry.rat_poison = try catalog.weapon.Tuning.parse(row, "weapon2_");
+            if (catalog.entries[id].kind == .knight1) entry.knight_ranged = try catalog.knights.Weapon.parse(row, "weapon2_");
+            if (catalog.entries[id].kind == .knight2) {
+                entry.knight_ranged = try catalog.knights.Weapon.parse(row, "weapon1_");
+                const melee = try catalog.knights.Weapon.parse(row, "weapon2_");
+                entry.damage = melee.damage;
+                entry.random_damage = melee.random_damage;
+                entry.range = melee.range;
+                entry.offset = melee.offset;
+                entry.spread = melee.spread;
+            }
             entry.loaded = true;
         }
         return result;

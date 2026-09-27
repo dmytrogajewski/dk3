@@ -218,3 +218,25 @@ dk3/fx/weapon-shine
    alphaGen entity
  }
 }
+
+dk3/fx/cryo-spray
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.2421875 0.626953125 0.75390625
+ }
+}
+
+dk3/fx/actor-laser-spark
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.05859375 0 0 0.1171875 0.564453125 0.87890625
+ }
+}

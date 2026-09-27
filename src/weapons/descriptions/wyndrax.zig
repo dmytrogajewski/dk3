@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 19;
 pub const spec: profiles.Spec = .{
+    .player_grip = .rifle,
     .combat = .wyndrax,
     .projectile = .{ .action_delay_ms = 500, .mins = @splat(-16), .maxs = @splat(16) },
     .ammo_class = "ammo_wisp", // wyndrax

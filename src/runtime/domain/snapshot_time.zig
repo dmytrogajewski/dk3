@@ -13,6 +13,29 @@ fn deadline(value: *?i64, delta: i64) !void {
 }
 pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)], delta: i64) !void {
     switch (id) {
+        .firefly => try shift(&value.next_ms, delta),
+        .scenery => {
+            try shift(&value.started_ms, delta);
+            try deadline(&value.breaking_ms, delta);
+            try deadline(&value.expires_ms, delta);
+        },
+        .companion => {
+            try deadline(&value.animation_until, delta);
+            try shift(&value.next_ms, delta);
+            try shift(&value.last_ms, delta);
+        },
+        .session => {
+            try active(&value.respawn_ms, delta);
+            try shift(&value.joined_ms, delta);
+            if (value.pose.initialized) try shift(&value.pose.started_ms, delta);
+        },
+        .objective => {
+            try deadline(&value.deadline, delta);
+            try active(&value.pickup_ms, delta);
+            try active(&value.beep_ms, delta);
+            if (value.airborne) try shift(&value.stepped_ms, delta);
+        },
+        .monitor => try deadline(&value.until_ms, delta),
         .thunder_spray => {
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
@@ -29,6 +52,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
         },
         .cinematic => try shift(&value.started_ms, delta),
         .performer => {
+            try shift(&value.head_ms, delta);
             try shift(&value.animation_ms, delta);
             try shift(&value.due_ms, delta);
             try shift(&value.next_ms, delta);
@@ -75,7 +99,12 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try active(&value.invisible_until, delta);
             try active(&value.environment_until, delta);
         },
-        .frog_spit, .projectile => {
+        .dwarf_axe => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.stepped_ms, delta);
+            try deadline(&value.contact_ms, delta);
+        },
+        .frog_spit, .projectile, .cryo_spray => {
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
         },
@@ -122,9 +151,50 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try deadline(&value.freeze_at_ms, delta);
             try deadline(&value.freeze_next_ms, delta);
         },
+        .actor_attack => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.stepped_ms, delta);
+            switch (value.attack) {
+                .vermin_rocket => |*rocket| try shift(&rocket.next_ms, delta),
+                .knight_flame => |*fire| try shift(&fire.drift_ms, delta),
+                .knight_zap => |*zap| for (&zap.bolts) |*maybe| {
+                    if (maybe.*) |*bolt| {
+                        try shift(&bolt.born_ms, delta);
+                        try shift(&bolt.next_ms, delta);
+                    }
+                },
+                .knight_punch => {},
+            }
+        },
+        .actor_laser => {
+            try shift(&value.born_ms, delta);
+            try shift(&value.stepped_ms, delta);
+            try deadline(&value.contact_ms, delta);
+        },
         .actor => {
+            try deadline(&value.knight.sidestep_until, delta);
+            try deadline(&value.rat.evasion_until, delta);
+            try active(&value.shark.wander_until_ms, delta);
+            try active(&value.vermin.ready_ms, delta);
+            try active(&value.lasergat.servo_ms, delta);
+            try deadline(&value.inmater.sidestep_until, delta);
+            try active(&value.surgeon.until_ms, delta);
+            try deadline(&value.script_paused_ms, delta);
+            try active(&value.surgeon.reconsider_ms, delta);
+            if (value.surgeon.active) try shift(&value.surgeon.started_ms, delta);
+            try active(&value.cryotech.ready_ms, delta);
+            try deadline(&value.cryotech.ambient_started, delta);
+            try deadline(&value.spider.retreat_until, delta);
+            try deadline(&value.spider.sidestep_until, delta);
+            try shift(&value.lycanthir.started_ms, delta);
+            try shift(&value.lycanthir.wake_ms, delta);
+            try shift(&value.column.started_ms, delta);
+            try shift(&value.reaction_started_ms, delta);
+            try deadline(&value.reaction_until_ms, delta);
             try shift(&value.think_ms, delta);
             try shift(&value.scripted_ms, delta);
+            try shift(&value.melee.started_ms, delta);
+            try shift(&value.use_ready_ms, delta);
             try shift(&value.frog.started_ms, delta);
             try shift(&value.rockgat.pose_ms, delta);
             try shift(&value.rockgat.next_attack_ms, delta);
@@ -154,7 +224,10 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.at_ms, delta);
         },
         .hazard => try active(&value.ready_ms, delta),
-        .exit => try active(&value.ready_ms, delta),
+        .exit => {
+            try active(&value.ready_ms, delta);
+            try deadline(&value.ending_started, delta);
+        },
         .target_sequence => {
             try shift(&value.started_ms, delta);
             try active(&value.ready_ms, delta);

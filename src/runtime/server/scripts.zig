@@ -57,10 +57,39 @@ pub const State = struct {
         defer query.deinit();
         while (query.next()) |view| for (view.read(data.Script)) |execution| {
             const script = self.program.find(execution.name) orelse return error.UnavailableSavedScript;
-            if (execution.index > script.actions.len) return error.InvalidSavedScriptCursor;
+            if (execution.index > script.actions.len or execution.depth > execution.stack.len) return error.InvalidSavedScriptCursor;
+            for (execution.stack[0..execution.depth]) |frame| {
+                const parent = self.program.find(frame.name) orelse return error.UnavailableSavedScript;
+                if (frame.index > parent.actions.len or frame.remaining < -1 or frame.remaining > 10000) return error.InvalidSavedScriptCursor;
+            }
         };
     }
+    pub fn use(self: *const State, world: *data.World, entity: ecs.Entity, activator: u32, now: i64) !bool {
+        const actor = world.get(entity, data.Actor) catch return false;
+        const program = self.program.onUse(actor.unique) orelse return false;
+        if (now < actor.use_ready_ms) return true;
+        actor.uses += 1;
+        actor.use_ready_ms = now + program.loops;
+        var selected: ?rules.Action = null;
+        for (program.actions) |action| {
+            if (std.ascii.eqlIgnoreCase(action.name, "idle") and selected == null) selected = action;
+            if ((std.fmt.parseInt(u32, action.name, 10) catch 0) == actor.uses) {
+                selected = action;
+                break;
+            }
+        }
+        if (selected) |action| {
+            if (action.args.len == 0) return error.EmptyUsedAction;
+            const random = (try world.get(entity, data.Random)).next();
+            const index = if (std.ascii.eqlIgnoreCase(action.name, "idle")) @min(action.args.len - 1, @as(usize, @intFromFloat(random * @as(f32, @floatFromInt(action.args.len))))) else 0;
+            try self.launch(world, entity, action.args[index], activator, true, true);
+        }
+        return true;
+    }
     pub fn start(self: *const State, world: *data.World, caller: ecs.Entity, name: []const u8, activator: u32, use_owner: bool) !void {
+        return self.launch(world, caller, name, activator, use_owner, false);
+    }
+    fn launch(self: *const State, world: *data.World, caller: ecs.Entity, name: []const u8, activator: u32, use_owner: bool, when_used: bool) !void {
         const script = self.program.find(name) orelse {
             var text: [128]u8 = undefined;
             engine.print(try std.fmt.bufPrintZ(&text, "dk3 script: unavailable authored request {s}\n", .{name}));
@@ -68,8 +97,20 @@ pub const State = struct {
         };
         const entity = if (use_owner and script.owner.len > 0) unique(world, script.owner) orelse return else caller;
         if (world.get(entity, data.Health) catch null) |health| if (health.current <= 0) return;
-        const revision = if (world.get(entity, data.Script) catch null) |prior| prior.revision +% 1 else 1;
-        try world.put(entity, data.Script{ .name = script.name, .remaining = script.loops, .active = true, .activator = activator, .revision = revision });
+        var next: data.Script = .{ .name = script.name, .remaining = script.loops, .active = true, .activator = activator, .revision = 1, .when_used = when_used };
+        if (world.get(entity, data.Script) catch null) |prior| {
+            next.revision = prior.revision +% 1;
+            // Ordinary script goals replace ordinary script goals. A player-use
+            // goal interrupts the current goal and resumes it when finished.
+            if (prior.active and (when_used or prior.when_used)) {
+                if (prior.depth == prior.stack.len) return error.ScriptCallDepth;
+                next.stack = prior.stack;
+                next.depth = prior.depth + 1;
+                next.stack[prior.depth] = .{ .name = prior.name, .index = prior.index, .remaining = prior.remaining, .when_used = prior.when_used, .activator = prior.activator };
+            }
+        }
+        if ((world.get(entity, data.Random) catch null) == null) try world.put(entity, data.Random{ .state = try world.persistentId(entity) });
+        try world.put(entity, next);
         if (world.get(entity, data.Actor) catch null) |actor| actor.scripted_pose = null;
     }
     pub fn step(self: *const State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, actors: *@import("actors.zig").Actors, router: *@import("targets.zig").Router, now: i64) anyerror!void {
@@ -86,6 +127,20 @@ pub const State = struct {
         for (entities[0..count]) |entity| {
             if (!world.alive(entity)) continue;
             if (world.get(entity, data.Health) catch null) |health| if (health.current <= 0) continue;
+            if (world.get(entity, data.Actor) catch null) |actor| {
+                if (actor.surgeon.active or (@import("actor_catalog").entries[actor.definition].kind == .civilian and actor.mode == .flee)) {
+                    if (actor.script_paused_ms == null) actor.script_paused_ms = now;
+                    continue;
+                }
+                if (actor.script_paused_ms) |paused| {
+                    const interval = now - paused;
+                    const execution = try world.get(entity, data.Script);
+                    if (execution.started) execution.due_ms += interval;
+                    execution.next_ms += interval;
+                    if (actor.scripted_pose != null) actor.scripted_ms += interval;
+                    actor.script_paused_ms = null;
+                }
+            }
             for (0..1024) |_| {
                 var execution = (try world.get(entity, data.Script)).*;
                 if (!execution.active or now < execution.next_ms) break;
@@ -94,6 +149,16 @@ pub const State = struct {
                     if (execution.remaining > 1 or execution.remaining == -1) {
                         if (execution.remaining > 1) execution.remaining -= 1;
                         execution.index = 0;
+                    } else if (execution.depth > 0) {
+                        execution.depth -= 1;
+                        const frame = execution.stack[execution.depth];
+                        execution.name = frame.name;
+                        execution.index = frame.index;
+                        execution.remaining = frame.remaining;
+                        execution.when_used = frame.when_used;
+                        execution.activator = frame.activator;
+                        execution.started = false;
+                        execution.moving = false;
                     } else execution.active = false;
                     (try world.get(entity, data.Script)).* = execution;
                     if (world.get(entity, data.Actor) catch null) |actor| actor.scripted_pose = null;
@@ -102,9 +167,19 @@ pub const State = struct {
                 const action = script.actions[execution.index];
                 const args = action.args;
                 if (std.mem.eql(u8, action.name, "spawn")) {
-                    if (args.len != 7 or !std.ascii.eqlIgnoreCase(args[6], "false")) return error.UnsupportedScriptSpawnOptions;
+                    if (args.len < 7 or args.len > 9 or (!std.ascii.eqlIgnoreCase(args[6], "false") and !std.ascii.eqlIgnoreCase(args[6], "true"))) return error.InvalidScriptSpawnOptions;
+                    if (unique(world, args[1]) != null) return error.DuplicateScriptActor;
                     const child = try actors.spawnDynamic(world, slots, projections, args[0], .{ try rules.number(args[2]), try rules.number(args[3]), try rules.number(args[4]) }, .{ 0, try rules.number(args[5]), 0 }, now);
                     (try world.get(child, data.Actor)).unique = args[1];
+                    (try world.get(child, data.Actor)).ignore_player = std.ascii.eqlIgnoreCase(args[6], "false");
+                    if (args.len > 7) (try world.get(child, data.MapObject)).targetname = args[7];
+                    if (args.len > 8) {
+                        const object = try world.get(child, data.MapObject);
+                        const properties = try actors.allocator.alloc(data.Property, object.properties.len + 1);
+                        @memcpy(properties[0..object.properties.len], object.properties);
+                        properties[object.properties.len] = .{ .key = "deathtarget", .value = args[8] };
+                        object.properties = properties;
+                    }
                     var text: [140]u8 = undefined;
                     engine.print(try std.fmt.bufPrintZ(&text, "dk3 script: spawned {s} id={d} class={s}\n", .{ args[1], try world.persistentId(child), args[0] }));
                 } else if (std.mem.eql(u8, action.name, "set_state")) {
@@ -123,9 +198,73 @@ pub const State = struct {
                             actor.route = .{};
                         } else return error.UnsupportedActorScriptState;
                     };
-                } else if (std.mem.eql(u8, action.name, "send_message")) {
+                } else if ((std.mem.eql(u8, action.name, "send_message") or std.mem.eql(u8, action.name, "send_urgent_message"))) {
                     if (args.len != 2) return error.InvalidScriptMessage;
-                    if (unique(world, args[0])) |target| try self.start(world, target, args[1], execution.activator, false);
+                    if (unique(world, args[0])) |target| try self.start(world, target, args[1], execution.activator, true);
+                } else if (std.mem.eql(u8, action.name, "call") or std.mem.eql(u8, action.name, "random_script")) {
+                    if (args.len == 0 or (std.mem.eql(u8, action.name, "call") and args.len != 1)) return error.InvalidScriptCall;
+                    const random = (try world.get(entity, data.Random)).next();
+                    const index = if (std.mem.eql(u8, action.name, "call")) 0 else @min(args.len - 1, @as(usize, @intFromFloat(random * @as(f32, @floatFromInt(args.len)))));
+                    execution.index += 1;
+                    execution.started = false;
+                    (try world.get(entity, data.Script)).* = execution;
+                    try self.start(world, entity, args[index], execution.activator, std.mem.eql(u8, action.name, "random_script"));
+                    continue;
+                } else if (std.mem.eql(u8, action.name, "wait")) {
+                    if (args.len != 1) return error.InvalidScriptWait;
+                    if (!execution.started) {
+                        const seconds = try rules.number(args[0]);
+                        if (seconds < 0 or seconds > 3600) return error.InvalidScriptWait;
+                        execution.started = true;
+                        execution.due_ms = now + @as(i64, @intFromFloat(seconds * 1000));
+                    }
+                    if (now < execution.due_ms) {
+                        (try world.get(entity, data.Script)).* = execution;
+                        break;
+                    }
+                } else if (std.mem.eql(u8, action.name, "move_to")) {
+                    if (args.len != 3) return error.InvalidScriptDestination;
+                    execution.destination = .{ try rules.number(args[0]), try rules.number(args[1]), try rules.number(args[2]) };
+                    execution.moving = true;
+                    const pose = (try world.get(entity, data.Transform)).*;
+                    if (@import("../domain/navigation.zig").horizontalDistance(pose.position, execution.destination) > 20 or @abs(pose.position[2] - execution.destination[2]) > 32) {
+                        (try world.get(entity, data.Script)).* = execution;
+                        break;
+                    }
+                    execution.moving = false;
+                } else if (std.mem.eql(u8, action.name, "attack")) {
+                    if (args.len != 1) return error.InvalidScriptAttack;
+                    const victim = unique(world, args[0]) orelse return error.MissingScriptVictim;
+                    const actor = try world.get(entity, data.Actor);
+                    actor.threat = try world.persistentId(victim);
+                    actor.threat_position = (try world.get(victim, data.Transform)).position;
+                    actor.ignore_player = false;
+                } else if (std.mem.eql(u8, action.name, "sound") or std.mem.eql(u8, action.name, "stream_sound")) {
+                    if (args.len < 1 or args.len > 2) return error.InvalidScriptSound;
+                    const speaker = if (args.len == 2) unique(world, args[1]) orelse return error.MissingScriptSpeaker else entity;
+                    if (std.mem.eql(u8, action.name, "stream_sound")) {
+                        for (args[0]) |ch| if (ch < 32 or ch == '"' or ch == '\\') return error.InvalidScriptSound;
+                        var command: [320]u8 = undefined;
+                        const text = try std.fmt.bufPrintZ(&command, "dk3_cine_sound 0 2 \"{s}\"", .{args[0]});
+                        _ = engine.gateway.call(abi.c.G_SEND_SERVER_COMMAND, .{ @as(isize, -1), text.ptr });
+                    } else {
+                        const pose = (try world.get(speaker, data.Transform)).*;
+                        const slot: u16 = if (world.get(speaker, data.Binding) catch null) |binding| binding.slot else abi.c.ENTITYNUM_NONE;
+                        try @import("events.zig").sound(world, slots, projections, args[0], pose.position, slot, abi.c.CHAN_VOICE, now);
+                    }
+                } else if (std.mem.eql(u8, action.name, "remove")) {
+                    if (args.len != 1) return error.InvalidScriptRemoval;
+                    if (unique(world, args[0])) |target| {
+                        if (slots.find(target)) |slot| {
+                            engine.unlink(&projections[slot]);
+                            try slots.release(slot, target);
+                        }
+                        try world.destroy(target);
+                    }
+                } else if (std.mem.eql(u8, action.name, "print")) {
+                    if (args.len != 1) return error.InvalidScriptPrint;
+                    var text: [384]u8 = undefined;
+                    engine.print(try std.fmt.bufPrintZ(&text, "dk3 script: {s}\n", .{args[0]}));
                 } else if (std.mem.eql(u8, action.name, "use")) {
                     if (args.len != 1) return error.InvalidScriptUse;
                     if (unique(world, args[0]) orelse named(world, args[0])) |target| try router.activate(world, slots, projections, target, execution.activator, now);

@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 18;
 pub const spec: profiles.Spec = .{
+    .player_grip = .rifle,
     .combat = .ballista,
     .ammo_class = "ammo_ballista", // ballista
     .projectile = .{ .mins = .{ -4, -4, -2 }, .maxs = .{ 4, 4, 2 }, .splash_scale = 0.5, .splash_radius = 128, .action_delay_ms = 150, .recoil = 400, .recoil_on_launch = true, .loop_sound = "e3/we_ballistaflybya.wav" },

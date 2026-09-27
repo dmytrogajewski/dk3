@@ -27,10 +27,7 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     const forward = v.basis(shot.angles).forward;
     const combat_policy = catalog.combatFor(shot.weapon, shot.sequence);
     switch (combat_policy) {
-        .pending => {
-            engine.print("dk3 zig: weapon combat policy pending\n");
-            return;
-        },
+        .pending => return error.MissingWeaponCombatPolicy,
         .hitscan => |policy| {
             const height = (if (shot.ducked) policy.crouching_height else policy.standing_height) orelse shot.view_height;
             const start = rules.eye(shot.position, height);

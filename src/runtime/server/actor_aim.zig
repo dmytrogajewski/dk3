@@ -5,6 +5,10 @@ const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const v = @import("../domain/vector.zig");
 const engine = @import("../engine/server.zig");
+pub fn muzzle(pose: data.Transform, offset: v.Vec3) v.Vec3 {
+    const axes = v.basis(pose.angles);
+    return v.add(pose.position, v.add(v.scale(axes.right, offset[0]), v.add(v.scale(axes.forward, offset[1]), v.scale(v.cross(axes.right, axes.forward), offset[2]))));
+}
 pub fn lead(world: *data.World, target: ecs.Entity, pose: data.Transform, offset: v.Vec3, random: *data.Random) !struct { origin: v.Vec3, direction: v.Vec3 } {
     const target_pose = (try world.get(target, data.Transform)).*;
     const target_velocity = (try world.get(target, data.Velocity)).linear;
@@ -24,9 +28,9 @@ pub fn lead(world: *data.World, target: ecs.Entity, pose: data.Transform, offset
         lead_angles[0] += 5 / deviation * ((random.next() * 2 - 1) * (10 / deviation));
     }
     var destination = v.add(target_pose.position, v.scale(v.basis(lead_angles).forward, lead_distance));
-    if ((try world.get(target, data.Player)).ducked) {
+    if (world.get(target, data.Player) catch null) |player| if (player.ducked) {
         const target_body = (try world.get(target, data.Body)).*;
         destination[2] -= target_body.maxs[2] - target_body.mins[2];
-    }
+    };
     return .{ .origin = origin, .direction = v.normalize(v.subtract(destination, origin)) };
 }

@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 25;
 pub const spec: profiles.Spec = .{
+    .player_grip = .shoulder,
     .combat = .novabeam,
     .ammo_class = "ammo_novabeam", // novabeam
     .visual = .{ .impact_sprite = "models/e4/we_novahit.sp2" },

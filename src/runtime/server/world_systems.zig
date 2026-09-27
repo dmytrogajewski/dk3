@@ -8,6 +8,7 @@ const binary = @import("movers.zig");
 const trains = @import("trains.zig");
 const special = @import("special_movers.zig");
 pub const State = struct {
+    multiplayer: @import("multiplayer.zig").State = .{},
     inline_models: u16 = 1,
     cinematics: @import("cinematics.zig").State = .{},
     scripts: @import("scripts.zig").State = .{},
@@ -16,7 +17,7 @@ pub const State = struct {
     pub fn deinit(self: *State) void {
         self.navigation.deinit();
     }
-    pub fn spawn(self: *State, allocator: @import("std").mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8) !void {
+    pub fn spawn(self: *State, allocator: @import("std").mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8, table: *const @import("../domain/weapons.zig").Table) !void {
         {
             var query = world.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
             defer query.deinit();
@@ -27,15 +28,21 @@ pub const State = struct {
         try @import("spawn_filter.zig").apply(world);
         try @import("brushes.zig").spawn(world, slots, projections);
         try binary.spawn(world, slots, projections);
+        try @import("monitors.zig").spawn(world);
         try @import("targets.zig").spawn(world);
+        try @import("companion_triggers.zig").spawn(world, projections);
         try @import("campaign.zig").spawn(world);
         try @import("world_actions.zig").spawn(allocator, world, projections);
         try trains.spawn(world, slots, projections, now);
         try special.spawn(world, slots, projections, now);
         try @import("items.zig").spawn(world, slots, projections, now, episode);
         try @import("healthtrees.zig").spawn(world, slots, projections, now);
+        self.actors.weapons = table.*;
         try self.actors.spawn(allocator, world, slots, projections, now, episode);
+        try @import("fireflies.zig").spawn(world, slots, projections, now);
+        try @import("scenery.zig").spawn(allocator, world, slots, projections, now);
         try @import("attachments.zig").spawn(world);
+        try self.multiplayer.spawn(world, slots, projections, episode, now);
         try self.cinematics.spawn(allocator, world);
         try self.scripts.init(allocator, world);
         try self.navigation.init(allocator, now);
@@ -88,15 +95,24 @@ pub const State = struct {
         try @import("weapon_launches.zig").step(world, slots, projections, table, now);
         try @import("melee.zig").step(world, slots, projections, table, now);
         try @import("thunder_spray.zig").step(world, slots, projections, now);
+        try @import("dwarf_axes.zig").step(world, slots, projections, now);
         try @import("frog_spit.zig").step(world, slots, projections, now);
+        try @import("cryo_spray.zig").step(world, slots, projections, now);
+        try @import("actor_lasers.zig").step(world, slots, projections, now);
+        try @import("actor_attacks.zig").step(world, slots, projections, now);
         try @import("ailments.zig").step(world, now);
+        try @import("monitors.zig").step(world, slots, now);
         try self.navigation.frame(now);
         self.navigation.sync(projections);
         if (!@import("cinematics.zig").active(world)) try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);
+        if (!@import("cinematics.zig").active(world)) try @import("companions.zig").combat(&self.actors, world, slots, projections, table, now, elapsed);
+        try @import("fireflies.zig").step(world, slots, projections, now, elapsed);
+        try @import("scenery.zig").step(world, slots, projections, targets, now, elapsed);
         try @import("healthtrees.zig").step(world, slots, projections, now, elapsed);
         try @import("items.zig").step(world, slots, projections, targets, table, now, elapsed);
         try targets.step(world, slots, projections, now);
         if (!@import("cinematics.zig").active(world)) try self.scripts.step(world, slots, projections, &self.actors, targets, now);
         try @import("world_actions.zig").step(world, slots, projections, targets, now);
+        try self.multiplayer.step(world, slots, projections, targets, now);
     }
 };

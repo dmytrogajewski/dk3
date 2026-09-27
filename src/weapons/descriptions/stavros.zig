@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 17;
 pub const spec: profiles.Spec = .{
+    .player_grip = .rifle,
     .combat = .stavros,
     .ammo_class = "ammo_stavros", // stavros
     .projectile = .{ .mins = @splat(-12), .maxs = @splat(12), .direct_scale = 0, .splash_scale = 1, .lifetime_ms = 12000, .loop_sound = "global/e_torchd.wav" },

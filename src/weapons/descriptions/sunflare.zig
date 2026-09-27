@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 10;
-pub const spec: profiles.Spec = .{ // sunflare
+pub const spec: profiles.Spec = .{
+    .player_grip = .glove, // sunflare
     .combat = .sunflare,
     .projectile = .{ .gravity = true, .mins = .{ -12, -12, -18 }, .maxs = .{ 12, 12, 18 }, .action_delay_ms = 400, .lifetime_ms = 60000 },
     .visual = .{ .projectile_model = "models/e2/we_sunprj.dkm", .projectile_scale = 2, .blast_sound = "e2/we_sflareexplodea.wav", .spin = true },

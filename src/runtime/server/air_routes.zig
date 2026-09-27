@@ -42,12 +42,29 @@ pub const Routes = struct {
         }
         return result;
     }
-    fn visible(a: v.Vec3, b: v.Vec3, body: data.Body, slot: u16) !bool {
+    pub fn waterPath(a: v.Vec3, b: v.Vec3, body: data.Body, slot: u16) !bool {
+        return visible(a, b, body, slot, true);
+    }
+    fn visible(a: v.Vec3, b: v.Vec3, body: data.Body, slot: u16, water: bool) !bool {
+        if (water) {
+            const steps: usize = @intFromFloat(@max(1, @ceil(v.length(v.subtract(b, a)) / 16)));
+            for (0..steps + 1) |i| {
+                const point = v.add(a, v.scale(v.subtract(b, a), @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(steps))));
+                if (try engine.collisionService().contents(point, slot) & c.MASK_WATER == 0) return false;
+            }
+        }
+
         const hit = try engine.collisionService().trace(.{ .start = a, .end = b, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
         return !hit.start_solid and !hit.all_solid and hit.fraction == 1;
     }
     pub fn next(self: *const Routes, position: v.Vec3, destination: v.Vec3, body: data.Body, slot: u16) !?v.Vec3 {
-        if (try visible(position, destination, body, slot)) return destination;
+        return self.nextMedium(position, destination, body, slot, false);
+    }
+    pub fn nextWater(self: *const Routes, position: v.Vec3, destination: v.Vec3, body: data.Body, slot: u16) !?v.Vec3 {
+        return self.nextMedium(position, destination, body, slot, true);
+    }
+    fn nextMedium(self: *const Routes, position: v.Vec3, destination: v.Vec3, body: data.Body, slot: u16, water: bool) !?v.Vec3 {
+        if (try visible(position, destination, body, slot, water)) return destination;
         var from: ?u16 = null;
         var to: ?u16 = null;
         var start_distance: f32 = std.math.inf(f32);
@@ -55,11 +72,11 @@ pub const Routes = struct {
         for (self.nodes, 0..) |node, i| {
             const a = v.length(v.subtract(node.position, position));
             const b = v.length(v.subtract(node.position, destination));
-            if (a < start_distance and try visible(position, node.position, body, slot)) {
+            if (a < start_distance and try visible(position, node.position, body, slot, water)) {
                 from = @intCast(i);
                 start_distance = a;
             }
-            if (b < end_distance and try visible(destination, node.position, body, slot)) {
+            if (b < end_distance and try visible(destination, node.position, body, slot, water)) {
                 to = @intCast(i);
                 end_distance = b;
             }
@@ -78,7 +95,7 @@ pub const Routes = struct {
             if (node == goal) break;
             for (self.nodes[node].links) |link| {
                 const next_index = self.indices[@intCast(link[1])].?;
-                if (previous[next_index] != null or !try visible(self.nodes[node].position, self.nodes[next_index].position, body, slot)) continue;
+                if (previous[next_index] != null or !try visible(self.nodes[node].position, self.nodes[next_index].position, body, slot, water)) continue;
                 previous[next_index] = node;
                 queue[count] = next_index;
                 count += 1;

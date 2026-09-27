@@ -155,7 +155,7 @@ def main():
     parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--opening", action="store_true", help="Continue with ordinary-input opening route development")
-    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle", "marsh-late", "marsh-exit", "bridge-arrival", "bridge-control", "bridge-river", "bridge-health", "bridge-ford", "bridge-supplies", "bridge-crossing", "bridge-boss", "bridge-cleared", "factory-arrival", "factory-outside", "factory-gate", "factory-yard"), default="arrival")
+    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle", "marsh-late", "marsh-exit", "bridge-arrival", "bridge-control", "bridge-river", "bridge-health", "bridge-ford", "bridge-supplies", "bridge-crossing", "bridge-boss", "bridge-cleared", "factory-arrival", "factory-outside", "factory-gate", "factory-upper", "factory-passage", "factory-yard", "factory-yard-turn", "factory-interior", "factory-switch"), default="arrival")
     parser.add_argument("--checkpoint-map", choices=("intro", "e1m1a", "e1m1b", "e1m1c"), default="intro")
     parser.add_argument("--checkpoint", type=Path, help="Legitimate checkpoint for development replay; never fresh campaign acceptance")
     args = parser.parse_args()

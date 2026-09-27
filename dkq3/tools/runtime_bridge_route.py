@@ -82,7 +82,7 @@ def resupply(driver, identity):
         if math.dist(eye, tree["pos"]) > 96:
             raise RuntimeError(f"Tree {identity} is outside the observed use reach: {tree['pos']}")
         trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
-        if int(re.search(r"target=(\d+)", trace)[1]) != identity:
+        if int(re.search(r"dk3 ion aimtrace: [^\n]*?\btarget=(\d+)", trace)[1]) != identity:
             raise RuntimeError(f"Tree {identity} use line is obstructed: {trace}")
         driver.until(lambda s: s["now"] >= int(tree["ready"]), description="health tree ready for use")
         before_health = driver.observe()["health"]
@@ -128,7 +128,7 @@ def shoot_control(driver, capture, identity, removed_actor=None):
         driver.ready(2)
         aim_at(driver, target["center"])
         trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
-        match = re.search(r"target=(\d+)", trace)
+        match = re.search(r"dk3 ion aimtrace: [^\n]*?\btarget=(\d+)", trace)
         if not match or int(match[1]) != identity:
             capture("control-obstructed")
             raise RuntimeError(f"Control {identity} is not under the crosshair: {trace}")
@@ -154,7 +154,24 @@ def clear_ford(driver, capture, report, identities=(387, 419)):
         raise RuntimeError("Ford firing position is not on dry land")
     checkpoint(driver, capture, report, "bridge_ford_bank")
     contacts = []
-    for identity in identities:
+    observed = actors(driver)
+    position = driver.observe()["pos"]
+    for identity in sorted(identities, key=lambda identity: math.dist(observed[identity]["pos"], position)):
+        row = actors(driver)[identity]
+        if row["health"] > 0 and math.dist(row["pos"], driver.observe()["pos"]) < 200:
+            for _ in range(3):
+                previous = actors(driver)[identity]["health"]
+                if previous <= 0:
+                    break
+                contacted = fight(driver, capture, driver.observe()["map"], target_id=identity)
+                after = actors(driver)[identity]
+                contacts.append({"target": identity, "before": previous, "after": after["health"], "water": after["crox_water"], "tracking": True})
+                if not contacted:
+                    raise RuntimeError(f"Close Crox {identity} received no tracked fire; inspect its lane")
+            if actors(driver)[identity]["health"] > 0:
+                raise RuntimeError(f"Close Crox {identity} survived the tracked engagement")
+            checkpoint(driver, capture, report, f"bridge_crox_{identity}_cleared")
+            continue
         for shot in range(18):
             row = actors(driver)[identity]
             if row["health"] <= 0:
@@ -171,7 +188,7 @@ def clear_ford(driver, capture, report, identities=(387, 419)):
             # visible upper body so the water-surface blast remains near it.
             aim_at(driver, (row["pos"][0], row["pos"][1], row["pos"][2] + 7))
             trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
-            match = re.search(r"target=(\d+)", trace)
+            match = re.search(r"dk3 ion aimtrace: [^\n]*?\btarget=(\d+)", trace)
             if not match or int(match[1]) != identity:
                 raise RuntimeError(f"Crox {identity} firing lane changed before the shot: {trace}")
             previous = row
@@ -268,7 +285,7 @@ def bridge_span(driver, capture, report):
         control = world_rows(driver, "destructible")[86]
         aim_at(driver, control["center"])
         trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
-        match = re.search(r"target=(\d+)", trace)
+        match = re.search(r"dk3 ion aimtrace: [^\n]*?\btarget=(\d+)", trace)
         if match and int(match[1]) == 86:
             control_visible = True
             shoot_control(driver, capture, 86, 85)
@@ -330,6 +347,8 @@ def bridge_battle(driver, capture, report):
     restored = next(row for row in actors(driver).values() if row["unique"] == "tskeet")
     if restored["health"] > 0:
         raise RuntimeError("Boss death did not survive save/load")
+    from runtime_campaign_restoration import death_reload
+    death_reload(driver, capture, report)
     return {"contacts": contacts, "waves": sorted(waves), "exit": bridge_exit(driver, capture, report)}
 
 
@@ -347,6 +366,8 @@ def bridge_exit(driver, capture, report):
                   (-1331, 1415, 543), (-1314, 1510, 591), (-1314, 1578, 625),
                   (-1270, 1700, 661), (-1047, 1676, 664), (-900, 1600, 664)):
         walk(driver, point, capture, combat=True)
+    from runtime_campaign_restoration import bridge_progress, visited_bridge
+    progress = bridge_progress(driver)
     checkpoint(driver, capture, report, "bridge_before_exit")
     aim_at(driver, (-760, 1600, 686))
     driver.issue("+forward")
@@ -356,8 +377,9 @@ def bridge_exit(driver, capture, report):
     finally:
         driver.stop_forward()
     checkpoint(driver, capture, report, "factory_arrival")
+    visit = visited_bridge(driver, capture, report, progress)
     from runtime_factory_route import factory_route
-    return {"scope": "Bridge boss damage/death restoration and ordinary traversal through its death-opened door into e1m1c.",
+    return {"visited": visit, "scope": "Bridge boss damage/death restoration and ordinary traversal through its death-opened door into e1m1c.",
             "state": arrival, "factory": factory_route(driver, capture, report)}
 
 
