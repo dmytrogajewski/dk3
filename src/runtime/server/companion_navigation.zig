@@ -10,7 +10,7 @@ const Slots = @import("../engine/slots.zig").Slots;
 const std = @import("std");
 pub fn prepare(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, body: data.Body, now: i64) !void {
     const companion = try world.get(entity, data.Companion);
-    if (!companion.enabled or companion.stopped or companion.authored != .none or body.motion_owner != null or actor.scripted_pose != null) return;
+    if (!companion.enabled or companion.stopped or companion.authored != .none or body.motion_owner != null or actor.scripted_pose != null or actor.reaction != null) return;
     const slot = (try world.get(entity, data.Binding)).slot;
     if (now < companion.yielding_until_ms) {
         actor.mode = .chase;

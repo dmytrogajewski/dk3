@@ -97,6 +97,10 @@ pub fn order(actors: *const @import("actors.zig").Actors, world: *data.World, no
 pub fn goal(actors: *const @import("actors.zig").Actors, navigation: @import("../domain/navigation.zig").Service, world: *data.World, slots: *Slots, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, now: i64) !void {
     const table = &actors.weapons;
     const companion = try world.get(entity, data.Companion);
+    if (actor.reaction != null) {
+        actor.mode = .idle;
+        return;
+    }
     if (try @import("companion_triggers.zig").advance(world, entity, actor, pose, now)) return;
     if (!companion.enabled) {
         actor.mode = .idle;
@@ -134,7 +138,7 @@ pub fn goal(actors: *const @import("actors.zig").Actors, navigation: @import("..
         const kind = @import("actor_catalog").entries[other.definition].kind;
         if (kind == .civilian or @import("actor_catalog").ambient(kind) or kind == .companion or (try world.get(candidate, data.Health)).current <= 0) continue;
         const commanded = companion.order == .attack and companion.target == try world.persistentId(candidate);
-        if (!commanded and other.threat != companion.owner and other.threat != try world.persistentId(entity)) continue;
+        if (!commanded and actor.threat != try world.persistentId(candidate) and other.threat != companion.owner and other.threat != try world.persistentId(entity)) continue;
         const target = (try world.get(candidate, data.Transform)).position;
         const range = v.length(v.subtract(target, pose.position));
         if (range >= distance and !commanded) continue;

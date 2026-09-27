@@ -7,7 +7,7 @@ campaign, companions, multiplayer/bots, UI, persistence and independent release 
 
 Owner-directed cadence: finish the broad connected coding pass, then consolidate the
 build/assets and run verification with repairs. No per-item suite/engine gates.
-Implementation checkpoints 255–282 add no connected acceptance. No overall percentage
+Implementation checkpoints 255–283 add no connected acceptance. No overall percentage
 is inferred from class counts or test volume.
 
 ## Current outcome matrix
@@ -25,10 +25,10 @@ is inferred from class counts or test volume.
 ## Build and asset identity
 
 **No verified engine/asset pair exists for the current candidate.** Latest targeted
-module link: `/tmp/dk3-runtime-282-actor-audio-link.log`, exit 0, before final
-companion cue sharing, guard completion, idle admission and restoration-validation edits. Latest engine/module link:
+module link: `/tmp/dk3-runtime-283-party-injury-link.log`, exit 0, including final
+sequence-282 actor cue changes and sequence-283 party injury dispatch. Latest engine/module link:
 `/tmp/dk3-runtime-277-lightning-link-fixed.log`, exit 0. These are compilation evidence.
-No tests or engine scenarios have run during sequences 255–282.
+No tests or engine scenarios have run during sequences 255–283.
 
 Authoring inventories used local asset manifest
 `ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
@@ -48,6 +48,8 @@ remain subsystem diagnostics; none closes the continuous campaign gate.
 - Shared changes require affected script/cinematic, damage, perception, companion,
   restoration/travel and multiplayer replay. Cambot now uses authored PHS; merged map
   areas remain an acoustics limitation. Earlier narrower PVS alarm evidence is superseded.
+- Sequence 283 adds companion injury receipt handling, grip-specific pain poses,
+  retaliation and injury/death voices. Replay pain during scripts, combat and restore.
 - Sequence 282 adds authored sight/frame sounds and weighted idle selection. Revalidate
   attack audio/timing, companion movement/fire poses and consumed-cue restoration.
 - Sequence 281 prevents retained e1m2b editor-portal metadata from becoming a solid

@@ -5093,3 +5093,33 @@ suite, engine scenario, connected route or reference presentation comparison ran
 Revalidation includes shared actor attack timing/audio, companions, persistence and
 all affected campaign encounters. The full four-episode/multiplayer/release coding
 pass continues before consolidated build/assets and scenario verification.
+
+
+## Sequence 283 — party-injury
+
+Companions now consume injury receipts, choose the actual supplied weapon-grip pain
+pose with the reviewed 75-percent admission, respect the pain lock, and retain a
+hostile attacker for retaliation even when its own target points elsewhere. Self
+hazards do not cause retaliation or a hit pose. Hero/party damage never creates a
+hostile party target. Authored movement and its script clocks pause during a pain
+pose, then resume; movement-lane yielding cannot override that pose.
+
+Class-owned pain/death sound families use companion identity, water/slime/lava
+exposure, episode and actual health. Environmental injury sounds retain 15-percent
+admission; normal injury voices are independent of the animation lock. Death clears
+armor and cancels active weapon controllers before its voice. The existing held
+corpse/game-over path remains; current companion deaths are not admitted to the
+shared always-gib cleanup, so the suspected premature-removal bypass is not present.
+Generic corpse fragmentation and full conversational barks still require qualification
+and further implementation; these cues do not claim complete companion audio parity.
+
+Permitted private Sidekick callbacks and generic initialization/weapon-grip selection
+were reviewed as behavior contracts. Supplied character models own clip identity.
+No private implementation/assets were copied. All three modules link in
+`/tmp/dk3-runtime-283-party-injury-link.log`, exit 0, including final sequence-282
+changes. No tests or native gameplay ran. Current acceptance remains unverified.
+
+The next audit finds omitted native ordinary weapon drops on player/companion death,
+unread item-respawn configuration, missing weapons-stay handling and missing player
+pain/death feedback. Continue those connected inventory/participant lifecycle paths
+within the broad coding pass, then consolidate assets/build and scenario verification.

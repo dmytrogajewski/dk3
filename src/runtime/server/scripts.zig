@@ -128,7 +128,8 @@ pub const State = struct {
             if (!world.alive(entity)) continue;
             if (world.get(entity, data.Health) catch null) |health| if (health.current <= 0) continue;
             if (world.get(entity, data.Actor) catch null) |actor| {
-                if (actor.surgeon.active or (@import("actor_catalog").entries[actor.definition].kind == .civilian and actor.mode == .flee)) {
+                const kind = @import("actor_catalog").entries[actor.definition].kind;
+                if (actor.surgeon.active or (kind == .civilian and actor.mode == .flee) or (kind == .companion and actor.reaction != null)) {
                     if (actor.script_paused_ms == null) actor.script_paused_ms = now;
                     continue;
                 }

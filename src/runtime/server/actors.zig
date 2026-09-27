@@ -472,6 +472,7 @@ pub const Actors = struct {
             if (dead and actor.mode != .dead and (catalog.entries[actor.definition].kind != .ghost or petrified)) {
                 const kind = catalog.entries[actor.definition].kind;
                 if (kind == .kage) try @import("kages.zig").death(world, slots);
+                if (kind == .companion) try @import("companion_damage.zig").death(world, slots, projections, entity, now);
                 if (!petrified and (catalog.ambient(kind) or kind == .dopefish or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or (kind == .buboid and actor.buboid.phase == .terminal)) and engine.integer("sv_violence") == 0) {
                     try @import("actor_gibs.zig").spawn(world, slots, projections, entity, now);
                     actor.gibbed = true;
@@ -526,6 +527,7 @@ pub const Actors = struct {
                 continue;
             }
             const policy = catalog.entries[actor.definition];
+            if (!dead and policy.kind == .companion) try @import("companion_damage.zig").react(self, world, slots, projections, entity, &actor, now);
             if (catalog.ambient(policy.kind)) actor.receipt = hurt.revision;
             const rat = policy.kind == .piperat or policy.kind == .plague_rat;
             if (!dead and rat) {
@@ -571,7 +573,8 @@ pub const Actors = struct {
                 try self.publish(world, entity, projections, now);
                 continue;
             }
-            const acting = !reviving and !actor.surgeon.active and !(policy.kind == .civilian and actor.mode == .flee) and script != null and script.?.active;
+            const party_pain = policy.kind == .companion and actor.reaction != null;
+            const acting = !party_pain and !reviving and !actor.surgeon.active and !(policy.kind == .civilian and actor.mode == .flee) and script != null and script.?.active;
             if (!dead and !acting and policy.kind == .cambot and now >= actor.think_ms) try @import("cambots.zig").sense(world, slots, projections, entity, &actor, pose, body, self.table.definitions[actor.definition], now);
             if (!dead and (policy.kind == .rockgat or policy.kind == .lasergat)) {
                 if (policy.kind == .lasergat) try @import("lasergats.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now) else try @import("rockgats.zig").step(world, slots, projections, entity, &actor, &pose, now);
@@ -582,7 +585,7 @@ pub const Actors = struct {
                 continue;
             }
             if (!dead and !acting and actor.path != 0 and policy.kind != .civilian and !catalog.ambient(policy.kind) and policy.kind != .dopefish and policy.kind != .surgeon and policy.kind != .companion and policy.kind != .protopod and policy.kind != .cambot) try @import("actor_perception.zig").acquire(world, slots, entity, &actor, pose, self.table.definitions[actor.definition], now);
-            const following = !reviving and !(policy.kind == .nharre and actor.nharre.phase != .combat) and !(policy.kind == .kage and actor.kage.phase != .combat) and !(policy.kind == .wyndrax and actor.wyndrax.phase != .combat) and !(policy.kind == .medusa and actor.medusa.phase != .combat) and !actor.surgeon.active and actor.mode != .flee and actor.path != 0 and hurt.revision == actor.receipt and (actor.ignore_player or actor.threat == 0);
+            const following = !party_pain and !reviving and !(policy.kind == .nharre and actor.nharre.phase != .combat) and !(policy.kind == .kage and actor.kage.phase != .combat) and !(policy.kind == .wyndrax and actor.wyndrax.phase != .combat) and !(policy.kind == .medusa and actor.medusa.phase != .combat) and !actor.surgeon.active and actor.mode != .flee and actor.path != 0 and hurt.revision == actor.receipt and (actor.ignore_player or actor.threat == 0);
             if (!dead and body.motion_owner == null and (acting or following)) {
                 var velocity = (try world.get(entity, data.Velocity)).*;
                 const definition = self.table.definitions[actor.definition];

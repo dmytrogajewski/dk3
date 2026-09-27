@@ -46,12 +46,14 @@ pub const Set = struct {
     crouch_walk: [3]animation.Sequence,
     crouch_attack: [3]animation.Sequence,
     swim: ?animation.Sequence,
+    pain: [3]?animation.Sequence = @splat(null),
     pub fn read(bytes: []const u8, carrying: bool) !Set {
         var result: Set = undefined;
         result.swim = if (carrying) null else try animation.find(bytes, "swim") orelse return error.MissingCompanionSwim;
         for (0..3) |grip| {
             var buffer: [32]u8 = undefined;
             const suffix = if (grip == 0) "" else if (grip == 1) "a" else "b";
+            result.pain[grip] = try animation.find(bytes, if (grip == 2) "hitb" else "hita");
             result.idle[grip] = try animation.find(bytes, if (carrying) "amba" else try std.fmt.bufPrint(&buffer, "aamb{s}", .{suffix})) orelse return error.MissingCompanionIdle;
             result.run[grip] = try animation.find(bytes, if (carrying) "runa" else try std.fmt.bufPrint(&buffer, "run{s}", .{suffix})) orelse return error.MissingCompanionRun;
             result.jump[grip] = try animation.find(bytes, if (carrying) "jumpa" else try std.fmt.bufPrint(&buffer, "ajump{s}", .{suffix})) orelse return error.MissingCompanionJump;
@@ -63,12 +65,7 @@ pub const Set = struct {
         return result;
     }
     pub fn select(self: Set, weapon: i32, moving: bool, jumping: bool, ducked: bool, swimming: bool, jump_started: i64, last_fire: ?i64, changed: i64, now: i64) Playback {
-        const entry = if (weapon > 0 and weapon < 32) catalog.find(@intCast(weapon)) else null;
-        const grip: usize = if (entry) |item| switch (item.spec.player_grip) {
-            .glove => 0,
-            .pistol => 1,
-            .rifle, .shoulder => 2,
-        } else 0;
+        const grip = weaponGrip(weapon);
         if (swimming) if (self.swim) |sequence| return .{ .sequence = sequence, .started = changed };
         if (ducked) {
             if (moving) return .{ .sequence = self.crouch_walk[grip], .started = changed };
@@ -81,3 +78,11 @@ pub const Set = struct {
         return .{ .sequence = self.idle[grip], .started = changed };
     }
 };
+pub fn weaponGrip(weapon: i32) usize {
+    const entry = if (weapon > 0 and weapon < 32) catalog.find(@intCast(weapon)) else null;
+    return if (entry) |item| switch (item.spec.player_grip) {
+        .glove => 0,
+        .pistol => 1,
+        .rifle, .shoulder => 2,
+    } else 0;
+}
