@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–259): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–260): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -58,7 +58,9 @@ engine scenario or connected playthrough has run in this coding pass. Sequence 2
 connects Psyclaw, Doombat and Griffon, repairs generic pain and shared fireballs, and
 links all three modules in `/tmp/dk3-runtime-258-griffon-link.log` (compile evidence only).
 Sequence 259 connects Harpy, Dragon and flesh-fragment deaths; its coherent three-module
-link is `/tmp/dk3-runtime-259-dragon-link.log`. No gameplay acceptance is added.
+link is `/tmp/dk3-runtime-259-dragon-link.log`. Sequence 260 connects DeathSphere and
+Chaingang; all three modules link in `/tmp/dk3-runtime-260-chaingang-link-fixed.log`.
+No gameplay acceptance is added.
 
 Shared changes invalidate prior script/cinematic, damage, actor perception,
 restoration/travel and multiplayer coverage on the developing build. Sequence 258
@@ -356,11 +358,54 @@ Status remains **implemented; unverified**. `/tmp/dk3-runtime-259-dragon-link.lo
 links all three modules; no new contract execution, engine scenario, connected campaign
 or multiplayer run. Current engine/asset gameplay identity remains unestablished.
 
+## Sequence 260 implementation checkpoint
+
+DeathSphere connects charge, four-muzzle volleys with two extra frame-driven volleys,
+aerial evasions/altitude checks, bobbing, hover audio and robotic fragmentation. Death
+bolts own their three-second lifetime, health-contact-only radius damage, owner
+immunity, gold sparks and contact sounds. World impacts do not deal splash damage.
+Robotic fragments use the material read from the owning supplied MD3, with bounded
+material parsing and cache invalidation; the inspected model names `skins/m_dsphere`.
+No skin or private asset is embedded in game code. Bolt contact entities remain briefly
+for native spark presentation although the reference deletes its projectile immediately.
+
+Chaingang connects ground/hover admission, room/liquid transitions, ground-node dodge,
+six-feeler aerial strafing/swoops, attack warmups, overlapping chaingun callbacks,
+water-triggered node wandering and death variants. Gun damage/spread, speeds and
+ranges come from class authoring. Saved phase, strafe and volley clocks resume through
+the existing snapshot path. Its supplied muzzle tag is `hr_muzzle`. Jet smoke/debris,
+sparks and light share the bounded particle renderer with Dragon; each emitter retains
+its own clock. Takeoff/landing smoke bursts and tracer presentation remain finer
+presentation work. Full wandering/path/task and pain interruption behavior need playback.
+
+Reviewed reference quirks remain class-scoped: DeathSphere's floor "up" projection is
+world +X; best-away selection applies its final turn to pitch; Chaingang's wall helper
+passes .15 to an integer parameter. Its old 299/316 transition thresholds are below
+supplied `flyb`/`flyc` starts (304/329), so those phases finish on their first tick and
+the 293–294 start sound cannot occur. The death selector makes `dieb` unreachable;
+only `diea` and `diec` are selected. These source findings are not playback comparison.
+
+Compatibility details: initial temporary chaingun bullets use the actual owner's muzzle
+(the previously recorded Commando correction); jet emission uses a fixed 60 Hz clock.
+A full-hull slide still prevents physical penetration when the reference obstruction
+branch leaves its requested direction unchanged. DeathSphere's interrupted attack
+returns through a non-firing `flya` recovery; that task mapping needs qualification.
+Mechanical damage classification, fragment liquids/decals and full sound parity remain
+open. Shared bounce extraction affects Griffon leaps and Doombat corpses; shared escape,
+gun callbacks and particle drawing affect Harpy, Commando/Uzi and Dragon. Replay those
+regressions and all affected restoration scenarios at consolidated verification.
+
+**Implemented; unverified.** Targeted three-module link:
+`/tmp/dk3-runtime-260-chaingang-link-fixed.log`. Initial compile errors are retained in
+sequence-260 logs. New volley/counter/material bounds contracts are included but have
+not executed. No native-engine, connected campaign, multiplayer or reference playback
+acceptance is added, and no current gameplay build/asset identity is established.
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data (including monster factories/death
-spawns) still finds these unimplemented classes at this checkpoint: Buboid, Chaingang,
-Deathsphere, Garroth, Kage, Medusa, final Mikiko, Nharre,
+spawns) still finds these unimplemented classes at this checkpoint: Buboid,
+Garroth, Kage, Medusa, final Mikiko, Nharre,
 Stavros, Wisp and Wyndrax. Script-created classes and boss phases remain part of the full audit.
 This inventory is a coding work list, not campaign-load or traversal acceptance.
 

@@ -3580,3 +3580,21 @@ room-threshold and fragment-count contracts remain unexecuted. Blood/liquid frag
 parity, particle comparison and all applicable engine/restoration scenarios remain
 open in the matrix. The complete campaign/multiplayer coding pass continues; no
 systematic verification, live-service change or preserved-install/save modification.
+
+## Sequence 260 — deathsphere-chaingang-and-robotic-fragments (implementation checkpoint)
+
+Continues after pushed feature checkpoint `39b37f8`. DeathSphere charge/volley/evasion,
+class-owned death bolts and robotic fragments connect alongside Chaingang's ground/hover
+combat, transitions, strafe/swoop, persistent gun callbacks and jet presentation.
+Shared movement, ground escape, node avoidance and particle drawing are reused only
+for concrete matching behaviors. Read-only converted model inspection confirms parent
+material and muzzle bindings. Private source remains outside the project.
+
+The combined three-module link completes in
+`/tmp/dk3-runtime-260-chaingang-link-fixed.log`; reserved-name/type/definition-name
+compile failures and repairs remain in earlier sequence-260 logs. This is compilation
+only. Policy/material regressions are written, unexecuted. Full campaign, companions,
+remaining bosses, multiplayer and release work continues. The current matrix records
+narrow compatibility choices, incomplete presentation details and shared coverage due
+for replay. No engine scenarios or broad verification suites run; main, installed
+playable game, user saves, local assets and live service remain preserved.

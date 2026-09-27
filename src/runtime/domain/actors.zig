@@ -21,6 +21,8 @@ pub const State = struct {
     griffon: catalog.griffon.State = .{},
     harpy: catalog.harpy.State = .{},
     dragon: catalog.dragon.State = .{},
+    deathsphere: catalog.deathsphere.State = .{},
+    chaingang: catalog.chaingang.State = .{},
     pain_ready_ms: i64 = 0,
     evasion: catalog.evasion.State = .{},
     battleboar: catalog.battleboar.State = .{},
@@ -92,6 +94,7 @@ pub const Definition = struct {
     doombat_fireball: catalog.weapon.Tuning = .{},
     harpy_arrow: catalog.weapon.Tuning = .{},
     dragon_fireball: catalog.weapon.Tuning = .{},
+    death_bolt: catalog.weapon.Tuning = .{},
     psyclaw_blast: catalog.weapon.Tuning = .{},
     sludge_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
     boar_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
@@ -110,6 +113,7 @@ pub const Definition = struct {
     mass: f32 = 100,
     speed: f32 = 0,
     walk_speed: f32 = 0,
+    attack_speed: f32 = 0,
     mins: v.Vec3 = @splat(0),
     maxs: v.Vec3 = @splat(0),
     idle: animation.Sequence = .{},
@@ -250,6 +254,14 @@ pub const Table = struct {
             if (catalog.entries[id].kind == .dragon) {
                 entry.dragon_fireball = try catalog.weapon.Tuning.parse(row, "weapon1_");
                 if (entry.dragon_fireball.speed <= 0) return error.InvalidDragonFireball;
+            }
+            if (catalog.entries[id].kind == .chaingang) {
+                entry.attack_speed = try row.number("attack_speed", 0);
+                if (entry.attack_speed <= 0 or entry.attack_speed > 65536) return error.InvalidChaingangAttackSpeed;
+            }
+            if (catalog.entries[id].kind == .deathsphere) {
+                entry.death_bolt = try catalog.weapon.Tuning.parse(row, "weapon1_");
+                if (entry.death_bolt.speed <= 0) return error.InvalidDeathBolt;
             }
             if (catalog.entries[id].kind == .psyclaw) {
                 entry.psyclaw_blast = try catalog.weapon.Tuning.parse(row, "weapon2_");

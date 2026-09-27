@@ -141,7 +141,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
         }
     }
     if (state.phase == .leap) {
-        try leapMotion(pose, body.*, velocity, slot, elapsed);
+        try flight.bounce(pose, body.*, velocity, slot, elapsed, 800, 2, false);
         actor.ground_entity = c.ENTITYNUM_NONE;
         body.grounded = false;
     } else if (state.flying) {
@@ -172,20 +172,4 @@ fn retreat(actors: *@import("actors.zig").Actors, world: *data.World, entity: ec
         actor.griffon.destination = value.point;
         actor.griffon.until_ms = now + @as(i64, @intFromFloat(value.distance / definition.speed * 1000));
     } else actor.griffon.phase = .chase;
-}
-fn leapMotion(pose: *data.Transform, body: data.Body, velocity: *data.Velocity, slot: u16, elapsed: u32) !void {
-    var remaining = elapsed;
-    while (remaining > 0) {
-        const slice = @min(remaining, 50);
-        remaining -= slice;
-        const delta = @as(f32, @floatFromInt(slice)) * 0.001;
-        velocity.linear[2] -= 400 * delta;
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, delta)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
-        pose.position = hit.end;
-        velocity.linear[2] -= 400 * delta;
-        if (hit.fraction < 1) {
-            velocity.linear = v.scale(v.subtract(velocity.linear, v.scale(hit.normal, 2 * v.dot(velocity.linear, hit.normal))), 2);
-            pose.position = v.add(pose.position, v.scale(hit.normal, 0.03125));
-        }
-    }
 }

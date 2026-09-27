@@ -301,6 +301,8 @@ pub fn validate(snapshot: *Loaded) !void {
             if (scenery.gib != null) {
                 try require(world, entity, .{data.Random});
                 if (!scenery.fragment or scenery.breakable or scenery.explosion or scenery.movement != .bounce) return error.InvalidSavedScenery;
+                const skin = scenery.gib.?.skin_model;
+                if (scenery.gib.?.robotic != (skin.len > 0) or skin.len >= 64 or (skin.len > 0 and (!std.mem.startsWith(u8, skin, "models/") or std.mem.indexOf(u8, skin, "..") != null))) return error.InvalidSavedScenery;
             }
             if (scenery.breakable) try require(world, entity, .{ data.Health, data.Hurt });
             if (scenery.broken and (!scenery.breakable or (try world.get(entity, data.Health)).current > 0 or (try world.get(entity, data.Body)).contents != 0)) return error.InvalidSavedScenery;
@@ -320,7 +322,7 @@ pub fn validate(snapshot: *Loaded) !void {
                     if (burst.next_ms <= attack.stepped_ms or burst.tuning.damage < 0 or burst.tuning.damage > 1000000 or burst.tuning.random_damage < 0 or burst.tuning.random_damage > 1000000 or burst.tuning.range <= 0 or burst.tuning.range > 65536) return error.InvalidSavedActorAttack;
                     for (burst.tuning.offset) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1024) return error.InvalidSavedActorAttack;
                     for (burst.tuning.spread) |axis| if (!std.math.isFinite(axis) or axis < 0 or axis > 8192) return error.InvalidSavedActorAttack;
-                    if (burst.kind == .commando and burst.shots >= 5) return error.InvalidSavedActorAttack;
+                    if ((burst.kind == .commando or burst.kind == .chaingang) and burst.shots >= 5) return error.InvalidSavedActorAttack;
                     if (burst.next_ms - attack.stepped_ms > (if (burst.kind == .shotgun) @as(i64, 200) else @import("actor_catalog").gunners.burst_tick_ms)) return error.InvalidSavedActorAttack;
                 },
                 .sludge_glob => |glob| {
@@ -356,7 +358,7 @@ pub fn validate(snapshot: *Loaded) !void {
         }
         if (world.get(entity, data.ActorLaser) catch null) |laser| {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
-            if (laser.owner == 0 or laser.damage < 0 or laser.damage > 1000000 or laser.stepped_ms < laser.born_ms or laser.stepped_ms > laser.born_ms + 10000) return error.InvalidSavedActorLaser;
+            if (laser.owner == 0 or laser.damage < 0 or laser.damage > 1000000 or laser.stepped_ms < laser.born_ms or laser.stepped_ms > laser.born_ms + (if (laser.kind == .death) @as(i64, 3000) else 10000)) return error.InvalidSavedActorLaser;
             if (laser.contact_ms) |at| if (at < laser.born_ms) return error.InvalidSavedActorLaser;
         }
         if (world.get(entity, data.CryoSpray) catch null) |spray| {
@@ -405,6 +407,10 @@ pub fn validate(snapshot: *Loaded) !void {
             for (actor.griffon.destination ++ actor.griffon.previous) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             for (actor.harpy.destination) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             for (actor.dragon.breath_direction) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1.001) return error.InvalidSavedActor;
+            if (actor.chaingang.strafe > 5 or actor.chaingang.burst > 22) return error.InvalidSavedActor;
+            for (actor.chaingang.destination ++ actor.chaingang.start_position) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
+            if (actor.deathsphere.bob > 11 or actor.deathsphere.boost_frame < -1 or actor.deathsphere.boost_frame > 65535) return error.InvalidSavedActor;
+            for (actor.deathsphere.destination) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             if (actor.gibbed and ((try world.get(entity, data.Health)).current > 0 or (try world.get(entity, data.Body)).contents != 0 or actor.mode != .dead)) return error.InvalidSavedActor;
             if (!std.math.isFinite(actor.sludge.ammo) or @abs(actor.sludge.ammo) > 1000000) return error.InvalidSavedActor;
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;

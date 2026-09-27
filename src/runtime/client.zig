@@ -33,6 +33,8 @@ fn shutdown() void {
     @import("client/messages.zig").reset();
     @import("client/cinematics.zig").reset();
     @import("client/dragon.zig").reset();
+    @import("client/chaingang.zig").reset();
+    @import("client/fx_particles.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
     world = null;
@@ -239,6 +241,10 @@ fn draw(now: i32) !void {
             try @import("client/actor_lasers.zig").draw(entity, now, &ref);
             continue;
         }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").deathsphere.bolt_tag) {
+            try @import("client/deathbolts.zig").draw(&game, entity, now, &ref);
+            continue;
+        }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").cryotech.render_tag) {
             @import("client/cryo_spray.zig").draw(entity, now, &ref);
             continue;
@@ -287,7 +293,10 @@ fn draw(now: i32) !void {
             rendered.nonNormalizedAxes = c.qtrue;
         }
         rendered.shaderRGBA = @splat(255);
-        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/scenery.zig").render_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/scenery.zig").render_tag) {
+            rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
+            if (entity.clientNum > 0) rendered.customShader = try @import("client/models.zig").firstMaterial(&game, entity.clientNum);
+        }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").dwarf.axe_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(@divTrunc((@as(i64, entity.time2) - now) * 255, 1000), 0, 255));
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").shafts.render_tag and entity.time2 > 0) rendered.shaderRGBA[3] = @intCast(std.math.clamp(@divTrunc((@as(i64, entity.time2) - now) * 255, 1000), 0, 255));
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").psyclaw.render_tag) {
@@ -304,12 +313,13 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_GENERAL and (entity.time2 == @import("actor_catalog").cambot.idle_tag or entity.time2 == @import("actor_catalog").cambot.alert_tag)) try @import("client/cambot.zig").draw(&rendered, entity.time2 == @import("actor_catalog").cambot.alert_tag, &ref);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").battleboar.flash_tag) try @import("client/battleboar.zig").draw(&rendered);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").rockgat.flash_tag) try @import("client/rockgat.zig").draw(&rendered);
+        if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").chaingang.jet_tag) @import("client/chaingang.zig").emit(&rendered, entity, now);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").dragon.breath_tag) try @import("client/dragon.zig").breath(&rendered, entity, now);
         if (entity.eType == c.ET_GENERAL and entity.generic1 > 0 and entity.generic1 <= 1000) try @import("client/status_visuals.zig").frost(rendered, @as(f32, @floatFromInt(entity.generic1)) / 1000);
     }
     if (snapshot.ps.dk3CameraActive != 0) @import("client/cinematics.zig").audio(ref.vieworg);
     @import("client/impacts.zig").draw(now, &ref);
-    @import("client/dragon.zig").draw(now, &ref);
+    @import("client/fx_particles.zig").draw(now, &ref);
     if (player.mode == .normal and snapshot.ps.stats[c.STAT_HEALTH] > 0) try weapon_view.draw(loadout.*, character.*, &ref, client_number, now, weapon_end_ms);
     _ = engine.gateway.call(c.CG_R_RENDERSCENE, .{&ref});
     if (snapshot.ps.dk3CameraActive != 0) {

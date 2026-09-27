@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Flesh fragment lifecycle; actor policies decide which deaths fragment.
-pub const State = struct { next_ms: i64, fade_ms: ?i64 = null };
+pub const State = struct { next_ms: i64, fade_ms: ?i64 = null, robotic: bool = false, skin_model: []const u8 = "" };
 pub fn count(mass: f32, multiplayer: bool) usize {
     return @intFromFloat((if (multiplayer) @as(f32, 3) else 8) * @import("std").math.clamp(mass / 500, 0.35, 1));
 }

@@ -15,7 +15,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     // The reference's temporary chaingun entity shoots once before its think
     // callbacks. Use the owner's muzzle; its unplaced temporary origin is not a
     // valid firing location in maps whose world origin is outside playable space.
-    if (kind == .commando) _ = try @import("actor_bullets.zig").fire(world, slots, projections, owner, target, pose, tuning, now);
+    if (kind == .commando or kind == .chaingang) _ = try @import("actor_bullets.zig").fire(world, slots, projections, owner, target, pose, tuning, now);
     const entity = try world.create(null, .{ pose, data.Velocity{}, data.Body{ .mins = @splat(0), .maxs = @splat(0) }, data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .gunner_burst = .{ .kind = kind, .tuning = tuning, .two_hands = two_hands, .next_ms = now + (if (kind == .shotgun) @as(i64, 200) else policy.burst_tick_ms) } } } });
     errdefer world.destroy(entity) catch unreachable;
     try lifecycle.bind(world, slots, projections, entity, "");
@@ -71,7 +71,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         burst.shots +|= 1;
         // Uzi's stop is an absolute model frame, including non-attack poses.
         const frame = projections[(try world.get(owner, data.Binding)).slot].state.frame;
-        if ((burst.kind == .commando and burst.shots == 5) or (burst.kind == .uzi and frame >= 80)) return lifecycle.remove(world, slots, projections, entity);
+        if (((burst.kind == .commando or burst.kind == .chaingang) and burst.shots == 5) or (burst.kind == .uzi and frame >= 80)) return lifecycle.remove(world, slots, projections, entity);
     }
     attack.attack.gunner_burst = burst;
     (try world.get(entity, data.ActorAttack)).* = attack;

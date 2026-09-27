@@ -19,4 +19,4 @@ pub const Tuning = struct {
         return result;
     }
 };
-pub const State = struct { owner: u32, damage: f32, born_ms: i64, stepped_ms: i64, contact_ms: ?i64 = null, normal: [3]f32 = @splat(0) };
+pub const State = struct { owner: u32, damage: f32, born_ms: i64, stepped_ms: i64, contact_ms: ?i64 = null, normal: [3]f32 = @splat(0), kind: enum { ordinary, death } = .ordinary, seed: u32 = 0 };

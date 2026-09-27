@@ -2,6 +2,24 @@
 //! Collision movement shared by combat flight and authored actor paths.
 const data = @import("../domain/components.zig");
 const engine = @import("../engine/server.zig");
+pub fn bounce(pose: *data.Transform, body: data.Body, velocity: *data.Velocity, slot: u16, elapsed: u32, gravity: f32, elasticity: f32, settle: bool) !void {
+    const v = @import("../domain/vector.zig");
+    var remaining = elapsed;
+    while (remaining > 0) {
+        const slice = @min(remaining, 50);
+        remaining -= slice;
+        const delta = @as(f32, @floatFromInt(slice)) * 0.001;
+        velocity.linear[2] -= gravity * 0.5 * delta;
+        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, delta)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        pose.position = hit.end;
+        velocity.linear[2] -= gravity * 0.5 * delta;
+        if (hit.fraction < 1 or hit.start_solid) {
+            velocity.linear = v.scale(v.subtract(velocity.linear, v.scale(hit.normal, 2 * v.dot(velocity.linear, hit.normal))), elasticity);
+            if (settle and hit.normal[2] > 0.7 and @abs(velocity.linear[2]) < 60) velocity.linear = @splat(0);
+            pose.position = v.add(pose.position, v.scale(hit.normal, 0.03125));
+        }
+    }
+}
 pub fn roomHeight(point: data.Vec3, slot: u16, distance: f32) !f32 {
     const c = @import("../engine/abi.zig").c;
     const v = @import("../domain/vector.zig");

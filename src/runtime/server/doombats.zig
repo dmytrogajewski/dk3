@@ -138,22 +138,16 @@ fn avoid(world: *data.World, slots: *Slots, pose: data.Transform, body: data.Bod
     }
 }
 pub fn motion(pose: *data.Transform, body: data.Body, velocity: *data.Velocity, slot: u16, elapsed: u32, speed: f32, dead: bool) !void {
+    if (dead) return @import("actor_flight.zig").bounce(pose, body, velocity, slot, elapsed, 1200, 0.5, true);
     var remaining = elapsed;
     while (remaining > 0) {
         const slice = @min(remaining, 50);
         remaining -= slice;
         const seconds = @as(f32, @floatFromInt(slice)) * 0.001;
-        if (dead) velocity.linear[2] -= 600 * seconds;
         const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         pose.position = hit.end;
-        if (dead) velocity.linear[2] -= 600 * seconds;
         if (hit.fraction < 1 or hit.start_solid) {
-            if (dead) {
-                velocity.linear = v.scale(v.subtract(velocity.linear, v.scale(hit.normal, 2 * v.dot(velocity.linear, hit.normal))), 0.5);
-                if (hit.normal[2] > 0.7 and @abs(velocity.linear[2]) < 60) velocity.linear = @splat(0);
-            } else {
-                velocity.linear = v.add(v.clip(velocity.linear, hit.normal), v.scale(hit.normal, speed * 0.6));
-            }
+            velocity.linear = v.add(v.clip(velocity.linear, hit.normal), v.scale(hit.normal, speed * 0.6));
             pose.position = v.add(pose.position, v.scale(hit.normal, 0.03125));
         }
     }

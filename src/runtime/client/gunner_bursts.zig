@@ -21,7 +21,7 @@ pub fn draw(game: *const c.gameState_t, effect: c.entityState_t, entities: []con
     for (0..count) |i| {
         var flash = std.mem.zeroes(c.refEntity_t);
         flash.reType = c.RT_MODEL;
-        flash.hModel = try @import("models.zig").register(policy.flash_model);
+        flash.hModel = try @import("models.zig").register(if (kind == .chaingang) @import("actor_catalog").chaingang.flash_model else policy.flash_model);
         flash.origin = origin;
         flash.axis = basis;
         if (kind == .uzi) {
@@ -30,14 +30,14 @@ pub fn draw(game: *const c.gameState_t, effect: c.entityState_t, entities: []con
             flash.axis[2] = v.scale(flash.axis[2], 2);
             _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &flash.origin, engine.floatArg(120), engine.floatArg(0.6), engine.floatArg(0.4), engine.floatArg(0.4) });
         } else {
-            const name: [*:0]const u8 = if (kind == .commando and (count == 1 or i == 1)) "hr_muzzle2" else "hr_muzzle1";
+            const name: [*:0]const u8 = if (kind == .chaingang) "hr_muzzle" else if (kind == .commando and (count == 1 or i == 1)) "hr_muzzle2" else "hr_muzzle1";
             var tag: c.orientation_t = undefined;
             if (engine.gateway.call(c.CG_R_LERPTAG, .{ &tag, @as(isize, parent_model), @as(isize, owner.frame), @as(isize, owner.frame), engine.floatArg(0), name }) == 0) return error.MissingGunnerMuzzleTag;
             for (basis, tag.origin, owner.angles2) |axis, offset, scale| flash.origin = v.add(flash.origin, v.scale(axis, offset * scale));
             for (&flash.axis, tag.axis) |*axis, local| {
                 axis.* = @splat(0);
                 for (basis, local) |direction, weight| axis.* = v.add(axis.*, v.scale(direction, weight));
-                axis.* = v.scale(axis.*, if (kind == .shotgun) 2.05 else 1.05);
+                axis.* = v.scale(axis.*, if (kind == .shotgun) 2.05 else if (kind == .chaingang) @as(f32, 1) else 1.05);
             }
         }
         flash.nonNormalizedAxes = c.qtrue;

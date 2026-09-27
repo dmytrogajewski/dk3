@@ -91,6 +91,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.frame = state.sequence.frame(now - state.started_ms, state.looping);
     projection.state.generic1 = if (state.explosion) policy.explosion_tag else policy.render_tag;
     projection.state.time2 = @intFromFloat(state.alpha * 255);
+    projection.state.clientNum = if (state.gib) |gib| if (gib.skin_model.len > 0) try @import("resources.zig").model(gib.skin_model) else 0 else 0;
     projection.state.angles2 = state.scale;
     projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
     projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);

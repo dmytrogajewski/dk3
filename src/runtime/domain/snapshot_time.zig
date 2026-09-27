@@ -197,6 +197,11 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try active(&value.dragon.until_ms, delta);
             try active(&value.dragon.ambient_ms, delta);
             try deadline(&value.dragon.breath_until_ms, delta);
+            try active(&value.chaingang.started_ms, delta);
+            try active(&value.chaingang.until_ms, delta);
+            try active(&value.chaingang.strafe_ms, delta);
+            try active(&value.deathsphere.until_ms, delta);
+            try active(&value.deathsphere.charge_ms, delta);
             try active(&value.psyclaw.protected_until_ms, delta);
             try active(&value.psyclaw.emit_ms, delta);
             try deadline(&value.psyclaw.jump_started_ms, delta);

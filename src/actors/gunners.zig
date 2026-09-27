@@ -7,7 +7,7 @@ pub const State = struct {
     ready_ms: i64 = 0,
     emit_ms: i64 = 0,
 };
-pub const BurstKind = enum { commando, uzi, shotgun };
+pub const BurstKind = enum { commando, uzi, shotgun, chaingang };
 pub const Burst = struct {
     kind: BurstKind,
     tuning: @import("weapon.zig").Tuning,

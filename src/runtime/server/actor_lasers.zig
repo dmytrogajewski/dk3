@@ -9,6 +9,20 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").laser;
 const lifecycle = @import("weapon_entities.zig");
+pub fn deathbolt(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+    const random = try world.get(owner, data.Random);
+    const aim = try @import("actor_aim.zig").direct(world, target, pose, tuning, random);
+    const amount = tuning.damage + random.next() * tuning.random_damage;
+    const entity = try world.create(null, .{
+        data.Transform{ .position = aim.origin, .angles = .{ -std.math.atan2(aim.direction[2], @sqrt(aim.direction[0] * aim.direction[0] + aim.direction[1] * aim.direction[1])) * 180 / std.math.pi, std.math.atan2(aim.direction[1], aim.direction[0]) * 180 / std.math.pi, 0 } },
+        data.Velocity{ .linear = v.scale(aim.direction, tuning.speed) },
+        data.Body{ .mins = @splat(0), .maxs = @splat(0), .collision_mask = c.MASK_SHOT },
+        data.ActorLaser{ .owner = try world.persistentId(owner), .damage = amount, .born_ms = now, .stepped_ms = now, .kind = .death, .seed = random.state },
+    });
+    errdefer world.destroy(entity) catch unreachable;
+    try lifecycle.bind(world, slots, projections, entity, @import("actor_catalog").deathsphere.bolt_model);
+    try publish(world, entity, projections, now);
+}
 pub const origin = @import("actor_aim.zig").muzzle;
 pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: policy.Tuning, turret: bool, now: i64) !void {
     const start = origin(pose, tuning.offset);
@@ -39,7 +53,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     const projection = &projections[binding.slot];
     projection.state.number = binding.slot;
     projection.state.eType = c.ET_GENERAL;
-    projection.state.generic1 = policy.render_tag;
+    projection.state.generic1 = if (state.kind == .death) @import("actor_catalog").deathsphere.bolt_tag else policy.render_tag;
     projection.state.frame = @intFromBool(state.contact_ms != null);
     projection.state.time = @intCast(state.contact_ms orelse state.born_ms);
     projection.state.time2 = @bitCast(try world.persistentId(entity));
@@ -64,7 +78,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             if (now - at >= 800) try lifecycle.remove(world, slots, projections, entity);
             continue;
         }
-        const end_ms = @min(now, laser.born_ms + 10000);
+        const lifetime: i64 = if (laser.kind == .death) 3000 else 10000;
+        const end_ms = @min(now, laser.born_ms + lifetime);
         const pose = (try world.get(entity, data.Transform)).*;
         const velocity = (try world.get(entity, data.Velocity)).linear;
         const slot: u16 = if (world.find(laser.owner)) |owner| (try world.get(owner, data.Binding)).slot else c.ENTITYNUM_NONE;
@@ -72,6 +87,20 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         (try world.get(entity, data.Transform)).position = hit.end;
         laser.stepped_ms = end_ms;
         if (hit.fraction < 1 or hit.start_solid) {
+            if (laser.kind == .death) {
+                if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| if ((world.get(victim, data.Health) catch null) != null) {
+                    try @import("area_damage.zig").apply(world, slots, .{ .owner = laser.owner, .weapon = 0, .origin = hit.end, .damage = laser.damage, .radius = 96, .skip_slot = slot, .self_scale = 0, .inertial = true }, now);
+                };
+                laser.contact_ms = now;
+                laser.normal = if (v.length(hit.normal) > 0) hit.normal else v.scale(v.normalize(velocity), -1);
+                (try world.get(entity, data.Transform)).position[2] += 15;
+                var random: data.Random = .{ .state = laser.seed };
+                try @import("events.zig").sound(world, slots, projections, if (random.next() > 0.8) "global/we_zapa.wav" else "global/we_zapb.wav", hit.end, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
+                laser.seed = random.state;
+                (try world.get(entity, data.ActorLaser)).* = laser;
+                try publish(world, entity, projections, now);
+                continue;
+            }
             if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| if ((world.get(victim, data.Health) catch null) != null) {
                 _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(laser.damage)), now, .{ .source = laser.owner });
                 try lifecycle.remove(world, slots, projections, entity);
@@ -80,7 +109,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             laser.contact_ms = now;
             laser.normal = if (v.length(hit.normal) > 0) hit.normal else v.scale(v.normalize(velocity), -1);
             try @import("events.zig").sound(world, slots, projections, "global/we_zapb.wav", hit.end, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
-        } else if (now >= laser.born_ms + 10000) {
+        } else if (now >= laser.born_ms + lifetime) {
             try lifecycle.remove(world, slots, projections, entity);
             continue;
         }
