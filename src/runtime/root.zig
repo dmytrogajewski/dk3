@@ -40,6 +40,8 @@ test {
     _ = @import("domain/earthquake.zig");
     _ = @import("domain/lightstyles.zig");
     _ = @import("domain/complex_particles.zig");
+    _ = @import("domain/lightning.zig");
+    _ = @import("server/lightning.zig");
     _ = @import("server/inventory_actions.zig");
     _ = @import("server/environment.zig");
     _ = @import("domain/world_actions.zig");

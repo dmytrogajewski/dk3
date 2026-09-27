@@ -5,7 +5,7 @@ const c = @import("../engine/abi.zig").c;
 const engine = @import("../engine/client.zig");
 const v = @import("../domain/vector.zig");
 const Random = @import("../domain/components.zig").Random;
-pub const Kind = enum { fire, smoke, bits, spark, blood1, blood2, blood3, blood4, simple, cp1, cp2, cp3, cp4, rain, bubble };
+pub const Kind = enum { fire, smoke, bits, spark, blood1, blood2, blood3, blood4, simple, cp1, cp2, cp3, cp4, rain, bubble, sparkle1, sparkle2 };
 pub const Particle = struct { born_ms: i32, position: v.Vec3, velocity: v.Vec3, acceleration: v.Vec3, color: v.Vec3, alpha: f32, fade: f32, size: f32, kind: Kind };
 var particles: [4096]?Particle = @splat(null);
 var cursor: usize = 0;
@@ -26,13 +26,13 @@ pub fn cloud(point: v.Vec3, direction: v.Vec3, color: v.Vec3, alpha: v.Vec3, siz
         const flight = v.basis(v.add(angles, .{ (random.next() * 2 - 1) * cone, (random.next() * 2 - 1) * cone, 0 })).forward;
         const angle = 2 * std.math.pi * @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(count));
         const jitter: v.Vec3 = if (radius > 0) v.add(v.scale(basis.right, @cos(angle) * radius), v.scale(up, @sin(angle) * radius)) else .{ random.next() - 0.5, random.next() - 0.5, 0 };
-        particles[cursor] = .{ .born_ms = now, .position = v.add(point, jitter), .velocity = v.scale(flight, speed * (0.55 + random.next() * 0.45)), .acceleration = acceleration, .color = color, .alpha = alpha[0], .fade = alpha[1] + random.next() * alpha[2], .size = size * 3 * (if (kind == .smoke) @as(f32, 7) else 1.5), .kind = kind };
+        particles[cursor] = .{ .born_ms = now, .position = v.add(point, jitter), .velocity = v.scale(flight, speed * (0.55 + random.next() * 0.45)), .acceleration = acceleration, .color = color, .alpha = alpha[0], .fade = alpha[1] + random.next() * alpha[2], .size = size * 3 * (if (kind == .smoke) @as(f32, 7) else if (kind == .sparkle1 or kind == .sparkle2) @as(f32, 3) else 1.5), .kind = kind };
         cursor = (cursor + 1) % particles.len;
     }
 }
 pub fn draw(now: i32, ref: *const c.refdef_t) void {
-    var shaders: [15]isize = undefined;
-    inline for (.{ "dk3/fx/dragon-fire", "dk3/fx/dragon-smoke", "dk3/fx/jet-bits", "dk3/fx/jet-spark", "dk3/particle/blood1", "dk3/particle/blood2", "dk3/particle/blood3", "dk3/particle/blood4", "dk3/particle/simple", "dk3/particle/cp1", "dk3/particle/cp2", "dk3/particle/cp3", "dk3/particle/cp4", "dk3/particle/rain", "dk3/particle/bubble" }, 0..) |name, i| shaders[i] = engine.gateway.call(c.CG_R_REGISTERSHADER, .{@as([*:0]const u8, name)});
+    var shaders: [17]isize = undefined;
+    inline for (.{ "dk3/fx/dragon-fire", "dk3/fx/dragon-smoke", "dk3/fx/jet-bits", "dk3/fx/jet-spark", "dk3/particle/blood1", "dk3/particle/blood2", "dk3/particle/blood3", "dk3/particle/blood4", "dk3/particle/simple", "dk3/particle/cp1", "dk3/particle/cp2", "dk3/particle/cp3", "dk3/particle/cp4", "dk3/particle/rain", "dk3/particle/bubble", "dk3/particle/sparkle1", "dk3/particle/sparkle2" }, 0..) |name, i| shaders[i] = engine.gateway.call(c.CG_R_REGISTERSHADER, .{@as([*:0]const u8, name)});
     for (&particles) |*maybe| if (maybe.*) |particle| {
         const seconds = @as(f32, @floatFromInt(now - particle.born_ms)) * 0.001;
         const alpha = particle.alpha - seconds * particle.fade;

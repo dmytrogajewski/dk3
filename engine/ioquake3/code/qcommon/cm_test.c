@@ -322,6 +322,14 @@ byte	*CM_ClusterPVS (int cluster) {
 }
 
 
+byte *CM_ClusterPHS(int cluster) {
+    if (!cm.vised) return cm.visibility;
+    if (!cm.hearing) Com_Error(ERR_DROP, "dk3: map has no authored PHS; regenerate converted assets");
+    if (cluster < 0 || cluster >= cm.numClusters) return NULL;
+    return cm.hearing + cluster * cm.clusterBytes;
+}
+
+
 
 /*
 ===============================================================================

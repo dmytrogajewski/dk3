@@ -414,3 +414,25 @@ dk3/particle/bubble
    tcMod transform 0.121094 0 0 0.242188 0.00195312 0.503906
  }
 }
+
+dk3/particle/sparkle1
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.24218750 0.12695312 0.75390625
+ }
+}
+
+dk3/particle/sparkle2
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.24218750 0.25195312 0.75390625
+ }
+}

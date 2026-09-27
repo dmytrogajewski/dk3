@@ -34,12 +34,20 @@ pub fn reset() void {
     next_light = 0;
 }
 pub fn consume(entity: c.entityState_t) !void {
-    if (entity.number < 0 or entity.number >= seen.len or entity.weapon <= 0 or entity.weapon > 28 or entity.eventParm < 0 or entity.eventParm > @intFromEnum(catalog.impact_rules.Kind.wood)) return error.InvalidImpactEvent;
+    const authored_scorch = entity.weapon == 0 and entity.generic1 == @import("../domain/lightning.zig").scorch_tag;
+    if (entity.number < 0 or entity.number >= seen.len or (!authored_scorch and (entity.weapon <= 0 or entity.weapon > 28)) or entity.eventParm < 0 or entity.eventParm > @intFromEnum(catalog.impact_rules.Kind.wood)) return error.InvalidImpactEvent;
     for (entity.pos.trBase ++ entity.origin2) |coordinate| if (!std.math.isFinite(coordinate)) return error.InvalidImpactPosition;
     const slot: usize = @intCast(entity.number);
     const serial: u32 = @bitCast(entity.time2);
     if (serial == 0 or seen[slot] == serial) return;
     seen[slot] = serial;
+    if (authored_scorch) {
+        var random: Random = .{ .state = serial };
+        const dimensions = sprites.extent(try sprites.register("models/global/we_scorch.sp2"), 0);
+        const scale = @abs((random.next() * 2 - 1) * 0.8 + 0.3);
+        _ = try decal(entity.pos.trBase, v.normalize(entity.origin2), @max(dimensions[0], dimensions[1]) * scale * 0.5, "models/global/we_scorch.sp2/0@mark", random.next() * 2 * std.math.pi, entity.time);
+        return;
+    }
     const kind: catalog.impact_rules.Kind = @enumFromInt(entity.eventParm);
     var cue = catalog.impact(@intCast(entity.weapon), .{ .kind = kind, .serial = serial, .charged = entity.frame & 1 != 0, .detonation = entity.frame & 2 != 0, .sequence = entity.generic1, .trail = entity.frame & 4 != 0 });
     if (entity.frame & 8 != 0 and std.mem.indexOf(u8, cue.particle_shader, "blood") != null) cue.particles = 0;

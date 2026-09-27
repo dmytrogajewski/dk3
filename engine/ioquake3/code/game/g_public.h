@@ -393,6 +393,7 @@ typedef enum {
     , G_DK3_SAVE_WRITE = 700
     , G_DK3_SAVE_READ = 701
     , G_DK3_HOLD_WORLD = 702
+    , G_DK3_IN_PHS = 703
 } gameImport_t;
 
 

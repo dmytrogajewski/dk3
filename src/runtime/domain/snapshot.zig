@@ -539,6 +539,9 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Transform });
             const classname = (try world.get(entity, data.MapObject)).classname;
             const expected = switch (control.action) {
+                .lightning => "effect_lightning",
+                .lightning_bolt => "effect_lightning_bolt",
+                .attractor => "target_attractor",
                 .particles => "sfx_complex_particle",
                 .light_ramp => "target_lightramp",
                 .light => |state| switch (state.kind) { .light => "light", .spot => "light_spot", .strobe => "light_strobe", .flare => "light_flare", .flame => if (std.mem.eql(u8, classname, "light_e1") or std.mem.eql(u8, classname, "light_e2") or std.mem.eql(u8, classname, "light_e3") or std.mem.eql(u8, classname, "light_e4")) classname else "light_e1" },
@@ -556,6 +559,24 @@ pub fn validate(snapshot: *Loaded) !void {
             };
             if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
             switch (control.action) {
+                .lightning => |state| {
+                    try require(world, entity, .{data.Binding, data.Random});
+                    if (state.count > state.attractors.len or state.damage < 0 or state.damage > 1000000 or state.scale <= 0 or state.modulation < 0 or state.delay_ms <= 0 or state.duration_ms <= 0) return error.InvalidSavedLightning;
+                    for ([5]f32{ state.damage, state.scale, state.modulation, state.chance, state.ground_chance } ++ state.color) |value| if (!std.math.isFinite(value) or @abs(value) > 1000000) return error.InvalidSavedLightning;
+                    for (state.sounds ++ [1]u16{state.loop_sound}) |sound| if (sound > snapshot.header.resources.sounds.len) return error.InvalidSavedLightning;
+                    for (state.attractors[0..state.count], 0..) |id, index| {
+                        if (id == 0 or std.mem.indexOfScalar(u32, state.attractors[0..index], id) != null) return error.InvalidSavedLightning;
+                        if (world.find(id)) |attractor| if ((try world.get(attractor, data.WorldControl)).action != .attractor) return error.InvalidSavedLightning;
+                    }
+                },
+                .attractor => |state| if (state.linked and state.link_ms != null) return error.InvalidSavedAttractor,
+                .lightning_bolt => |state| {
+                    try require(world, entity, .{data.Binding});
+                    if (state.emitter == 0 or !std.math.isFinite(state.damage) or state.damage < 0 or state.damage > 1000000) return error.InvalidSavedLightningBolt;
+                    if (world.find(state.emitter)) |emitter| if ((try world.get(emitter, data.WorldControl)).action != .lightning) return error.InvalidSavedLightningBolt;
+                    if (world.find(state.target)) |target| try require(world, target, .{data.Transform});
+                    for (state.endpoint) |value| if (!std.math.isFinite(value)) return error.InvalidSavedLightningBolt;
+                },
                 .particles => |state| {
                     try require(world, entity, .{data.Binding, data.Random});
                     if (state.count < 1 or state.count > 10 or state.velocity < 1 or state.velocity > 1000 or state.scale < 0.01 or state.scale > 200 or state.alpha < 0.01 or state.fade <= 0.01 or state.frequency < 0 or state.emission_time < 0.01 or (state.tracked and (!state.on or (state.phase != .check and state.phase != .spawn))) or (state.phase == .idle) != (state.next_ms == null)) return error.InvalidSavedParticles;

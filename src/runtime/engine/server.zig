@@ -61,3 +61,7 @@ pub fn send(client: u16, command: [:0]const u8) void {
 pub fn inPvs(a: [3]f32, b: [3]f32) bool {
     return gateway.call(c.G_IN_PVS, .{ &a, &b }) != 0;
 }
+
+pub fn inPhs(a: [3]f32, b: [3]f32) bool {
+    return gateway.call(c.G_DK3_IN_PHS, .{ &a, &b }) != 0;
+}

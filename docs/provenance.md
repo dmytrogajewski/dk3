@@ -147,3 +147,13 @@ switch/ramp controllers and transport are independently written.
 - Review scope: the default strings only. No Quake II runtime, game assets, headers
   or unrelated code was admitted. Public data matches the reviewed behavioral
   pattern contract; rendered native/reference comparison is still pending.
+
+### Native authored lightning and hearing (sequence 277)
+
+The independent converter preserves supplied BSP PHS rows in a project-defined
+DKPH/DKPT extension; runtime lookup uses the bundled ioquake collision tree. No private
+implementation or new third-party code is admitted. Lightning/attractor timing, damage,
+media selection and mathematical presentation behavior were reviewed privately; Zig
+owners and the bounded transport/query integration were authored in this project.
+Existing ioquake and project GPL notices remain in force. Supplied rows and media stay
+local generated assets, excluded from publication.

@@ -112,6 +112,7 @@ typedef struct {
 	int			numClusters;
 	int			clusterBytes;
 	byte		*visibility;
+	byte        *hearing; /* dk3 authored PHS, independent of PVS */
 	qboolean	vised;			// if false, visibility is just a single cluster of ffs
 
 	int			numEntityChars;

@@ -472,6 +472,36 @@ void CMod_LoadVisibility( lump_t *l ) {
 	Com_Memcpy (cm.visibility, buf + VIS_HEADER, len - VIS_HEADER );
 }
 
+/* dk3's bounded hearing payload precedes the existing lightstyle trailer. */
+static unsigned int CMod_DK3_U32(const byte *p) {
+    return (unsigned int)p[0] | ((unsigned int)p[1] << 8) |
+           ((unsigned int)p[2] << 16) | ((unsigned int)p[3] << 24);
+}
+static void CMod_LoadHearing(const byte *bytes, int length) {
+    unsigned int end, size, clusters, rowBytes;
+    const byte *payload;
+    if (length < 8) return;
+    end = (unsigned int)length;
+    if (!memcmp(bytes + end - 8, "DKLT", 4)) {
+        size = CMod_DK3_U32(bytes + end - 4);
+        if (size > end - 8) Com_Error(ERR_DROP, "dk3: invalid lightstyle trailer length");
+        end -= size + 8;
+    }
+    if (end < 8 || memcmp(bytes + end - 8, "DKPT", 4)) return;
+    size = CMod_DK3_U32(bytes + end - 4);
+    if (size < 12 || size > end - 8) Com_Error(ERR_DROP, "dk3: invalid PHS trailer length");
+    payload = bytes + end - 8 - size;
+    if (memcmp(payload, "DKPH", 4)) Com_Error(ERR_DROP, "dk3: invalid PHS trailer signature");
+    clusters = CMod_DK3_U32(payload + 4);
+    rowBytes = CMod_DK3_U32(payload + 8);
+    if (!clusters && !cm.vised && !rowBytes && size == 12) return;
+    if (clusters != (unsigned int)cm.numClusters || rowBytes != (unsigned int)cm.clusterBytes ||
+        !rowBytes || clusters > (size - 12) / rowBytes || clusters * rowBytes != size - 12)
+        Com_Error(ERR_DROP, "dk3: invalid PHS dimensions");
+    cm.hearing = Hunk_Alloc(size - 12, h_high);
+    Com_Memcpy(cm.hearing, payload + 12, size - 12);
+}
+
 //==================================================================
 
 
@@ -645,6 +675,7 @@ void CM_LoadMap( const char *name, qboolean clientload, int *checksum ) {
 	CMod_LoadNodes (&header.lumps[LUMP_NODES]);
 	CMod_LoadEntityString (&header.lumps[LUMP_ENTITIES]);
 	CMod_LoadVisibility( &header.lumps[LUMP_VISIBILITY] );
+	CMod_LoadHearing(cmod_base, length);
 	CMod_LoadPatches( &header.lumps[LUMP_SURFACES], &header.lumps[LUMP_DRAWVERTS] );
 
 	// we are NOT freeing the file, because it is cached for the ref

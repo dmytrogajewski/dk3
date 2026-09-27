@@ -312,7 +312,7 @@ class Converter:
         import struct
         trailer = b'DKLS' + struct.pack('<I', len(self.style_blocks)) + b''.join(self.style_blocks)
         trailer += b'DKLT' + struct.pack('<I', len(trailer))
-        return q3bsp.encode(lumps) + trailer, q3bsp.encode(dict(lumps, entities=self.projection.lump)), self.report(lumps)
+        return q3bsp.encode(lumps) + self.hearing + trailer, q3bsp.encode(dict(lumps, entities=self.projection.lump)), self.report(lumps)
 
     # ------------------------------------------------------------------ limits
     def fail(self, error, detail):
@@ -564,9 +564,13 @@ class Converter:
 
     # ------------------------------------------------------------ visibility
     def build_vis(self):
-        """Decompressed PVS rows (CM_DecompressVis semantics) under ioquake3's dvis header: numClusters, clusterBytes
-        (cm_load.c:455-477); the PHS rows are dropped."""
+        """Preserve both authored visibility and hearing; stock engines ignore hearing."""
         rows = self.b.pvs_rows()
+        hearing = self.b.phs_rows()
+        self.losses['phs_overruns'] = sum(overruns for _, overruns in hearing)
+        payload = b'DKPH' + VIS_HEADER.pack(len(hearing), (len(hearing) + 7) >> 3)
+        payload += b''.join(row for row, _ in hearing)
+        self.hearing = payload + b'DKPT' + struct.pack('<I', len(payload))
         self.clusters = len(rows)
         self.losses['vis_overruns'] = sum(overruns for _, overruns in rows)
         if not rows:

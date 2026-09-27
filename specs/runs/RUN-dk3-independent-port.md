@@ -3831,3 +3831,14 @@ visibility addition: `/tmp/dk3-runtime-276-emitter-link.log`. All added regressi
 engine scenarios remain unrun. Broad full-port coding pass continues with lightning,
 weather and remaining campaign/multiplayer/release behavior. No acceptance transferred
 from compilation or the preserved runtime; main/installation/saves/service untouched.
+
+## Sequence 277 — lightning-attractors-and-authored-hearing
+
+Connected native lightning hazards, ordered/cycling attractors and authored control
+chains with damage, audio, saved live bolts and client effects. Conversion and bundled
+engine now preserve/query authored PHS rows; Cambot no longer substitutes PVS for
+hearing. Private behavior review only; no implementation import. Compatibility
+corrections, old-asset diagnostic and revalidation scope are recorded in
+`docs/native-acceptance.md`. Corrected engine/module link exits 0; added regressions,
+engine scenarios and connected acceptance remain unrun. Continue the full coding pass;
+main, installed game, saves and online service remain untouched.

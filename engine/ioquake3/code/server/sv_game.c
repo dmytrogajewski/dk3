@@ -166,6 +166,17 @@ qboolean SV_inPVS (const vec3_t p1, const vec3_t p2)
 }
 
 
+static qboolean SV_DK3_InPHS(const vec3_t a, const vec3_t b) {
+    int from = CM_PointLeafnum(a), to = CM_PointLeafnum(b);
+    int source = CM_LeafCluster(from), target = CM_LeafCluster(to);
+    byte *row;
+    if (source < 0 || target < 0) return qfalse;
+    row = CM_ClusterPHS(source);
+    return row && (row[target >> 3] & (1 << (target & 7))) &&
+           CM_AreasConnected(CM_LeafArea(from), CM_LeafArea(to));
+}
+
+
 /*
 =================
 SV_inPVSIgnorePortals
@@ -414,6 +425,8 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 	case G_SET_BRUSH_MODEL:
 		SV_SetBrushModel( VMA(1), VMA(2) );
 		return 0;
+    case G_DK3_IN_PHS:
+        return SV_DK3_InPHS(VMA(1), VMA(2));
 	case G_IN_PVS:
 		return SV_inPVS( VMA(1), VMA(2) );
 	case G_IN_PVS_IGNORE_PORTALS:

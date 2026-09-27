@@ -51,3 +51,8 @@ pub fn drawPlane(index: u8, frame: usize, origin: v.Vec3, scale: f32, additive: 
 pub fn count(index: u8) u8 {
     return media[index].count;
 }
+
+pub fn extent(index: u8, frame: usize) [2]f32 {
+    const value = media[index].frames[frame];
+    return .{ value.width, value.height };
+}

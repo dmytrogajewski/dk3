@@ -26,6 +26,15 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             switch (value.action) {
                 .timer => |*timer| try deadline(&timer.next_ms, delta),
                 .speaker => |*speaker| try deadline(&speaker.next_ms, delta),
+                .lightning => |*state| {
+                    try deadline(&state.next_ms, delta);
+                    try shift(&state.uncull_until_ms, delta);
+                },
+                .attractor => |*state| try deadline(&state.link_ms, delta),
+                .lightning_bolt => |*state| {
+                    try shift(&state.next_ms, delta);
+                    try shift(&state.until_ms, delta);
+                },
                 .particles => |*state| {
                     try deadline(&state.next_ms, delta);
                     try shift(&state.until_ms, delta);
@@ -476,4 +485,22 @@ test "authored earthquake and light restoration retain pending pulses, ramp prog
     try t.expectEqual(before, ramp.action.light_ramp.sample(10250));
     try t.expectEqual(phase, @import("lightstyles.zig").sample(light.action.light.pattern, 10250 - light.action.light.phase_ms));
     try t.expectEqual(@as(u64, 42), light.action.light.revision);
+}
+
+test "restored lightning keeps link and expiry boundaries while preserving intervals" {
+    const t = std.testing;
+    var emitter: data.WorldControl = .{ .action = .{ .lightning = .{ .flags = 0, .next_ms = 2100, .uncull_until_ms = 3000 } } };
+    var attractor: data.WorldControl = .{ .action = .{ .attractor = .{ .link_ms = 700 } } };
+    var bolt: data.WorldControl = .{ .action = .{ .lightning_bolt = .{ .emitter = 9, .target = 4, .endpoint = .{1, 2, 3}, .next_ms = 800, .until_ms = 1000, .damage = 10 } } };
+    try rebase(.world_control, &emitter, 5000);
+    try rebase(.world_control, &attractor, 5000);
+    try rebase(.world_control, &bolt, 5000);
+    try t.expectEqual(@as(?i64, 7100), emitter.action.lightning.next_ms);
+    try t.expectEqual(@as(i64, 8000), emitter.action.lightning.uncull_until_ms);
+    try t.expectEqual(@as(i64, 2000), emitter.action.lightning.delay_ms);
+    try t.expectEqual(@as(?i64, 5700), attractor.action.attractor.link_ms);
+    try t.expectEqual(@as(i64, 5800), bolt.action.lightning_bolt.next_ms);
+    try t.expectEqual(@as(i64, 6000), bolt.action.lightning_bolt.until_ms);
+    try t.expectEqual(@as(u32, 9), bolt.action.lightning_bolt.emitter);
+    try t.expectEqual(@as(u32, 4), bolt.action.lightning_bolt.target);
 }

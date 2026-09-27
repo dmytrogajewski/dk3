@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–276): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–277): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -1006,6 +1006,42 @@ addition. No suite, engine or connected acceptance ran. Existing manifest
 provided authoring data; new shaders still require regenerated assets. There is no
 verified build/asset identity for this candidate. Continue lightning/attractors, weather
 and remaining episode/multiplayer/release implementation; preserved environments unchanged.
+
+## Sequence 277 — lightning-attractors-and-authored-hearing
+
+Implemented; unverified. Lightning now connects exclusive player/ground/attractor
+selection, trigger-index ordering, cycling, authored target dispatch, finite/continuous
+bolts, direct and traced damage with existing inertial impulses, random sound and
+loop shutdown. Persistent emitters, linked attractors, live bolts and deadlines restore
+through the native snapshot. Bolts survive late joins through ordinary snapshots.
+Client geometry uses supplied lightning/sparkle media, authored color/scale/modulation,
+segmented displacement, optional distance alpha fade and endpoint sparks. SPAWN_LIGHT
+remains unused, as in the reviewed tracking packet; no invented damage or light is added.
+
+The converter now retains separate authored PHS hearing rows in a bounded DKPH/DKPT
+trailer before DKLS. The bundled collision loader and native query consume those rows.
+Missing PHS on an older converted map fails with an asset-regeneration diagnostic.
+This replaces Cambot's documented narrower PVS fallback and permits lightning's actual
+hearing-culling contract. Existing merged area-portals remain a separate converter
+limitation; preserving PHS does not establish closed-door acoustics parity.
+
+Narrow compatibility corrections: shared attractors have independent emitter membership
+instead of reference linked-node aliasing; deleting an emitter safely removes surviving
+bolts. Native scorch transport supplies a complete typed event because the reviewed
+reference sender omits fields required by its surface-mark receiver. Sparks/arc animation
+use the existing fixed 60 Hz visual-clock correction. Bounded geometry and the shared
+native decal lifetime still need presentation comparison.
+
+Engine plus three modules linked successfully in
+`/tmp/dk3-runtime-277-lightning-link-fixed.log` after two compilation errors retained in
+`/tmp/dk3-runtime-277-lightning-link.log`. Final added regressions are unrun: branch
+exclusion, cycle order, bolt expiry, shared attractor linking, clock restoration and
+synthetic distinct PVS/PHS rows. No suite, engine scenario, connected gameplay or visual
+reference comparison ran. No verified build/asset identity exists. Source authoring
+inventory is `/tmp/dk3-runtime-272-world-properties.json` on manifest
+`ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
+Regenerate assets before engine use; replay Cambot alarms and affected beam presentation.
+Continue weather/world effects and remaining complete campaign/multiplayer/release work.
 
 ## Remaining authored actor admission
 

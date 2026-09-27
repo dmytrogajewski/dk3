@@ -235,14 +235,21 @@ class Bsp:
         return numclusters, bitofs
 
     def pvs_rows(self):
-        """-> [(decompressed PVS row, overruns)] per cluster, each row (numclusters + 7) >> 3 bytes with one bit per
-        cluster; [] when the visibility lump is empty."""
+        """Decompressed visibility rows; empty when the map has no visibility lump."""
+        return self.visibility_rows(0)
+
+    def phs_rows(self):
+        """Decompressed authored hearing rows, separate from line-of-sight visibility."""
+        return self.visibility_rows(1)
+
+    def visibility_rows(self, column):
         vis = self.visibility()
         if vis is None:
             return []
         numclusters, bitofs = vis
         lump, base = self.raw('visibility'), self.lumps['visibility'][0]
-        return [decompress_vis(lump, int(offset), (numclusters + 7) >> 3, self.source, base) for offset in bitofs[:, 0]]
+        return [decompress_vis(lump, int(offset), (numclusters + 7) >> 3, self.source, base)
+                for offset in bitofs[:, column]]
 
     def leaf_at(self, point):
         """-> the leaf holding `point`, as CM_PointLeafnum_r walks the tree from node 0 (cmodel.cpp:1057-1089): the front

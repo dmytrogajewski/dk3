@@ -60,15 +60,13 @@ pub fn sense(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     actor.cambot.alarmed = actor.threat;
     try @import("events.zig").sound(world, slots, projections, policy.alarm, pose.position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
     // Reference uses camera-to-player distance here, not camera-to-monster.
-    // Converted ioquake worlds expose PVS rather than the original PHS. This
-    // deliberately narrower admission is a documented compatibility departure.
     if (v.length(v.subtract(actor.threat_position, pose.position)) < 1024) for (slots.occupants) |occupant| {
         const other = occupant orelse continue;
         if (other.index == entity.index or !world.alive(other)) continue;
         const state = world.get(other, data.Actor) catch continue;
         if ((try world.get(other, data.Health)).current <= 0) continue;
         if (catalog.entries[state.definition].kind == .protopod and state.pod.phase == .shell) continue;
-        if (!engine.inPvs(pose.position, (try world.get(other, data.Transform)).position)) continue;
+        if (!engine.inPhs(pose.position, (try world.get(other, data.Transform)).position)) continue;
         state.threat = actor.threat;
         state.threat_position = actor.threat_position;
         state.threat_seen_ms = now;
