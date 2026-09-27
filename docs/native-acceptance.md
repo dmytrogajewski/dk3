@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–260): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–261): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -60,7 +60,8 @@ links all three modules in `/tmp/dk3-runtime-258-griffon-link.log` (compile evid
 Sequence 259 connects Harpy, Dragon and flesh-fragment deaths; its coherent three-module
 link is `/tmp/dk3-runtime-259-dragon-link.log`. Sequence 260 connects DeathSphere and
 Chaingang; all three modules link in `/tmp/dk3-runtime-260-chaingang-link-fixed.log`.
-No gameplay acceptance is added.
+Sequence 261 connects Buboid, ambient Wisp swarms and Wyndrax; its consolidated
+link is `/tmp/dk3-runtime-261-consolidated-link.log`. No gameplay acceptance is added.
 
 Shared changes invalidate prior script/cinematic, damage, actor perception,
 restoration/travel and multiplayer coverage on the developing build. Sequence 258
@@ -401,12 +402,59 @@ sequence-260 logs. New volley/counter/material bounds contracts are included but
 not executed. No native-engine, connected campaign, multiplayer or reference playback
 acceptance is added, and no current gameplay build/asset identity is established.
 
+## Sequence 261 implementation checkpoint
+
+Buboid connects coffin wakeup, melee, nonterminal collapse, ten-second resurrection,
+second lethal-hit termination, melt immunity, alpha changes and holy-ground-aware
+relocation. The collision adapter exposes the already-converted holy surface bit;
+converter/engine semantics are unchanged. Standing placement is additionally checked
+with the actual hull after the reference's enlarged search probe. This intentionally
+avoids emerging inside an occupant/mover. Melt deadlines, alpha, corpse/recovery state
+and permanent-death dispatch persist. Exact pain/script interruption and encounter
+playback remain unqualified.
+
+Ambient Wisp clusters connect authored counts, movement, alpha, sequential collection,
+100-second regeneration, sound scheduling and a persisted delivery handshake. They
+remain distinct from damageable attack Wisps. Initial ambient personalities use the
+same minimum 0.25 guard as Fireflies, avoiding singular steering at spawn. Wyndrax
+owns lightning above half health, Wisp ammunition below it, the named power station,
+node/ground movement, collection loops and active-projectile retreat. Missing active
+swarms cause wandering and rechecking rather than the reference's invalid enemy
+access; no free ammunition is granted. The final collection waits for its monitor's
+acknowledgement before retiring the source, preserving that last delivery on reload.
+Wyndrax's special sequences are present in the model but absent from CSV; reviewed
+frame-data initialization supplies their first+1 strike. Station arcs do not damage
+the boss: the source's null owner suppresses that damage path.
+
+NPC attack Wisps connect homing/oscillation, collision reflection, shootable health,
+the class pain callback's second deduction, two-damage lightning ticks, world arcs,
+owner death/expiry and shrinking fade. Wyndrax's discharge emits four arcs in two
+pairs, with captured-contact radius damage and separate flare lifetimes. A missing
+or dead target starts Wisp fade, avoiding a stale pointer. Typed effects and swarms
+use existing ECS, projection and save mechanisms. New Buboid/Wisp damage regressions
+are written and unexecuted. Beam/particle geometry, sound attenuation, full effect
+comparison and dynamic summoner interactions still require qualification. Particle
+emission uses the bounded native pool and fixed 60 Hz, rather than render-frame rate.
+
+The alpha repair selects each converted MD3 surface's existing alpha material;
+shaderRGBA alone did not blend implicit opaque skins. Robotic-fragment material
+lookup now explicitly selects ordinary/alpha variants. Revalidate Buboid, fragments,
+DeathSphere bolts, Psyclaw spheres, Dragon fireballs, Dwarf axes/arrows and player
+projectile fades. Chaingang wandering now reuses the existing node selector and
+requires its affected replay. All new damage, actor, script, effect and restoration
+paths require consolidated regression and native/connected scenario verification.
+
+**Implemented; unverified.** All three modules link in
+`/tmp/dk3-runtime-261-consolidated-link.log`; earlier compile errors are retained in
+sequence-261 logs. This establishes no running-engine or campaign acceptance and no
+verified gameplay build/asset identity. Main, preserved installation, user saves,
+private assets and live service are untouched.
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data (including monster factories/death
-spawns) still finds these unimplemented classes at this checkpoint: Buboid,
-Garroth, Kage, Medusa, final Mikiko, Nharre,
-Stavros, Wisp and Wyndrax. Script-created classes and boss phases remain part of the full audit.
+spawns) still finds these unimplemented classes at this checkpoint: Garroth, Kage, Medusa, final Mikiko, Nharre and
+Stavros. Script-created classes and boss phases remain part of the full audit.
 This inventory is a coding work list, not campaign-load or traversal acceptance.
 
 ## Acceptance rules

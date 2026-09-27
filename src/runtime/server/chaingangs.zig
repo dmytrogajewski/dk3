@@ -220,32 +220,14 @@ fn sound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection,
 }
 fn wander(actors: *@import("actors.zig").Actors, world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, now: i64) !void {
     const state = &actor.chaingang;
-    const nearest = actors.air_routes.nearest(pose.position) orelse {
-        actor.melee.active = false;
+    actor.melee.active = false;
+    const point = try @import("actor_wander.zig").next(&actors.air_routes, pose, state.start_position, definition, try world.get(entity, data.Random), null) orelse {
         state.phase = .chase;
         return;
     };
-    for (actors.air_routes.nodes) |node| if (v.length(v.subtract(node.position, nearest)) < 0.01 and node.links.len != 0) {
-        var choices: [6]usize = undefined;
-        var count: usize = 0;
-        for (node.links, 0..) |link, i| {
-            const point = actors.air_routes.nodes[actors.air_routes.indices[@intCast(link[1])].?].position;
-            const delta = v.subtract(point, pose.position);
-            const horizontal = @sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
-            const yaw = std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi;
-            if (horizontal < definition.walk_speed * 0.2 and @abs(delta[2]) < 32) continue;
-            if (v.length(v.subtract(point, state.start_position)) >= definition.sight_range or @abs(@mod(yaw - pose.angles[1] + 180, 360) - 180) > 90) continue;
-            choices[count] = i;
-            count += 1;
-        }
-        const roll = (try world.get(entity, data.Random)).next();
-        const index: usize = if (count > 0) choices[@intFromFloat(roll * @as(f32, @floatFromInt(count)))] else @intFromFloat(roll * @as(f32, @floatFromInt(node.links.len)));
-        state.destination = actors.air_routes.nodes[actors.air_routes.indices[@intCast(node.links[index][1])].?].position;
-        state.phase = .wander;
-        state.until_ms = now + 1000 + @as(i64, @intFromFloat(v.length(v.subtract(state.destination, pose.position)) / definition.walk_speed * 1000));
-        actor.melee.active = false;
-        return;
-    };
+    state.destination = point;
+    state.phase = .wander;
+    state.until_ms = now + 1000 + @as(i64, @intFromFloat(v.length(v.subtract(point, pose.position)) / definition.walk_speed * 1000));
 }
 fn strafe(actors: *@import("actors.zig").Actors, world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, body: data.Body, velocity: *data.Velocity, enemy: v.Vec3, definition: Definition, slow: f32, now: i64) !void {
     const state = &actor.chaingang;

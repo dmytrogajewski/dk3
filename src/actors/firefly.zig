@@ -9,6 +9,7 @@ pub fn shape(flags: u32) u3 {
 }
 pub const State = struct {
     source: u32,
+    wisp: ?@import("wisp.zig").Particle = null,
     shape: u3,
     distance: f32 = 75,
     speed: f32 = 55,

@@ -14,6 +14,7 @@ pub fn draw(game: *const c.gameState_t, entity: c.entityState_t, now: i32, ref: 
     model.oldorigin = origin;
     model.axis = .{ v.scale(basis.forward, 3), v.scale(basis.right, -1.5), v.scale(v.cross(basis.right, basis.forward), 1.5) };
     model.nonNormalizedAxes = c.qtrue;
+    model.skinNum = 1;
     model.renderfx = c.RF_MINLIGHT | c.RF_NOSHADOW;
     model.shaderRGBA = .{ 255, 255, 255, 179 };
     _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&model});

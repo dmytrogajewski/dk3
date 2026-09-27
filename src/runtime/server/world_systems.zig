@@ -40,6 +40,7 @@ pub const State = struct {
         self.actors.weapons = table.*;
         try self.actors.spawn(allocator, world, slots, projections, now, episode);
         try @import("fireflies.zig").spawn(world, slots, projections, now);
+        try @import("wisps.zig").spawn(world, slots, projections, now);
         try @import("scenery.zig").spawn(allocator, world, slots, projections, now);
         try @import("attachments.zig").spawn(world);
         try self.multiplayer.spawn(world, slots, projections, episode, now);
@@ -106,6 +107,7 @@ pub const State = struct {
         if (!@import("cinematics.zig").active(world)) try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);
         if (!@import("cinematics.zig").active(world)) try @import("companions.zig").combat(&self.actors, world, slots, projections, table, now, elapsed);
         try @import("actor_attacks.zig").step(world, slots, projections, now);
+        try @import("wisps.zig").step(world, slots, projections, now);
         try @import("fireflies.zig").step(world, slots, projections, now, elapsed);
         try @import("scenery.zig").step(world, slots, projections, targets, now, elapsed);
         try @import("healthtrees.zig").step(world, slots, projections, now, elapsed);

@@ -288,7 +288,28 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Firefly) catch null) |fly| {
             try require(world, entity, .{ data.Binding, data.Body, data.Transform, data.Velocity, data.Random });
             if (fly.source == 0 or fly.distance < 20 or fly.distance > 200 or fly.speed < 1 or fly.speed > 500 or fly.personality < 0.25 or fly.personality > 1 or fly.phase >= 12 or fly.scale <= 0 or fly.scale > 10000 or fly.maximum_alpha < 0 or fly.maximum_alpha > 1 or fly.delta_alpha < 0 or fly.delta_alpha > 1 or fly.color_fraction < 0 or fly.color_fraction > 1.25) return error.InvalidSavedFirefly;
-            if (world.find(fly.source)) |source| if (!std.mem.eql(u8, (try world.get(source, data.MapObject)).classname, @import("actor_catalog").firefly.classname)) return error.InvalidSavedFirefly;
+            if (world.find(fly.source)) |source| {
+                const classname = if (fly.wisp != null) @import("actor_catalog").wisp.classname else @import("actor_catalog").firefly.classname;
+                if (!std.mem.eql(u8, (try world.get(source, data.MapObject)).classname, classname)) return error.InvalidSavedFirefly;
+                if (fly.wisp) |wisp| {
+                    const swarm = world.get(source, data.WispSwarm) catch return error.InvalidSavedWisp;
+                    if (swarm.count > 10 or std.mem.indexOfScalar(u32, swarm.children[0..swarm.count], try world.persistentId(entity)) == null or wisp.blend_after > 5) return error.InvalidSavedWisp;
+                    for (wisp.goal ++ wisp.collected_at) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedWisp;
+                }
+            }
+        }
+        if (world.get(entity, data.WispSwarm) catch null) |swarm| {
+            try require(world, entity, .{ data.MapObject, data.Transform, data.Random });
+            if (swarm.count < 1 or swarm.count > 10 or !std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, @import("actor_catalog").wisp.classname)) return error.InvalidSavedWisp;
+            if (swarm.sending) |index| if (index >= swarm.count) return error.InvalidSavedWisp;
+            for (swarm.goal) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedWisp;
+            for (swarm.children[0..swarm.count], 0..) |id, i| {
+                if (id == 0 or std.mem.indexOfScalar(u32, swarm.children[0..i], id) != null) return error.InvalidSavedWisp;
+                const child = world.find(id) orelse return error.InvalidSavedWisp;
+                const fly = world.get(child, data.Firefly) catch return error.InvalidSavedWisp;
+                if (fly.source != try world.persistentId(entity) or fly.wisp == null) return error.InvalidSavedWisp;
+            }
+            for (swarm.children[swarm.count..]) |id| if (id != 0) return error.InvalidSavedWisp;
         }
         if (world.get(entity, data.Scenery) catch null) |scenery| {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
@@ -315,6 +336,30 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
             if (attack.owner == 0 or attack.stepped_ms < attack.born_ms) return error.InvalidSavedActorAttack;
             switch (attack.attack) {
+                .npc_wisp => |wisp| {
+                    try require(world, entity, .{ data.Random, data.Health, data.Hurt });
+                    if (wisp.target == 0 or wisp.phase >= 12 or !std.math.isFinite(wisp.personality) or @abs(wisp.personality) > 1 or !std.math.isFinite(wisp.alpha) or wisp.alpha <= 0 or wisp.alpha > 1 or !std.math.isFinite(wisp.sprite_scale) or wisp.sprite_scale < 1 or wisp.sprite_scale > 1.5 or wisp.next_ms <= attack.stepped_ms or wisp.next_ms > attack.stepped_ms + 100) return error.InvalidSavedActorAttack;
+                    for (wisp.scale) |axis| if (!std.math.isFinite(axis) or axis <= 0 or axis > 4) return error.InvalidSavedActorAttack;
+                    for (wisp.forward) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1.01) return error.InvalidSavedActorAttack;
+                },
+                .wyndrax_zap => |zap| {
+                    if (zap.target == 0 or zap.emitted > 4 or zap.emitted % 2 != 0 or attack.stepped_ms > attack.born_ms + 500) return error.InvalidSavedActorAttack;
+                    for (zap.destination) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedActorAttack;
+                },
+                .wyndrax_bolt => |bolt| {
+                    if (bolt.parent == 0 or bolt.until_ms < attack.born_ms or bolt.until_ms > attack.born_ms + 750 or bolt.next_ms <= attack.stepped_ms or bolt.flare_scale <= 0 or bolt.flare_scale > 5) return error.InvalidSavedActorAttack;
+                    const parent = world.find(bolt.parent) orelse return error.InvalidSavedActorAttack;
+                    if (bolt.kind == .charge) {
+                        try require(world, parent, .{data.Actor});
+                        if (bolt.parent != attack.owner) return error.InvalidSavedActorAttack;
+                    } else {
+                        const source = world.get(parent, data.ActorAttack) catch return error.InvalidSavedActorAttack;
+                        if (source.owner != attack.owner or (if (bolt.kind == .zap) source.attack != .wyndrax_zap else source.attack != .npc_wisp)) return error.InvalidSavedActorAttack;
+                    }
+                    if (bolt.kind != .scenery and bolt.target == 0) return error.InvalidSavedActorAttack;
+                    for (bolt.destination ++ bolt.contact ++ bolt.color) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedActorAttack;
+                    if (bolt.flare) |point| for (point) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedActorAttack;
+                },
                 .psyclaw_sphere => |sphere| {
                     if (sphere.damage <= 0 or sphere.damage > 1000000 or sphere.scale < 0.5 or sphere.scale > 4.5 or sphere.multiplier < 0.9 or sphere.multiplier > 1.45 or sphere.color < -8 or sphere.color > 33 or sphere.color_direction < -8 or sphere.color_direction > 8 or sphere.next_ms <= attack.stepped_ms or sphere.next_ms > attack.stepped_ms + 100 or attack.stepped_ms > attack.born_ms + 8000) return error.InvalidSavedActorAttack;
                 },
@@ -407,6 +452,8 @@ pub fn validate(snapshot: *Loaded) !void {
             for (actor.griffon.destination ++ actor.griffon.previous) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             for (actor.harpy.destination) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             for (actor.dragon.breath_direction) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1.001) return error.InvalidSavedActor;
+            for (actor.wyndrax.destination ++ actor.wyndrax.start_position) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedActor;
+            if (!std.math.isFinite(actor.buboid.alpha) or actor.buboid.alpha < 0 or actor.buboid.alpha > 1) return error.InvalidSavedActor;
             if (actor.chaingang.strafe > 5 or actor.chaingang.burst > 22) return error.InvalidSavedActor;
             for (actor.chaingang.destination ++ actor.chaingang.start_position) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             if (actor.deathsphere.bob > 11 or actor.deathsphere.boost_frame < -1 or actor.deathsphere.boost_frame > 65535) return error.InvalidSavedActor;

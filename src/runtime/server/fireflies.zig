@@ -58,8 +58,12 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.number = binding.slot;
     projection.state.eType = c.ET_GENERAL;
     projection.state.modelindex = binding.model;
-    projection.state.generic1 = policy.render_tag;
+    projection.state.generic1 = if (state.wisp != null) @import("actor_catalog").wisp.render_tag else policy.render_tag;
     projection.state.frame = state.shape;
+    if (state.wisp) |wisp| {
+        projection.state.time = @intCast(wisp.collected_ms);
+        projection.state.angles = wisp.collected_at;
+    }
     projection.state.time2 = @intFromFloat(std.math.clamp(state.alpha, 0, 1) * 255);
     projection.state.angles2 = .{ state.scale, 0, 0 };
     projection.state.origin2 = state.displayed_color;
@@ -83,6 +87,11 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const pose = try world.get(entity, data.Transform);
         const velocity = try world.get(entity, data.Velocity);
         const random = try world.get(entity, data.Random);
+        if (state.wisp != null) {
+            try @import("wisps.zig").particle(world, entity, source, state, pose, velocity, random, now, elapsed);
+            try publish(world, entity, projections);
+            continue;
+        }
         if (now >= state.next_ms) {
             state.next_ms = now + 100;
             state.alpha_count += 1;

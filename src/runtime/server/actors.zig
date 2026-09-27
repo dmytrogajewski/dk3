@@ -34,7 +34,7 @@ pub const Actors = struct {
             var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.Transform }), 0, 0);
             defer query.deinit();
             while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| {
-                if (std.mem.startsWith(u8, object.classname, "monster_") and !std.mem.eql(u8, object.classname, "monster_path_corner") and !std.mem.eql(u8, object.classname, catalog.firefly.classname) and catalog.find(object.classname) == null) {
+                if (std.mem.startsWith(u8, object.classname, "monster_") and !std.mem.eql(u8, object.classname, "monster_path_corner") and !std.mem.eql(u8, object.classname, catalog.firefly.classname) and !std.mem.eql(u8, object.classname, catalog.wisp.classname) and catalog.find(object.classname) == null) {
                     var message: [160]u8 = undefined;
                     engine.print(try std.fmt.bufPrintZ(&message, "dk3 actor: missing native controller for {s}\n", .{object.classname}));
                     return error.UnknownAuthoredActorClass;
@@ -85,6 +85,8 @@ pub const Actors = struct {
             .dragon => &catalog.dragon.attacks,
             .deathsphere => &catalog.deathsphere.attacks,
             .chaingang => &catalog.chaingang.attacks,
+            .buboid => &catalog.buboid.attacks,
+            .wyndrax => &catalog.wyndrax.attacks,
             .psyclaw => &catalog.psyclaw.attacks,
             .sludgeminion => &catalog.sludge.attacks,
             .rotworm => &catalog.rotworm.attacks,
@@ -111,6 +113,12 @@ pub const Actors = struct {
             }
             definition.attacks[i] = try animation.find(metadata, attack) orelse return error.MissingActorAttack;
             if ((policy.kind == .spider or policy.kind == .smallspider) and i == 0) definition.attacks[i].fps *= 2;
+            // These Wyndrax model sequences have no rows in the supplied CSV;
+            // their default strike is first+1 and the class supplies zap audio.
+            if (policy.kind == .wyndrax) {
+                definition.strikes[i] = 1;
+                continue;
+            }
             if (policy.kind == .satyr and i >= 3) continue;
             if ((policy.kind == .chaingang and (i == 2 or i == 3)) or policy.kind == .surgeon or (policy.kind == .sludgeminion and i == 3) or (policy.kind == .deathsphere and i == 1)) continue;
             const row = try self.event(policy.classname, attack);
@@ -126,7 +134,7 @@ pub const Actors = struct {
             if (second < 0 or second > @as(f32, @floatFromInt(definition.attacks[i].last - definition.attacks[i].first))) return error.InvalidActorStrike;
             definition.second_strikes[i] = if (second > 0) @intFromFloat(second) else null;
             if (policy.kind == .venomvermin and (i == 1 or i == 3)) definition.second_strikes[i] = @intFromFloat(second);
-            if (policy.kind == .psyclaw or policy.kind == .griffon) definition.second_strikes[i] = @intFromFloat(second);
+            if (policy.kind == .psyclaw or policy.kind == .griffon or (policy.kind == .buboid and i < 2)) definition.second_strikes[i] = @intFromFloat(second);
             if (policy.kind == .uzigang or ((policy.kind == .sealcaptain or policy.kind == .sealgirl) and i == 1)) definition.second_strikes[i] = @intFromFloat(second);
             if (policy.kind == .rocketmp and i != 1) definition.second_strikes[i] = @intFromFloat(second);
             if (policy.kind == .blackprisoner or policy.kind == .whiteprisoner) definition.second_strikes[i] = @intFromFloat(second);
@@ -139,8 +147,9 @@ pub const Actors = struct {
         if (policy.kind == .dwarf or policy.kind == .lycanthir or policy.kind == .knight1 or policy.kind == .knight2 or policy.kind == .plague_rat or policy.kind == .fletcher or policy.kind == .battleboar or policy.kind == .rocketdude or policy.kind == .thief or policy.kind == .blackprisoner or policy.kind == .whiteprisoner or policy.kind == .femgang or policy.kind == .sealcaptain or policy.kind == .sealcommando or policy.kind == .sealgirl or policy.kind == .uzigang) definition.death_b = try animation.find(metadata, "dieb") orelse return error.MissingActorDeath;
         if (policy.kind == .femgang) definition.alternate_idle = try animation.find(metadata, "ambb") orelse return error.MissingFemgangIdle;
         if (policy.kind == .harpy and (definition.attacks[2].first > 191 or definition.attacks[2].last < 209)) return error.InvalidHarpyDrop;
+        if (policy.kind == .buboid) definition.death_b = try animation.find(metadata, "dieb") orelse return error.MissingActorDeath;
         if (policy.kind == .chaingang) definition.death_d = try animation.find(metadata, "diec") orelse return error.MissingActorDeath;
-        if (policy.kind == .griffon or policy.kind == .harpy or policy.kind == .chaingang) {
+        if (policy.kind == .griffon or policy.kind == .harpy or policy.kind == .chaingang or policy.kind == .buboid or policy.kind == .wyndrax) {
             definition.ground_run = try animation.find(metadata, "runa") orelse return error.MissingGriffonGroundRun;
             if (!self.water_ready) {
                 try self.water_routes.initGround(self.allocator);
@@ -213,6 +222,7 @@ pub const Actors = struct {
     }
     fn spawnOne(self: *Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
         const object = (try world.get(entity, data.MapObject)).*;
+        if (std.mem.eql(u8, object.classname, catalog.wisp.classname)) return @import("wisps.zig").spawnOne(world, slots, projections, entity, now);
         const id = catalog.find(object.classname) orelse return error.UnknownActorClass;
         try self.ensure(id);
         const definition = self.table.definitions[id];
@@ -232,6 +242,8 @@ pub const Actors = struct {
         const slot = try slots.acquire(entity, null);
         try world.put(entity, data.Binding{ .slot = slot, .model = model });
         projections[slot] = std.mem.zeroes(abi.EntityProjection);
+        if (catalog.entries[id].kind == .wyndrax) (try world.get(entity, data.Actor)).wyndrax.start_position = (try world.get(entity, data.Transform)).position;
+        if (catalog.entries[id].kind == .buboid) try @import("buboids.zig").initialize(world, entity, now);
         if (catalog.entries[id].kind == .chaingang) try @import("chaingangs.zig").initialize(world, entity, now);
         if (catalog.entries[id].kind == .rotworm) try @import("rotworms.zig").initialize(world, entity, now);
         if (catalog.entries[id].kind == .companion) try @import("companions.zig").initialize(world, entity, self.episode, &self.weapons, now);
@@ -312,6 +324,12 @@ pub const Actors = struct {
                 projection.state.origin2 = actor.dragon.breath_direction;
             }
         }
+        if (policy.kind == .buboid and actor.mode != .dead) {
+            if (actor.buboid.phase == .melted) projection.state.modelindex = 0;
+            projection.state.time2 = catalog.buboid.melt_tag;
+            projection.state.time = @intCast(actor.buboid.started_ms);
+            projection.state.origin2 = .{ actor.buboid.alpha, if (actor.buboid.phase == .melting or actor.buboid.phase == .unmelting) @as(f32, 1) else 0, 0 };
+        }
         if (policy.kind == .deathsphere and actor.mode != .dead and actor.scripted_pose == null and actor.melee.active and actor.melee.pose == 2) projection.state.frame = definition.attacks[2].frame(now - actor.melee.started_ms, true);
         projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
         projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
@@ -352,7 +370,7 @@ pub const Actors = struct {
             }
             if (dead and actor.mode != .dead) {
                 const kind = catalog.entries[actor.definition].kind;
-                if ((kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere) and engine.integer("sv_violence") == 0) {
+                if ((kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or (kind == .buboid and actor.buboid.phase == .terminal)) and engine.integer("sv_violence") == 0) {
                     try @import("actor_gibs.zig").spawn(world, slots, projections, entity, now);
                     actor.gibbed = true;
                 }
@@ -380,6 +398,7 @@ pub const Actors = struct {
                     const definition = self.table.definitions[actor.definition];
                     actor.death_pose = if (@abs(facing) < 0.3) definition.death_b else if (facing > 0) definition.death else definition.death_d;
                 };
+                if (kind == .buboid) actor.death_pose = self.table.definitions[actor.definition].death_b;
                 if (kind == .chaingang) actor.death_pose = if ((try world.get(entity, data.Random)).next() > 0.33) self.table.definitions[actor.definition].death else self.table.definitions[actor.definition].death_d;
                 if (catalog.entries[actor.definition].kind == .lycanthir) actor.death_pose = self.table.definitions[actor.definition].death_b;
                 actor.melee.active = false;
@@ -428,7 +447,7 @@ pub const Actors = struct {
             }
             if (!dead and policy.kind == .surgeon) try @import("surgeons.zig").think(world, entity, &actor, pose, self.table.definitions[actor.definition], now);
             const script = world.get(entity, data.Script) catch null;
-            const reviving = policy.kind == .lycanthir and actor.lycanthir.phase != .living;
+            const reviving = (policy.kind == .lycanthir and actor.lycanthir.phase != .living) or (policy.kind == .buboid and actor.buboid.phase != .living and actor.buboid.phase != .coffin);
             if (!dead and policy.kind == .rotworm and actor.rotworm.phase == .ceiling) {
                 try @import("rotworms.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now);
                 (try world.get(entity, data.Actor)).* = actor;
@@ -447,7 +466,7 @@ pub const Actors = struct {
                 continue;
             }
             if (!dead and !acting and actor.path != 0 and policy.kind != .civilian and policy.kind != .surgeon and policy.kind != .companion and policy.kind != .protopod and policy.kind != .cambot) try @import("actor_perception.zig").acquire(world, slots, entity, &actor, pose, self.table.definitions[actor.definition], now);
-            const following = !reviving and !actor.surgeon.active and actor.mode != .flee and actor.path != 0 and hurt.revision == actor.receipt and (actor.ignore_player or actor.threat == 0);
+            const following = !reviving and !(policy.kind == .wyndrax and actor.wyndrax.phase != .combat) and !actor.surgeon.active and actor.mode != .flee and actor.path != 0 and hurt.revision == actor.receipt and (actor.ignore_player or actor.threat == 0);
             if (!dead and body.motion_owner == null and (acting or following)) {
                 var velocity = (try world.get(entity, data.Velocity)).*;
                 const definition = self.table.definitions[actor.definition];
@@ -521,6 +540,10 @@ pub const Actors = struct {
                 try @import("harpies.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
             } else if (!dead and policy.kind == .dragon and body.motion_owner == null) {
                 try @import("dragons.zig").step(world, slots, projections, entity, &actor, &pose, body, &velocity, self.table.definitions[actor.definition], now, elapsed);
+            } else if (!dead and policy.kind == .wyndrax and body.motion_owner == null) {
+                try @import("wyndrax_actor.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
+            } else if (!dead and policy.kind == .buboid and body.motion_owner == null) {
+                try @import("buboids.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
             } else if (!dead and policy.kind == .chaingang and body.motion_owner == null) {
                 try @import("chaingangs.zig").step(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, now, elapsed, slow);
             } else if (dead and policy.kind == .chaingang and actor.chaingang.flying and body.motion_owner == null) {

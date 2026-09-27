@@ -13,7 +13,17 @@ fn deadline(value: *?i64, delta: i64) !void {
 }
 pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)], delta: i64) !void {
     switch (id) {
-        .firefly => try shift(&value.next_ms, delta),
+        .firefly => {
+            try shift(&value.next_ms, delta);
+            if (value.wisp) |*wisp| {
+                try active(&wisp.respawn_ms, delta);
+                try active(&wisp.collected_ms, delta);
+            }
+        },
+        .wisp_swarm => {
+            try shift(&value.next_ms, delta);
+            try shift(&value.sound_ms, delta);
+        },
         .scenery => {
             try shift(&value.started_ms, delta);
             try deadline(&value.breaking_ms, delta);
@@ -163,6 +173,16 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
             switch (value.attack) {
+                .npc_wisp => |*wisp| {
+                    try shift(&wisp.next_ms, delta);
+                    try active(&wisp.sine_ms, delta);
+                },
+                .wyndrax_zap => {},
+                .wyndrax_bolt => |*bolt| {
+                    try shift(&bolt.next_ms, delta);
+                    try shift(&bolt.until_ms, delta);
+                    try active(&bolt.flare_until_ms, delta);
+                },
                 .psyclaw_sphere => |*sphere| try shift(&sphere.next_ms, delta),
                 .gunner_burst => |*burst| try shift(&burst.next_ms, delta),
                 .shaft => |*shaft| try deadline(&shaft.contact_ms, delta),
@@ -197,6 +217,9 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try active(&value.dragon.until_ms, delta);
             try active(&value.dragon.ambient_ms, delta);
             try deadline(&value.dragon.breath_until_ms, delta);
+            try active(&value.wyndrax.until_ms, delta);
+            try active(&value.buboid.started_ms, delta);
+            try active(&value.buboid.until_ms, delta);
             try active(&value.chaingang.started_ms, delta);
             try active(&value.chaingang.until_ms, delta);
             try active(&value.chaingang.strafe_ms, delta);

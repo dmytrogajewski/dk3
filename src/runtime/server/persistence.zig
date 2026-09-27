@@ -69,7 +69,7 @@ pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").Stat
                 if (binding.model != 0 or (try loaded.world.get(entity, data.Body)).contents != 0) return error.InvalidSavedTrain;
             } else if ((loaded.world.get(entity, data.Player) catch null) == null) {
                 const model_optional = (loaded.world.get(entity, data.CryoSpray) catch null) != null or
-                    (if (loaded.world.get(entity, data.ActorAttack) catch null) |attack| (attack.attack == .knight_zap or attack.attack == .knight_punch or attack.attack == .gunner_burst) else false);
+                    (if (loaded.world.get(entity, data.ActorAttack) catch null) |attack| (attack.attack == .wyndrax_zap or attack.attack == .wyndrax_bolt or attack.attack == .knight_zap or attack.attack == .knight_punch or attack.attack == .gunner_burst) else false);
                 if ((!model_optional and binding.model == 0) or binding.model > loaded.header.resources.models.len) {
                     var text: [192]u8 = undefined;
                     engine.print(try std.fmt.bufPrintZ(&text, "dk3 save: invalid model on entity {d} ({s}), model={d}, registered={d}\n", .{ try loaded.world.persistentId(entity), if (object) |value| value.classname else "dynamic", binding.model, loaded.header.resources.models.len }));

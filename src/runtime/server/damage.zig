@@ -6,6 +6,7 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
     if ((world.get(entity, data.Performer) catch null) != null) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .psyclaw and now <= actor.psyclaw.protected_until_ms) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .column and !@import("actor_catalog").column.acceptsWeapon(options.weapon == @import("weapon_catalog").hammer.id)) return .{};
+    if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .buboid and actor.buboid.invulnerable()) return .{};
     // C4 explosions schedule nearby charges explicitly; radius damage must not
     // collapse the staggered chain into simultaneous deaths.
     if ((world.get(entity, data.Charge) catch null) != null and options.weapon == @import("weapon_catalog").c4.id) return .{};
@@ -15,6 +16,7 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
     if ((world.get(entity, data.Player) catch null) != null) if (world.get(entity, data.Body) catch null) |body| if (body.motion_owner) |owner_id| if (world.find(owner_id)) |owner| if (world.get(owner, data.Cinematic) catch null) |cinematic| if (cinematic.active) return .{};
     if (world.get(entity, data.Body) catch null) |body| if (body.motion_owner) |owner_id| if (world.find(owner_id)) |owner| if (world.get(owner, data.Exit) catch null) |exit| if (exit.ending_started != null) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .lycanthir and actor.lycanthir.phase != .living and options.weapon != @import("weapon_catalog").silverclaw.id) return .{};
+    if (world.get(entity, data.ActorAttack) catch null) |attack| if (attack.attack == .npc_wisp and attack.attack.npc_wisp.fading) return .{};
     const health = world.get(entity, data.Health) catch return .{};
     const participant = world.get(entity, data.Session) catch null;
     if (participant) |session| {
@@ -30,11 +32,38 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
         health.current = 1;
         result.killed = false;
     };
+    if (result.blood > 0) if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .buboid) {
+        const previous = actor.buboid.phase;
+        result.killed = actor.buboid.damage(&health.current, options.source == try world.persistentId(entity) and amount >= 32000, now);
+        if (actor.buboid.phase == .collapsed and previous != .collapsed) {
+            actor.melee.begin(5, now);
+            actor.reaction = null;
+            actor.reaction_until_ms = null;
+            actor.scripted_pose = null;
+            actor.mode = .idle;
+            actor.changed_ms = now;
+            actor.think_ms = now;
+            if (world.find(options.source)) |source| if ((world.get(source, data.Player) catch null) != null or (world.get(source, data.Companion) catch null) != null) {
+                actor.threat = options.source;
+                actor.ignore_player = false;
+            };
+        }
+    };
     if (result.blood > 0) if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .rockgat) {
         const extra = @import("actor_catalog").rockgat.painDamage(amount);
         health.current -= extra;
         result.blood += extra;
         result.killed = health.current <= 0;
+    };
+    if (result.blood > 0) if (world.get(entity, data.ActorAttack) catch null) |attack| if (attack.attack == .npc_wisp and options.source != attack.owner) {
+        // The class pain callback deducts the incoming hit a second time.
+        health.current -= amount;
+        result.blood += amount;
+        if (health.current <= 0) {
+            @import("wyndrax_attacks.zig").fade(&attack.attack.npc_wisp, now);
+            (try world.get(entity, data.Velocity)).linear = @splat(0);
+        }
+        result.killed = false; // The attack owns its fading/removal, not actor death.
     };
     if (result.blood > 0) if (world.get(entity, data.Hurt)) |receipt| {
         receipt.source = options.source;
@@ -73,4 +102,44 @@ test "Rockgat pain deduction is class-scoped and dispatches the resulting death"
     try t.expectEqual(@as(i32, 15), (try world.get(croc, data.Health)).current);
     try t.expect(!(try apply(&world, person, 15, 100, .{ .source = 2 })).killed);
     try t.expectEqual(@as(i32, 15), (try world.get(person, data.Health)).current);
+}
+
+test "Buboid recovery suppresses false kills and melt immunity leaves receipts unchanged" {
+    const t = @import("std").testing;
+    const catalog = @import("actor_catalog");
+    var world = data.World.init(t.allocator, 2);
+    defer world.deinit();
+    const entity = try world.create(1, .{ data.Actor{ .definition = catalog.find("monster_buboid").? }, data.Health{ .current = 100, .maximum = 100 }, data.Hurt{} });
+    const first = try apply(&world, entity, 150, 1000, .{ .source = 2 });
+    try t.expect(!first.killed);
+    try t.expectEqual(@as(i32, 1), (try world.get(entity, data.Health)).current);
+    try t.expectEqual(@as(u32, 1), (try world.get(entity, data.Hurt)).revision);
+    const actor = try world.get(entity, data.Actor);
+    try t.expect(actor.buboid.phase == .collapsed);
+    try t.expect(actor.melee.active and actor.melee.pose == 5);
+    const second = try apply(&world, entity, 1, 1100, .{ .source = 2 });
+    try t.expect(second.killed);
+    try t.expect(actor.buboid.phase == .terminal);
+    (try world.get(entity, data.Health)).current = 100;
+    actor.buboid.phase = .melting;
+    const revision = (try world.get(entity, data.Hurt)).revision;
+    try t.expectEqual(@as(i32, 0), (try apply(&world, entity, 500, 1200, .{ .source = 2 })).blood);
+    try t.expectEqual(revision, (try world.get(entity, data.Hurt)).revision);
+    try t.expectEqual(@as(i32, 100), (try world.get(entity, data.Health)).current);
+}
+
+test "NPC Wisp pain repeats damage then disables damage during its owned fade" {
+    const t = @import("std").testing;
+    var world = data.World.init(t.allocator, 1);
+    defer world.deinit();
+    const entity = try world.create(10, .{ data.Velocity{}, data.Health{ .current = 10, .maximum = 10 }, data.Hurt{}, data.ActorAttack{ .owner = 1, .born_ms = 100, .stepped_ms = 100, .attack = .{ .npc_wisp = .{ .target = 2, .next_ms = 200, .personality = -0.5, .forward = .{ 1, 0, 0 }, .sprite_scale = 1.2 } } } });
+    const hit = try apply(&world, entity, 5, 200, .{ .source = 2 });
+    try t.expectEqual(@as(i32, 10), hit.blood);
+    try t.expect(!hit.killed);
+    const attack = try world.get(entity, data.ActorAttack);
+    try t.expect(attack.attack.npc_wisp.fading);
+    try t.expectEqual(@as(f32, -1), attack.attack.npc_wisp.personality);
+    try t.expectEqual(@as(i64, 300), attack.attack.npc_wisp.next_ms);
+    try t.expectEqual(@as(i32, 0), (try apply(&world, entity, 20, 210, .{ .source = 2 })).blood);
+    try t.expectEqual(@as(u32, 1), (try world.get(entity, data.Hurt)).revision);
 }

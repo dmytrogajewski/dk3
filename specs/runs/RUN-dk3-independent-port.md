@@ -3598,3 +3598,22 @@ remaining bosses, multiplayer and release work continues. The current matrix rec
 narrow compatibility choices, incomplete presentation details and shared coverage due
 for replay. No engine scenarios or broad verification suites run; main, installed
 playable game, user saves, local assets and live service remain preserved.
+
+## Sequence 261 — buboid-wisps-and-wyndrax (implementation checkpoint)
+
+Continues the complete coding pass after feature checkpoint `baf08bf`. Buboid's
+coffin/melt/resurrection lifecycle, authored Wisp swarms and Wyndrax's combat,
+station recharge, Wisp collection and damageable NPC attacks are connected to native
+collision, effects and persistence. Supplied animation/data inspection and read-only
+private contract review distinguish ambient swarms, NPC attacks and the player
+weapon. No private runtime or assets are imported. Compatibility corrections and
+shared coverage invalidations are recorded in the current acceptance matrix.
+
+A concrete MD3 alpha defect is repaired through existing per-surface shader variants;
+no replacement skins are embedded. The consolidated three-module link is recorded
+in `/tmp/dk3-runtime-261-consolidated-link.log`. Earlier name/type compile failures
+remain in sequence-261 logs. New damage regressions have not run. No broad suite,
+native-engine scenario, connected campaign/multiplayer acceptance or reference
+playback has run. Remaining classes, boss progression, companions, all campaign and
+multiplayer/release requirements stay open. Main, the installed game, saves and
+live online service are preserved. Continue the same coding pass.

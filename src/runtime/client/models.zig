@@ -5,13 +5,14 @@ const engine = @import("../engine/client.zig");
 const c = @import("../engine/abi.zig").c;
 var names: [c.MAX_MODELS][c.MAX_QPATH]u8 = undefined;
 var handles: [c.MAX_MODELS]c.qhandle_t = @splat(0);
-var material_handles: [c.MAX_MODELS]c.qhandle_t = @splat(0);
+pub const Material = enum { ordinary, alpha };
+var material_handles: [c.MAX_MODELS][2]c.qhandle_t = @splat(@splat(0));
 var player_skins: [c.MAX_CLIENTS]struct { name: [c.MAX_QPATH]u8 = @splat(0), handle: c.qhandle_t = 0 } = @splat(.{});
 pub fn reset() void {
     player_skins = @splat(.{});
     @memset(std.mem.asBytes(&names), 0);
     @memset(&handles, 0);
-    @memset(&material_handles, 0);
+    material_handles = @splat(@splat(0));
 }
 pub fn register(name: []const u8) !c.qhandle_t {
     var buffer: [c.MAX_QPATH + 5]u8 = undefined;
@@ -26,25 +27,26 @@ pub fn get(game: *const c.gameState_t, index: i32) !c.qhandle_t {
     if (name.len >= c.MAX_QPATH) return error.InvalidModelPath;
     if (std.mem.eql(u8, name, std.mem.sliceTo(&names[i], 0))) return handles[i];
     handles[i] = try register(name);
-    material_handles[i] = 0;
+    material_handles[i] = @splat(0);
     @memcpy(names[i][0..name.len], name);
     names[i][name.len] = 0;
     return handles[i];
 }
-pub fn firstMaterial(game: *const c.gameState_t, index: i32) !c.qhandle_t {
+pub fn firstMaterial(game: *const c.gameState_t, index: i32, variant: Material) !c.qhandle_t {
     if (index <= 0 or index >= c.MAX_MODELS) return error.InvalidSkinModel;
     _ = try get(game, index);
     const i: usize = @intCast(index);
-    if (material_handles[i] != 0) return material_handles[i];
+    const k = @intFromEnum(variant);
+    if (material_handles[i][k] != 0) return material_handles[i][k];
     var path: [c.MAX_QPATH + 5]u8 = undefined;
     const name = std.mem.sliceTo(&names[i], 0);
     const bytes = try @import("../engine/files.zig").read(.client, &engine.gateway, std.heap.c_allocator, try std.fmt.bufPrintZ(&path, "{s}{s}", .{ name, if (std.mem.endsWith(u8, name, ".dkm")) @as([]const u8, ".md3") else "" }), 32 * 1024 * 1024);
     defer std.heap.c_allocator.free(bytes);
     const material = @import("../domain/md3.zig").firstMaterial(bytes) orelse return error.MissingModelMaterial;
-    var shader: [64]u8 = undefined;
-    material_handles[i] = @intCast(engine.gateway.call(c.CG_R_REGISTERSHADER, .{(try std.fmt.bufPrintZ(&shader, "{s}", .{material})).ptr}));
-    if (material_handles[i] == 0) return error.ModelMaterialUnavailable;
-    return material_handles[i];
+    var shader: [80]u8 = undefined;
+    material_handles[i][k] = @intCast(engine.gateway.call(c.CG_R_REGISTERSHADER, .{(try std.fmt.bufPrintZ(&shader, "{s}{s}", .{ material, if (variant == .alpha) @as([]const u8, "@alpha") else "" })).ptr}));
+    if (material_handles[i][k] == 0) return error.ModelMaterialUnavailable;
+    return material_handles[i][k];
 }
 
 pub fn playerSkin(game: *const c.gameState_t, slot: i32) !c.qhandle_t {
