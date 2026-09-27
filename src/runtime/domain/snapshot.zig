@@ -539,6 +539,7 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Transform });
             const classname = (try world.get(entity, data.MapObject)).classname;
             const expected = switch (control.action) {
+                .target_effect => "target_effect",
                 .weather => |state| if (state.kind == .rain) "effect_rain" else "effect_snow",
                 .lightning => "effect_lightning",
                 .lightning_bolt => "effect_lightning_bolt",
@@ -560,6 +561,12 @@ pub fn validate(snapshot: *Loaded) !void {
             };
             if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
             switch (control.action) {
+                .target_effect => |state| {
+                    try require(world, entity, .{data.Binding, data.Random});
+                    if (state.count < 1 or state.count > 64 or state.kind >= 33 or state.interval_ms <= 0 or state.duration_ms <= 0 or state.sound > snapshot.header.resources.sounds.len or (state.visible and (state.pulse_ms == null or state.serial == 0))) return error.InvalidSavedTargetEffect;
+                    if (state.gravity != -250 and state.gravity != 0 and state.gravity != 125) return error.InvalidSavedTargetEffect;
+                    for (state.direction ++ state.color) |value| if (!std.math.isFinite(value) or @abs(value) > 1000000) return error.InvalidSavedTargetEffect;
+                },
                 .weather => |state| {
                     try require(world, entity, .{data.Binding, data.Body});
                     if ((try world.get(entity, data.Body)).contents != 0) return error.InvalidSavedWeather;

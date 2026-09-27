@@ -42,6 +42,8 @@ test {
     _ = @import("domain/complex_particles.zig");
     _ = @import("domain/lightning.zig");
     _ = @import("domain/weather.zig");
+    _ = @import("domain/target_effect.zig");
+    _ = @import("domain/direction_bytes.zig");
     _ = @import("client/fx_particles.zig");
     _ = @import("server/weather.zig");
     _ = @import("server/lightning.zig");

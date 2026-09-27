@@ -5,8 +5,8 @@ const c = @import("../engine/abi.zig").c;
 const engine = @import("../engine/client.zig");
 const v = @import("../domain/vector.zig");
 const Random = @import("../domain/components.zig").Random;
-pub const Kind = enum { fire, smoke, bits, spark, blood1, blood2, blood3, blood4, simple, cp1, cp2, cp3, cp4, rain, bubble, sparkle1, sparkle2, snow };
-pub const Particle = struct { born_ms: i32, until_ms: ?i32 = null, owner: u32 = 0, position: v.Vec3, velocity: v.Vec3, acceleration: v.Vec3, color: v.Vec3, alpha: f32, fade: f32, size: f32, kind: Kind };
+pub const Kind = enum { fire, smoke, bits, spark, blood1, blood2, blood3, blood4, simple, cp1, cp2, cp3, cp4, rain, bubble, sparkle1, sparkle2, snow, poison, blue_spark, ice, drip, splash1, splash2, splash3, cryo, spark1, spark2, beam_spark };
+pub const Particle = struct { born_ms: i32, until_ms: ?i32 = null, owner: u32 = 0, classic_factor: ?f32 = null, last_position: ?v.Vec3 = null, position: v.Vec3, velocity: v.Vec3, acceleration: v.Vec3, color: v.Vec3, alpha: f32, fade: f32, size: f32, kind: Kind };
 var particles: [4096]?Particle = @splat(null);
 var cursor: usize = 0;
 pub fn reset() void {
@@ -40,8 +40,8 @@ pub fn cloud(point: v.Vec3, direction: v.Vec3, color: v.Vec3, alpha: v.Vec3, siz
     }
 }
 pub fn draw(now: i32, ref: *const c.refdef_t) void {
-    var shaders: [18]isize = undefined;
-    inline for (.{ "dk3/fx/dragon-fire", "dk3/fx/dragon-smoke", "dk3/fx/jet-bits", "dk3/fx/jet-spark", "dk3/particle/blood1", "dk3/particle/blood2", "dk3/particle/blood3", "dk3/particle/blood4", "dk3/particle/simple", "dk3/particle/cp1", "dk3/particle/cp2", "dk3/particle/cp3", "dk3/particle/cp4", "dk3/particle/rain", "dk3/particle/bubble", "dk3/particle/sparkle1", "dk3/particle/sparkle2", "dk3/particle/snow" }, 0..) |name, i| shaders[i] = engine.gateway.call(c.CG_R_REGISTERSHADER, .{@as([*:0]const u8, name)});
+    var shaders: [29]isize = undefined;
+    inline for (.{ "dk3/fx/dragon-fire", "dk3/fx/dragon-smoke", "dk3/fx/jet-bits", "dk3/fx/jet-spark", "dk3/particle/blood1", "dk3/particle/blood2", "dk3/particle/blood3", "dk3/particle/blood4", "dk3/particle/simple", "dk3/particle/cp1", "dk3/particle/cp2", "dk3/particle/cp3", "dk3/particle/cp4", "dk3/particle/rain", "dk3/particle/bubble", "dk3/particle/sparkle1", "dk3/particle/sparkle2", "dk3/particle/snow", "dk3/particle/poison", "dk3/particle/blue-spark", "dk3/particle/ice", "dk3/particle/drip", "dk3/particle/splash1", "dk3/particle/splash2", "dk3/particle/splash3", "dk3/particle/cryo", "dk3/particle/spark1", "dk3/particle/spark2", "dk3/particle/beam-spark" }, 0..) |name, i| shaders[i] = engine.gateway.call(c.CG_R_REGISTERSHADER, .{@as([*:0]const u8, name)});
     for (&particles) |*maybe| if (maybe.*) |particle| {
         const seconds = @as(f32, @floatFromInt(now - particle.born_ms)) * 0.001;
         const alpha = particle.alpha - seconds * particle.fade;
@@ -53,7 +53,12 @@ pub fn draw(now: i32, ref: *const c.refdef_t) void {
         var color: [4]u8 = undefined;
         for (particle.color, color[0..3]) |value, *channel| channel.* = @intFromFloat(std.math.clamp(value, 0, 1) * 255);
         color[3] = @intFromFloat(std.math.clamp(alpha, 0, 1) * 255);
-        if (particle.kind == .rain or particle.kind == .snow) {
+        if (particle.kind == .beam_spark) {
+            if (particle.last_position) |previous| @import("beams.zig").tapered("dk3/particle/beam-spark", point, v.add(point, v.scale(v.subtract(previous, point), 2)), particle.size, particle.size * 0.3, color, ref);
+            maybe.*.?.last_position = point;
+            continue;
+        }
+        if (particle.kind == .rain or particle.kind == .snow or particle.classic_factor != null) {
             // Weather and complex-emitter rain share the supplied triangular atlas
             // geometry. The reference renderer keeps rain vertical even for wind.
             var up: v.Vec3 = undefined;
@@ -66,8 +71,8 @@ pub fn draw(now: i32, ref: *const c.refdef_t) void {
             } else {
                 const depth = v.dot(v.subtract(point, ref.vieworg), ref.viewaxis[0]);
                 const scale: f32 = if (particle.size > 1) particle.size else if (depth < 20) 1 else 1 + depth * 0.004;
-                up = v.scale(ref.viewaxis[2], 2.3 * scale);
-                right = v.scale(ref.viewaxis[1], -2.3 * scale);
+                up = v.scale(ref.viewaxis[2], (particle.classic_factor orelse 2.3) * scale);
+                right = v.scale(ref.viewaxis[1], -(particle.classic_factor orelse 2.3) * scale);
             }
             const anchor = v.subtract(point, v.scale(v.add(up, right), 0.33));
             var triangle: [3]c.polyVert_t = undefined;

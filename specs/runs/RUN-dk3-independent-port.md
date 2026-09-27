@@ -4945,3 +4945,35 @@ ReleaseSafe/Debug assertions are enabled. `build/runtime.zig` explicitly execute
 runtime root and separately imported actor, weapon, inventory and item test roots.
 After material shared changes, mark affected coverage for replay; run affected checks
 and the applicable aggregate at coherent checkpoints, without duplicate broad suites.
+
+## Sequence 279 — authored-target-effects
+
+Connected `target_effect` to class-owned timing, startup/use behavior, authored particle
+kinds, gravity/speed, volume-0.75 sound and violence/multiplayer particle suppression.
+Native presentation includes sprite/beam variants and optional beam smoke. The supplied
+e1m7a cage's type 6 remains its actual blood particle kind; it is not replaced with a
+generic spark. Invalid particle enum 33 now follows the invalid-type smoke correction
+rather than indexing beyond the reference renderer table. The uninitialized fifth
+blood definition remains invisible, and zero direction preserves the byte-zero normal.
+
+Native saves retain this emitter despite reference FL_NOSAVE. The RANDOM flag uses
+saved per-emitter bounded randomness in place of the reference shared fixed table and
+unsaved global cursor; this is an intentional compatibility departure, not parity.
+The sole supplied target_effect does not use RANDOM. Ordinary emission timing uses the
+reviewed immediate-use pulse and strict terminal-interval boundary. Presentation
+transport retains the latest short-lived burst; loss/late-join/restoration appearance
+still needs engine qualification.
+
+The direction-normal data alone is admitted from already bundled public GPL ioquake3
+q_math.c, with copyright retained and provenance recorded. No private implementation
+or asset entered the project. Three native modules link successfully in
+`/tmp/dk3-runtime-279-target-effect-link.log`; this includes sequence 278's final
+particle acceleration repair and precedes the added restoration regression. All new
+contracts and engine scenarios remain unrun. Main/install/saves/service untouched.
+
+Fresh class audit identifies `fish_goldfish`, `fish_grayfish`, both guppies, Dopefish
+and `e_seagull` outside the prior `monster_*` inventory. These require native owners;
+class-name census alone had not established complete actor coverage. Continue their
+actual behavior implementation and remaining campaign/multiplayer/release audit before
+consolidated verification. `target_splash` has no export in the supplied Gold tree;
+no speculative splash behavior is introduced.

@@ -26,6 +26,11 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             switch (value.action) {
                 .timer => |*timer| try deadline(&timer.next_ms, delta),
                 .speaker => |*speaker| try deadline(&speaker.next_ms, delta),
+                .target_effect => |*state| {
+                    try deadline(&state.next_ms, delta);
+                    try deadline(&state.until_ms, delta);
+                    try deadline(&state.pulse_ms, delta);
+                },
                 .lightning => |*state| {
                     try deadline(&state.next_ms, delta);
                     try shift(&state.uncull_until_ms, delta);
@@ -503,4 +508,14 @@ test "restored lightning keeps link and expiry boundaries while preserving inter
     try t.expectEqual(@as(i64, 6000), bolt.action.lightning_bolt.until_ms);
     try t.expectEqual(@as(u32, 9), bolt.action.lightning_bolt.emitter);
     try t.expectEqual(@as(u32, 4), bolt.action.lightning_bolt.target);
+}
+
+test "target-effect restore retains the strict final boundary and pulse identity" {
+    var value: data.WorldControl = .{ .action = .{ .target_effect = .{ .flags = 0, .next_ms = 1200, .until_ms = 1400, .pulse_ms = 1100, .serial = 7, .visible = true, .duration_ms = 400 } } };
+    try rebase(.world_control, &value, 8000);
+    try std.testing.expectEqual(@as(?i64, 9200), value.action.target_effect.next_ms);
+    try std.testing.expectEqual(@as(?i64, 9400), value.action.target_effect.until_ms);
+    try std.testing.expectEqual(@as(?i64, 9100), value.action.target_effect.pulse_ms);
+    try std.testing.expectEqual(@as(u32, 7), value.action.target_effect.serial);
+    try std.testing.expectEqual(@as(i64, 400), value.action.target_effect.duration_ms);
 }

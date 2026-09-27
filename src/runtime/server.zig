@@ -89,6 +89,7 @@ fn init(now: i64) !void {
     engine.register("g_gametype", "2", c.CVAR_SERVERINFO);
     engine.register("sv_violence", "0", c.CVAR_SERVERINFO | c.CVAR_ARCHIVE | c.CVAR_LATCH);
     engine.register("gib_enable", "1", c.CVAR_ARCHIVE);
+    engine.register("p_sendparticles", "0", 0);
     engine.register("dm_item_respawn", "1", c.CVAR_SERVERINFO | c.CVAR_LATCH);
     while (try map.read(arena.?.allocator(), engine)) |object| {
         _ = try world.?.create(null, .{ object.binding, object.transform });

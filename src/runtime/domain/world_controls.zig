@@ -16,6 +16,7 @@ pub const Timer = struct {
     }
 };
 pub const Action = union(enum) {
+    target_effect: @import("target_effect.zig").State,
     weather: @import("weather.zig").State,
     lightning: @import("lightning.zig").Emitter,
     lightning_bolt: @import("lightning.zig").Bolt,

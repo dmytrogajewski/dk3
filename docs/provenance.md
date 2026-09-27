@@ -157,3 +157,14 @@ media selection and mathematical presentation behavior were reviewed privately; 
 owners and the bounded transport/query integration were authored in this project.
 Existing ioquake and project GPL notices remain in force. Supplied rows and media stay
 local generated assets, excluded from publication.
+
+### Byte-direction data (sequence 279)
+
+`src/runtime/domain/direction_bytes.zig` admits only the 162 numerical direction vectors
+from already bundled `engine/ioquake3/code/qcommon/q_math.c`, whose SHA-256 at review is
+`f00e75f3ea0a59176d19b6328044b84e8dd5734af14a960e8ec10d79120a7cb3`.
+Copyright (C) 1999–2005 Id Software, Inc.; GPL-2.0-or-later, preserved in the new file
+and root LICENSE. Native lookup code is project-authored. This public data supplies
+the authored effect's existing byte-direction behavior; no private table/function is
+an input to generation, compilation or tests. Atlas coordinates and effect contracts
+were privately reviewed as behavior; original particle images remain local assets.

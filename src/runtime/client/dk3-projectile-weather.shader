@@ -447,3 +447,123 @@ dk3/particle/snow
    tcMod transform 0.24609375 0 0 0.4921875 0.001953125 0.00390625
  }
 }
+
+dk3/particle/poison
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform -0.00390625 0 0 0.49218750 0.50195312 0.00390625
+ }
+}
+
+dk3/particle/blue-spark
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.05859375 0 0 0.11718750 0.37695312 0.87890625
+ }
+}
+
+dk3/particle/ice
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.24609375 0 0 0.49218750 0.75195312 0.50390625
+ }
+}
+
+dk3/particle/drip
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.05859375 0 0 0.11718750 0.37695312 0.75390625
+ }
+}
+
+dk3/particle/splash1
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.21093750 0.37695312 0.50390625
+ }
+}
+
+dk3/particle/splash2
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.21093750 0.50195312 0.50390625
+ }
+}
+
+dk3/particle/splash3
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.21093750 0.62695312 0.50390625
+ }
+}
+
+dk3/particle/cryo
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.24218750 0.62695312 0.75390625
+ }
+}
+
+dk3/particle/spark1
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.24218750 0.12695312 0.50390625
+ }
+}
+
+dk3/particle/spark2
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.24218750 0.25195312 0.50390625
+ }
+}
+
+dk3/particle/beam-spark
+{
+ cull disable
+ { map pics/misc/beamspark.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+ }
+}
