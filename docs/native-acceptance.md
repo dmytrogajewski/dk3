@@ -7,7 +7,7 @@ campaign, companions, multiplayer/bots, UI, persistence and independent release 
 
 Owner-directed cadence: finish the broad connected coding pass, then consolidate the
 build/assets and run verification with repairs. No per-item suite/engine gates.
-Implementation checkpoints 255–280 add no connected acceptance. No overall percentage
+Implementation checkpoints 255–281 add no connected acceptance. No overall percentage
 is inferred from class counts or test volume.
 
 ## Current outcome matrix
@@ -28,7 +28,7 @@ is inferred from class counts or test volume.
 module link: `/tmp/dk3-runtime-280-fauna-link-fixed.log`, exit 0, before the final
 aquatic-node selection, injury handling and restoration-regression edits. Latest engine/module link:
 `/tmp/dk3-runtime-277-lightning-link-fixed.log`, exit 0. These are compilation evidence.
-No tests or engine scenarios have run during sequences 255–280.
+No tests or engine scenarios have run during sequences 255–281.
 
 Authoring inventories used local asset manifest
 `ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
@@ -48,6 +48,8 @@ remain subsystem diagnostics; none closes the continuous campaign gate.
 - Shared changes require affected script/cinematic, damage, perception, companion,
   restoration/travel and multiplayer replay. Cambot now uses authored PHS; merged map
   areas remain an acoustics limitation. Earlier narrower PVS alarm evidence is superseded.
+- Sequence 281 prevents retained e1m2b editor-portal metadata from becoming a solid
+  brush. Authored traversal at that location remains unrun.
 - Sequence 280 adds fish/Dopefish/seagull controllers. Aquatic wandering now selects
   reachable water nodes; replay Shark/Crox wandering as well as the new fauna.
 - Sequence 278 repairs the attractor query and half-square particle acceleration.

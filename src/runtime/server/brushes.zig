@@ -13,6 +13,14 @@ pub fn collisionAngles(classname: []const u8, angles: data.Vec3) data.Vec3 {
     return if (std.mem.startsWith(u8, classname, "trigger_")) @splat(0) else angles;
 }
 
+pub fn binds(object: data.MapObject) bool {
+    // e1m2b retains this misspelled editor portal as *40. It has no exported
+    // reference spawn function and must not acquire a generic solid brush.
+    return object.model.len > 1 and object.model[0] == '*' and
+        !std.mem.eql(u8, object.classname, "func_areaportal") and
+        !std.mem.eql(u8, object.classname, "func_areaportalass");
+}
+
 pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection) !void {
     // Collect handles before adding components: no structural edits in a query epoch.
     var entities: [@import("../ecs/world.zig").max_entities]@import("../ecs/world.zig").Entity = undefined;
@@ -21,7 +29,7 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     {
         defer query.deinit();
         while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| {
-            if (object.model.len > 1 and object.model[0] == '*' and !std.mem.eql(u8, object.classname, "func_areaportal")) {
+            if (binds(object)) {
                 entities[count] = entity;
                 count += 1;
             }
@@ -65,4 +73,12 @@ test "directional trigger hulls stay unrotated while real rotating brushes retai
     try std.testing.expectEqual(data.Vec3{ 0, 0, 0 }, collisionAngles("trigger_once", .{ 0, 270, 0 }));
     try std.testing.expectEqual(data.Vec3{ 0, 45, 0 }, collisionAngles("func_rotating", .{ 0, 45, 0 }));
     try std.testing.expectEqual(data.Vec3{ 0, 0, 0 }, collisionAngles("func_door", .{ 0, 0, 0 }));
+}
+
+test "retained e1m2b portal metadata cannot become a wall while authored doors still bind" {
+    try std.testing.expect(!binds(.{ .classname = "func_areaportalass", .model = "*40", .targetname = "eledoor" }));
+    try std.testing.expect(!binds(.{ .classname = "func_areaportal", .model = "*40" }));
+    try std.testing.expect(binds(.{ .classname = "func_door", .model = "*40", .targetname = "eledoor" }));
+    try std.testing.expect(binds(.{ .classname = "func_wall", .model = "*40" }));
+    try std.testing.expect(!binds(.{ .classname = "func_group" }));
 }

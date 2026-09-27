@@ -5029,3 +5029,28 @@ water-node admission, injury handling and regression additions. Implementation r
 unverified: no tests, engine scenario, connected gameplay or visual comparison ran.
 The broad implementation pass continues; all four episodes, multiplayer and independent
 release remain in scope, followed by coherent build/assets and consolidated verification.
+
+
+## Sequence 281 — retained-editor-portal
+
+The broader class audit identifies one retained `func_areaportalass` submodel, *40
+named `eledoor` in e1m2b. Supplied data and the permitted private export inventory
+show no runtime spawn owner. Native generic submodel binding incorrectly made it
+solid. Brush admission now excludes this exact retained class, alongside existing
+`func_areaportal` metadata. It does not alias it to a gameplay portal or alter real
+doors/walls. Added unrun regression admits a real door/wall with the same model while
+rejecting the retained portal. No engine traversal is claimed.
+
+The other inventory suspects are metadata: all 54 supplied `func_group` entities
+have no model; all four retained `light_flame` entities have no model and that private
+export is disabled. They do not need invented runtime controllers. The companion
+health review resolves a prior uncertainty: Sidekick initialization explicitly resets
+health to ATTR_HEALTH (100), so the native 100-health reset is retained despite high
+unused aidata health values. These are source/data findings, not playthrough evidence.
+
+The audit also confirms unfinished shared actor audio: sight-only CSV records and
+non-attack frame cues are not dispatched by current native actor controllers. The
+converter loses whether sound2 is a sequential cue or an alternative at frame1, and
+its missing-probability default is 100 instead of the reference initialization of 0.
+Continue implementation through these actual behavior gaps before consolidated
+verification. No new build, test, engine run or reference presentation comparison ran.
