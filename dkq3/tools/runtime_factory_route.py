@@ -57,7 +57,11 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
                     (194, 2173, 408), (414, 2256, 408), (425, 2469, 376), (461, 2510, 403))):
                 if phase == "factory-outside" and index <= 3:
                     continue
-                walk(driver, point, capture, combat=True)
+                # This approach descends a continuous slope. Correcting a
+                # downhill overshoot by jumping wedges the driver against the
+                # slope; ordinary walking can regain the waypoint. Only the
+                # final channel lip needs a jump on this segment.
+                walk(driver, point, capture, combat=True, jump=index == 11)
                 if index == 6:
                     for supply in ((46, 1863, 412), (128, 1800, 408)):
                         walk(driver, supply, capture, combat=True, tolerance=20)
@@ -106,7 +110,7 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
                         capture(f"pipe-{point[0]}-{point[1]}")
                     walk(driver, (548, 2330, 528), capture, tolerance=8, jump=False)
                     checkpoint(driver, capture, report, "factory_pipe_crossing")
-                    pipe_jump(driver, capture, (424, 2424, 584))
+                    pipe_jump(driver, capture, (522, 2353, 536), (424, 2424, 584))
                     checkpoint(driver, capture, report, "factory_pipe_upper")
                     for point in ((424, 2464, 600), (424, 2504, 624), (480, 2544, 648), (488, 2568, 664)):
                         walk(driver, point, capture, tolerance=12, jump=False)
@@ -118,7 +122,8 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
                 await_open(driver, 132)
                 checkpoint(driver, capture, report, "factory_gate_open")
                 for point in ((370, 2460, 376), (425, 2469, 376), (461, 2510, 403), (480, 2576, 408)):
-                    walk(driver, point, capture, combat=False, tolerance=20)
+                    # Froginators can occupy the doorway after the descent.
+                    walk(driver, point, capture, combat=point == (480, 2576, 408), tolerance=20)
                 if driver.observe()["pos"][2] > 440:
                     raise RuntimeError("Gate approach did not return to the lower passage")
                 checkpoint(driver, capture, report, "factory_lower_approach")
@@ -266,10 +271,12 @@ def factory_exit(driver, capture, report):
             "state": driver.observe()}
 
 
-def pipe_jump(driver, capture, destination):
+def pipe_jump(driver, capture, takeoff, destination):
     state = driver.stop_forward()
     start = state["pos"]
-    aim_at(driver, (destination[0], destination[1], start[2] + 22))
+    # Approach the actual raised joint first. Aiming at the distant landing
+    # from either edge of the approach tolerance can miss this narrow support.
+    aim_at(driver, (takeoff[0], takeoff[1], start[2] + 22))
     # A full-speed launch carries Hiro across the narrow sloping landing even
     # after releasing forward. Approach at walking speed, then accelerate in
     # the air; retain the actual height and supported-landing checks below.
@@ -280,6 +287,11 @@ def pipe_jump(driver, capture, destination):
                              and s["pos"][2] >= start[2] + 7,
                              seconds=2, description="walking takeoff reaches the raised pipe joint")
         launch_height = state["pos"][2]
+        # Turn and jump together instead of walking off the joint while waiting
+        # for a separate look acknowledgement. The next observation must show
+        # the jump's actual height gain.
+        yaw = math.degrees(math.atan2(destination[1] - state["pos"][1], destination[0] - state["pos"][0]))
+        driver.issue(f"dk3_look {yaw} 0")
         driver.issue("+moveup")
         try:
             driver.until(lambda s: s["up"] > 0 and s["pos"][2] > launch_height + 8,

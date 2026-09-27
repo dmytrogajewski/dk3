@@ -36,6 +36,7 @@ class RuntimeMediaTest(unittest.TestCase):
                 target.write_text('{}' if name == 'rules.json' else '// synthetic presentation v1\n')
             target = prefix / 'share/dk3' / play.LEGACY_RUNTIME_MEDIA[0]
             manifest = dict(format=1, key='unchanged-gameplay', profile='retail')
+            (generation / 'manifest.json').write_text(json.dumps(manifest))
             with patch('play.checked_assets', return_value=manifest), contextlib.redirect_stdout(io.StringIO()):
                 play.install(prefix, assets)
                 first = (prefix / 'play/current').resolve()

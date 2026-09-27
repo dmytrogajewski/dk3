@@ -5725,8 +5725,9 @@ audio output. This verifies backend execution, not audible sound quality.
 real authored panel use, saved active monitor restoration/release, both lifts,
 Crox 160 combat and the authored e1m2a exit. All nine arrival shots finish with
 89 health, 13 armor and 94 Ion ammo. This is checkpoint evidence, not a fresh
-opening. The full New Game/115-shot intro/campaign replay is running on the final
-installation, separately from the skip scenario. The affected real UDP client
+opening. The full New Game/115-shot intro/campaign replay used one immutable
+installation, separately from the skip scenario; its failed result is recorded
+below. The affected real UDP client
 lifecycle passes. The affected CTF replay passes all four participants’ movement,
 pickups, fire, opponent damage and respawn, plus one contested capture. Complete
 visual/menu equivalence,
@@ -5751,4 +5752,47 @@ admission/input and setup, records exact identity, verifies staged files and
 reports failures immediately. `ui-menus/` covers settings, binding conflict
 cancel/replace and difficulty selection; pause acceptance belongs only to the
 separate synchronized presentation scenario. Its old broad scope label is
-superseded. The full fresh route remains on its unchanged `4c2502…` installation.
+superseded. The full fresh route used its unchanged `4c2502…` installation.
+
+`fresh-opening/` finishes all 115 intro shots, normal arrival, the marsh route,
+bridge boss/waves/reward, death/reload, north-tree resupply and C→B→C visited-world
+restoration. It fails in the factory approach: after descending past waypoint
+(-217, 2027, 536), the driver tries to jump back up the continuous slope and holds
+jump against it until its height assertion expires. Releasing jump immediately
+allows uphill motion. Final observed state is living: 58 health, 345 armor,
+72 Ion ammo. `failure.json`, `inputs.json` and captures retain the failure; the
+fresh milestone is **not accepted**. The factory approach now uses walking on
+that slope and reserves its jump for the actual channel lip. No shared movement,
+geometry, damage or enemy behavior changes. A separate replay starts at the
+unmodified legitimate `factory_outside_3.sav`; it cannot replace fresh acceptance.
+
+`factory-slope-walking/` clears that slope, uses the real health tree and reaches
+the upper pipe approach, then fails its raised-joint takeoff assertion while
+alive with 84 health. Its trajectory from the south edge of the approach
+tolerance misses the narrow joint when aimed directly at the distant landing.
+The driver now approaches the actual observed joint at (522, 2353, 536), then
+turns and jumps toward the upper landing. Both supported takeoff and actual
+height gain remain required. `factory-joint-waypoint/` starts from that run's
+legitimate pipe-launch save; no checkpoint is edited.
+That replay passes the supported joint/jump and opens the authored gate, then
+stalls alive with 77 health at a Froginator occupying the lower doorway. The
+driver had disabled combat on this descent segment; the doorway waypoint now
+uses its existing ordinary combat policy. The subsequent replay starts at the
+legitimate upper-control save. These are distinct retained driver failures,
+not passed factory scenarios or a stitched fresh campaign.
+
+`factory-gate-combat/` passes on the unchanged `4c2502…` installation: authored
+gate operation, actual doorway combat, yard controls and health-tree resupply,
+active monitor save/restore/release, both lifts, Crox 160 combat from the dry
+bank, the authored exit and all nine e1m2a arrival shots. Final state is normal,
+living, 89 health and 95 armor. This verifies only the route after the legitimate
+upper-control checkpoint. The complete fresh opening remains failed and requires
+a subsequent continuous replay; no acceptance is assembled across these saves.
+
+The applicable aggregate `zig build test --summary all` passes 42/42 build steps,
+372/372 Zig tests and 74 Python checks. The first aggregate exposes a stale
+media-installer test fixture that mocks package validation but lacks the
+completed manifest required by the installer's preflight. Adding its synthetic
+manifest repairs the fixture; production validation is unchanged. Before/after
+logs are retained as `runtime-zig-294/aggregate-before.log` and
+`aggregate-passed.log`.
