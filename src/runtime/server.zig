@@ -248,6 +248,10 @@ fn consoleCommand() isize {
         @import("server/observation.zig").report(&world.?, clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
+    if (std.mem.eql(u8, command, "dk3_runtime_match")) {
+        @import("server/observation.zig").match(&world.?, clock.now_ms) catch |err| runtimeFailure(err);
+        return 1;
+    }
     if (saveCommand(command) catch |err| {
         saveFeedback(err);
         return 1;

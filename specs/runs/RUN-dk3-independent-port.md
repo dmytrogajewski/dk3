@@ -5168,3 +5168,35 @@ update the preserved playable installation, user saves or online service. All cu
 native gameplay acceptance remains unverified. The broader corpse/cold-death,
 companion conversation and visual/audio parity limits remain visible; connected
 campaign and multiplayer scenarios, not implementation counts, determine acceptance.
+
+
+## Sequence 285 — consolidated-native-verification
+
+The broad code batch now builds as one independent engine and three native modules.
+`zig build -j4 --prefix zig-out/native-dev --summary all` passes all 41 build steps.
+The first aggregate run finds test-only setup drift: missing required weapon grips,
+an outdated ECS constructor in two fixtures and a signed array index in a bot test.
+These failures invalidate those test roots, not the independently passing roots.
+After repairing the fixtures, `zig build test-runtime -j4 --summary all` executes
+130 runtime, 48 actor, 24 weapon, two inventory and seven item tests successfully.
+The aggregate's other 138 Zig tests and 64 Python tests also pass. A source/import
+walk finds exactly 130 runtime test declarations reachable, with no unreferenced
+test files. ReleaseSafe/Debug assertions remain enabled. Formatting the consolidated
+coding pass also corrects presentation of previously minified blocks.
+
+Native multiplayer observation now reports actual participants, injury sources,
+weapon actions, body identities, progression and objective controllers. The bot-match
+runner requires observed movement, pickups, attack contact and a new living body
+after death; objective modes additionally require real carrying/capture. Failed team,
+controller or admission setup invalidates the scenario. The runner creates only a
+fresh map and ordinary bots, without fixture placement, grants or rule changes.
+This is narrow natural-bot scenario coverage, not human network/mode acceptance.
+
+Evidence: `zig-out/reports/runtime-zig-285/consolidation/`; source logs are
+`/tmp/dk3-runtime-285-build.log`, `/tmp/dk3-runtime-285-tests.log`,
+`/tmp/dk3-runtime-285-runtime-tests-repaired.log` and
+`/tmp/dk3-runtime-285-observation-link.log`. Regeneration is still compiling authored
+navigation in the private local cache. No engine/connected acceptance is claimed
+before the new manifest and binaries are staged together. Fresh New Game/intro and
+connected campaign progression remain the primary integration gate; all episodes,
+multiplayer/network, companion parity and independent release remain in scope.
