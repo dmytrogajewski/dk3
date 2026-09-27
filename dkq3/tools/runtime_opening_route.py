@@ -9,6 +9,10 @@ import time
 
 def actors(driver):
     text = driver.diagnostics("dk3_runtime_actors", "dk3 zig actor states complete")
+    return parse_actors(text)
+
+
+def parse_actors(text):
     result = {}
     for line in text.splitlines():
         if "dk3 zig actor:" not in line:

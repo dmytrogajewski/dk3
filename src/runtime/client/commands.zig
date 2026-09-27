@@ -8,6 +8,7 @@ pub const Restore = struct {
 pub fn restored() ?Restore {
     var buffer: [128]u8 = @splat(0);
     _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 0), &buffer, @as(isize, buffer.len) });
+    if (std.mem.eql(u8, std.mem.sliceTo(&buffer, 0), "map_restart")) return .{};
     if (!std.mem.eql(u8, std.mem.sliceTo(&buffer, 0), "dk3_restored")) return null;
     _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 1), &buffer, @as(isize, buffer.len) });
     const weapon = std.fmt.parseInt(u5, std.mem.sliceTo(&buffer, 0), 10) catch return .{};

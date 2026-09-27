@@ -1546,7 +1546,7 @@ def run(args):
         command = [str(args.guard), "--headless", "--screen", "960x540",
                    "--timeout", "180s" if args.scenario == "controllers" else "90s", "--mem", "8G", "--", str(args.engine / "bin/dk3")]
         settings = client_settings(args.engine, home, args.renderer, args.workers)
-        if args.scenario in ("opening-actors", "bridge", "trigger-bounds", "crox", "rockgat", "tree-settlement", "frog-landing"):
+        if args.scenario in ("opening-actors", "bridge", "trigger-bounds", "crox", "rockgat", "tree-settlement", "frog-landing", "arena-damage"):
             settings["g_spSkill"] = "3"
         if args.scenario == "frog-landing":
             settings["dk3_cinematics"] = "1"
@@ -1570,9 +1570,11 @@ def run(args):
 
             try:
                 wait(process, log, lambda text: "player entered isolated movement runtime" in text)
-                if args.scenario in ("controllers", "bridge", "trigger-bounds", "opening-actors", "crox", "rockgat", "tree-settlement", "frog-landing"):
+                if args.scenario in ("controllers", "bridge", "trigger-bounds", "opening-actors", "crox", "rockgat", "tree-settlement", "frog-landing", "arena-damage"):
                     from runtime_input import NativeInput
-                    if args.scenario == "frog-landing":
+                    if args.scenario == "arena-damage":
+                        from runtime_arena_probe import scenario
+                    elif args.scenario == "frog-landing":
                         from runtime_frog_landing_probe import scenario
                     elif args.scenario == "tree-settlement":
                         from runtime_tree_settlement_probe import scenario
@@ -1590,7 +1592,7 @@ def run(args):
                         from runtime_weapon_completion_probe import scenario
                     wait(process, log, lambda text: "dk3 zig client: first snapshot applied" in text)
                     driver = NativeInput(process, pipe, log, home, inputs, diagnostic=True)
-                    result = scenario(driver, args.report, args.checkpoint) if args.scenario == "frog-landing" else scenario(driver, args.report)
+                    result = scenario(driver, args.report, args.checkpoint) if args.scenario in ("frog-landing", "arena-damage") else scenario(driver, args.report)
                 elif args.scenario == "navigation":
                     result = navigation_scenario(issue, capture, log)
                 elif args.scenario == "travel":
@@ -1663,8 +1665,8 @@ def main():
     parser.add_argument("--guard", type=Path, default=Path("zig-out/native-dev/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
-    parser.add_argument("--checkpoint", type=Path, help="Captured native save for the frog landing regression")
-    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "meteors", "zeus", "controllers", "bridge", "trigger-bounds", "opening-actors", "crox", "rockgat", "tree-settlement", "frog-landing", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
+    parser.add_argument("--checkpoint", type=Path, help="Captured native save for a checkpoint diagnostic")
+    parser.add_argument("--scenario", choices=("movement", "lift", "secret", "rotation", "inventory", "effects", "combat", "presentation", "impacts", "ballistics", "grenade-contact", "melee", "status-weapons", "area-weapons", "attached-charge", "shockwave", "linked-projectiles", "beams", "returning-fire", "meteors", "zeus", "controllers", "bridge", "trigger-bounds", "opening-actors", "crox", "rockgat", "tree-settlement", "frog-landing", "arena-damage", "save", "travel", "civilians", "guard", "navigation", "laser"), default="movement")
     parser.add_argument("--workers", type=int, choices=range(9), default=4)
     parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
     parser.add_argument("--mover", type=int, help="optional known delayed-door persistent ID; e1m3b uses 255")
@@ -1699,6 +1701,7 @@ def main():
         "rockgat": ("e1m1b", "runtime-zig-250/rockgat"),
         "tree-settlement": ("e1m1b", "runtime-zig-252/tree-settlement"),
         "frog-landing": ("e1m1a", "runtime-zig-253/frog-landing"),
+        "arena-damage": ("e1m1b", "runtime-zig-291/arena-damage"),
         "save": ("e1m3a", "runtime-zig-230/save"),
         "civilians": ("e1m2a", "runtime-zig-225/civilians"),
         "guard": ("e1m3b", "runtime-zig-226/guard"),

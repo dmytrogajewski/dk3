@@ -15,14 +15,69 @@ is inferred from class counts or test volume.
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at sequence 285; full interactions unverified | Sequences 232–243/251 have narrow fixtures; no full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 289 | **Not accepted:** fresh New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a | Legitimate checkpoint replays now reach the factory exit and complete e1m2a's nine-shot arrival; the fresh 289 route failed at the second Crox pool; corrected checkpoint routing reaches the boss |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 291 | **Not accepted:** fresh 291 New Game completes all intro shots, marsh, bridge controls/resupply/Crox and reaches the authored boss; driver crosses lethal barrier during combat | Earlier legitimate checkpoints reach the factory exit/e1m2a arrival. A revised boss checkpoint replay avoids the barrier but dies under boss spray. No continuous opening completion |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Snapshot and deadline contracts pass at 285 | Sequence 287 authored death/reload; 288 actual C→B→C after disk load retains bridge progress | Latest restoration replay is checkpointed; fresh consolidated campaign/death replay remains |
-| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 222 applicable native contracts pass at 289; wire contracts at 287 remain valid | Four-bot DM demonstrates natural movement/pickup/combat/respawn on `8dc7a3…`; CTF contested capture revalidated at 289; deathtag capture unresolved | Named door prerequisites, control-goal progress and slime escape repaired; deathtag still has no carrier after replay. Human network/reconnect/browser/rooms remain unaccepted |
+| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 228 native contracts pass on `0bfdec…`; wire contracts at 287 remain valid | Two real UDP clients pass LAN admission/movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart. CTF contested capture and bot restart pass; controlled red lift approach reaches its objective | Natural deathtag reaches carriers but cannot complete capture: its outbound route excludes required water-jump edges. Client-driver inputs are automated. Public admission, browser, authenticated reconnect/rooms and complete modes remain open |
 | World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | World policy roots pass at 285; engine effects unverified | No new campaign or visual acceptance | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
 
 ## Build and asset identity
+
+Sequence 291 separates ordinary play from controlled damage/lift diagnostics.
+All installations below use asset manifest
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+
+- Read-only damage/ground observation installation
+  `2b7895321ce99ca74d8214edcf60b9655009de6ce38976c4e4d5b3247b94b60c`, combined
+  identity `4e0a777ef0d07adb0f27f5d9cc08039589e073f46bfe61f48e88b07ebe5065b5`:
+  `runtime-zig-291/fresh-opening/` reaches the bridge boss from New Game, normal
+  inventory/difficulty and all 115 intro shots, then dies at the authored
+  5000-damage barrier (source 126). Reload restores living arrival state; the
+  route remains failed. `arena-damage/` defeats the boss and collects its 400 armor
+  shield with **explicit 10000 health**, proving damage receipts/reward contact
+  only. `bot-lift-controlled/` places one equipped bot on the lowered lift and
+  verifies actual riding/objective contact. Neither diagnostic is campaign/match
+  acceptance. `ctf-control-regression/` passes all four bots' movement, weapon
+  pickups, attacks, opponent damage and respawns, plus one contested capture.
+- Restart repair installation
+  `b5cc3d6b5d59b73d8f03b34a0bef7e03efcee15b8fad3c1aa1463e1f7bf1fd10`, combined
+  identity `177866301449b33451876b314a9418ad9f54a466479d1241d486babe55ce733d`:
+  `lan-restart-repaired/` passes two actual UDP clients through the lifecycle
+  above; rendered post-restart frames are inspected. `lan-synchronized/` retains
+  the pre-repair `SV_Bot_HunkAlloc: Alloc with marks already set` crash. Earlier
+  `lan-clients/`, `lan-clients-corrected/`, and `lan-lifecycle/` are driver setup,
+  status parsing and reliable-command-throttle failures, respectively. LAN
+  reconnect starts a new session; authenticated identity restoration is untested.
+  `bridge-boundary-retreat/` starts from this fresh run's legitimate boss checkpoint,
+  avoids the lethal east crossing but dies from boss spray; it is not completion.
+- Bot ascent repair installation
+  `0bfdec9bd5a2a4d75ff206012a608212175412050723bcfefe3a33607a4afa9d`, combined
+  identity `f1ce5450bb03ed4935ea9b993a467ae685cf71aa571b40583f84fe09eb0303c9`:
+  `bot-lift-approach/` reproduces oscillation below the raised lift and a later
+  crushing death on `2b789…`. `bot-lift-ascent-repaired/` uses the same
+  controlled gate/placement/equipment setup and verifies a real button press,
+  lift travel and carried objective. No door timings or gameplay rules change.
+  `ctf-ascent-regression/` passes all four participants' movement/pickups/attacks/
+  opponent damage/respawns and one capture. `dm-restart-admission/` repeats real
+  movement/pickups by all four bots, combat by slots 0/3 and respawn by slot 0
+  after repopulating a fast restart. `dm-fast-restart/` was invalidated by the
+  driver's admission counter retaining the first match's sample count.
+  `deathtag-ascent-repaired/` fails capture after actual carriers appear.
+  `deathtag-carrier-routes/` demonstrates no outbound route from area 6435 to
+  3956 while its reverse and an adjacent control route pass. The supplied graph
+  needs two water-jump edges, supported by the motor but omitted from route flags.
+  `bridge-observation-batch/` uses fewer query round trips, defeats the real boss
+  with ordinary checkpoint health/inventory, collects the shield and verifies
+  death/reload plus C→B→C persistence. It later dies approaching the factory tree
+  with four incoming health. `bridge-exit-resupply/` then uses the actual north
+  bridge health tree, reaches 100 health, repeats the factory/visited-world
+  transition and reaches the upper pipe with 71 health. Its failure is driver
+  overshoot at a straight pipe waypoint. The safe approach region now retains
+  actual height/ground assertions. `factory-pipe-approach/` passes that approach
+  and the supported takeoff, then overshoots the upper landing after its jump.
+  No fresh campaign result is assembled from these checkpoints.
+  Consolidated checks: 228 native contracts and 17 driver/evidence checks pass.
 
 Sequence-290 consolidated installation
 `b55eef1a5de4fe3fdbb54020b83889f649264cb3b8a650690b19d9b868710e54`

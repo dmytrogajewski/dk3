@@ -4,7 +4,7 @@ import math
 import re
 import time
 
-from runtime_opening_route import actors
+from runtime_opening_route import parse_actors
 
 
 def spend_earned_power(driver):
@@ -26,8 +26,7 @@ def spend_earned_power(driver):
     driver.inputs.append({"earned_power": {"before": before, "after": current}})
 
 
-def incoming(driver, floor):
-    text = driver.diagnostics("dk3_runtime_projectiles", "dk3 zig projectile states complete")
+def incoming(text, floor):
     result, active = [], 0
     for line in text.splitlines():
         if "dk3 thunder spray state:" not in line:
@@ -67,13 +66,13 @@ def battle(driver, capture):
     # against the cliff at (-911, 460), where the boss has no firing line.
     # The east barrier is an authored 5000-damage brush at x=-623..-619.
     # Leave steering/knockback clearance from it as well as the west cliff.
-    patrol = ((-720, 520), (-720, 800), (-860, 800), (-860, 520)) if initial["pos"][2] > 900 else ((-1510, 730), (-1510, 850))
+    patrol = ((-790, 520), (-790, 840), (-860, 840), (-860, 520)) if initial["pos"][2] > 900 else ((-1510, 730), (-1510, 850))
     contacts, waves = [], set()
     previous_health = None
     observed_shots = False
     last_contact = time.monotonic()
-    next_threats, threats, active_sprays = 0, [], None
     observed_health = {}
+    retreating = False
 
     def buttons(wanted):
         nonlocal held
@@ -85,11 +84,33 @@ def battle(driver, capture):
 
     try:
         while time.monotonic() < deadline:
+            # Read actors/projectiles and player state in one command round trip.
+            # Serial waits between those queries formerly let old steering run
+            # for several frames before reacting to the newly observed position.
+            offset = len(driver.text())
+            driver.issue("dk3_runtime_actors")
+            driver.issue("dk3_runtime_projectiles")
             state = driver.observe()
+            observation = driver.text()[offset:]
+            if "dk3 zig actor states complete" not in observation or "dk3 zig projectile states complete" not in observation:
+                raise RuntimeError("Arena observation bundle did not complete")
+            rows = parse_actors(observation)
+            threats, _ = incoming(observation, 960 if initial["pos"][2] > 900 else 512)
             if state["health"] <= 0 or state["map"] != "e1m1b":
                 raise RuntimeError("Arena battle ended in death or an unexpected transition")
+            if initial["pos"][2] > 900:
+                # Real movement retains momentum, particularly when the uneven
+                # plateau briefly launches Hiro. Firing while backing/strafe
+                # steering near the east edge crossed its lethal brush despite
+                # interior waypoints. Release fire and turn inward before that
+                # crossing; resume aiming only after observing bank clearance.
+                retreating = state["pos"][0] > (-810 if retreating else -730)
+                if retreating:
+                    driver.issue("dk3_look 180 0")
+                    buttons({"forward"})
+                    driver.inputs.append({"arena_boundary_retreat": state["pos"]})
+                    continue
             observed_shots |= state["event"] != initial["event"] and state["fire"] != initial["fire"]
-            rows = actors(driver)
             for identity, row in rows.items():
                 if identity in observed_health and row["health"] < observed_health[identity]:
                     last_contact = time.monotonic()
@@ -133,9 +154,6 @@ def battle(driver, capture):
             if math.dist(state["pos"][:2], destination) < 40:
                 waypoint = (waypoint + 1) % len(patrol)
                 destination = patrol[waypoint]
-            if state["cmd"] >= next_threats:
-                threats, active_sprays = incoming(driver, 960 if initial["pos"][2] > 900 else 512)
-                next_threats = state["cmd"] + 300
             if threats:
                 destination = evade(state["pos"], patrol, threats)
                 driver.inputs.append({"arena_dodge": {"threats": threats, "destination": destination}})

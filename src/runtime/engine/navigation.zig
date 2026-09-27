@@ -7,8 +7,18 @@ const rules = @import("../domain/navigation.zig");
 const c = abi.c;
 pub const Navigation = struct {
     started: bool = false,
-    pub fn init(self: *Navigation, allocator: std.mem.Allocator, now: i64) !void {
+    pub fn init(self: *Navigation, allocator: std.mem.Allocator, now: i64, restart: bool) !void {
         if (engine.integer("bot_enable") == 0) return error.NavigationRequiresBotlib;
+        // A fast VM restart retains the engine hunk and its navigation world.
+        // Only full map admission may allocate/load a new bot library.
+        if (restart) {
+            if (engine.gateway.call(c.BOTLIB_AAS_INITIALIZED, .{}) == 0) return error.NavigationRestartUnavailable;
+            self.started = true;
+            for (0..c.MAX_GENTITIES) |index| _ = engine.gateway.call(c.BOTLIB_UPDATENTITY, .{ @as(isize, @intCast(index)), @as(?*c.bot_entitystate_t, null) });
+            try self.frame(now);
+            engine.print("dk3 zig navigation: retained engine world for match restart\n");
+            return;
+        }
         var map_buffer: [c.MAX_QPATH]u8 = @splat(0);
         _ = engine.gateway.call(c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "mapname"), &map_buffer, @as(isize, map_buffer.len) });
         const map = std.mem.sliceTo(&map_buffer, 0);
@@ -33,14 +43,14 @@ pub const Navigation = struct {
         variable("sv_mapChecksum", checksum[0..std.mem.indexOfScalar(u8, &checksum, 0).? :0]);
         if (engine.gateway.call(c.BOTLIB_SETUP, .{}) != 0) return error.NavigationSetup;
         self.started = true;
-        errdefer self.deinit();
+        errdefer self.deinit(false);
         if (engine.gateway.call(c.BOTLIB_LOAD_MAP, .{asset.ptr}) != 0) return error.NavigationLoad;
         try self.frame(now);
         var message: [192]u8 = undefined;
         engine.print(try std.fmt.bufPrintZ(&message, "dk3 zig navigation: map={s} asset={s} mode={s}\n", .{ map, selected, @tagName(mode) }));
     }
-    pub fn deinit(self: *Navigation) void {
-        if (self.started) _ = engine.gateway.call(c.BOTLIB_SHUTDOWN, .{});
+    pub fn deinit(self: *Navigation, restart: bool) void {
+        if (self.started and !restart) _ = engine.gateway.call(c.BOTLIB_SHUTDOWN, .{});
         self.started = false;
     }
     pub fn frame(self: *Navigation, now: i64) !void {

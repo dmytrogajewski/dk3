@@ -219,7 +219,13 @@ pub const State = struct {
                         brain.jump_ready = now + 800;
                     }
                 }
-                if (brain.route.blocked and now >= brain.seek_ms) {
+                // A raised lift can make successive AAS entrances alternate
+                // while the bot still slides sideways at its face. Physical
+                // movement alone is not proof that the next floor is reachable.
+                // Inspect the actual obstructing mover before trying that ascent;
+                // seek still requires a collision and its authored real control.
+                const ascent = brain.control == null and player.ground_entity != c.ENTITYNUM_NONE and movement[2] > 18;
+                if ((brain.route.blocked or ascent) and now >= brain.seek_ms) {
                     brain.seek_ms = now + 500;
                     const toward = if (brain.route.waypoint) |waypoint| waypoint.point else goal;
                     if (try routes.yieldPoint(world, slots, entity, toward)) |point| {

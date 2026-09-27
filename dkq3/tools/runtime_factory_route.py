@@ -84,8 +84,15 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
                         # The safe takeoff is a small region, not one coordinate.
                         # Reversing across the sloped edge to correct an 8-unit
                         # overshoot can slide the player off the lower pipe.
-                        tolerance = 12 if point == (494, 2136, 456) else 20 if point in ((530, 2144, 528), (461, 2510, 403), (425, 2469, 376)) else 8
+                        tolerance = 12 if point == (494, 2136, 456) else 20 if point in ((530, 2144, 528), (530, 2281, 529), (461, 2510, 403), (425, 2469, 376)) else 8
                         walk(driver, point, capture, combat=False, tolerance=tolerance, jump=point == (530, 2144, 528))
+                        if point == (530, 2281, 529):
+                            # This is a straight approach segment, not the jump
+                            # takeoff. Require the actual pipe height and ground;
+                            # reversing to hit its exact centre adds no coverage.
+                            crossing = driver.observe()
+                            if crossing["ground"] == 2047 or not (527 <= crossing["pos"][2] <= 530):
+                                raise RuntimeError(f"Pipe approach left the supported upper surface: {crossing}")
                         if point == (494, 2136, 456):
                             launch = driver.observe()["pos"]
                             if not (480 < launch[0] < 500 and 2120 < launch[1] < 2150 and launch[2] >= 456):

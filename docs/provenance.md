@@ -203,3 +203,12 @@ Intentional presentation correction: that control carrier is invisible rather th
 using the reference renderer's missing-model marker. Actual character performances
 still require their model metadata. No private implementation or asset is imported;
 public parser fixtures are independently authored.
+
+Sequence 291 reviews the bundled GPL engine's fast-restart contract in
+`code/game/ai_main.c` and `code/server/sv_ccmds.c`: VM restart preserves the
+engine hunk and navigation world. Native shutdown now retains botlib for that
+boundary, releases bot input owners and clears stale navigation projections
+before the next match. Full map admission still sets up and loads navigation.
+The new LAN and bot diagnostics are project-authored; no private implementation
+or assets are admitted. Lift approach routing uses actual collision and existing
+authored controls, without changes to map geometry, damage or mover timings.

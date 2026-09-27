@@ -67,7 +67,9 @@ def run(args):
             try:
                 wait(process, log, lambda text: pipe.exists() and "dk3 zig: isolated bootstrap" in text, 45)
                 deadline = time.monotonic() + args.seconds
+                admission_deadline = time.monotonic() + 20
                 setup = False
+                restarted = False
                 while time.monotonic() < deadline:
                     offset = log.stat().st_size
                     send(pipe, "dk3_runtime_match")
@@ -82,7 +84,7 @@ def run(args):
                     if len(players) != args.bots:
                         if setup:
                             raise RuntimeError("Match lost an admitted participant")
-                        if len(samples) > 120:
+                        if time.monotonic() >= admission_deadline:
                             raise RuntimeError(f"Bot admission incomplete: {players}")
                         continue
                     if not setup:
@@ -113,9 +115,28 @@ def run(args):
                     carriers.update(o["carrier"] for o in objectives if o["phase"] == "carried" and o["carrier"] != 0)
                     captures = sum(p["captures"] for p in players)
                     if fired and injured and equipped and moved and respawned and (args.mode == "dm" or (carriers and captures)):
-                        result.update(status="passed", evidence={"fired": sorted(fired), "injured": sorted(injured),
-                                      "picked_up": sorted(equipped), "moved": sorted(moved), "respawned": sorted(respawned),
-                                      "carriers": sorted(carriers), "captures": captures})
+                        evidence = {"fired": sorted(fired), "injured": sorted(injured),
+                                    "picked_up": sorted(equipped), "moved": sorted(moved), "respawned": sorted(respawned),
+                                    "carriers": sorted(carriers), "captures": captures}
+                        if args.restart and not restarted:
+                            result["before_restart"] = evidence
+                            offset = log.stat().st_size
+                            send(pipe, "map_restart 0")
+                            text = wait(process, log, lambda text: "dk3 zig: isolated bootstrap" in text[offset:]
+                                        or engine_failure(text[offset:]), 20)[offset:]
+                            if failure := engine_failure(text):
+                                raise RuntimeError(failure)
+                            if "retained engine world for match restart" not in text:
+                                raise RuntimeError("Fast restart did not retain its navigation world")
+                            restarted = True
+                            initial, lives, setup = {}, {}, False
+                            for records in (injured, fired, equipped, moved, participant_ids, respawned, carriers):
+                                records.clear()
+                            samples.append({"boundary": "fast map restart; all acceptance accumulators reset"})
+                            deadline = time.monotonic() + args.seconds
+                            admission_deadline = time.monotonic() + 20
+                            continue
+                        result.update(status="passed", evidence=evidence, restarted=restarted)
                         break
                     # This controls observation load only. Success always requires
                     # the authoritative events/state above, never elapsed sleep.
@@ -160,6 +181,7 @@ def main():
     parser.add_argument("--map")
     parser.add_argument("--bots", type=int, choices=range(2, 9), default=4)
     parser.add_argument("--seconds", type=int, default=300)
+    parser.add_argument("--restart", action="store_true", help="Repeat natural match requirements after a fast restart")
     args = parser.parse_args()
     args.engine = args.engine.resolve()
     args.prefix, args.report = (args.prefix or args.engine).resolve(), args.report.resolve()

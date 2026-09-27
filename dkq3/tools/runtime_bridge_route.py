@@ -399,6 +399,20 @@ def bridge_exit(driver, capture, report):
                   (-1331, 1415, 543), (-1314, 1510, 591), (-1314, 1578, 625),
                   (-1270, 1700, 661), (-1047, 1676, 664), (-900, 1600, 664)):
         walk(driver, point, capture, combat=True)
+        if point == (-1270, 1700, 661) and driver.observe()["health"] < 100:
+            # Supplied ground nodes 49 -> 70 -> 4 lead to the north health
+            # tree after the boss opens this gate. Resupply before entering the
+            # next encounter instead of repeatedly replaying a four-health save.
+            bank = ((-1432, 1696, 664), (-1616, 1712, 664), (-1668, 1664, 664))
+            for supply in bank:
+                walk(driver, supply, capture, combat=False, tolerance=16)
+            uses = resupply(driver, 106)
+            if not uses or driver.observe()["health"] <= 0:
+                raise RuntimeError("North exit tree did not provide actual living resupply")
+            driver.inputs.append({"bridge_exit_tree": 106, "uses": uses})
+            checkpoint(driver, capture, report, "bridge_exit_resupplied")
+            for supply in (*reversed(bank[:-1]), point):
+                walk(driver, supply, capture, combat=True)
     from runtime_campaign_restoration import bridge_progress, visited_bridge
     progress = bridge_progress(driver)
     checkpoint(driver, capture, report, "bridge_before_exit")

@@ -16,22 +16,24 @@ from runtime_probe import stage_client_modules, send, wait
 def run(args):
     if not __debug__:
         raise RuntimeError("Route regression requires assertions")
+    if args.report.exists() and any(args.report.iterdir()):
+        raise RuntimeError("Route evidence requires a fresh directory")
     args.report.mkdir(parents=True, exist_ok=True)
-    identity = record_identity(args.engine, args.prefix, args.report)
+    identity = record_identity(args.engine, args.prefix, args.report, require_installation=not args.diagnostic_runtime)
     result = {"identity": identity, "dedicated_sha256": hashlib.sha256((args.engine / "bin/dk3ded").read_bytes()).hexdigest(),
-              "scope": "Read-only e1ctf1 AAS edge traversal; no actor placement or campaign/match acceptance.", "routes": []}
+              "scope": f"Read-only {args.map} AAS edge traversal; no actor placement or campaign/match acceptance.", "routes": []}
     log = args.report / "server.log"
     with tempfile.TemporaryDirectory(prefix="dk3-native-route-contract-") as temporary:
         home = Path(temporary)
-        stage_client_modules(args.prefix, home)
+        stage_client_modules(args.prefix, home, installation=None if args.diagnostic_runtime else args.engine)
         settings = {"net_enabled": "0", "fs_basepath": str(args.engine / "share"), "fs_homepath": str(home),
                     "fs_homedatapath": str(home), "fs_homestatepath": str(home / "state"), "com_basegame": "dk3",
-                    "com_pipefile": "commands.fifo", "vm_game": "0", "dk3_runtime_probe": "2", "g_gametype": "4",
+                    "com_pipefile": "commands.fifo", "vm_game": "0", "dk3_runtime_probe": "2", "g_gametype": str(args.mode),
                     "sv_maxclients": "8", "bot_minplayers": "0", "developer": "1", "dk3_public": "0"}
         command = [str(args.engine / "bin/dk3ded")]
         for key, value in settings.items():
             command += ["+set", key, value]
-        command += ["+map", "e1ctf1"]
+        command += ["+map", args.map]
         result["command"] = command
         with log.open("w") as output:
             process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT)
@@ -40,7 +42,7 @@ def run(args):
                 wait(process, log, lambda text: pipe.exists() and "isolated bootstrap" in text, 45)
                 # First three reproduce observed stuck bots. The adjacent-area
                 # and non-portal starts retain unaffected routing coverage.
-                for start, goal in ((39, 330), (4683, 4714), (1973, 5396), (39, 357), (357, 39), (6483, 1863)):
+                for start, goal in args.route or ((39, 330), (4683, 4714), (1973, 5396), (39, 357), (357, 39), (6483, 1863)):
                     offset = log.stat().st_size
                     send(pipe, f"dk3_runtime_route {start} {goal}")
                     text = wait(process, log, lambda text: "dk3 route complete:" in text[offset:], 10)[offset:]
@@ -67,10 +69,16 @@ def run(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True)
-    parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
+    parser.add_argument("--prefix", type=Path, help="Defaults to the immutable engine installation")
+    parser.add_argument("--diagnostic-runtime", action="store_true")
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--map", default="e1ctf1")
+    parser.add_argument("--mode", type=int, choices=(0, 4, 8), default=4)
+    parser.add_argument("--route", type=int, nargs=2, action="append", metavar=("FROM", "GOAL"))
     args = parser.parse_args()
-    args.engine, args.prefix, args.report = args.engine.resolve(), args.prefix.resolve(), args.report.resolve()
+    if not re.fullmatch(r"[a-zA-Z0-9_]+", args.map) or (args.map != "e1ctf1" and not args.route):
+        parser.error("A custom simple map name requires explicit route area pairs")
+    args.engine, args.prefix, args.report = args.engine.resolve(), (args.prefix or args.engine).resolve(), args.report.resolve()
     run(args)
 
 

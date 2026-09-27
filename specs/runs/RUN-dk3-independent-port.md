@@ -5526,3 +5526,71 @@ routes; no fresh acceptance is assembled from them. Further combat diagnosis mus
 record actual damage sources rather than infer splash/self-damage from health loss.
 `cinematic-after-e3m6a/` and `cinematic-after-credits/` completed successfully with
 actual post-playback saves/restores; their final rendered frames were inspected.
+
+
+## Sequence 291 — native-restart-lift-entry-and-damage-evidence
+
+Bare `zig build play` remains available on the native branch with isolated profiles.
+Main, the preserved installation/saves, and the online service are unchanged.
+The exact installations, asset identity and acceptance boundaries are recorded in
+`docs/native-acceptance.md`; all evidence is under `zig-out/reports/runtime-zig-291/`.
+
+Read-only player observations now include actual ground and damage receipts.
+The fresh `2b789…` New Game run observes every intro shot, traverses the marsh,
+uses authored bridge controls/resupply, clears both pools and reaches the boss.
+It then crosses the real east 5000-damage barrier. A 10000-health arena diagnostic
+separately defeats the boss and collects its actual shield; it establishes damage
+sources and reward contact only, never ordinary campaign acceptance. The first
+boundary correction avoids that hazard but dies under spray. Batched observation
+queries subsequently let a legitimate ordinary-health checkpoint defeat the boss,
+collect armor, restore a death, and retain C→B→C world progress. It arrives with
+four health and dies approaching the factory tree. `bridge-exit-resupply/` uses
+the real north bridge health tree to reach 100 health, repeats the factory and
+visited-world transition, uses its next tree and reaches the upper pipe alive
+with 71 health. The driver then oscillates across a straight approach waypoint;
+its corrected safe region retains actual height/ground assertions. The narrow
+`factory-pipe-approach/` checkpoint replay passes that segment and the supported
+takeoff, then carries too much momentum across the upper landing. No fresh
+completion is claimed.
+
+Two actual native UDP clients expose a fast-restart crash: the game unloaded and
+reallocated botlib while engine hunk marks remained set. Engine navigation now
+survives the VM restart, with stale entity projections cleared; bot input owners
+release their engine slots and the new match repopulates them. Client restart
+commands reset restoration presentation state. This follows the bundled engine's
+restart contract; no private implementation or runtime is admitted.
+`lan-synchronized/` retains the crash. `lan-restart-repaired/` on `b5cc3…` verifies
+admission, movement, fire events, commanded death/respawn, spectator/rejoin,
+disconnect/reconnect and fast restart with two real clients. Post-restart frames
+were inspected. Ordinary LAN reconnect starts a new session; authenticated public
+room identity restoration and network combat contact remain unverified. Earlier
+LAN attempts exposed driver errors (too many startup commands, status address
+format, and the reliable text-command throttle); those are explicitly not game
+failures. The driver now rejects oversized launch commands and observes server
+time after acknowledged team changes before issuing the next text command.
+
+Controlled red-lift riding reaches the objective, but a separate raised-lift
+approach reproduces oscillation until the closing gate crushes the bot. AAS
+entrances alternate while physical sideways motion falsely suggests useful
+progress. A grounded ascent now checks for an actual obstructing mover and seeks
+its real authored control. `bot-lift-ascent-repaired/` on `0bfdec…` presses the
+button, rides and carries the objective without altered geometry/waits/damage.
+`ctf-ascent-regression/` passes movement, pickups, attack, opponent damage and
+respawn by all four bots plus one contested capture. `dm-restart-admission/`
+repeats movement/pickups by four bots, combat by two and a respawn after fast
+restart. A first restart driver attempt incorrectly retained its admission sample
+counter; the corrected deadline begins anew at the real restart boundary.
+
+Natural deathtag now produces carriers but still cannot capture. A read-only AAS
+regression shows area 6435→3956 unreachable, with reverse and adjacent routes
+passing. Inspection of the supplied graph finds two required water-jump edges;
+the native motor supports that motion but navigation excludes its travel flag.
+This is the next concrete shared-route repair, not permission to alter the course.
+
+The `0bfdec9bd5a2a4d75ff206012a608212175412050723bcfefe3a33607a4afa9d`
+installation passes 228 native contracts (146 runtime, 48 actor, 24 weapon,
+2 inventory and 8 item tests), with assertions enabled. Seventeen driver/evidence
+checks pass. Asset manifest remains
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+Fresh opening completion, remaining episodes/interactions, complete multiplayer,
+public rooms and independent release acceptance remain open.

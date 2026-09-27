@@ -30,13 +30,18 @@ var restoring_visit = false;
 export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
-fn shutdown() void {
+fn shutdown(restart: bool) void {
+    // Engine bot client slots outlive a fast VM restart. Release their input
+    // owners before unloading; the new match population admits fresh bots.
+    if (restart) if (world) |*value| for (bots.brains, 0..) |brain, index| {
+        if (brain != null) bots.remove(value, &slots, &projection, &clients, index, clock.now_ms) catch |err| runtimeFailure(err);
+    };
     if (world) |*value| rooms.checkpoint(value, &clients) catch |err| runtimeFailure(err);
     campaign.deinit();
     restoring_visit = false;
     if (restore_pending) |*saved| saved.deinit(std.heap.c_allocator);
     restore_pending = null;
-    systems.deinit();
+    systems.deinit(restart);
     if (pool) |workers| workers.destroy();
     pool = null;
     if (world) |*value| value.deinit();
@@ -49,8 +54,8 @@ fn shutdown() void {
     if (arena) |*value| value.deinit();
     arena = null;
 }
-fn init(now: i64) !void {
-    shutdown();
+fn init(now: i64, restart: bool) !void {
+    shutdown(restart);
     engine.register("dk3_runtime_probe", "0", 0);
     if (engine.integer("dk3_runtime_probe") < 1 or engine.integer("dk3_runtime_probe") > 2) return error.ReplacementGameplayNotQualified;
     var defaults: [12]u8 = undefined;
@@ -59,7 +64,7 @@ fn init(now: i64) !void {
     const jobs = engine.integer("dk3_jobs");
     if (jobs < 0 or jobs > 8) return error.WorkerLimit;
     arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
-    errdefer shutdown();
+    errdefer shutdown(false);
     world = component.World.init(std.heap.c_allocator, 1024);
     pool = try Pool.create(std.heap.c_allocator, @intCast(jobs));
     @memset(std.mem.asBytes(&projection), 0);
@@ -98,7 +103,7 @@ fn init(now: i64) !void {
         _ = try world.?.create(null, .{ object.binding, object.transform });
     }
     if (engine.integer("dk3_runtime_probe") == 2) {
-        try systems.spawn(arena.?.allocator(), &world.?, &slots, &projection, now, clients.episode, &clients.weapon_table);
+        try systems.spawn(arena.?.allocator(), &world.?, &slots, &projection, now, clients.episode, &clients.weapon_table, restart);
         targets.scripts = &systems.scripts;
         targets.cinematics = &systems.cinematics;
         targets.actors = &systems.actors;
@@ -435,11 +440,11 @@ fn consoleCommand() isize {
 export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, arg6: isize, arg7: isize, arg8: isize, arg9: isize, arg10: isize, arg11: isize) callconv(.c) isize {
     _ = .{ arg1, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11 };
     switch (command) {
-        c.GAME_INIT => init(arg0) catch |err| {
+        c.GAME_INIT => init(arg0, arg2 != 0) catch |err| {
             var buffer: [256]u8 = undefined;
             engine.fatal(std.fmt.bufPrintZ(&buffer, "Native Zig runtime: {s}. Isolated development uses dk3_runtime_probe=2; bootstrap diagnostics use 1.", .{@errorName(err)}) catch unreachable);
         },
-        c.GAME_SHUTDOWN => shutdown(),
+        c.GAME_SHUTDOWN => shutdown(arg0 != 0),
         c.GAME_CLIENT_CONNECT => {
             if (engine.integer("dk3_runtime_probe") != 2) return @intCast(@intFromPtr(@as([*:0]const u8, "Native bootstrap does not admit players; movement development requires dk3_runtime_probe=2.")));
             if (arg0 < 0 or arg0 >= c.MAX_CLIENTS) return @intCast(@intFromPtr(@as([*:0]const u8, "Invalid client slot.")));
