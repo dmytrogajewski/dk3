@@ -19,14 +19,18 @@ pub fn total(world: *data.World) usize {
 }
 pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     if (engine.integer("gib_enable") == 0) return;
-    const pose = (try world.get(entity, data.Transform)).*;
     const body = (try world.get(entity, data.Body)).*;
     const hurt = (try world.get(entity, data.Hurt)).*;
     const robotic = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition].kind == .deathsphere;
     const skin = if (robotic) @import("resources.zig").modelName((try world.get(entity, data.Binding)).model) else "";
     const inherited = (try world.get(entity, data.Velocity)).linear;
+    const origin = if (world.find(hurt.source)) |source| (try world.get(source, data.Transform)).position else (try world.get(entity, data.Transform)).position;
+    try burst(world, slots, projections, entity, body, hurt, robotic, skin, inherited, origin, now);
+}
+pub fn burst(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, body: data.Body, hurt: data.Hurt, robotic: bool, skin: []const u8, inherited: v.Vec3, origin: v.Vec3, now: i64) !void {
+    if (engine.integer("gib_enable") == 0) return;
+    const pose = (try world.get(entity, data.Transform)).*;
     var random = (try world.get(entity, data.Random)).*;
-    const origin = if (world.find(hurt.source)) |source| (try world.get(source, data.Transform)).position else pose.position;
     const away = v.normalize(v.subtract(pose.position, origin));
     const angles: v.Vec3 = .{ -std.math.atan2(away[2], @sqrt(away[0] * away[0] + away[1] * away[1])) * 180 / std.math.pi, std.math.atan2(away[1], away[0]) * 180 / std.math.pi, 0 };
     const requested = policy.count(body.mass, @import("multiplayer.zig").enabled());

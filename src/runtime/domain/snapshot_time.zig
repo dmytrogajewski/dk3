@@ -26,6 +26,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             switch (value.action) {
                 .timer => |*timer| try deadline(&timer.next_ms, delta),
                 .speaker => |*speaker| try deadline(&speaker.next_ms, delta),
+                .blood_cloud => |*state| { try shift(&state.next_ms, delta); try deadline(&state.until_ms, delta); },
                 .target_effect => |*state| {
                     try deadline(&state.next_ms, delta);
                     try deadline(&state.until_ms, delta);
@@ -350,6 +351,9 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try deadline(&value.knight.sidestep_until, delta);
             try deadline(&value.rat.evasion_until, delta);
             try active(&value.shark.wander_until_ms, delta);
+            try deadline(&value.fish.wander_until_ms, delta);
+            try deadline(&value.fish.motion_ms, delta);
+            try deadline(&value.seagull.motion_ms, delta);
             try active(&value.vermin.ready_ms, delta);
             try shift(&value.rotworm.started_ms, delta);
             try active(&value.lasergat.servo_ms, delta);
@@ -447,6 +451,26 @@ test "liquid reserves preserve remaining air nitro callback and suit charge on r
     try std.testing.expectEqual(@as(?i64, 15000), character.liquid.nitro_ms);
     try std.testing.expectEqual(@as(i64, 5000), character.environment_charge_ms);
     try std.testing.expectEqual(@as(f32, 0.75), character.liquid.fraction);
+}
+
+test "wildlife restoration keeps target hysteresis wave phase and pending blood cloud delay" {
+    const t = std.testing;
+    var actor: data.Actor = .{ .definition = @import("actor_catalog").find("fish_dopefish").?, .fish = .{ .owner = 42, .aggressive = true, .motion_ms = 1100, .wander_until_ms = 2400 }, .seagull = .{ .motion_ms = 1200, .wave = 7, .bobbing = true } };
+    try rebase(.actor, &actor, 8000);
+    try t.expectEqual(@as(?i64, 9100), actor.fish.motion_ms);
+    try t.expectEqual(@as(?i64, 10400), actor.fish.wander_until_ms);
+    try t.expectEqual(@as(u32, 42), actor.fish.owner);
+    try t.expect(actor.fish.aggressive);
+    try t.expectEqual(@as(?i64, 9200), actor.seagull.motion_ms);
+    try t.expectEqual(@as(u4, 7), actor.seagull.wave);
+    var cloud: data.WorldControl = .{ .action = .{ .blood_cloud = .{ .next_ms = 1100, .extent = .{92, 92, -240}, .mass = 200 } } };
+    try rebase(.world_control, &cloud, 8000);
+    try t.expectEqual(@as(i64, 9100), cloud.action.blood_cloud.next_ms);
+    try t.expectEqual(null, cloud.action.blood_cloud.until_ms);
+    cloud.action.blood_cloud.until_ms = 9600;
+    try rebase(.world_control, &cloud, 1000);
+    try t.expectEqual(@as(?i64, 10600), cloud.action.blood_cloud.until_ms);
+    try t.expectEqual(@as(i64, 500), cloud.action.blood_cloud.until_ms.? - cloud.action.blood_cloud.next_ms);
 }
 
 test "world timer restore shifts its deadline but preserves variance sequence and activation" {

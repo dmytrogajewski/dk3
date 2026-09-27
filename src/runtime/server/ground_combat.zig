@@ -172,11 +172,13 @@ pub fn emit(world: *data.World, slots: *@import("../engine/slots.zig").Slots, pr
         const start = v.add(pose.position, v.add(v.scale(axes.right, definition.offset[0]), v.add(v.scale(axes.forward, definition.offset[1]), .{ 0, 0, definition.offset[2] })));
         const body = (try world.get(target, data.Body)).*;
         const aim = v.add((try world.get(target, data.Transform)).position, v.scale(v.add(body.mins, body.maxs), 0.5));
-        const leading = if (kind == .femgang or kind == .cerberus or kind == .shark) try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random)) else null;
+        const leading = if (kind == .femgang or kind == .cerberus or kind == .shark or kind == .dopefish) try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random)) else null;
         const hit = try engine.collisionService().trace(.{ .start = if (leading) |value| value.origin else start, .end = if (leading) |value| v.add(value.origin, v.scale(value.direction, definition.range)) else v.add(start, v.scale(v.normalize(v.subtract(aim, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
         if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
             const random = (try world.get(entity, data.Random)).next();
+            const before = if (world.get(target, data.Health) catch null) |health| health.current else 0;
             _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(definition.damage + random * definition.random_damage)), now, .{ .source = try world.persistentId(entity), .attacker_class = catalog.entries[actor.definition].classname });
+            if (kind == .dopefish and (try world.get(target, data.Health)).current < before) try @import("blood_clouds.zig").spawn(world, slots, projections, target, entity, now);
         };
     };
 }

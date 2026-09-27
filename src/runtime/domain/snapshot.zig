@@ -491,6 +491,11 @@ pub fn validate(snapshot: *Loaded) !void {
                 if (shot.remaining == 0 or shot.remaining > 5) return error.InvalidSavedRockgatBurst;
             };
             try require(world, entity, .{ data.Velocity, data.Body, data.Health, data.Hurt, data.Binding, data.MapObject });
+            if (actor.seagull.wave > 9) return error.InvalidSavedActor;
+            for (actor.fish.start) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
+            if (actor.fish.destination) |destination| for (destination) |coordinate| {
+                if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
+            };
             if (actor.doombat.bob > 5 or !std.math.isFinite(actor.doombat.speed) or actor.doombat.speed < 0) return error.InvalidSavedActor;
             for (actor.griffon.destination ++ actor.griffon.previous) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             for (actor.harpy.destination) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
@@ -539,6 +544,7 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Transform });
             const classname = (try world.get(entity, data.MapObject)).classname;
             const expected = switch (control.action) {
+                .blood_cloud => "effect_blood_cloud",
                 .target_effect => "target_effect",
                 .weather => |state| if (state.kind == .rain) "effect_rain" else "effect_snow",
                 .lightning => "effect_lightning",
@@ -561,6 +567,12 @@ pub fn validate(snapshot: *Loaded) !void {
             };
             if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
             switch (control.action) {
+                .blood_cloud => |state| {
+                    for (state.extent) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedBloodCloud;
+                    if (state.mass <= 0 or state.mass > 100000 or !std.math.isFinite(state.mass)) return error.InvalidSavedBloodCloud;
+                    if (state.until_ms) |until| if (until - state.next_ms != 500) return error.InvalidSavedBloodCloud;
+                    try require(world, entity, .{data.Random, data.Binding});
+                },
                 .target_effect => |state| {
                     try require(world, entity, .{data.Binding, data.Random});
                     if (state.count < 1 or state.count > 64 or state.kind >= 33 or state.interval_ms <= 0 or state.duration_ms <= 0 or state.sound > snapshot.header.resources.sounds.len or (state.visible and (state.pulse_ms == null or state.serial == 0))) return error.InvalidSavedTargetEffect;

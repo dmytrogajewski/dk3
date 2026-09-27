@@ -15,7 +15,7 @@ fn subject(world: *data.World, entity: ecs.Entity) !rules.Subject {
     const actor = (try world.get(entity, data.Actor)).*;
     const policy = catalog.entries[actor.definition];
     if (policy.kind == .companion) return .companion;
-    if (policy.kind == .shark) return .aquatic_actor;
+    if (catalog.aquatic(policy.kind)) return .aquatic_actor;
     return if (policy.nitro_immune) .robot else .land_actor;
 }
 pub fn measure(service: @import("../domain/collision.zig").Collision, position: v.Vec3, body: data.Body, view: f32, slot: u16) !rules.Exposure {

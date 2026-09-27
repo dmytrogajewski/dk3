@@ -100,6 +100,7 @@ pub const Actors = struct {
             .rotworm => &catalog.rotworm.attacks,
             .venomvermin => &catalog.vermin.attacks,
             .shark => &catalog.shark.attacks,
+            .dopefish => &catalog.fish.attacks,
             .cerberus => &catalog.cerberus.attacks,
             .piperat => &catalog.rats.pipe_attacks,
             .plague_rat => &catalog.rats.plague_attacks,
@@ -123,7 +124,8 @@ pub const Actors = struct {
             if ((policy.kind == .spider or policy.kind == .smallspider) and i == 0) definition.attacks[i].fps *= 2;
             // These Wyndrax model sequences have no rows in the supplied CSV;
             // their default strike is first+1 and the class supplies zap audio.
-            if (policy.kind == .wyndrax or policy.kind == .ghost or (policy.kind == .kage and i == 3) or (policy.kind == .mikiko and i == 2)) {
+            // Dopefish atak likewise has no matching CSV row (ataka is ignored).
+            if (policy.kind == .dopefish or policy.kind == .wyndrax or policy.kind == .ghost or (policy.kind == .kage and i == 3) or (policy.kind == .mikiko and i == 2)) {
                 definition.strikes[i] = 1;
                 continue;
             }
@@ -199,11 +201,11 @@ pub const Actors = struct {
                 self.air_ready = true;
             }
         }
-        if ((policy.kind == .ghost or policy.kind == .cambot or policy.kind == .doombat or policy.kind == .griffon or policy.kind == .harpy or policy.kind == .dragon or policy.kind == .deathsphere or policy.kind == .chaingang) and !self.air_ready) {
+        if ((policy.kind == .seagull or policy.kind == .ghost or policy.kind == .cambot or policy.kind == .doombat or policy.kind == .griffon or policy.kind == .harpy or policy.kind == .dragon or policy.kind == .deathsphere or policy.kind == .chaingang) and !self.air_ready) {
             try self.air_routes.init(self.allocator);
             self.air_ready = true;
         }
-        if (policy.kind == .piperat or policy.kind == .plague_rat or policy.kind == .shark) {
+        if (policy.kind == .piperat or policy.kind == .plague_rat or catalog.aquatic(policy.kind)) {
             definition.swim = try animation.find(metadata, "swima") orelse return error.MissingRatSwim;
             if (!self.water_ready) {
                 try self.water_routes.initGround(self.allocator);
@@ -247,6 +249,11 @@ pub const Actors = struct {
         try world.put(entity, data.Actor{ .unique = @import("properties.zig").text(object, "uniqueid") orelse "", .ignore_player = object.flags & 16 != 0 or catalog.entries[id].kind == .surgeon, .path = if (object.flags & 2 != 0 and object.target.len > 0) if (@import("scripts.zig").named(world, object.target)) |point| try world.persistentId(point) else 0 else 0, .crox = .{ .start = (try world.get(entity, data.Transform)).position, .cycle_ms = now + definition.idle.duration() }, .definition = id, .changed_ms = now, .think_ms = now, .guard = .{ .random = try world.persistentId(entity) } });
         if (catalog.entries[id].kind == .psyclaw) (try world.get(entity, data.Actor)).psyclaw.protected_until_ms = now + 750;
         if (catalog.entries[id].kind == .shark) (try world.get(entity, data.Actor)).shark.start = (try world.get(entity, data.Transform)).position;
+        if (catalog.entries[id].kind == .fish or catalog.entries[id].kind == .dopefish) {
+            (try world.get(entity, data.Actor)).fish.start = (try world.get(entity, data.Transform)).position;
+            (try world.get(entity, data.Actor)).ignore_player = catalog.entries[id].kind == .fish;
+        }
+        if (catalog.entries[id].kind == .seagull) (try world.get(entity, data.Actor)).ignore_player = true;
         if (catalog.entries[id].kind == .rockgat) (try world.get(entity, data.Actor)).rockgat = try @import("rockgats.zig").configure(object, now, definition.idle.last);
         try world.put(entity, data.Hurt{});
         try world.put(entity, data.Ailments{});
@@ -254,7 +261,7 @@ pub const Actors = struct {
         try world.put(entity, data.Velocity{});
         try world.put(entity, data.Random{ .state = try world.persistentId(entity) });
         try world.put(entity, data.Body{ .mins = definition.mins, .maxs = definition.maxs, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID, .mass = definition.mass });
-        if (catalog.entries[id].kind == .ghost) (try world.get(entity, data.Body)).contents = c.CONTENTS_CORPSE;
+        if (catalog.entries[id].kind == .ghost or catalog.entries[id].kind == .fish) (try world.get(entity, data.Body)).contents = c.CONTENTS_CORPSE;
         const model = try @import("resources.zig").model(definition.model);
         const slot = try slots.acquire(entity, null);
         try world.put(entity, data.Binding{ .slot = slot, .model = model });
@@ -450,7 +457,7 @@ pub const Actors = struct {
             if (dead and actor.mode != .dead and (catalog.entries[actor.definition].kind != .ghost or petrified)) {
                 const kind = catalog.entries[actor.definition].kind;
                 if (kind == .kage) try @import("kages.zig").death(world, slots);
-                if (!petrified and (kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or (kind == .buboid and actor.buboid.phase == .terminal)) and engine.integer("sv_violence") == 0) {
+                if (!petrified and (catalog.ambient(kind) or kind == .dopefish or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or (kind == .buboid and actor.buboid.phase == .terminal)) and engine.integer("sv_violence") == 0) {
                     try @import("actor_gibs.zig").spawn(world, slots, projections, entity, now);
                     actor.gibbed = true;
                 }
@@ -504,6 +511,7 @@ pub const Actors = struct {
                 continue;
             }
             const policy = catalog.entries[actor.definition];
+            if (catalog.ambient(policy.kind)) actor.receipt = hurt.revision;
             const rat = policy.kind == .piperat or policy.kind == .plague_rat;
             if (!dead and rat) {
                 actor.rat.water = try @import("actor_water.zig").level(pose.position, body, binding.slot);
@@ -558,7 +566,7 @@ pub const Actors = struct {
                 try self.publish(world, entity, projections, now);
                 continue;
             }
-            if (!dead and !acting and actor.path != 0 and policy.kind != .civilian and policy.kind != .surgeon and policy.kind != .companion and policy.kind != .protopod and policy.kind != .cambot) try @import("actor_perception.zig").acquire(world, slots, entity, &actor, pose, self.table.definitions[actor.definition], now);
+            if (!dead and !acting and actor.path != 0 and policy.kind != .civilian and !catalog.ambient(policy.kind) and policy.kind != .dopefish and policy.kind != .surgeon and policy.kind != .companion and policy.kind != .protopod and policy.kind != .cambot) try @import("actor_perception.zig").acquire(world, slots, entity, &actor, pose, self.table.definitions[actor.definition], now);
             const following = !reviving and !(policy.kind == .nharre and actor.nharre.phase != .combat) and !(policy.kind == .kage and actor.kage.phase != .combat) and !(policy.kind == .wyndrax and actor.wyndrax.phase != .combat) and !(policy.kind == .medusa and actor.medusa.phase != .combat) and !actor.surgeon.active and actor.mode != .flee and actor.path != 0 and hurt.revision == actor.receipt and (actor.ignore_player or actor.threat == 0);
             if (!dead and body.motion_owner == null and (acting or following)) {
                 var velocity = (try world.get(entity, data.Velocity)).*;
@@ -567,7 +575,9 @@ pub const Actors = struct {
                 const point = if (acting and script.?.moving) script.?.destination else if (!acting and following) try @import("scripts.zig").path(world, slots, projections, router, entity, &actor, pose, speed, now) else null;
                 actor.mode = if (point != null) .chase else .idle;
                 if (policy.kind == .cambot and now >= actor.think_ms) actor.think_ms = now + 100;
-                if (policy.kind == .ghost or policy.kind == .skeeter or policy.kind == .thunderskeet or policy.kind == .cambot or policy.kind == .doombat or policy.kind == .dragon or policy.kind == .deathsphere or (policy.kind == .griffon and actor.griffon.flying) or (policy.kind == .harpy and actor.harpy.flying) or (policy.kind == .chaingang and actor.chaingang.flying)) {
+                if (policy.kind == .seagull) {
+                    try @import("seagulls.zig").move(self, &actor, &pose, &body, &velocity, binding.slot, elapsed, now, 1, point);
+                } else if (policy.kind == .ghost or policy.kind == .skeeter or policy.kind == .thunderskeet or policy.kind == .cambot or policy.kind == .doombat or policy.kind == .dragon or policy.kind == .deathsphere or (policy.kind == .griffon and actor.griffon.flying) or (policy.kind == .harpy and actor.harpy.flying) or (policy.kind == .chaingang and actor.chaingang.flying)) {
                     velocity.linear = @splat(0);
                     if (point) |destination| if (try self.air_routes.next(pose.position, destination, body, binding.slot)) |waypoint| {
                         const delta = v.subtract(waypoint, pose.position);
@@ -577,7 +587,7 @@ pub const Actors = struct {
                     try @import("actor_flight.zig").move(&pose, body, &velocity, binding.slot, elapsed);
                 } else {
                     if (point) |destination| actor.threat_position = destination;
-                    if (policy.kind == .companion) try @import("companion_navigation.zig").move(world, entity, &actor, &pose, &body, &velocity, navigation, definition, speed, actor.threat_position, binding.slot, now, elapsed) else if (policy.kind == .shark) try @import("sharks.zig").swim(self, &actor, &pose, &body, &velocity, binding.slot, elapsed, 1) else if (rat and actor.rat.swimming) actor.rat.water = try @import("actor_water.zig").move(&self.water_routes, &actor, &pose, &body, &velocity, speed, binding.slot, elapsed) else try @import("actor_motion.zig").step(&actor, &pose, &body, &velocity, navigation, actor.threat_position, speed, binding.slot, now, elapsed);
+                    if (policy.kind == .companion) try @import("companion_navigation.zig").move(world, entity, &actor, &pose, &body, &velocity, navigation, definition, speed, actor.threat_position, binding.slot, now, elapsed) else if (policy.kind == .fish or policy.kind == .dopefish) try @import("fishes.zig").move(self, &actor, &pose, &body, &velocity, binding.slot, elapsed, now, 1) else if (policy.kind == .shark) try @import("sharks.zig").swim(self, &actor, &pose, &body, &velocity, binding.slot, elapsed, 1) else if (rat and actor.rat.swimming) actor.rat.water = try @import("actor_water.zig").move(&self.water_routes, &actor, &pose, &body, &velocity, speed, binding.slot, elapsed) else try @import("actor_motion.zig").step(&actor, &pose, &body, &velocity, navigation, actor.threat_position, speed, binding.slot, now, elapsed);
                 }
                 if (policy.kind == .cryotech) try @import("cryotechs.zig").ambient(world, slots, projections, entity, &actor, pose, definition, now);
                 if (policy.kind == .dragon and actor.path != 0) try @import("dragons.zig").patrol(world, slots, projections, entity, &actor, pose, now);
@@ -617,6 +627,7 @@ pub const Actors = struct {
                     .sludgeminion => try @import("sludgeminions.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                     .rotworm => try @import("rotworms.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                     .venomvermin => try @import("vermin.zig").think(&self.water_routes, world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
+                    .dopefish => try @import("fishes.zig").think(self, world, slots, projections, entity, &actor, &pose, now),
                     .shark => try @import("sharks.zig").think(self, world, slots, projections, entity, &actor, &pose, now),
                     .piperat, .plague_rat => try @import("rats.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                     .knight1, .knight2 => try @import("knights.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
@@ -626,6 +637,7 @@ pub const Actors = struct {
                     else => try @import("ground_combat.zig").think(&self.water_routes, world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                 }
             }
+            if (!dead and policy.kind == .fish) try @import("fishes.zig").think(self, world, slots, projections, entity, &actor, &pose, now);
             const previous_companion_mode = actor.mode;
             if (!dead and policy.kind == .companion) try @import("companions.zig").goal(self, navigation, world, slots, entity, &actor, &pose, now);
             if (!dead and policy.kind == .mishima_guard) try @import("hostiles.zig").guard(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now);
@@ -641,6 +653,10 @@ pub const Actors = struct {
                 try @import("companion_navigation.zig").move(world, entity, &actor, &pose, &body, &velocity, navigation, self.table.definitions[actor.definition], self.table.definitions[actor.definition].speed * slow, threat, binding.slot, now, elapsed);
             } else if (!dead and policy.kind == .froginator and actor.frog.phase == .jump and body.motion_owner == null) {
                 try @import("froginators.zig").jump(&actor, &pose, &body, &velocity, binding.slot, elapsed);
+            } else if (!dead and (policy.kind == .fish or policy.kind == .dopefish) and body.motion_owner == null) {
+                try @import("fishes.zig").move(self, &actor, &pose, &body, &velocity, binding.slot, elapsed, now, slow);
+            } else if (!dead and policy.kind == .seagull and body.motion_owner == null) {
+                try @import("seagulls.zig").move(self, &actor, &pose, &body, &velocity, binding.slot, elapsed, now, slow, null);
             } else if (!dead and policy.kind == .shark and body.motion_owner == null) {
                 try @import("sharks.zig").swim(self, &actor, &pose, &body, &velocity, binding.slot, elapsed, slow);
             } else if (!dead and rat and actor.rat.swimming and body.motion_owner == null) {

@@ -39,6 +39,8 @@ pub const State = struct {
     archer: catalog.archers.State = .{},
     rotworm: catalog.rotworm.State = .{},
     vermin: catalog.vermin.State = .{},
+    fish: catalog.fish.State = .{},
+    seagull: catalog.seagull.State = .{},
     shark: catalog.shark.State = .{},
     rat: catalog.rats.State = .{},
     knight: catalog.knights.State = .{},
@@ -320,7 +322,7 @@ pub const Table = struct {
                 entry.rotworm_spit = try catalog.weapon.Tuning.parse(row, "weapon2_");
                 if (entry.rotworm_spit.speed <= 0) return error.InvalidRotwormSpit;
             }
-            if (catalog.entries[id].kind == .shark and entry.walk_speed <= 0) return error.InvalidSharkSpeed;
+            if (catalog.aquatic(catalog.entries[id].kind) and entry.walk_speed <= 0) return error.InvalidSharkSpeed;
             if (catalog.entries[id].kind == .venomvermin) {
                 entry.vermin_rocket = try catalog.weapon.Tuning.parse(row, "weapon3_");
                 const bite = try catalog.weapon.Tuning.parse(row, "weapon2_");

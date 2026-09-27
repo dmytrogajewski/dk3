@@ -73,7 +73,7 @@ pub fn order(actors: *const @import("actors.zig").Actors, world: *data.World, no
             const enemy = world.find(target) orelse continue;
             const target_actor = world.get(enemy, data.Actor) catch continue;
             const kind = @import("actor_catalog").entries[target_actor.definition].kind;
-            if (kind == .companion or kind == .civilian or companion.carrying or (try world.get(enemy, data.Health)).current <= 0) continue;
+            if (kind == .companion or kind == .civilian or @import("actor_catalog").ambient(kind) or companion.carrying or (try world.get(enemy, data.Health)).current <= 0) continue;
         }
         companion.collecting = if (requested == .collect) target else 0;
         companion.collect_forced = requested == .collect;
@@ -132,7 +132,7 @@ pub fn goal(actors: *const @import("actors.zig").Actors, navigation: @import("..
         const candidate = occupant orelse continue;
         const other = world.get(candidate, data.Actor) catch continue;
         const kind = @import("actor_catalog").entries[other.definition].kind;
-        if (kind == .civilian or kind == .companion or (try world.get(candidate, data.Health)).current <= 0) continue;
+        if (kind == .civilian or @import("actor_catalog").ambient(kind) or kind == .companion or (try world.get(candidate, data.Health)).current <= 0) continue;
         const commanded = companion.order == .attack and companion.target == try world.persistentId(candidate);
         if (!commanded and other.threat != companion.owner and other.threat != try world.persistentId(entity)) continue;
         const target = (try world.get(candidate, data.Transform)).position;

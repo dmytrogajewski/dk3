@@ -7,7 +7,7 @@ campaign, companions, multiplayer/bots, UI, persistence and independent release 
 
 Owner-directed cadence: finish the broad connected coding pass, then consolidate the
 build/assets and run verification with repairs. No per-item suite/engine gates.
-Implementation checkpoints 255–279 add no connected acceptance. No overall percentage
+Implementation checkpoints 255–280 add no connected acceptance. No overall percentage
 is inferred from class counts or test volume.
 
 ## Current outcome matrix
@@ -19,16 +19,16 @@ is inferred from class counts or test volume.
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | New coding-pass regressions written, unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Historical executing contracts; current additions unrun | Sequence 253 narrow death/reload; 254 C→B→C visited restoration after disk load | Shared actor/world/script changes invalidate applicable earlier coverage; natural restoration replay required |
 | Multiplayer and bots | Native sessions, combat/respawn, DM, CTF/deathtag, physical bot input, room controls and menus connected | New implementation unrun | Current candidate unrun; previous runtime results do not transfer | Complete mode/objective interactions, bot navigation, network/reconnect/browser/room scenarios and presentation remain |
-| World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | Written policies and regression roots; coding-pass additions unrun | No new campaign or visual acceptance | Target effects now connect; ambient fish/seagull admission and the broader authored behavior audit continue; shared particle/beam/audio/PHS behavior requires replay |
+| World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | Written policies and regression roots; coding-pass additions unrun | No new campaign or visual acceptance | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Independent release | Bundled engine, native modules, converters and isolated build/install tooling | Historical public checks; current integration unrun | No accepted fresh-checkout full-play path | Regenerated assets, complete source/provenance review, independent build/install and release verification remain |
 
 ## Build and asset identity
 
 **No verified engine/asset pair exists for the current candidate.** Latest targeted
-module link: `/tmp/dk3-runtime-279-target-effect-link.log`, exit 0, including the
-particle-motion correction, before the final added restoration regression. Latest engine/module link:
+module link: `/tmp/dk3-runtime-280-fauna-link-fixed.log`, exit 0, before the final
+aquatic-node selection, injury handling and restoration-regression edits. Latest engine/module link:
 `/tmp/dk3-runtime-277-lightning-link-fixed.log`, exit 0. These are compilation evidence.
-No tests or engine scenarios have run during sequences 255–279.
+No tests or engine scenarios have run during sequences 255–280.
 
 Authoring inventories used local asset manifest
 `ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
@@ -48,6 +48,8 @@ remain subsystem diagnostics; none closes the continuous campaign gate.
 - Shared changes require affected script/cinematic, damage, perception, companion,
   restoration/travel and multiplayer replay. Cambot now uses authored PHS; merged map
   areas remain an acoustics limitation. Earlier narrower PVS alarm evidence is superseded.
+- Sequence 280 adds fish/Dopefish/seagull controllers. Aquatic wandering now selects
+  reachable water nodes; replay Shark/Crox wandering as well as the new fauna.
 - Sequence 278 repairs the attractor query and half-square particle acceleration.
   Replay attractor linking, actor/weapon clouds, gibs, complex emitters and lightning
   sparks. Weather brushes now have no collision; verify physical traversal and visuals.

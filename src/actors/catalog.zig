@@ -38,6 +38,8 @@ pub const gunners = @import("gunners.zig");
 pub const sludge = @import("sludge.zig");
 pub const rotworm = @import("rotworm.zig");
 pub const vermin = @import("vermin.zig");
+pub const fish = @import("fish.zig");
+pub const seagull = @import("seagull.zig");
 pub const shark = @import("shark.zig");
 pub const wander = @import("wander.zig");
 pub const weapon = @import("weapon.zig");
@@ -65,13 +67,19 @@ pub const thunderskeet = @import("thunderskeet.zig");
 pub const rockgat = @import("rockgat.zig");
 pub const crox = @import("crox.zig");
 pub const cambot = @import("cambot.zig");
-pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat, companion, ragemaster, skeleton, satyr, column, dwarf, lycanthir, spider, smallspider, cryotech, surgeon, labmonkey, inmater, lasergat, knight1, knight2, cerberus, piperat, plague_rat, shark, venomvermin, rotworm, centurion, fletcher, battleboar, rocketdude, rocketmp, thief, blackprisoner, whiteprisoner, femgang, sludgeminion, sealcaptain, sealcommando, sealgirl, uzigang, psyclaw, doombat, griffon, harpy, dragon, deathsphere, chaingang, buboid, wyndrax, garroth, stavros, mikiko, medusa, kage, ghost, nharre };
+pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat, companion, ragemaster, skeleton, satyr, column, dwarf, lycanthir, spider, smallspider, cryotech, surgeon, labmonkey, inmater, lasergat, knight1, knight2, cerberus, piperat, plague_rat, shark, venomvermin, rotworm, centurion, fletcher, battleboar, rocketdude, rocketmp, thief, blackprisoner, whiteprisoner, femgang, sludgeminion, sealcaptain, sealcommando, sealgirl, uzigang, psyclaw, doombat, griffon, harpy, dragon, deathsphere, chaingang, buboid, wyndrax, garroth, stavros, mikiko, medusa, kage, ghost, nharre, fish, dopefish, seagull };
 pub fn sequenceAttack(kind: Kind) bool {
     return groundAttack(kind) or kind == .doombat or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or kind == .chaingang or kind == .buboid or kind == .wyndrax or kind == .garroth or kind == .stavros or kind == .mikiko or kind == .medusa or kind == .kage or kind == .ghost or kind == .nharre;
 }
+pub fn ambient(kind: Kind) bool {
+    return kind == .fish or kind == .seagull;
+}
+pub fn aquatic(kind: Kind) bool {
+    return kind == .shark or kind == .fish or kind == .dopefish;
+}
 pub fn groundAttack(kind: Kind) bool {
     return switch (kind) {
-        .ragemaster, .skeleton, .satyr, .column, .dwarf, .lycanthir, .spider, .smallspider, .cryotech, .labmonkey, .inmater, .lasergat, .knight1, .knight2, .cerberus, .piperat, .plague_rat, .shark, .venomvermin, .rotworm, .centurion, .fletcher, .battleboar, .rocketdude, .rocketmp, .thief, .blackprisoner, .whiteprisoner, .femgang, .sludgeminion, .sealcaptain, .sealcommando, .sealgirl, .uzigang, .psyclaw => true,
+        .ragemaster, .skeleton, .satyr, .column, .dwarf, .lycanthir, .spider, .smallspider, .cryotech, .labmonkey, .inmater, .lasergat, .knight1, .knight2, .cerberus, .piperat, .plague_rat, .shark, .dopefish, .venomvermin, .rotworm, .centurion, .fletcher, .battleboar, .rocketdude, .rocketmp, .thief, .blackprisoner, .whiteprisoner, .femgang, .sludgeminion, .sealcaptain, .sealcommando, .sealgirl, .uzigang, .psyclaw => true,
         else => false,
     };
 }
@@ -153,13 +161,38 @@ pub const entries = [_]Definition{
     .{ .classname = "monster_kage", .kind = .kage },
     .{ .classname = "monster_ghost", .kind = .ghost, .run = "flya", .death = "flya" },
     .{ .classname = "monster_nharre", .kind = .nharre },
+    .{ .classname = "e_goldfish", .kind = .fish, .run = "swima" },
+    .{ .classname = "e_greyfish", .kind = .fish, .run = "swima" },
+    .{ .classname = "e_guppy", .kind = .fish, .run = "swima" },
+    .{ .classname = "e_guppy2", .kind = .fish, .run = "swima" },
+    .{ .classname = "e_dopefish", .kind = .dopefish, .idle = "swima", .run = "swima" },
+    .{ .classname = "e_seagull", .kind = .seagull, .idle = "stand", .run = "flya" },
 };
 pub fn find(name: []const u8) ?u8 {
     for (entries, 0..) |entry, i| if (@import("std").mem.eql(u8, name, entry.classname)) return @intCast(i);
+    const aliases = .{
+        .{ "fish_goldfish", "e_goldfish" }, .{ "goldfish", "e_goldfish" },
+        .{ "fish_grayfish", "e_greyfish" }, .{ "e_grayfish", "e_greyfish" },
+        .{ "fish_guppy1", "e_guppy" }, .{ "fish_guppy2", "e_guppy2" },
+        .{ "fish_dopefish", "e_dopefish" },
+    };
+    inline for (aliases) |alias| if (@import("std").mem.eql(u8, name, alias[0])) return find(alias[1]);
     return null;
 }
 
+test "map fish aliases resolve to the supplied class tuning without becoming hostile wildlife" {
+    const t = @import("std").testing;
+    try t.expectEqual(find("e_greyfish").?, find("fish_grayfish").?);
+    try t.expectEqual(find("e_guppy").?, find("fish_guppy1").?);
+    try t.expect(ambient(entries[find("fish_goldfish").?].kind));
+    try t.expect(ambient(entries[find("e_seagull").?].kind));
+    try t.expect(!ambient(entries[find("fish_dopefish").?].kind));
+    try t.expect(groundAttack(entries[find("fish_dopefish").?].kind));
+}
+
 test {
+    _ = fish;
+    _ = seagull;
     _ = nharre;
     _ = kage;
     _ = ghost;

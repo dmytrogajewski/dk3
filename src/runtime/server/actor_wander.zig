@@ -5,24 +5,27 @@ const rules = @import("../domain/actors.zig");
 const v = @import("../domain/vector.zig");
 const Routes = @import("air_routes.zig").Routes;
 pub fn next(routes: *const Routes, pose: data.Transform, start: v.Vec3, definition: rules.Definition, random: *data.Random, water: ?struct { body: data.Body, slot: u16 }) !?v.Vec3 {
-    var nearest: usize = 0;
+    var nearest: ?usize = null;
     var distance = std.math.inf(f32);
     if (routes.nodes.len == 0) return null;
     for (routes.nodes, 0..) |node, i| {
+        if (water) |context| if (node.flags & 2 == 0 or !try Routes.waterPath(pose.position, node.position, context.body, context.slot)) continue;
         const separation = v.length(v.subtract(node.position, pose.position));
         if (separation < distance) {
             nearest = i;
             distance = separation;
         }
     }
-    const links = routes.nodes[nearest].links;
+    const links = routes.nodes[nearest orelse return null].links;
     if (links.len == 0) return null;
     var eligible: [6]usize = undefined;
     var usable: [6]usize = undefined;
     var usable_count: usize = 0;
     var count: usize = 0;
     for (links, 0..) |link, i| {
-        const point = routes.nodes[routes.indices[@intCast(link[1])].?].position;
+        const node = routes.nodes[routes.indices[@intCast(link[1])].?];
+        const point = node.position;
+        if (water != null and node.flags & 2 == 0) continue;
         if (water) |context| if (!try Routes.waterPath(pose.position, point, context.body, context.slot)) continue;
         usable[usable_count] = i;
         usable_count += 1;

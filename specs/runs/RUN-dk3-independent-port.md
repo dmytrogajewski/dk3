@@ -4977,3 +4977,55 @@ class-name census alone had not established complete actor coverage. Continue th
 actual behavior implementation and remaining campaign/multiplayer/release audit before
 consolidated verification. `target_splash` has no export in the supplied Gold tree;
 no speculative splash behavior is introduced.
+
+
+## Sequence 280 — aquatic-wildlife-and-seagulls
+
+Connected the previously unowned `fish_goldfish`, `fish_grayfish`, `fish_guppy1`,
+`fish_guppy2`, `fish_dopefish` and `e_seagull` classes. Canonical supplied aidata
+names own tuning/model selection; explicit exported aliases resolve to those owners.
+Harmless fish and seagulls do not acquire hostile targets or companion attack orders.
+Fish use aquatic exposure, water-node wandering, smooth swimming and the reviewed
+upward-only surface clamp. Dopefish retains its first target, strict <150/50% attack
+admission and >175 disengagement hysteresis, authored bite range/damage, direct 75%
+pain callback and sequence termination. Normal shared melee contact/damage applies.
+
+The supplied Dopefish model names its attack `atak`; its CSV has `ataka`. Reviewed
+reference name lookup is exact and initializes every model sequence to strike first+1
+before attaching CSV events. The new controller therefore keeps that default strike
+and no mismatched attack sound. This is not an invented event alias. Seagulls follow
+authored corners with 0.01 steering, doubled walking speed, and 100 ms sampled vertical
+motion; the sine samples are derived mathematically rather than copied from private data.
+Their idle pose uses supplied `stand` because this model has no `amba`.
+
+Fish/seagull/Dopefish deaths use the existing physical gib lifecycle. Successful
+Dopefish bites produce the reviewed 200 ms delayed, 500 ms finite blood cloud and
+mass-dependent fragments; transport/rendering owns its bounded visual clock. The cloud
+retains the reference attacker's absolute-upper-Z height quirk and only occurs when
+actual target health decreases. Shared actor-gib emission was factored to accept its
+actual inputs, allowing this effect to reuse fragments without inventing a fake actor.
+The reference tiny victim-model carrier is omitted; native transport draws the effect.
+As with earlier effects, rendering uses a 60 Hz bounded visual cadence. Negative color
+channels pass through the current particle renderer, so finer blending parity remains
+unqualified. Native snapshots intentionally preserve wildlife omitted by reference
+FL_NOSAVE, preventing save/visited-world restoration from repopulating dead wildlife.
+
+The water-wander review also corrected nearest-node admission: land nodes and nodes
+unreachable through water no longer preempt a reachable water node. Linked destinations
+must likewise carry the authored water bit. This shared correction affects Shark/Crox
+wandering and requires applicable replay. No authored movement/combat values changed to
+assist a driver. Added unrun contracts cover alias/class ownership, engagement hysteresis,
+surface direction, seagull wave phase and rebasing pending/active blood effects.
+
+Authoring census `/tmp/dk3-runtime-280-fauna-authored.json`, manifest
+`ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`, finds 26 guppy1,
+44 guppy2, 70 grayfish, 54 goldfish, 4 Dopefish and 8 seagull placements. All supplied
+fish use wander flags; all seagulls use authored paths. This supplements the earlier
+monster-prefix inventory, which did not count these classes.
+
+Targeted module link `/tmp/dk3-runtime-280-fauna-link-fixed.log` exited 0 after two
+compile errors retained in `/tmp/dk3-runtime-280-fauna-link.log`. It precedes final
+water-node admission, injury handling and regression additions. Implementation remains
+unverified: no tests, engine scenario, connected gameplay or visual comparison ran.
+The broad implementation pass continues; all four episodes, multiplayer and independent
+release remain in scope, followed by coherent build/assets and consolidated verification.

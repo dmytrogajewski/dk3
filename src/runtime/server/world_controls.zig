@@ -152,7 +152,7 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     switch (control.action) {
         .target_effect => try @import("target_effects.zig").use(world, slots, projections, entity, now),
         .lightning => try @import("lightning.zig").use(world, slots, projections, router, entity, now),
-        .lightning_bolt, .attractor, .weather => {},
+        .blood_cloud, .lightning_bolt, .attractor, .weather => {},
         .particles => try @import("complex_particles.zig").use(world, entity, projections, now),
         .light => try @import("lights.zig").use(world, entity, projections),
         .light_ramp => try @import("lights.zig").rampUse(world, entity, now),
@@ -243,7 +243,7 @@ pub fn touches(world: *data.World, entity: ecs.Entity, other: ecs.Entity) !bool 
     const companion = (world.get(other, data.Companion) catch null) != null;
     return switch (control.action) {
         .light => |state| state.kind == .flame and (world.get(other, data.Health) catch null) != null,
-        .light_ramp, .particles, .lightning, .lightning_bolt, .attractor, .weather, .target_effect => false,
+        .blood_cloud, .light_ramp, .particles, .lightning, .lightning_bolt, .attractor, .weather, .target_effect => false,
         .debris => |state| state.active and (player or companion or (world.get(other, data.Actor) catch null) != null),
         .timer, .speaker, .healer, .laser, .gib_emitter, .earthquake, .spotlight => false,
         .teleport => |state| state.named_subject.len == 0 and object.targetname.len == 0 and (player or (companion and object.flags & 1 == 0)),
@@ -298,6 +298,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (!world.alive(entity)) continue;
         const control = try world.get(entity, data.WorldControl);
         switch (control.action) {
+            .blood_cloud => try @import("blood_clouds.zig").step(world, slots, projections, entity, now),
             .target_effect => try @import("target_effects.zig").step(world, slots, projections, entity, now),
             .lightning, .lightning_bolt => try @import("lightning.zig").step(world, slots, projections, router, entity, now),
             .particles => try @import("complex_particles.zig").step(world, slots, projections, entity, now),

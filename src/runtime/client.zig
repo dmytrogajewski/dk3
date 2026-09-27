@@ -49,6 +49,7 @@ fn shutdown() void {
     @import("client/lightning.zig").reset();
     @import("client/weather.zig").reset();
     @import("client/target_effects.zig").reset();
+    @import("client/blood_clouds.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
     world = null;
@@ -135,6 +136,7 @@ fn draw(now: i32) !void {
     @import("client/lightning.zig").reset();
     @import("client/weather.zig").reset();
     @import("client/target_effects.zig").reset();
+    @import("client/blood_clouds.zig").reset();
                     weapon_view.init();
                     if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
                     selected_weapon = snapshot.ps.weapon;
@@ -332,6 +334,10 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/laser.zig").render_tag) {
             try @import("client/events.zig").loop(&game, entity, @import("engine/trajectory.zig").evaluate(entity.pos, now));
             @import("client/lasers.zig").draw(entity, now, &ref);
+            continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/blood_cloud.zig").render_tag) {
+            @import("client/blood_clouds.zig").emit(entity, now);
             continue;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/target_effect.zig").render_tag) {
