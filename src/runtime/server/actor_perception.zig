@@ -36,7 +36,7 @@ pub fn perceive(world: *data.World, slots: *Slots, entity: ecs.Entity, actor: *d
         if (!eligible(world, target, now)) actor.threat = 0;
     } else actor.threat = 0;
     if (actor.threat == 0) {
-        var best = definition.sight_range;
+        var best = try @import("properties.zig").number((try world.get(entity, data.MapObject)).*, "sight", definition.sight_range);
         for (slots.occupants) |occupant| {
             const target = occupant orelse continue;
             if (!eligible(world, target, now)) continue;

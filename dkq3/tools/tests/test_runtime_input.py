@@ -10,13 +10,14 @@ class NativeInputTests(unittest.TestCase):
         driver = NativeInput(None, None, None, None, [])
         with patch("runtime_input.send") as send:
             for command in ("devmap e1m1b", "dk3_runtime_equip 26", "give all",
-                            "dk3_runtime_place 0 0 0", "weapon 2; give all", "weapon 2\ngive all"):
+                            "dk3_runtime_place 0 0 0", "+use", "-use", "weapon 2; give all", "weapon 2\ngive all"):
                 with self.assertRaises(ValueError):
                     driver.issue(command)
             send.assert_not_called()
             driver.issue("+forward")
             driver.issue("dk3_look 90 -12")
-            self.assertEqual(send.call_count, 2)
+            driver.issue("use")
+            self.assertEqual(send.call_count, 3)
 
     def test_readiness_waits_for_processed_input(self):
         driver = NativeInput(None, None, None, None, [])

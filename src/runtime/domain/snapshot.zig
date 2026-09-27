@@ -293,7 +293,7 @@ pub fn validate(snapshot: *Loaded) !void {
             if (weapons.last_fire_ms) |at| if (at > snapshot.header.at_ms + 200) return error.InvalidSavedWeapons;
         }
         if (world.get(entity, data.Actor) catch null) |actor| {
-            if (actor.definition >= @import("actor_catalog").entries.len or actor.guard.pose >= 3 or actor.guard.rounds > 8) return error.InvalidSavedActor;
+            if (actor.definition >= @import("actor_catalog").entries.len or actor.guard.pose >= 3 or actor.guard.rounds > 8 or actor.cambot.wave >= 12 or actor.cambot.back_direction < -1 or actor.cambot.back_direction > 1) return error.InvalidSavedActor;
             try require(world, entity, .{ data.Velocity, data.Body, data.Health, data.Hurt, data.Binding, data.MapObject });
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
         }

@@ -21,11 +21,11 @@ class NativeInput:
 
     def issue(self, command):
         verb = command.split()[0]
-        allowed = {"weapon", "save", "load", "dk3_look", "viewpos", "screenshotJPEG",
+        allowed = {"weapon", "save", "load", "use", "dk3_look", "viewpos", "screenshotJPEG",
                    "dk3_runtime_observe", "dk3_runtime_actors", "dk3_runtime_world",
                    "dk3_runtime_projectiles", "dk3_runtime_beams", "quit"}
         buttons = {sign + name for sign in ("+", "-") for name in
-                   ("forward", "back", "moveleft", "moveright", "moveup", "movedown", "attack", "use")}
+                   ("forward", "back", "moveleft", "moveright", "moveup", "movedown", "attack")}
         if not self.diagnostic and (verb not in allowed | buttons or ";" in command or "\n" in command):
             raise ValueError(f"Command is outside ordinary campaign input: {command}")
         self.inputs.append({"command": command, "synchronization": "observed state"})
@@ -102,7 +102,9 @@ class NativeInput:
     def diagnostics(self, command, marker):
         before = len(self.text())
         self.issue(command)
-        return wait(self.process, self.log, lambda text: marker in text[before:], 5)[before:]
+        text = wait(self.process, self.log, lambda text: marker in text[before:], 5)[before:]
+        self.inputs.append({"diagnostic": command, "result": text})
+        return text
 
     def save(self, slot):
         before = len(self.text())

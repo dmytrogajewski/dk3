@@ -3237,3 +3237,31 @@ Earlier angled-trigger travel/interaction scenarios require revalidation; the ol
 through e1m2a must still be replayed after consolidation. Bridge script diagnostics
 remain narrow; live Thunderskeet combat/death outputs, tree use, missing Cambot/Crox/
 Rockgat and the rest of the accepted campaign/multiplayer port remain open.
+
+## runtime-zig — sequence 249 (Cambot acquisition and observed resupply)
+
+Connected Cambot class-owned acquisition, alarm, hovering pursuit/backaway/dodge,
+saved alert state and model-tag lamp. Supplied sight overrides now feed opening
+actor perception. Reviewed private contracts only; no source or assets imported.
+Alarm recipients use narrower PVS rather than PHS; dodge uses crosshair contact
+pending native auto-aim. Search cone, vertical avoidance, post-death wandering,
+flight/pain/gib and full presentation parity remain open.
+
+`runtime-zig-249/opening-actors-first/` detected patrol scheduling that kept moving
+sensing into the future. Corrected scheduler passes acquisition and alarm restoration.
+`opening-actors-sensing/` then exposed the driver's unsupported +use command;
+`opening-actors-use/` exposed an invalid final-health assumption under enemy fire.
+`opening-actors-heal/` passes camera and four observed ten-health fruit uses, including
+partial/empty save restoration. Identity
+`7398a5842fa26b90bf0c52012167b8a910824c5c2037d003648d759f39a11496`
+records exact executable/modules/assets. Placement/damage fixture excludes campaign
+acceptance. Rendered restored lamp and empty tree inspected. Three modules and 98
+focused contracts pass; aggregate checkpoint pending the connected actor batch.
+
+Normal marsh attempts are incomplete. The fixed trigger allowed sequence 248 to
+reach a real middle checkpoint, then a missed frog shot invalidated combat. Sequence
+249 observations distinguish actual line of sight, body aim point, velocity and class
+phase; complete diagnostic batches are recorded. Two more misses identified a moving
+frog and vertically rising hatch pose, so the driver waits for an actual attack pause
+or keeps approaching. No gameplay tuning changed to accommodate these failures.
+Old checkpoint saves lack newly admitted actors and cannot establish fresh acceptance.

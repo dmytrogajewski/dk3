@@ -10,8 +10,8 @@ multiplayer modes/bots, persistence, UI and release requirements remain in scope
 | Outcome | Implementation and contracts | Native engine / connected gameplay | Evidence and limits |
 |---|---|---|---|
 | Finish weapon controllers | Audit completed: 28 class-owned policies are connected, including Zeus, Wyndrax, Nightmare and Metamaser. Counts describe dispatch coverage only. | Several focused interactions exercised; no complete weapon acceptance. | Journal sequences 232–243. Diagnostic inventory, placement and sometimes health changes invalidate these as continuous campaign evidence. |
-| Fresh opening campaign | Intro, pod/skeet/frog/Thunderskeet policies, opening action programs and health trees implemented. Cambot/Crox/Rockgat remain blockers. | **Unrun as a complete route:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. No verified consolidated build yet. | Must use ordinary starting inventory, normal difficulty, one build and asset manifest. Include combat, pickups, controls, death/reload, save/load and visited worlds. |
-| Native save and visited-world restoration | Typed native snapshots and visited archives implemented; focused contracts execute. | Sequence 241 travel diagnostic passes a limited e1m3b/e1m3a round trip. Connected campaign persistence unrun. | `zig-out/reports/runtime-zig-241/travel-regression/`; diagnostic placements, no companion/cinematic qualification. |
+| Fresh opening campaign | Intro, pod/skeet/frog/Thunderskeet policies, opening action programs and health trees implemented. Cambot acquisition/alarm is connected; Crox/Rockgat remain missing classes. | **Unrun as a complete route:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. No verified consolidated build yet. | Must use ordinary starting inventory, normal difficulty, one build and asset manifest. Include combat, pickups, controls, death/reload, save/load and visited worlds. |
+| Native save and visited-world restoration | Typed native snapshots and visited archives implemented; focused contracts execute. | Historical sequence 241 travel diagnostic requires revalidation after trigger projection changes. Connected campaign persistence unrun. | `zig-out/reports/runtime-zig-241/travel-regression/`; diagnostic placements, no companion/cinematic qualification. |
 | Remaining campaign and multiplayer | Most actors, companion/cinematic progression and native multiplayer behaviors remain. | Unrun in this runtime. | Opening milestone is an integration gate, not completion of this scope. |
 
 ## Recorded build identities
@@ -141,3 +141,25 @@ excludes connected traversal acceptance. Preserve previous angled-trigger travel
 as historical and **requiring revalidation**. Aggregate passes 235 Zig + 48 Python
 checks, formatting and all three native modules. The ordinary marsh replay is underway
 in `runtime-zig-248/marsh-trigger-fixed/`; a fresh consolidated full gate remains open.
+
+## Current integration checkpoint (249)
+
+| Outcome | Exact build/assets | Remaining blocker / setup limits | Evidence |
+|---|---|---|---|
+| Cambot acquires player, raises alarm and retains acquired/alarmed state after load | `7398a5842fa26b90bf0c52012167b8a910824c5c2037d003648d759f39a11496`; complete executable/module/package hashes in `opening-actors-heal/identity.json` | Focused placement fixture on normal difficulty. Alarm recipient and dodge permutations, search cone, vertical avoidance, post-death wandering and full presentation remain open. | `runtime-zig-249/opening-actors-heal/result.json`, inputs, restored capture |
+| Four ten-health fruit uses; partial and empty tree saves restore | Same identity | Focused placement/damage fixture, not connected resupply. One observed six-damage skeet hit between uses is recorded separately from healing. | Same result and exhausted-tree capture |
+| Ordinary marsh progression | Same identity for sequence-249 runs | Incomplete. Sequence-248 replay reached legitimate `opening_marsh_8.sav`, then missed a frog. Sequence-249 driver observed moving/hatching targets and is being corrected to wait for attack pauses. Old checkpoints lack newly admitted Cambot actors. | `runtime-zig-248/marsh-trigger-fixed/`; `runtime-zig-249/marsh-sight/`, `marsh-approach/`, `marsh-pauses/` |
+
+Cambot uses supplied sight overrides and class-owned facing/alarm/flight policy.
+Compatibility departures: alarm recipients use available PVS instead of reference
+PHS; dodge uses actual crosshair contact until native auto-aim exists. These narrower
+contracts are not full reference parity. The patrol scheduler initially postponed
+sensing every frame; `opening-actors-first/` failed acquisition and the corrected
+build acquires in `opening-actors-heal/`. Early tree probes also failed unsupported
+`+use` input and an invalid static-health assertion; neither is acceptance.
+
+Three modules and 98 focused contracts pass with assertions
+(`/tmp/dk3-runtime-249-camera-sensing.log`). The last aggregate is sequence 248;
+refresh at the next coherent integration checkpoint. Shared authored sight changes
+require affected actor/perception regression replay. Full fresh opening gate,
+remaining campaign, companions, multiplayer and release remain open.

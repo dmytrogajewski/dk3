@@ -11,6 +11,7 @@ pub const State = struct {
     pod: catalog.protopod.State = .{},
     frog: catalog.froginator.State = .{},
     thunder: catalog.thunderskeet.State = .{},
+    cambot: catalog.cambot.State = .{},
     think_ms: i64 = 0,
     unique: []const u8 = "",
     ignore_player: bool = false,

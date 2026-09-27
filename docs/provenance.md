@@ -108,3 +108,9 @@ remain excluded. Trigger projection accounts for the reviewed difference between
 reference SOLID_TRIGGER bounds and ioquake's rotated bmodel bounds. Current acceptance
 is recorded separately in docs/native-acceptance.md; earlier runtime results above
 are historical and do not qualify the new native runtime.
+
+Sequence 249 Cambot behavior was established from optional private class contracts
+and supplied tuning/model metadata. Native policy, ECS state, collision services and
+client tag rendering are independently written. PVS alarm admission and direct
+crosshair dodge qualification are explicit narrower compatibility departures, not
+claimed reference equivalence. No private implementation is a project dependency.

@@ -8,13 +8,15 @@ import time
 
 
 def actors(driver):
-    text = driver.diagnostics("dk3_runtime_actors", "dk3 zig actor:")
+    text = driver.diagnostics("dk3_runtime_actors", "dk3 zig actor states complete")
     result = {}
     for line in text.splitlines():
         if "dk3 zig actor:" not in line:
             continue
         row = dict(re.findall(r"(\w+)=([^ ]*)", line))
-        row["pos"] = tuple(map(float, row["pos"].split(",")))
+        for key in ("pos", "aim", "velocity", "angles"):
+            if key in row:
+                row[key] = tuple(map(float, row[key].split(",")))
         row["health"] = int(row["health"])
         result[int(row["id"])] = row
     return result
@@ -26,7 +28,7 @@ def nearest_hostile(driver, distance=500, expected_map=None):
         raise RuntimeError(f"Unexpected map while choosing encounter: {expected_map} -> {state['map']}")
     candidates = []
     for identity, row in actors(driver).items():
-        if row["health"] <= 0 or row.get("threat") == "0" or row.get("class") not in ("monster_slaughterskeet", "monster_froginator"):
+        if row["health"] <= 0 or row.get("sight") != "1" or row.get("threat") == "0" or row.get("class") not in ("monster_slaughterskeet", "monster_froginator"):
             continue
         separation = math.dist(state["pos"], row["pos"])
         if separation < distance:
@@ -49,24 +51,26 @@ def fight(driver, capture, expected_map):
             raise RuntimeError("Route development reached low health; stop and choose resupply or an earlier legitimate checkpoint")
         if row["health"] <= 0:
             return
-        # The frog can leap across the sight line while view commands are in flight.
-        # Observe a grounded/settled firing opportunity instead of aiming at an old
-        # pre-jump coordinate and repeating misses.
-        deadline = time.monotonic() + 6
+        # Wait for a real attack pause. Hatching skeets rise without velocity,
+        # and chase/jump targets move while view commands are in flight.
+        deadline = time.monotonic() + 1.5
         while True:
-            previous_row = row
             row = actors(driver).get(identity)
             state = driver.observe()
             if row is None or row["health"] <= 0:
                 return
             if state["health"] < 25:
                 raise RuntimeError("Low health while waiting for a firing opportunity")
-            if row["class"] != "monster_froginator" or math.dist(previous_row["pos"], row["pos"]) < 2:
+            paused = row.get("frog") in ("bite", "spit") if row["class"] == "monster_froginator" else row.get("skeeter") == "attack"
+            if paused and math.dist(row["velocity"], (0, 0, 0)) < 1:
                 break
             if time.monotonic() >= deadline:
-                capture(f"no-firing-opportunity-{identity}")
-                raise RuntimeError(f"Target {identity} did not settle; revise engagement position")
-        delta = [row["pos"][i] - state["pos"][i] for i in range(3)]
+                driver.inputs.append({"engagement_deferred": identity, "reason": "no attack pause; continue approach", "actor": row})
+                return
+        if row.get("sight") != "1":
+            return  # Continue the route until geometry permits a real engagement.
+        point = row.get("aim", row["pos"])
+        delta = [point[i] - state["pos"][i] for i in range(3)]
         delta[2] -= 22
         yaw = math.degrees(math.atan2(delta[1], delta[0]))
         pitch = -math.degrees(math.atan2(delta[2], math.hypot(*delta[:2])))

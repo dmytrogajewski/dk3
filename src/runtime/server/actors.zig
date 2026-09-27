@@ -88,6 +88,10 @@ pub const Actors = struct {
                 self.air_ready = true;
             }
         }
+        if (policy.kind == .cambot and !self.air_ready) {
+            try self.air_routes.init(self.allocator);
+            self.air_ready = true;
+        }
         self.animations[id] = true;
         if (policy.kind == .protopod) try self.ensure(catalog.find("monster_slaughterskeet").?);
     }
@@ -151,6 +155,7 @@ pub const Actors = struct {
         projection.state.angles2 = definition.scale;
         projection.state.generic1 = if (world.get(entity, data.Ailments) catch null) |ailment| @intFromFloat(ailment.freeze_level * 1000) else 0;
         projection.state.groundEntityNum = actor.ground_entity;
+        projection.state.time2 = if (policy.kind == .cambot and actor.mode != .dead) if (actor.threat != 0) catalog.cambot.alert_tag else catalog.cambot.idle_tag else 0;
         projection.state.frame = sequence.frame(now - (if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_ms else if (policy.kind == .thunderskeet and actor.mode == .attack) actor.thunder.started_ms else if (policy.kind == .froginator and actor.mode == .attack) actor.frog.started_ms else if (policy.kind == .skeeter and (actor.mode == .attack or hatching)) actor.skeeter.started_ms else if (policy.kind == .mishima_guard and (actor.mode == .attack or actor.mode == .reload)) actor.guard.started_ms else actor.changed_ms), !hatching and (actor.mode == .idle or actor.mode == .flee or actor.mode == .chase));
         projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
         projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
@@ -191,14 +196,16 @@ pub const Actors = struct {
             }
             const script = world.get(entity, data.Script) catch null;
             const acting = script != null and script.?.active;
+            if (!dead and !acting and policy.kind == .cambot and now >= actor.think_ms) try @import("cambots.zig").sense(world, slots, projections, entity, &actor, pose, body, self.table.definitions[actor.definition], now);
             const following = actor.path != 0 and (actor.ignore_player or actor.threat == 0);
             if (!dead and body.motion_owner == null and (acting or following)) {
                 var velocity = (try world.get(entity, data.Velocity)).*;
                 const definition = self.table.definitions[actor.definition];
-                const speed = if (policy.kind == .civilian) definition.walk_speed else definition.speed;
+                const speed = if (policy.kind == .civilian or policy.kind == .cambot) definition.walk_speed else definition.speed;
                 const point = if (!acting and following) try @import("scripts.zig").path(world, slots, projections, router, entity, &actor, pose, speed, now) else null;
                 actor.mode = if (point != null) .chase else .idle;
-                if (policy.kind == .skeeter or policy.kind == .thunderskeet) {
+                if (policy.kind == .cambot and now >= actor.think_ms) actor.think_ms = now + 100;
+                if (policy.kind == .skeeter or policy.kind == .thunderskeet or policy.kind == .cambot) {
                     velocity.linear = @splat(0);
                     if (point) |destination| if (try self.air_routes.next(pose.position, destination, body, binding.slot)) |waypoint| {
                         const delta = v.subtract(waypoint, pose.position);
@@ -250,6 +257,8 @@ pub const Actors = struct {
             if (!dead and policy.kind == .protopod) try @import("skeeters.zig").pod(self, world, slots, projections, entity, &actor, pose, &body, now);
             if (!dead and policy.kind == .froginator and actor.frog.phase == .jump and body.motion_owner == null) {
                 try @import("froginators.zig").jump(&actor, &pose, &body, &velocity, binding.slot, elapsed);
+            } else if (!dead and policy.kind == .cambot and body.motion_owner == null) {
+                try @import("cambots.zig").fly(self, world, slots, projections, entity, &actor, &pose, body, &velocity, now, elapsed);
             } else if (!dead and policy.kind == .thunderskeet and body.motion_owner == null) {
                 try @import("thunderskeets.zig").fly(self, world, slots, projections, entity, &actor, &pose, body, &velocity, now, elapsed);
             } else if (!dead and policy.kind == .skeeter and body.motion_owner == null) {
@@ -273,7 +282,18 @@ pub fn diagnostics(world: *data.World, slots: *const Slots) !void {
         const entity = occupant orelse continue;
         const actor = world.get(entity, data.Actor) catch continue;
         const pose = (try world.get(entity, data.Transform)).*;
-        var text: [384]u8 = undefined;
-        engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig actor: id={d} state={s} health={d} pos={d:.3},{d:.3},{d:.3} threat={d} witness={d} class={s} unique={s} path={d} ignore={d}\n", .{ try world.persistentId(entity), @tagName(actor.mode), (try world.get(entity, data.Health)).current, pose.position[0], pose.position[1], pose.position[2], actor.threat, actor.witness_ms, catalog.entries[actor.definition].classname, actor.unique, actor.path, @intFromBool(actor.ignore_player) }));
+        const body = (try world.get(entity, data.Body)).*;
+        const aim = v.add(pose.position, v.scale(v.add(body.mins, body.maxs), 0.5));
+        var sight = false;
+        if (slots.occupants[0]) |player| {
+            const state = (try world.get(player, data.Player)).*;
+            const start = v.add((try world.get(player, data.Transform)).position, .{ 0, 0, state.view_height });
+            const trace = try engine.collisionService().trace(.{ .start = start, .end = aim, .mins = @splat(0), .maxs = @splat(0), .slot = 0, .mask = c.MASK_SHOT });
+            sight = !trace.start_solid and (trace.fraction == 1 or trace.entity == (try world.get(entity, data.Binding)).slot);
+        }
+        const velocity = (try world.get(entity, data.Velocity)).linear;
+        var text: [640]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig actor: id={d} state={s} health={d} pos={d:.3},{d:.3},{d:.3} threat={d} witness={d} class={s} unique={s} path={d} ignore={d} sight={d} aim={d:.3},{d:.3},{d:.3} velocity={d:.3},{d:.3},{d:.3} frog={s} skeeter={s} ground={d} camera_seen={d} camera_alarm={d} angles={d:.3},{d:.3},{d:.3}\n", .{ try world.persistentId(entity), @tagName(actor.mode), (try world.get(entity, data.Health)).current, pose.position[0], pose.position[1], pose.position[2], actor.threat, actor.witness_ms, catalog.entries[actor.definition].classname, actor.unique, actor.path, @intFromBool(actor.ignore_player), @intFromBool(sight), aim[0], aim[1], aim[2], velocity[0], velocity[1], velocity[2], @tagName(actor.frog.phase), @tagName(actor.skeeter.phase), actor.ground_entity, @intFromBool(actor.cambot.seen), actor.cambot.alarmed, pose.angles[0], pose.angles[1], pose.angles[2] }));
     }
+    engine.print("dk3 zig actor states complete\n");
 }
