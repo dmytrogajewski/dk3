@@ -114,6 +114,7 @@ fn draw(now: i32) !void {
             command_sequence += 1;
             if (engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)}) != 0) {
                 try @import("client/cinematics.zig").command();
+                try @import("client/events.zig").command();
                 @import("client/messages.zig").command(now);
                 @import("client/scoreboard.zig").command();
                 if (@import("client/commands.zig").restored()) |restored| {
@@ -307,6 +308,11 @@ fn draw(now: i32) !void {
             try @import("client/summon_effects.zig").draw(entity, now, &ref);
             continue;
         }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/audio.zig").parameter_tag) {
+            try @import("client/events.zig").loop(&game, entity, @import("engine/trajectory.zig").evaluate(entity.pos, now));
+            continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("item_catalog").hosportal.render_tag) @import("client/healers.zig").draw(entity, now);
         var handle: c.qhandle_t = 0;
         if (entity.solid == c.SOLID_BMODEL and entity.modelindex > 0 and entity.modelindex < inline_models.len) {
             handle = inline_models[@intCast(entity.modelindex)];

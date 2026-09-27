@@ -527,12 +527,23 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Transform });
             const classname = (try world.get(entity, data.MapObject)).classname;
             const expected = switch (control.action) {
+                .healer => |state| if (state.kind == .fountain) "misc_fountain" else "misc_hosportal",
+                .speaker => if (std.mem.eql(u8, classname, "sound_ambient")) "sound_ambient" else "target_speaker",
                 .timer => "func_timer", .push => "trigger_push", .teleport => "trigger_teleport",
                 .secret => "trigger_secret", .toggle => "trigger_toggle", .music => "trigger_changemusic",
                 .console => "trigger_console", .remove_item => "trigger_remove_inventory_item",
             };
             if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
             switch (control.action) {
+                .healer => |healer| {
+                    try require(world, entity, .{ data.Binding, data.Body, data.Health });
+                    if (healer.capacity > 1000000 or healer.charge > @max(100, healer.capacity) or (healer.phase == .giving and healer.recipient == 0) or (healer.phase != .giving and healer.recipient != 0) or (healer.phase == .ready) != (healer.next_ms == null)) return error.InvalidSavedHealer;
+                },
+                .speaker => |speaker| {
+                    try require(world, entity, .{data.Binding});
+                    if (!speaker.parameters.valid() or speaker.count > speaker.sounds.len or speaker.delay_secs > 1000000 or speaker.minimum_secs > 1000000 or (speaker.active and !speaker.loopable) or (speaker.timed and speaker.delay_secs == 0) or (speaker.next_ms != null and !speaker.timed)) return error.InvalidSavedSpeaker;
+                    for (speaker.sounds[0..speaker.count]) |index| if (index > snapshot.header.resources.sounds.len) return error.InvalidSavedSound;
+                },
                 .timer => |timer| if (timer.wait_ms < 100 or timer.wait_ms > 3600000 or timer.variance_ms < 0 or timer.variance_ms >= timer.wait_ms or timer.delay_ms < 0 or timer.delay_ms > 3600000) return error.InvalidSavedTimer,
                 .push => |push| for (push.velocity) |value| { if (!std.math.isFinite(value) or @abs(value) > 100000) return error.InvalidSavedPush; },
                 .toggle => |toggle| {

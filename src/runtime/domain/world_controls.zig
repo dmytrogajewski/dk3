@@ -16,7 +16,9 @@ pub const Timer = struct {
     }
 };
 pub const Action = union(enum) {
+    healer: @import("item_catalog").hosportal.State,
     timer: Timer,
+    speaker: @import("audio.zig").Speaker,
     push: struct { enabled: bool = true, velocity: v.Vec3, toggleable: bool = false, once: bool = false },
     teleport: struct { named_subject: []const u8 = "" },
     secret,

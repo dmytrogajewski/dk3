@@ -3761,3 +3761,16 @@ music-path validation and regression additions. Regression roots are unexecuted;
 engine or connected scenario passed. Asset regeneration and consolidated verification
 remain pending. Continue authored speakers/audio, healing portals, effects and remaining
 campaign/multiplayer/release work. Main, installation, saves and service unchanged.
+
+## Sequence 271 — authored-speakers-and-healing-stations (implementation checkpoint)
+
+Continues after pushed `75de97f`. Authored speakers and ambient emitters now connect
+resource admission, random/loop/reliable playback, custom spatial parameters and saved
+state. Station/fountain class policies connect models, hulls, continuous transfer,
+recharge, cues and effects. Contracts, original quirks and presentation qualifications
+are recorded in the acceptance matrix. The initial link caught client/default-value
+and angle type coercions; corrected link log is
+`/tmp/dk3-runtime-271-audio-healer-link-fixed.log`. New regression roots remain
+unexecuted. No gameplay/audio/visual acceptance is claimed. Continue authored lasers,
+effects and broader campaign/multiplayer/release implementation before consolidated
+verification. Main, installed game, user saves and live service remain preserved.

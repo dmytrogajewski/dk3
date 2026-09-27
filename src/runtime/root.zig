@@ -33,6 +33,7 @@ test {
     _ = @import("domain/navigation_input.zig");
     _ = @import("domain/environment.zig");
     _ = @import("domain/world_controls.zig");
+    _ = @import("domain/audio.zig");
     _ = @import("server/inventory_actions.zig");
     _ = @import("server/environment.zig");
     _ = @import("domain/world_actions.zig");

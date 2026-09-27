@@ -12,10 +12,10 @@ const prop = @import("properties.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const Router = @import("targets.zig").Router;
 pub fn owns(name: []const u8) bool {
-    for ([_][]const u8{ "func_timer", "trigger_push", "trigger_teleport", "trigger_secret", "trigger_toggle", "trigger_changemusic", "trigger_console", "trigger_remove_inventory_item" }) |item| if (std.mem.eql(u8, name, item)) return true;
+    for ([_][]const u8{ "misc_hosportal", "misc_fountain", "target_speaker", "sound_ambient", "func_timer", "trigger_push", "trigger_teleport", "trigger_secret", "trigger_toggle", "trigger_changemusic", "trigger_console", "trigger_remove_inventory_item" }) |item| if (std.mem.eql(u8, name, item)) return true;
     return false;
 }
-pub fn spawn(world: *data.World, projections: []abi.EntityProjection, now: i64) !void {
+pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
     var ids: [ecs.max_entities]ecs.Entity = undefined;
     var count: usize = 0;
     {
@@ -29,7 +29,11 @@ pub fn spawn(world: *data.World, projections: []abi.EntityProjection, now: i64) 
     for (ids[0..count]) |entity| {
         const object = (try world.get(entity, data.MapObject)).*;
         var action: rules.Action = undefined;
-        if (std.mem.eql(u8, object.classname, "func_timer")) {
+        if (@import("healers.zig").owns(object.classname)) {
+            action = .{ .healer = try @import("healers.zig").initialize(object) };
+        } else if (@import("speakers.zig").owns(object.classname)) {
+            action = .{ .speaker = try @import("speakers.zig").initialize(object, try world.persistentId(entity), now) };
+        } else if (std.mem.eql(u8, object.classname, "func_timer")) {
             const wait = try prop.milliseconds(object, "wait", 1);
             if (wait < 100) return error.InvalidTimerWait;
             var timer: rules.Timer = .{ .wait_ms = wait, .variance_ms = @min(@max(0, try prop.milliseconds(object, "random", 0)), wait - 100), .delay_ms = try prop.milliseconds(object, "delay", 0), .random = try world.persistentId(entity), .once = object.flags & 2 != 0 };
@@ -61,6 +65,11 @@ pub fn spawn(world: *data.World, projections: []abi.EntityProjection, now: i64) 
             action = .{ .remove_item = prop.text(object, "item") orelse return error.MissingRemovedItem };
         }
         try world.put(entity, data.WorldControl{ .action = action });
+        if (action == .healer) try @import("healers.zig").bind(world, slots, projections, entity);
+        if (action == .speaker) {
+            try @import("weapon_entities.zig").bind(world, slots, projections, entity, "");
+            try @import("speakers.zig").publish(world, entity, projections);
+        }
     }
 }
 fn sound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, sample: []const u8, now: i64) !void {
@@ -72,6 +81,8 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     if (now < control.ready_ms) return;
     const object = (try world.get(entity, data.MapObject)).*;
     switch (control.action) {
+        .healer => try @import("healers.zig").use(world, slots, projections, entity, activator, now),
+        .speaker => try @import("speakers.zig").use(world, slots, projections, entity, now),
         .timer => |*timer| {
             if (timer.once and control.uses > 0) return;
             timer.activator = activator;
@@ -150,7 +161,7 @@ pub fn touches(world: *data.World, entity: ecs.Entity, other: ecs.Entity) !bool 
     const player = (world.get(other, data.Player) catch null) != null;
     const companion = (world.get(other, data.Companion) catch null) != null;
     return switch (control.action) {
-        .timer => false,
+        .timer, .speaker, .healer => false,
         .teleport => |state| state.named_subject.len == 0 and object.targetname.len == 0 and (player or (companion and object.flags & 1 == 0)),
         .toggle => if (object.flags & 8 != 0) companion else player or (companion and object.flags & 4 != 0),
         .music => (player and object.flags & 1 == 0) or (world.get(other, data.Performer) catch null) != null,
@@ -199,6 +210,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (!world.alive(entity)) continue;
         const control = try world.get(entity, data.WorldControl);
         switch (control.action) {
+            .healer => try @import("healers.zig").step(world, slots, projections, entity, now),
+            .speaker => try @import("speakers.zig").step(world, slots, projections, entity, now),
             .timer => |*timer| if (timer.next_ms) |at| {
                 if (now < at) continue;
                 try fireTimer(world, slots, projections, router, entity, now);

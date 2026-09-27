@@ -7,8 +7,12 @@ const engine = @import("../engine/server.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const c = abi.c;
 pub fn sound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, name: []const u8, position: data.Vec3, subject: u16, channel: u8, now: i64) !void {
+    try configuredSound(world, slots, projections, name, position, subject, channel, now, null);
+}
+pub fn configuredSound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, name: []const u8, position: data.Vec3, subject: u16, channel: u8, now: i64, parameters: ?@import("../domain/audio.zig").Parameters) !void {
+    if (parameters) |value| if (!value.valid()) return error.InvalidSoundParameters;
     const index = try @import("resources.zig").sound(name);
-    const entity = try world.create(null, .{ data.Transform{ .position = position }, data.SoundEvent{ .sound = index, .subject = subject, .channel = channel }, data.Lifetime{ .expires_ms = now + 300 } });
+    const entity = try world.create(null, .{ data.Transform{ .position = position }, data.SoundEvent{ .sound = index, .subject = subject, .channel = channel, .parameters = parameters }, data.Lifetime{ .expires_ms = now + 300 } });
     errdefer world.destroy(entity) catch unreachable;
     const slot = try slots.acquire(entity, null);
     errdefer slots.release(slot, entity) catch unreachable;
@@ -20,6 +24,12 @@ pub fn sound(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     projection.state.eventParm = index;
     projection.state.otherEntityNum = subject;
     projection.state.generic1 = channel;
+    if (parameters) |value| {
+        projection.state.frame = @import("../domain/audio.zig").parameter_tag;
+        projection.state.angles2 = .{ value.volume, value.minimum, value.maximum };
+        projection.state.weapon = @intFromBool(value.nondirectional);
+        projection.shared.svFlags = c.SVF_BROADCAST;
+    }
     projection.state.time = @intCast(now);
     projection.state.time2 = @bitCast(try world.persistentId(entity));
     projection.state.pos = @import("../engine/trajectory.zig").stationary(position);

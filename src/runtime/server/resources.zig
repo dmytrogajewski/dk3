@@ -52,6 +52,10 @@ pub fn modelName(index: u16) []const u8 {
     std.debug.assert(index > 0 and index < models.count);
     return std.mem.sliceTo(&models.names[index], 0);
 }
+pub fn soundName(index: u16) []const u8 {
+    std.debug.assert(index > 0 and index < sounds.count);
+    return std.mem.sliceTo(&sounds.names[index], 0);
+}
 pub fn sound(path: []const u8) !u16 {
     if (path.len >= c.MAX_QPATH) return error.InvalidResourcePath;
     var normalized: [c.MAX_QPATH]u8 = undefined;

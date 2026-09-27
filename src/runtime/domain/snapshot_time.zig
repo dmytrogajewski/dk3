@@ -22,6 +22,11 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try active(&value.ready_ms, delta);
             switch (value.action) {
                 .timer => |*timer| try deadline(&timer.next_ms, delta),
+                .speaker => |*speaker| try deadline(&speaker.next_ms, delta),
+                .healer => |*healer| {
+                    try deadline(&healer.next_ms, delta);
+                    try deadline(&healer.effect_ms, delta);
+                },
                 .music => |*music| try deadline(&music.changed_ms, delta),
                 else => {},
             }
@@ -401,4 +406,17 @@ test "world timer restore shifts its deadline but preserves variance sequence an
     try rebase(.player, &player, 8000);
     try std.testing.expectEqual(@as(i64, 9700), player.teleport_until_ms);
     try std.testing.expect(player.teleport_bit);
+}
+
+test "authored speaker and healing station deadlines retain remaining time" {
+    const t = std.testing;
+    var speaker: data.WorldControl = .{ .action = .{ .speaker = .{ .count = 1, .timed = true, .delay_secs = 3, .next_ms = 3000 } } };
+    try rebase(.world_control, &speaker, 9000);
+    try t.expectEqual(@as(?i64, 12000), speaker.action.speaker.next_ms);
+    var healer: data.WorldControl = .{ .action = .{ .healer = .{ .phase = .giving, .recipient = 8, .next_ms = 1200, .effect_ms = 1000, .charge = 42 } } };
+    try rebase(.world_control, &healer, 9000);
+    try t.expectEqual(@as(?i64, 10200), healer.action.healer.next_ms);
+    try t.expectEqual(@as(?i64, 10000), healer.action.healer.effect_ms);
+    try t.expectEqual(@as(u32, 42), healer.action.healer.charge);
+    try t.expectEqual(@as(u32, 8), healer.action.healer.recipient);
 }

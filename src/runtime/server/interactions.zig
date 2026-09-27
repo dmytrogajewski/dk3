@@ -20,7 +20,7 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     const target = slots.occupants[trace.entity] orelse return;
     const object = (world.get(target, data.MapObject) catch return).*;
     if (std.mem.startsWith(u8, object.classname, "trigger_")) return;
-    if (object.targetname.len != 0 and !std.mem.eql(u8, object.classname, "func_button")) return;
+    if (object.targetname.len != 0 and !std.mem.eql(u8, object.classname, "func_button") and !@import("healers.zig").owns(object.classname)) return;
     try router.activate(world, slots, projections, target, try world.persistentId(player_entity), now);
 }
 pub fn overlap(a: *const abi.EntityProjection, b: *const abi.EntityProjection, padding: f32) bool {

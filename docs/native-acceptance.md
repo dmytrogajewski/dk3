@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–270): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–271): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -795,6 +795,43 @@ roots are written and unexecuted. No tests, engine scenarios or connected accept
 ran. Saved controls, traversal, music and affected prior campaign/multiplayer routes
 require replay on the consolidated build. Authored speakers, healing portals, effects,
 remaining world controls, campaign interactions and complete release remain work.
+
+## Sequence 271 — authored-speakers-and-healing-stations (implemented; unverified)
+
+`target_speaker` and `sound_ambient` now own first-six authored sound selection,
+loop/toggle/start-off behavior, integer randomized delay, volume, distance and
+non-directional parameters. Reliable speakers use reliable server commands; other
+speaker events broadcast with client distance attenuation. Ambient defaults and
+multi-sound loop disqualification follow reviewed authoring contracts. The supplied
+volume `2` retains the original unsigned-byte gain, 254/255, instead of rejecting
+maps. Mixer parameters persist on each emitter during spatialization, clear on client
+restoration, and resume with saved loop/delay/random state. Resource indices, binding
+admission and save clocks connect to the existing native snapshot mechanisms.
+
+`misc_hosportal` and `misc_fountain` connect class models, stationary solid hulls,
+continuous healing, depletion/recharge lockout, charge indicators, sounds and native
+sparkle/spray presentation. Ordinary use requires range/facing and a living player
+or companion; continuing transfer rechecks eligibility. The reviewed behavior starts
+with 100 charge before parsing recharge capacity, transfers one health per 200 ms,
+and recharges one per 100 ms. Supplied bestow/recharge/sound properties unused by
+those reference classes remain unused. Horizontal FOV preserves the reference's
+single-wrap comparison. Healing and emitter states persist across native restoration.
+
+Contracts reviewed privately: world/target.cpp speaker/laser sections,
+world/MISC.CPP ambient initialization, world/hosportal.cpp, ai_func.cpp FOV,
+server/sv_send.cpp and qcommon/common.cpp gain encoding, client particle/Artifact_fx
+contracts and atlas coordinates. Native implementation is independently written;
+no reference code or assets were imported. Visual effects use the supplied local atlas
+with native bounded/analytic particles; original frame-dependent densities and
+acceleration remain presentation comparison work. Engine sound metadata services were
+reused without engine changes. Directed regression roots for speaker cadence/gain,
+healing eligibility/depletion and restoration clocks are written, unexecuted.
+
+The initial targeted link caught type coercions, retained in
+`/tmp/dk3-runtime-271-audio-healer-link.log`; corrected link evidence is tracked with
+the journal. No engine scenario, audible/rendered comparison or campaign acceptance
+is claimed. Fresh assets/build identity and all affected gameplay, restoration,
+sound and multiplayer regressions remain required in the consolidated pass.
 
 ## Remaining authored actor admission
 

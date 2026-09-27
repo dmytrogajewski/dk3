@@ -52,7 +52,7 @@ pub const ActorLaser = @import("actor_catalog").laser.State;
 pub const CryoSpray = @import("actor_catalog").cryotech.Spray;
 pub const FrogSpit = @import("actor_catalog").froginator.Spit;
 pub const MetaLaser = @import("weapon_catalog").metamaser.Laser;
-pub const SoundEvent = struct { sound: u16, subject: u16, channel: u8 };
+pub const SoundEvent = struct { sound: u16, subject: u16, channel: u8, parameters: ?@import("audio.zig").Parameters = null };
 pub const ImpactEvent = struct { weapon: u5, kind: @import("weapon_catalog").impact_rules.Kind, normal: Vec3, charged: bool = false, detonation: bool = false, sequence: i32 = 0, trail: bool = false, no_blood: bool = false };
 pub const Character = @import("character.zig").State;
 pub const Ailments = @import("character.zig").Ailments;

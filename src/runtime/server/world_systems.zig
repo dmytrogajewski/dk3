@@ -30,7 +30,7 @@ pub const State = struct {
         try binary.spawn(world, slots, projections);
         try @import("monitors.zig").spawn(world);
         try @import("targets.zig").spawn(world);
-        try @import("world_controls.zig").spawn(world, projections, now);
+        try @import("world_controls.zig").spawn(world, slots, projections, now);
         try @import("music.zig").restore(world, allocator);
         try @import("companion_triggers.zig").spawn(world, projections);
         try @import("campaign.zig").spawn(world);

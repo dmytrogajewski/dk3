@@ -284,3 +284,47 @@ dk3/fx/jet-spark
    tcMod transform 0.05859375 0 0 0.1171875 0.564453125 0.87890625
  }
 }
+
+dk3/fx/healer-sparkle-1
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.2421875 0.126953125 0.75390625
+ }
+}
+
+dk3/fx/healer-sparkle-2
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.2421875 0.251953125 0.75390625
+ }
+}
+
+dk3/fx/healer-water
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.12109375 0 0 0.2421875 0.876953125 0.75390625
+ }
+}
+
+dk3/fx/healer-mist
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.24609375 0 0 0.5 0.251953125 0.00390625
+ }
+}
