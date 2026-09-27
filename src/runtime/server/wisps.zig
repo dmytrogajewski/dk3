@@ -13,7 +13,7 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     var sources: [ecs.max_entities]ecs.Entity = undefined;
     var count: usize = 0;
     {
-        var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.Transform }), 0, data.World.mask(.{data.WispSwarm}));
+        var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.Transform }), data.World.mask(.{data.WispSwarm}), 0);
         defer query.deinit();
         while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| if (std.mem.eql(u8, object.classname, policy.classname)) {
             sources[count] = entity;
@@ -231,4 +231,17 @@ fn oscillate(state: *data.Firefly, velocity: *data.Velocity, random: *data.Rando
     if (random.next() > state.personality) velocity.linear[1] += cosine * strength else velocity.linear[0] += sine * strength;
     velocity.linear[2] += sine * strength;
     state.phase = if (state.phase == 11) 0 else state.phase + 1;
+}
+
+test "map spawning skips unrelated objects and already initialized wisp sources" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 2);
+    defer world.deinit();
+    _ = try world.create(1, .{ data.MapObject{ .classname = "info_player_start" }, data.Transform{} });
+    const source = try world.create(2, .{ data.MapObject{ .classname = policy.classname }, data.Transform{}, data.WispSwarm{ .count = 1, .children = .{ 9, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, .next_ms = 100, .sound_ms = 200 } });
+    var slots: Slots = .{};
+    try spawn(&world, &slots, &.{}, 500);
+    try t.expectEqual(@as(u32, 9), (try world.get(source, data.WispSwarm)).children[0]);
+    try t.expectEqual(@as(i64, 100), (try world.get(source, data.WispSwarm)).next_ms);
+    try t.expectEqual(@as(usize, 2), world.count());
 }

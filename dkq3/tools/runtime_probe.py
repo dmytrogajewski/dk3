@@ -98,7 +98,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True, help="existing local installation generation")
     parser.add_argument("--prefix", type=Path, required=True, help="isolated native runtime build prefix")
-    parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
+    parser.add_argument("--guard", type=Path, default=Path("zig-out/native-dev/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=Path("zig-out/reports/runtime-zig-217"))
     parser.add_argument("--map", default="e1m3b")
     args = parser.parse_args()

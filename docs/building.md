@@ -18,15 +18,20 @@ or game data for the engine build. The independent game runtime is still being i
 ```sh
 zig build
 zig build engine-server
-zig build game test-runtime --prefix zig-out/replacement
+zig build game test-runtime
 ```
 
-`zig build` builds the client `zig-out/bin/dk3`, server `dk3ded`, both renderer shared
+`zig build` builds the client `zig-out/native-dev/bin/dk3`, server `dk3ded`, both renderer shared
 libraries, native Zig modules in `lib/dk3/`, and `dkguard`.
 `engine` builds only client/server/renderers; `game` builds the Zig modules. Legacy
 native and QVM gameplay targets have been removed. Bundled upstream sources and
 licenses remain intact; they are not another supported game runtime.
 
-Native `play-install` and `play` require a separate prefix such as
-`--prefix zig-out/native-dev`, protecting the preserved default installation.
-Pass `-- +map e1m3b` to `play`; full native menus/campaign are not implemented yet.
+Native builds default to `zig-out/native-dev`, protecting the preserved installation.
+An explicit `--prefix` can select another development directory; the historical
+`zig-out` prefix is redirected to `zig-out/native-dev` and the online prefix is rejected.
+After asset conversion, `zig build play` rebuilds and launches the current source using
+the completed `zig-out/assets` cache. `play-install` performs the same preparation
+without launching. Pass `-- +map e1m3b` to `play` for a specific map.
+Native menus and campaign systems are connected; see the [acceptance matrix](native-acceptance.md)
+for current verified outcomes and remaining defects.

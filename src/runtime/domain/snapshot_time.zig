@@ -24,6 +24,11 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
         .world_control => {
             try active(&value.ready_ms, delta);
             switch (value.action) {
+                .chest => |*state| {
+                    try deadline(&state.started_ms, delta);
+                    try deadline(&state.next_ms, delta);
+                    try shift(&state.stepped_ms, delta);
+                },
                 .timer => |*timer| try deadline(&timer.next_ms, delta),
                 .speaker => |*speaker| try deadline(&speaker.next_ms, delta),
                 .blood_cloud => |*state| {
@@ -585,6 +590,20 @@ test "target-effect restore retains the strict final boundary and pulse identity
     try std.testing.expectEqual(@as(?i64, 9100), value.action.target_effect.pulse_ms);
     try std.testing.expectEqual(@as(u32, 7), value.action.target_effect.serial);
     try std.testing.expectEqual(@as(i64, 400), value.action.target_effect.duration_ms);
+}
+
+test "chest restoration preserves selected reward and remaining reveal duration" {
+    var value: data.WorldControl = .{ .action = .{ .chest = .{ .kind = .black, .stepped_ms = 2400 } } };
+    const state = &value.action.chest;
+    _ = state.use(7, 500, 50);
+    try std.testing.expectEqual(.reveal, state.advance(2300, 3));
+    try rebase(.world_control, &value, -2000);
+    try std.testing.expectEqual(@as(?i64, -1500), state.started_ms);
+    try std.testing.expectEqual(@as(i64, 400), state.stepped_ms);
+    try std.testing.expectEqual(.none, state.advance(1799, 0));
+    try std.testing.expectEqual(.reward, state.advance(1800, 0));
+    try std.testing.expectEqualStrings("item_invincibility", state.rewardClass());
+    try std.testing.expectEqual(.none, state.advance(1900, 0));
 }
 
 test "death-drop expiry and consumed player injury survive clock rebasing" {

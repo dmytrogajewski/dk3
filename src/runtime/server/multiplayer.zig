@@ -70,13 +70,21 @@ pub fn spawnPose(world: *data.World, session: data.Session, slot: u16, serial: u
 pub fn telefrag(world: *data.World, entity: ecs.Entity, now: i64) !void {
     const pose = (try world.get(entity, data.Transform)).*;
     const id = try world.persistentId(entity);
-    var people = world.queryAccess(data.World.mask(.{ data.Player, data.Transform, data.Health }), 0, data.World.mask(.{ data.Player, data.Health, data.Hurt, data.Session, data.Ailments }));
-    defer people.deinit();
-    while (people.next()) |row| for (row.entities(), row.read(data.Transform)) |other, point| {
-        if (other.index == entity.index) continue;
-        const delta = v.subtract(point.position, pose.position);
-        if (@abs(delta[0]) < 30 and @abs(delta[1]) < 30 and @abs(delta[2]) < 56) _ = try @import("damage.zig").apply(world, other, 100000, now, .{ .source = id, .bypass_armor = true, .bypass_protection = true });
-    };
+    var occupants: [ecs.max_entities]ecs.Entity = undefined;
+    var count: usize = 0;
+    {
+        var people = world.queryAccess(data.World.mask(.{ data.Player, data.Transform, data.Health }), 0, 0);
+        defer people.deinit();
+        while (people.next()) |row| for (row.entities(), row.read(data.Transform)) |other, point| {
+            if (other.index == entity.index) continue;
+            const delta = v.subtract(point.position, pose.position);
+            if (@abs(delta[0]) < 30 and @abs(delta[1]) < 30 and @abs(delta[2]) < 56) {
+                occupants[count] = other;
+                count += 1;
+            }
+        };
+    }
+    for (occupants[0..count]) |other| _ = try @import("damage.zig").apply(world, other, 100000, now, .{ .source = id, .bypass_armor = true, .bypass_protection = true });
 }
 pub const State = struct {
     warmup: bool = false,
@@ -419,4 +427,18 @@ pub fn teamColor(world: *data.World, team: rules.Team) u8 {
     defer query.deinit();
     while (query.next()) |view| for (view.read(data.Objective)) |objective| if (objective.team == team) return rules.color(team, objective.color);
     return rules.color(team, 0);
+}
+
+test "spawn telefrag kills overlapping occupants but preserves newcomer and distant players" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 3);
+    defer world.deinit();
+    const newcomer = try world.create(1, .{ data.Player{}, data.Transform{}, data.Health{ .current = 100, .maximum = 100 } });
+    const occupant = try world.create(2, .{ data.Player{}, data.Transform{ .position = .{ 15, 0, 0 } }, data.Health{ .current = 100, .maximum = 100 }, data.Hurt{}, data.Character{ .invincible_until = 10000 } });
+    const distant = try world.create(3, .{ data.Player{}, data.Transform{ .position = .{ 100, 0, 0 } }, data.Health{ .current = 100, .maximum = 100 } });
+    try telefrag(&world, newcomer, 1000);
+    try t.expectEqual(.dead, (try world.get(occupant, data.Player)).mode);
+    try t.expectEqual(@as(u32, 1), (try world.get(occupant, data.Hurt)).source);
+    try t.expectEqual(@as(i32, 100), (try world.get(newcomer, data.Health)).current);
+    try t.expectEqual(@as(i32, 100), (try world.get(distant, data.Health)).current);
 }

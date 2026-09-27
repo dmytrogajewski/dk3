@@ -1660,7 +1660,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True)
     parser.add_argument("--prefix", type=Path, required=True)
-    parser.add_argument("--guard", type=Path, default=Path("zig-out/bin/dkguard"))
+    parser.add_argument("--guard", type=Path, default=Path("zig-out/native-dev/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=None)
     parser.add_argument("--map")
     parser.add_argument("--checkpoint", type=Path, help="Captured native save for the frog landing regression")

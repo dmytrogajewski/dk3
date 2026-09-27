@@ -34,7 +34,11 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
 pub fn spawnDynamic(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, classname: []const u8, pose: data.Transform, now: i64, episode: u8) !ecs.Entity {
     const entity = try world.create(null, .{ data.MapObject{ .classname = classname }, pose });
     errdefer world.destroy(entity) catch unreachable;
-    try spawnOne(world, slots, projections, entity, now, episode);
+    if (@import("item_catalog").chest.kind(classname) != null) {
+        const chest = try @import("chests.zig").initialize(world, entity, now);
+        try world.put(entity, data.WorldControl{ .action = .{ .chest = chest } });
+        try @import("chests.zig").bind(world, slots, projections, entity, now);
+    } else try spawnOne(world, slots, projections, entity, now, episode);
     return entity;
 }
 /// Death drops carry the actual remaining ammunition and never respawn.
@@ -106,6 +110,23 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
         engine.unlink(projection);
     }
 }
+/// Shared tossed-item collision; a false result means an authored no-drop volume.
+pub fn settle(world: *data.World, entity: ecs.Entity, now: i64, elapsed: u32) !bool {
+    const motion = try world.get(entity, data.ItemMotion);
+    if (motion.ground != null) return true;
+    const transform = try world.get(entity, data.Transform);
+    const body = (try world.get(entity, data.Body)).*;
+    const slot = (try world.get(entity, data.Binding)).slot;
+    var trace = try engine.collisionService().trace(.{ .start = transform.position, .end = motion.sample(now), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+    transform.position = trace.end;
+    if (trace.start_solid) trace.fraction = 0;
+    if (trace.fraction < 1) {
+        if (try engine.collisionService().contents(transform.position, slot) & c.CONTENTS_NODROP != 0) return false;
+        transform.position = motion.impact(trace, now, elapsed);
+    }
+    return true;
+}
+
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *@import("targets.zig").Router, table: *const @import("../domain/weapons.zig").Table, now: i64, elapsed: u32) !void {
     const occupants = slots.occupants;
     for (occupants) |occupant| {
@@ -120,23 +141,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             pickup.visible = true;
             pickup.respawn_ms = null;
         };
-        const motion = try world.get(entity, data.ItemMotion);
-        const transform = try world.get(entity, data.Transform);
-        const body = try world.get(entity, data.Body);
         const slot = (try world.get(entity, data.Binding)).slot;
-        if (motion.ground == null) {
-            var trace = try engine.collisionService().trace(.{ .start = transform.position, .end = motion.sample(now), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
-            transform.position = trace.end;
-            if (trace.start_solid) trace.fraction = 0;
-            if (trace.fraction < 1) {
-                if (try engine.collisionService().contents(transform.position, slot) & c.CONTENTS_NODROP != 0) {
-                    engine.unlink(&projections[slot]);
-                    try slots.release(slot, entity);
-                    try world.destroy(entity);
-                    continue;
-                }
-                transform.position = motion.impact(trace, now, elapsed);
-            }
+        if (!try settle(world, entity, now, elapsed)) {
+            try @import("weapon_entities.zig").remove(world, slots, projections, entity);
+            continue;
         }
         try publish(world, entity, projections);
         if (!pickup.visible) continue;

@@ -81,6 +81,10 @@ pub const State = struct {
                 maybe.* = null;
                 continue;
             };
+            // Bots read gameplay state directly, but must still acknowledge the
+            // engine's reliable configstrings/chat just like network clients.
+            var message: [1024]u8 = undefined;
+            while (engine.gateway.call(c.BOTLIB_GET_CONSOLE_MESSAGE, .{ @as(isize, @intCast(index)), &message, @as(isize, message.len) }) != 0) {}
             if (now < brain.next_ms) continue;
             brain.next_ms = now + 50;
             const player = (try world.get(entity, data.Player)).*;

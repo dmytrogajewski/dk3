@@ -6,6 +6,7 @@ pub const Assets = struct {
     step: *std.Build.Step,
     directory: []const u8,
     python: []const u8,
+    convert: bool,
 };
 
 pub fn declare(b: *std.Build, guard: *std.Build.Step.Compile, python: []const u8, navigation: *std.Build.Step.Compile) Assets {
@@ -15,7 +16,7 @@ pub fn declare(b: *std.Build, guard: *std.Build.Step.Compile, python: []const u8
     const workers = b.option(u8, "asset-workers", "Asset conversion workers, 1 through 12") orelse 4;
     const ffmpeg = b.option([]const u8, "ffmpeg", "ffmpeg executable") orelse "ffmpeg";
     const major = b.option(u8, "ffmpeg-major", "ffmpeg major version used for reproducible encoding") orelse 7;
-    const directory = b.getInstallPath(.prefix, "assets");
+    const directory = b.pathFromRoot(b.option([]const u8, "assets-dir", "Local converted asset cache shared by development builds") orelse "zig-out/assets");
     if (data) |path| {
         const run = b.addRunArtifact(guard);
         run.addArgs(&.{ "--mem", "8G", "--timeout", "14400", "--", python, "-B" });
@@ -30,5 +31,5 @@ pub fn declare(b: *std.Build, guard: *std.Build.Step.Compile, python: []const u8
     } else {
         step.dependOn(&b.addFail("assets requires -DDK_DATA=/path/to/data; choose -Dasset-profile=retail or 1.3").step);
     }
-    return .{ .step = step, .directory = directory, .python = python };
+    return .{ .step = step, .directory = directory, .python = python, .convert = data != null };
 }

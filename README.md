@@ -26,20 +26,20 @@ pkg-config. Python 3.10+ is needed for archive tools and synthetic checks.
 git clone https://github.com/dmytrogajewski/dk3.git
 cd dk3
 zig build
-./zig-out/bin/dkguard --help
+./zig-out/native-dev/bin/dkguard --help
 ```
 
 The repository includes the engine, native game/client/UI modules, asset converters,
 and build/install tools together. It is a development snapshot, not a completed game port.
 
-The client and server are `zig-out/bin/dk3` and `zig-out/bin/dk3ded`. The engine source
+The client and server are `zig-out/native-dev/bin/dk3` and `zig-out/native-dev/bin/dk3ded`. The engine source
 is included under `engine/ioquake3`; no separate ioq3 or Gold checkout is required.
 See [building](docs/building.md) for products, optional QVM tools, and dependencies.
 
 `dkguard` runs commands with memory limits, timeouts, and optional headless graphics. For example:
 
 ```sh
-./zig-out/bin/dkguard --mem 512M --timeout 30s -- python3 --version
+./zig-out/native-dev/bin/dkguard --mem 512M --timeout 30s -- python3 --version
 ```
 
 No game assets, GPU, ioquake3 checkout, or Python packages are needed for this example.
@@ -53,16 +53,25 @@ with `dkq3/tools/requirements.txt`, and ffmpeg 7:
 ```sh
 python3 -m venv .venv-convert
 .venv-convert/bin/python -m pip install -r dkq3/tools/requirements.txt
-zig build play-install --prefix zig-out/native-dev -DDK_DATA=/path/to/data -Dasset-profile=retail -Dpython=.venv-convert/bin/python
-zig build play --prefix zig-out/native-dev -DDK_DATA=/path/to/data -Dasset-profile=retail -Dpython=.venv-convert/bin/python -- +map e1m3b
+zig build assets -DDK_DATA=/path/to/data -Dasset-profile=retail -Dpython=.venv-convert/bin/python
+zig build play
 ```
+
+After the first conversion, `zig build play` rebuilds the current checkout and launches
+it using the completed asset cache. It needs no repeated data path or conversion
+environment. Extra engine arguments follow `--`, for example `zig build play -- +map e1m3b`.
+Builds default to `zig-out/native-dev`; settings and saves remain under that prefix's
+`play/home` and `play/state` directories. The preserved installation is untouched.
+Use `-Dassets-dir=/path/to/cache` for a different converted cache or `-Dheadless=true`
+for a software-rendered test on a virtual display.
 
 Native New Game, save/load and multiplayer menus are connected; their current
 acceptance is recorded in the matrix. Development uses an isolated prefix/profile
 and does not update the preserved game or saves.
 
-`play-install` includes conversion and verifies the installed files; `assets` selects conversion
-alone. ffmpeg 7 must be available on `PATH`. Use `-Dasset-profile=1.3` for the documented
+`play-install` builds and verifies the installed files without launching. Supplying
+`-DDK_DATA` to either play command also requests conversion; `assets` selects conversion
+alone. Conversion requires ffmpeg 7 on `PATH`. Use `-Dasset-profile=1.3` for the documented
 1.3 overrides. That private profile has been converted and installed; the retail profile and
 complete new-game-to-ending path still require verification. See
 [asset inputs and installation](docs/assets.md). Original and converted assets stay local

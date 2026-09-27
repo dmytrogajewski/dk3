@@ -50,6 +50,7 @@ fn shutdown() void {
     @import("client/weather.zig").reset();
     @import("client/target_effects.zig").reset();
     @import("client/blood_clouds.zig").reset();
+    @import("client/chests.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
     world = null;
@@ -137,6 +138,7 @@ fn draw(now: i32) !void {
                     @import("client/weather.zig").reset();
                     @import("client/target_effects.zig").reset();
                     @import("client/blood_clouds.zig").reset();
+                    @import("client/chests.zig").reset();
                     weapon_view.init();
                     if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
                     selected_weapon = snapshot.ps.weapon;
@@ -403,6 +405,7 @@ fn draw(now: i32) !void {
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").dwarf.axe_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(@divTrunc((@as(i64, entity.time2) - now) * 255, 1000), 0, 255));
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").shafts.render_tag and entity.time2 > 0) rendered.shaderRGBA[3] = @intCast(std.math.clamp(@divTrunc((@as(i64, entity.time2) - now) * 255, 1000), 0, 255));
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("item_catalog").chest.render_tag) try @import("client/chests.zig").draw(&rendered, entity, now);
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").psyclaw.render_tag) {
             for (entity.origin2, rendered.shaderRGBA[0..3]) |axis, *channel| channel.* = @intFromFloat(std.math.clamp(axis, 0, 1) * 255);
             rendered.shaderRGBA[3] = 115;
@@ -415,7 +418,7 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_MISSILE) try @import("client/projectiles.zig").decorate(&rendered, entity, now);
         // Converted MD3 surfaces carry ordinary/alpha/bright/alpha-bright
         // variants. Selecting alpha preserves each surface's own authored skin.
-        if ((entity.eType == c.ET_GENERAL or entity.eType == c.ET_MISSILE) and rendered.shaderRGBA[3] < 255 and std.mem.endsWith(u8, try engine.config(&game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), ".dkm")) rendered.skinNum = if (entity.generic1 == @import("actor_catalog").medusa.stone_tag) 3 else 1;
+        if ((entity.eType == c.ET_GENERAL or entity.eType == c.ET_MISSILE) and rendered.shaderRGBA[3] < 255 and std.mem.endsWith(u8, try engine.config(&game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), ".dkm")) rendered.skinNum = if (entity.generic1 == @import("actor_catalog").medusa.stone_tag or (entity.generic1 == @import("item_catalog").chest.render_tag and entity.weapon == 2)) 3 else 1;
         try @import("client/events.zig").loop(&game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
         if (entity.eType == c.ET_PLAYER or (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").companions.render_tag)) try @import("client/held_weapons.zig").draw(&rendered, entity.weapon);

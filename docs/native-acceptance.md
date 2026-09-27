@@ -20,27 +20,35 @@ is inferred from class counts or test volume.
 | Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Snapshot and deadline contracts pass at 285 | Sequence 253 narrow death/reload; 254 C→B→C visited restoration after disk load | Shared actor/world/script changes invalidate applicable earlier coverage; natural restoration replay required |
 | Multiplayer and bots | Native sessions, combat/respawn with retained advancement, death drops, DM, CTF/deathtag, physical bot input, room controls and menus connected | Initial-state/objective policy contracts pass at 285 | Current candidate unrun; previous runtime results do not transfer | Complete mode/objective interactions, bot navigation, network/reconnect/browser/room scenarios and presentation remain |
 | World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | World policy roots pass at 285; engine effects unverified | No new campaign or visual acceptance | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
-| Independent release | Bundled engine, native modules, converters and isolated build/install tooling | Build and component checks pass after test fixture repairs at 285 | No accepted fresh-checkout full-play path | Regenerated assets, complete source/provenance review, independent build/install and release verification remain |
+| Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
 
 ## Build and asset identity
 
-**No verified engine/asset pair exists for the current candidate.** Asset regeneration
-is running in the local conversion cache; the installed playable game is untouched.
-Consolidated engine/module build passes (`/tmp/dk3-runtime-285-build.log`). The latest
-module link includes read-only match observations (`/tmp/dk3-runtime-285-observation-link.log`).
-All 130 runtime test declarations execute; separate actor/weapon/inventory/item roots
-bring the native total to 211 passing contracts. The aggregate's other 138 Zig and
-64 Python tests pass. Initial test-only setup compile errors were repaired before the
-native rerun. Evidence: `zig-out/reports/runtime-zig-285/consolidation/`.
-Assertions are enabled (ReleaseSafe/Debug). These are build/contract results;
-no sequence-285 native engine or connected scenario has passed yet.
+Sequence 286 launcher/save fixture uses installation
+`ef7a0c105d1454316b4f6cc9793fb2dfe8be1e48143ede5aad255749ef75e04b`
+and regenerated 1.3 asset manifest
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+`zig build play` now rebuilds into the isolated `zig-out/native-dev` prefix and reuses
+that completed local cache. The guarded launcher fixture opens native menus, admits
+e1m1a, saves and restores gameplay, and exits cleanly. It disables cinematics and
+selects the map explicitly: **launcher/save coverage, not campaign acceptance**.
+Exact module/engine hashes, inputs and frames: `zig-out/reports/runtime-zig-286/play-final/`.
+Preserved game/online installation links remain unchanged.
 
-Authoring inventories used local asset manifest
-`ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
-It predates new actor/objective/nitro, shader/lightstyle, PHS and actor-event schema changes. Regenerate
-assets and capture coherent binary/rules/asset hashes before engine acceptance.
-Old converted maps without authored PHS now produce a regeneration diagnostic when
-hearing is queried; old actor-event tables require regeneration.
+The coherent build and 216 native contracts pass, including map-spawn and telefrag
+query regressions, chest/reveal rebasing, and save admission of non-solid world effects.
+Three installer checks cover immutable generations, unchanged saves and refusal of
+incomplete/corrupt inputs. Previous aggregate results for unaffected roots remain at
+285 (138 other Zig tests and 64 earlier Python checks); no duplicate broad run.
+Assertions are enabled. Evidence: `zig-out/reports/runtime-zig-286/consolidation/`.
+
+First engine attempts exposed and retained two ECS query assertion failures, missing
+non-solid effect save admission, and bot reliable-command overflow. These are repaired;
+launcher map/save replay passes. The fresh intro replay and bot scenario remain under
+verification. Bots admit successfully after message acknowledgement, but the observed
+match has not established pickup/combat/respawn. No full connected gate is accepted.
+The earlier inventory manifest `ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`
+is superseded for new native engine scenarios.
 
 Exact earlier verified segment identities, inputs, setup limits and superseded results
 are retained in [the journal](../specs/runs/RUN-dk3-independent-port.md), including the
@@ -49,6 +57,17 @@ under `zig-out/reports/runtime-zig-*/`. Controlled placement, grants and synthet
 remain subsystem diagnostics; none closes the continuous campaign gate.
 
 ## Revalidation and known limits
+
+- Sequence 286 turns episode-three wooden/black chests into usable solid containers,
+  with one-use opening, class rewards, delayed black-chest reveal and 25-damage trap.
+  Contracts pass; authored use/reward/trap/save scenes remain unrun. Trap wood fragments
+  and explosion particle presentation remain open; the supplied private `throw_debris`
+  helper has no definition, so its launch motion is not claimed as qualified parity.
+- Sequence 286 fixes wisp spawn and multiplayer telefrag queries, non-solid effect save
+  admission and bot reliable-message acknowledgement. Intro and gameplay saves require
+  replay; the repaired launcher fixture is the only completed current engine result.
+  A rendered e1m1a fixture also reports out-of-range swamp-decoration animation frames;
+  authored animation metadata/dispatch needs inspection.
 
 - Shared changes require affected script/cinematic, damage, perception, companion,
   restoration/travel and multiplayer replay. Cambot now uses authored PHS; merged map

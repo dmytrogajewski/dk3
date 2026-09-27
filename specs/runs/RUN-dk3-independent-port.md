@@ -5200,3 +5200,66 @@ navigation in the private local cache. No engine/connected acceptance is claimed
 before the new manifest and binaries are staged together. Fresh New Game/intro and
 connected campaign progression remain the primary integration gate; all episodes,
 multiplayer/network, companion parity and independent release remain in scope.
+
+## Sequence 286 — native-play-entry-and-integration-repairs
+
+Owner requested bare `zig build play` at any time during development. Native code builds
+now default to `zig-out/native-dev`; the preserved root installation and online prefix
+are not destinations. Converted assets remain in the shared local `zig-out/assets`
+cache. Routine play rebuilds current source, verifies/packages immutable products and
+launches through dkguard without source-data or conversion-environment arguments.
+Explicit `-DDK_DATA` requests conversion; `-Dassets-dir` selects a different completed
+cache. `-Dheadless=true` provides guarded software rendering. Settings/saves remain in
+the development profile, and the launcher prints the exact build/asset identity.
+Installer regression tests preserve old generations and player saves across updates,
+reject incomplete/corrupt inputs before publishing, and explain first-use asset setup.
+
+The class audit finds 21 episode-three chests incorrectly admitted as collectible keys.
+They now use the existing WorldControl union and shared tossed-item service: solid
+bounds, one-use opening animation/audio, five wooden rewards and four black rewards.
+Black chests decide the trap on opening; safe rewards follow the delayed reveal, while
+a trap applies 25 damage to its opener and removes the chest after its explosion.
+Chosen rewards, timers and body state persist; rebasing retains remaining reveal time.
+Historical key bit positions stay stable while chest names no longer resolve as keys.
+Private contract review covered artifacts and artifact/explosion presentation; no
+private implementation/assets were imported. Native entity RNG is saved per chest.
+Trap poly-body/ring, sprites and sound are connected; the 15 wood fragments and finer
+explosion particles remain open. The supplied private throw_debris definition is absent,
+so no invented fragment velocity is called reference parity. Running chest scenes remain
+unverified; no all-episode acceptance follows from this class repair.
+
+The first integrated runs reveal actual defects that contract-only runs missed:
+wisp spawning used an excluded component as a writable query mask (every map crashed),
+and multiplayer telefrag had another invalid writable mask. Wisp scanning now excludes
+existing swarms; telefrag collects overlaps before applying damage. Assertions stay on.
+Direct map-spawn and occupied-spawn regressions cover these paths. Debug native traces
+identify the fault; the optimized trace incorrectly localized it to an inlined math site.
+
+After startup repair, save admission rejected visual WorldControl projections for
+lacking Body. Admission now distinguishes known non-solid controller projections and
+retains body requirements for physical entities. The regression serializes real effect,
+flare and earthquake states without fake bodies, rebases deadlines, and still rejects
+a physical binding missing its body. The original failure also occurred at intro shot
+20. Bots additionally failed to acknowledge reliable engine configstrings/chat, causing
+command overflow and disconnect during world iteration. Bots now drain the existing
+engine console-message service before issuing normal commands. Four-bot admission and
+continued observation work; pickup/combat/respawn acceptance is still pending.
+
+Asset regeneration completed successfully under dkguard with manifest
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`.
+Coherent installation `ef7a0c105d1454316b4f6cc9793fb2dfe8be1e48143ede5aad255749ef75e04b`
+passes 54 build/test steps and 216 native contracts (134 runtime, 48 actor, 24 weapon,
+two inventory, eight item). Three installer tests pass. A missing test-fixture flags
+field was repaired after retaining the failed compilation log. Unaffected aggregate
+roots retain sequence-285 results; no duplicate broad suite.
+
+`zig-out/reports/runtime-zig-286/play-final/` records the actual bare-play build graph,
+headless launch, rendered menu, e1m1a admission, save, acknowledged restoration and clean
+exit. The fixture deliberately disables intro and selects the map: it is launcher/save
+coverage only. Both preserved installation links remain unchanged. Earlier failed
+launcher setup (missing temporary FIFO directory), map crash, save rejection and bot
+overflow remain separate evidence directories. `fresh-opening-repaired/` is a fresh
+normal New Game/full-intro run in progress, not an accepted milestone. Bot diagnostics
+show no meaningful pickup/combat yet. Swamp-decoration out-of-range frame warnings are
+also retained for authored animation follow-up. Full campaign, interactions, companions,
+network/multiplayer and release requirements remain open in the acceptance matrix.

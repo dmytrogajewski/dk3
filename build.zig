@@ -11,6 +11,10 @@ const bspc = @import("build/bspc.zig");
 
 pub fn build(b: *std.Build) void {
     toolchain.enforce(manifest.minimum_zig_version, @import("builtin").zig_version);
+    // The historical default contains the preserved playable installation.
+    // Ordinary native builds, including `zig build play`, use their own prefix.
+    if (std.mem.eql(u8, b.install_path, b.pathFromRoot("zig-out")))
+        b.resolveInstallPrefix(b.pathFromRoot("zig-out/native-dev"), .{});
     const target = b.standardTargetOptions(.{ .default_target = .{ .cpu_arch = .x86_64, .os_tag = .linux, .abi = .gnu } });
     const optimize = b.option(std.builtin.OptimizeMode, "optimize", "Optimization mode") orelse .ReleaseSafe;
     @import("build/online.zig").declare(b, target, optimize);

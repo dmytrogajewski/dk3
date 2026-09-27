@@ -75,7 +75,11 @@ pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").Stat
         }
         if (loaded.world.get(entity, data.Binding) catch null) |binding| {
             if ((loaded.world.get(entity, data.Hammer) catch null) != null or (loaded.world.get(entity, data.Shockwave) catch null) != null or (loaded.world.get(entity, data.Nova) catch null) != null or (loaded.world.get(entity, data.Flashlight) catch null) != null or (loaded.world.get(entity, data.Zeus) catch null) != null or (loaded.world.get(entity, data.ZeusBolt) catch null) != null or (loaded.world.get(entity, data.Nightmare) catch null) != null or (loaded.world.get(entity, data.MetaRing) catch null) != null or (loaded.world.get(entity, data.MetaLaser) catch null) != null) continue;
-            if (loaded.world.get(entity, data.WorldControl) catch null) |control| if (control.action == .blood_cloud or control.action == .target_effect or control.action == .lightning or control.action == .lightning_bolt or control.action == .particles or control.action == .light or control.action == .spotlight or control.action == .earthquake or control.action == .speaker or control.action == .laser or control.action == .healer) {
+            if (loaded.world.get(entity, data.WorldControl) catch null) |control| if (control.action == .chest or control.action == .blood_cloud or control.action == .target_effect or control.action == .lightning or control.action == .lightning_bolt or control.action == .particles or control.action == .light or control.action == .spotlight or control.action == .earthquake or control.action == .speaker or control.action == .laser or control.action == .healer) {
+                if (control.action == .chest) {
+                    if (binding.model == 0 or binding.model > loaded.header.resources.models.len or !std.mem.eql(u8, loaded.header.resources.models[binding.model - 1], @import("item_catalog").chest.model(control.action.chest.kind))) return error.InvalidSavedChest;
+                    continue;
+                }
                 if (control.action == .spotlight and control.action.spotlight.model.len > 0) {
                     if (binding.model == 0 or binding.model > loaded.header.resources.models.len or !std.mem.eql(u8, loaded.header.resources.models[binding.model - 1], control.action.spotlight.model)) return error.InvalidSavedSpotlight;
                     continue;
@@ -141,6 +145,10 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
             try clients.publish(world, projections, states, 0, now);
             continue;
         }
+        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .chest) {
+            try @import("chests.zig").publish(world, entity, projections, now);
+            continue;
+        };
         if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .blood_cloud) {
             try @import("blood_clouds.zig").publish(world, entity, projections);
             continue;

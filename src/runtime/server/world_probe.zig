@@ -11,6 +11,10 @@ pub fn diagnostics(world: *data.World, slots: *Slots, projections: []const abi.E
         const entity = occupant orelse continue;
         const object = world.get(entity, data.MapObject) catch continue;
         const id = try world.persistentId(entity);
+        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .chest) {
+            const chest = control.action.chest;
+            engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig chest: id={d} kind={t} phase={t} opener={d} explosive={d} reward={d} start={d} next={d}\n", .{ id, chest.kind, chest.phase, chest.opener, @intFromBool(chest.explosive), chest.reward, chest.started_ms orelse 0, chest.next_ms orelse 0 }));
+        };
         const center = @import("../domain/vector.zig").scale(@import("../domain/vector.zig").add(projections[slot].shared.absmin, projections[slot].shared.absmax), 0.5);
         if (world.get(entity, data.Monitor)) |monitor| engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig monitor: id={d} viewer={d} until={d} camera={d} target={d} pos={d:.3},{d:.3},{d:.3} angles={d:.3},{d:.3},{d:.3}\n", .{ id, monitor.viewer orelse 0, monitor.until_ms orelse 0, monitor.camera, monitor.target, monitor.origin[0], monitor.origin[1], monitor.origin[2], monitor.angles[0], monitor.angles[1], monitor.angles[2] })) else |_| {}
         if (world.get(entity, data.HealthTree)) |tree| engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig tree: id={d} fruit={d} maximum={d} ready={d} pos={d:.3},{d:.3},{d:.3}\n", .{ id, tree.fruit, tree.maximum, tree.ready_ms, (try world.get(entity, data.Transform)).position[0], (try world.get(entity, data.Transform)).position[1], (try world.get(entity, data.Transform)).position[2] })) else |_| {}

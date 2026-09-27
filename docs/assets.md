@@ -25,8 +25,8 @@ options still identify a stage; changing only concurrency does not rebuild AAS.
 ```sh
 zig build
 zig build assets -DDK_DATA=/path/to/data -Dasset-profile=retail
-zig build play-install -DDK_DATA=/path/to/data -Dasset-profile=retail
-zig build play -DDK_DATA=/path/to/data -Dasset-profile=retail
+zig build play-install
+zig build play
 ```
 
 `retail` requires pak1.pak through pak4.pak. It reads present numbered archives in
@@ -58,9 +58,15 @@ their absence from a particular profile or repair by a loose override is allowed
 
 `play-install` checks package hashes, ZIP integrity and required startup assets, then
 copies this build's client, server, renderers and native modules into a separate
-generation below `zig-out/play/`. Its manifest states that gameplay is incomplete.
-`play` launches that generation through dkguard, with settings in `zig-out/play/home/`
-and new-format saves in `zig-out/play/state/dk3/saves/`. Extra engine arguments follow `--`.
+generation below `zig-out/native-dev/play/`. Its manifest states that gameplay is incomplete.
+`play` rebuilds the current code and launches that generation through dkguard, with settings
+in `zig-out/native-dev/play/home/` and new-format saves in
+`zig-out/native-dev/play/state/dk3/saves/`. Extra engine arguments follow `--`.
+The converted cache defaults to `zig-out/assets` independently of the build prefix;
+override it with `-Dassets-dir=/path/to/cache`. Play reuses its completed `current`
+generation unless `-DDK_DATA` explicitly requests conversion. Code-only changes
+therefore require only `zig build play`. Converter changes still require `zig build assets`
+with the original input/profile options before the new asset behavior is available.
 
 The installer checks file integrity; it does not certify campaign progression. The
 full scenario verification remains listed in [the roadmap](rewrite-roadmap.md).

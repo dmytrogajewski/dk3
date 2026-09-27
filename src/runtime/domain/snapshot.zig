@@ -236,7 +236,14 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Binding) catch null) |binding| {
             if (binding.slot >= occupied.len or occupied[binding.slot] or (binding.slot > 0 and binding.slot < 64)) return error.InvalidSavedBinding;
             occupied[binding.slot] = true;
-            if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null and (world.get(entity, data.Shockwave) catch null) == null and (world.get(entity, data.Nova) catch null) == null and (world.get(entity, data.Flashlight) catch null) == null and (world.get(entity, data.Zeus) catch null) == null and (world.get(entity, data.ZeusBolt) catch null) == null and (world.get(entity, data.Nightmare) catch null) == null and (world.get(entity, data.MetaRing) catch null) == null and (world.get(entity, data.MetaLaser) catch null) == null) try require(world, entity, .{data.Body});
+            // A network slot does not imply physical collision. These controllers
+            // publish their own non-solid projections and restore without Body.
+            const visual_control = if (world.get(entity, data.WorldControl) catch null) |control| switch (control.action) {
+                .blood_cloud, .target_effect, .lightning, .lightning_bolt, .particles, .spotlight, .earthquake, .speaker, .laser => true,
+                .light => |light| light.kind != .flame,
+                else => false,
+            } else false;
+            if (!visual_control and (world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null and (world.get(entity, data.Shockwave) catch null) == null and (world.get(entity, data.Nova) catch null) == null and (world.get(entity, data.Flashlight) catch null) == null and (world.get(entity, data.Zeus) catch null) == null and (world.get(entity, data.ZeusBolt) catch null) == null and (world.get(entity, data.Nightmare) catch null) == null and (world.get(entity, data.MetaRing) catch null) == null and (world.get(entity, data.MetaLaser) catch null) == null) try require(world, entity, .{data.Body});
         }
         if (world.get(entity, data.Objective) catch null) |objective| {
             try require(world, entity, .{ data.Body, data.Binding, data.MapObject });
@@ -547,6 +554,7 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Transform });
             const classname = (try world.get(entity, data.MapObject)).classname;
             const expected = switch (control.action) {
+                .chest => |state| @import("item_catalog").chest.classname(state.kind),
                 .blood_cloud => "effect_blood_cloud",
                 .target_effect => "target_effect",
                 .weather => |state| if (state.kind == .rain) "effect_rain" else "effect_snow",
@@ -581,6 +589,13 @@ pub fn validate(snapshot: *Loaded) !void {
             };
             if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
             switch (control.action) {
+                .chest => |state| {
+                    try require(world, entity, .{ data.Binding, data.Body, data.Random, data.ItemMotion });
+                    if (state.reward >= (if (state.kind == .wood) @as(u8, 5) else 4) or (state.kind == .wood and (state.explosive or state.phase == .revealing or state.phase == .exploding)) or (state.phase == .closed) != (state.started_ms == null) or ((state.phase == .opening or state.phase == .revealing or state.phase == .exploding) != (state.next_ms != null))) return error.InvalidSavedChest;
+                    if (state.phase != .closed and state.opener == 0) return error.InvalidSavedChest;
+                    if (state.phase == .exploding and !state.explosive) return error.InvalidSavedChest;
+                    if (state.phase == .revealing and state.explosive) return error.InvalidSavedChest;
+                },
                 .blood_cloud => |state| {
                     for (state.extent) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedBloodCloud;
                     if (state.mass <= 0 or state.mass > 100000 or !std.math.isFinite(state.mass)) return error.InvalidSavedBloodCloud;
@@ -1226,4 +1241,23 @@ test "Nharre reaper restores the actual freeze owner and appearance boundary" {
     try t.expectEqual(@as(?u32, 3), (try loaded.world.get(loaded.world.find(1).?, data.Body)).motion_owner);
     (try loaded.world.get(loaded.world.find(1).?, data.Body)).motion_owner = null;
     try t.expectError(error.InvalidSavedActorAttack, validate(&loaded));
+}
+
+test "non-solid world effects save without Body while physical entities still require it" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 8);
+    defer world.deinit();
+    _ = try world.create(1, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{}, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    _ = try world.create(2, .{ data.Transform{}, data.Binding{ .slot = 64 }, data.MapObject{ .classname = "target_effect" }, data.Random{ .state = 2 }, data.WorldControl{ .action = .{ .target_effect = .{ .flags = 1, .next_ms = 1500 } } } });
+    _ = try world.create(3, .{ data.Transform{}, data.Binding{ .slot = 65 }, data.MapObject{ .classname = "light_flare" }, data.WorldControl{ .action = .{ .light = .{ .kind = .flare, .revision = 3 } } } });
+    _ = try world.create(4, .{ data.Transform{}, data.Binding{ .slot = 66 }, data.MapObject{ .classname = "target_earthquake" }, data.Random{ .state = 4 }, data.WorldControl{ .action = .{ .earthquake = .{} } } });
+    var bytes: [65536]u8 = undefined;
+    const encoded = try capture(t.allocator, &bytes, &world, "e1m1a", 3, .{ .at_ms = 1000, .episode = 1, .player_id = 1, .next_id = world.next_id });
+    var loaded = try decode(t.allocator, encoded);
+    defer loaded.deinit(t.allocator);
+    try loaded.rebase(9000);
+    try t.expectEqual(@as(?i64, 9500), (try loaded.world.get(loaded.world.find(2).?, data.WorldControl)).action.target_effect.next_ms);
+    try t.expectError(error.MissingComponent, loaded.world.get(loaded.world.find(3).?, data.Body));
+    _ = try loaded.world.create(null, .{ data.Transform{}, data.Binding{ .slot = 67 }, data.MapObject{ .classname = "unclassified_physical_entity" } });
+    try t.expectError(error.MissingComponent, validate(&loaded));
 }

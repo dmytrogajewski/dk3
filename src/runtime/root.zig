@@ -47,6 +47,8 @@ test {
     _ = @import("client/fx_particles.zig");
     _ = @import("server/weather.zig");
     _ = @import("server/lightning.zig");
+    _ = @import("server/wisps.zig");
+    _ = @import("server/multiplayer.zig");
     _ = @import("server/inventory_actions.zig");
     _ = @import("server/environment.zig");
     _ = @import("domain/world_actions.zig");

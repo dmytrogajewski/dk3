@@ -3,6 +3,7 @@
 pub const drugbox = @import("drugbox.zig");
 pub const hosportal = @import("hosportal.zig");
 pub const healthtree = @import("healthtree.zig");
+pub const chest = @import("chest.zig");
 const std = @import("std");
 const Pair = struct { name: []const u8, value: []const u8 };
 fn count(comptime bytes: []const u8) usize {
@@ -33,6 +34,9 @@ fn read(comptime bytes: []const u8) [count(bytes)]Pair {
 pub const keys = read(@embedFile("keys.def"));
 pub const models = read(@embedFile("models.def"));
 pub fn keyIndex(name: []const u8) ?u5 {
+    // Keep historical bit positions for later rune/purifier keys. Containers
+    // have no inventory identity and cannot satisfy a key lock.
+    if (chest.kind(name) != null) return null;
     for (keys, 0..) |key, index| if (std.ascii.eqlIgnoreCase(key.name, name)) return @intCast(index);
     return null;
 }
@@ -61,6 +65,7 @@ pub const Keys = struct {
     }
 };
 test "key identities, bomb consumption and complete purifier parts" {
+    try std.testing.expect(keyIndex("item_wood_chest") == null and keyIndex("item_black_chest") == null);
     try std.testing.expectEqual(@as(usize, 32), keys.len);
     var inventory: Keys = .{};
     for ([_][]const u8{ "item_charcoal", "item_saltpeter", "item_sulphur" }) |name| try std.testing.expect(!inventory.collect(keyIndex(name).?));
@@ -75,6 +80,7 @@ test "key identities, bomb consumption and complete purifier parts" {
 }
 
 test {
+    _ = chest;
     _ = healthtree;
     _ = hosportal;
     _ = drugbox;

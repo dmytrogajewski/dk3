@@ -47,6 +47,10 @@ def checked_assets(directory):
 
 
 def install(prefix, assets, hd_textures=None):
+    if not (assets / 'current' / 'manifest.json').is_file():
+        raise ValueError(f'no completed asset generation in {assets}; run zig build assets '
+                         '-DDK_DATA=/path/to/data -Dasset-profile=retail first, '
+                         'or select an existing cache with -Dassets-dir=/path/to/cache')
     source = (assets / 'current').resolve(strict=True)
     manifest = checked_assets(source)
     files = {f'bin/{name}': prefix / 'bin' / name for name in BINARIES}
@@ -116,7 +120,7 @@ def install(prefix, assets, hd_textures=None):
         print(f'play-install: HD textures enabled from {hd}')
 
 
-def launch(prefix, guard, extra):
+def launch(prefix, guard, extra, headless=False):
     directory = (prefix / 'play' / 'current').resolve(strict=True)
     manifest = json.loads((directory / 'installation.json').read_text())
     if manifest.get('format') not in (1, 2):
@@ -135,7 +139,10 @@ def launch(prefix, guard, extra):
         if digest(directory / name) != manifest['files'][name]:
             raise ValueError(f'installed product changed: {name}; rerun play-install')
     print('play: independent dk3 development runtime; campaign implementation and verification incomplete', flush=True)
-    command = [str(Path(guard).resolve(strict=True)), '--mem', '8G', '--timeout', '43200', '--',
+    print(f'play: build {directory.name}; assets {manifest.get("asset_generation", "unrecorded")}', flush=True)
+    print(f'play: development profile {prefix / "play"}', flush=True)
+    command = [str(Path(guard).resolve(strict=True)), *(['--headless'] if headless else []),
+               '--mem', '8G', '--timeout', '43200', '--',
                str(directory / 'bin' / 'dk3'), '+set', 'fs_basepath', str(directory / 'share'),
                '+set', 'fs_homepath', str(prefix / 'play' / 'home'), '+set', 'com_basegame', 'dk3',
                '+set', 'fs_homedatapath', str(prefix / 'play' / 'home'),
@@ -156,14 +163,15 @@ def main(argv=None):
     run = sub.add_parser('launch')
     run.add_argument('--prefix', type=Path, required=True)
     run.add_argument('--dkguard', required=True)
+    run.add_argument('--headless', action='store_true', help='software rendering on a virtual display')
     arguments, extra = parser.parse_known_args(argv)
     try:
         prefix = arguments.prefix.resolve(strict=True)
         if arguments.command == 'install':
             if extra: parser.error('unexpected installation arguments: ' + ' '.join(extra))
-            install(prefix, arguments.assets.resolve(strict=True), arguments.hd_textures)
+            install(prefix, arguments.assets.resolve(), arguments.hd_textures)
         else:
-            launch(prefix, arguments.dkguard, extra[1:] if extra[:1] == ['--'] else extra)
+            launch(prefix, arguments.dkguard, extra[1:] if extra[:1] == ['--'] else extra, arguments.headless)
         return 0
     except (OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
         print(f'play: {error}', file=sys.stderr)

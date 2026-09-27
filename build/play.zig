@@ -17,7 +17,9 @@ pub fn declare(b: *std.Build, packages: assets.Assets, guard: *std.Build.Step.Co
         prepare.addArgs(&.{ "--hd-textures", path });
     }
     prepare.has_side_effects = true;
-    prepare.step.dependOn(packages.step);
+    // Supplying source data explicitly requests conversion. Routine play uses
+    // the last completed asset generation and only rebuilds changed code.
+    if (packages.convert) prepare.step.dependOn(packages.step);
     prepare.step.dependOn(b.getInstallStep());
     install.dependOn(&prepare.step);
     const play = b.step("play", "Launch the independent dk3 development game with supplied assets");
@@ -25,6 +27,7 @@ pub fn declare(b: *std.Build, packages: assets.Assets, guard: *std.Build.Step.Co
     launch.addFileArg(b.path("dkq3/tools/play.py"));
     launch.addArgs(&.{ "launch", "--prefix", b.install_path, "--dkguard" });
     launch.addArtifactArg(guard);
+    if (b.option(bool, "headless", "Launch play with software rendering on a virtual display") orelse false) launch.addArg("--headless");
     launch.addArgs(&.{ "--", "+set", "dk3_runtime_probe", "2" });
     if (b.args) |args| {
         launch.addArgs(args);
