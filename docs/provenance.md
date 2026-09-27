@@ -275,3 +275,16 @@ Sequence 295 reuses the HD image overlay already admitted locally in sequence
 Native play now discovers that shared cache by default, with the existing
 image-only admission check. No reference runtime, source or additional asset
 corpus is imported. The gameplay package identity is unchanged.
+
+Sequence 296 connects missing native effects and gameplay contracts using existing
+owned mechanisms. Main is read only: Ion electrical flight and camera searchlight
+parameters, checkpoint behavior and actor fragmentation eligibility are reviewed
+as independent-project reference. Private Gold inspection supplies behavior facts
+for pod hatch timing/placement and func_explosive material flags, authored tuning
+and fragment lifecycle; no source, headers, binary modules or new asset corpus are
+admitted from that workspace. In particular, native hatching retains origin +10
+rather than importing main's clearance workaround, and explosive flag 8 remains
+stone rather than main's generic metal mapping. Existing local sky/HD shaders and
+images are reused. The interpolation repair is based on captured native engine
+clock values, not private renderer code. Focused verification and remaining visual
+parity limits are recorded in sequence 296 and native acceptance.

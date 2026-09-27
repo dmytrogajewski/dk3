@@ -62,6 +62,11 @@ test {
     _ = @import("domain/animation.zig");
     _ = @import("engine/animation.zig");
     _ = @import("client/interpolation.zig");
+    _ = @import("client/sky.zig");
+    _ = @import("domain/checkpoint.zig");
+    _ = @import("domain/explosives.zig");
+    _ = @import("actor_catalog").perception;
+    _ = @import("actor_catalog").fragments;
     _ = @import("client/cinematics.zig");
     _ = @import("domain/combat.zig");
     _ = @import("domain/pellets.zig");

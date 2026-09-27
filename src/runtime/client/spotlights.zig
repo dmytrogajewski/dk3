@@ -14,28 +14,32 @@ pub fn draw(game: *const c.gameState_t, entity: c.entityState_t, now: i32, ref: 
         }
         return;
     }
-    const basis = v.basis(@import("../engine/trajectory.zig").evaluate(entity.apos, now));
+    try cone(start, entity.origin2, @floatFromInt(entity.frame), entity.angles2);
+}
+pub fn cone(start: v.Vec3, end: v.Vec3, radius: f32, tint: v.Vec3) !void {
+    const direction = v.subtract(end, start);
+    const basis = v.basis(.{ -std.math.atan2(direction[2], @sqrt(direction[0] * direction[0] + direction[1] * direction[1])) * 180 / std.math.pi, std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi, 0 });
     const up = v.cross(basis.right, basis.forward);
-    const distance = v.length(v.subtract(entity.origin2, start));
+    const distance = v.length(direction);
     var color: [4]u8 = .{ 255, 255, 255, 64 };
-    for (entity.angles2, color[0..3]) |channel, *out| out.* = @intFromFloat(std.math.clamp(channel, 0, 1) * 255);
+    for (tint, color[0..3]) |channel, *out| out.* = @intFromFloat(std.math.clamp(channel, 0, 1) * 255);
     const shader = engine.gateway.call(c.CG_R_REGISTERSHADER, .{@as([*:0]const u8, "dk3/fx/spotlight")});
     for (0..2) |layer| {
         const scale: f32 = if (layer == 0) 1 else 2.0 / 3.0;
-        const near = @as(f32, @floatFromInt(entity.frame)) * scale;
+        const near = radius * scale;
         const far = near + distance * 0.2 * scale;
         for (0..16) |side| {
             var vertices: [4]c.polyVert_t = undefined;
             for (0..4) |i| {
                 const angle = @as(f32, @floatFromInt(side + @as(usize, if (i == 1 or i == 2) 1 else 0))) * (2.0 * std.math.pi / 16.0);
-                const radius = if (i < 2) near else far;
-                const origin = if (i < 2) start else entity.origin2;
-                vertices[i] = .{ .xyz = v.add(origin, v.add(v.scale(basis.forward, radius), v.add(v.scale(basis.right, @cos(angle) * radius), v.scale(up, @sin(angle) * radius)))), .st = @splat(0), .modulate = if (i < 2) color else .{ 0, 0, 0, 13 } };
+                const width = if (i < 2) near else far;
+                const origin = if (i < 2) start else end;
+                vertices[i] = .{ .xyz = v.add(origin, v.add(v.scale(basis.forward, width), v.add(v.scale(basis.right, @cos(angle) * width), v.scale(up, @sin(angle) * width)))), .st = @splat(0), .modulate = if (i < 2) color else .{ 0, 0, 0, 13 } };
             }
             _ = engine.gateway.call(c.CG_R_ADDPOLYTOSCENE, .{ shader, @as(isize, 4), &vertices });
         }
     }
-    _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &entity.origin2, engine.floatArg(75), engine.floatArg(entity.angles2[0]), engine.floatArg(entity.angles2[1]), engine.floatArg(entity.angles2[2]) });
+    _ = engine.gateway.call(c.CG_R_ADDADDITIVELIGHTTOSCENE, .{ &end, engine.floatArg(75), engine.floatArg(tint[0]), engine.floatArg(tint[1]), engine.floatArg(tint[2]) });
 }
 
 fn flare(game: *const c.gameState_t, entity: c.entityState_t, point: v.Vec3, ref: *const c.refdef_t) !void {

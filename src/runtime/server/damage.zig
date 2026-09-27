@@ -24,6 +24,23 @@ fn applyResolved(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, 
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .nharre and actor.nharre.invulnerable()) return .{};
     if (world.get(entity, data.HealthTree) catch null) |tree| if (tree.drugbox != null) return .{};
     const health = world.get(entity, data.Health) catch return .{};
+    // A solid corpse can still break apart. Do not dispatch a second kill,
+    // award experience again, or run living pain/resurrection controllers.
+    if (health.current <= 0) {
+        const actor = world.get(entity, data.Actor) catch return .{};
+        if (actor.gibbed or amount <= 0) return .{};
+        const kind = @import("actor_catalog").entries[actor.definition].kind;
+        if (@import("actor_catalog").fragments.forKind(kind).never) return .{};
+        if (world.get(entity, data.Ailments) catch null) |status| if (status.petrified_frame != null) return .{};
+        health.current -|= amount;
+        const receipt = try world.get(entity, data.Hurt);
+        receipt.source = options.source;
+        receipt.weapon = options.weapon;
+        receipt.amount = amount;
+        receipt.at_ms = now;
+        receipt.revision +%= 1;
+        return .{ .blood = amount };
+    }
     const participant = world.get(entity, data.Session) catch null;
     if (participant) |session| {
         if (session.team == .spectator) return .{};
@@ -113,6 +130,19 @@ fn applyResolved(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, 
     return result;
 }
 
+test "corpse damage records fragment eligibility without dispatching a second kill" {
+    const t = @import("std").testing;
+    var world = data.World.init(t.allocator, 8);
+    defer world.deinit();
+    const victim = try world.create(null, .{ data.Health{ .current = -5 }, data.Hurt{}, data.Actor{ .definition = @import("actor_catalog").find("monster_mishimaguard").?, .mode = .dead } });
+    const result = try apply(&world, victim, 50, 1200, .{ .source = 42, .weapon = 2 });
+    try t.expect(!result.killed);
+    try t.expectEqual(@as(i32, -55), (try world.get(victim, data.Health)).current);
+    try t.expectEqual(@as(u32, 42), (try world.get(victim, data.Hurt)).source);
+    try t.expectEqual(@as(u32, 1), (try world.get(victim, data.Hurt)).revision);
+    (try world.get(victim, data.Actor)).gibbed = true;
+    try t.expectEqual(@as(i32, 0), (try apply(&world, victim, 50, 1250, .{})).blood);
+}
 test "Rockgat pain deduction is class-scoped and dispatches the resulting death" {
     const t = @import("std").testing;
     const catalog = @import("actor_catalog");

@@ -26,6 +26,8 @@ const persistence = @import("server/persistence.zig");
 const campaign_module = @import("server/campaign.zig");
 var campaign: campaign_module.State = .{};
 var restoring_visit = false;
+const checkpoint_rules = @import("domain/checkpoint.zig");
+var checkpoint: checkpoint_rules.State = .{};
 
 export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
@@ -39,6 +41,7 @@ fn shutdown(restart: bool) void {
     if (world) |*value| rooms.checkpoint(value, &clients) catch |err| runtimeFailure(err);
     campaign.deinit();
     restoring_visit = false;
+    checkpoint = .{};
     if (restore_pending) |*saved| saved.deinit(std.heap.c_allocator);
     restore_pending = null;
     systems.deinit(restart);
@@ -91,6 +94,7 @@ fn init(now: i64, restart: bool) !void {
     }
     engine.locate(&projection, &players);
     engine.config(c.CS_GAME_VERSION, @import("engine/player_state.zig").version);
+    engine.config(c.CS_DK3_SKY, "1");
     engine.register("g_gametype", "2", c.CVAR_SERVERINFO);
     engine.register("sv_violence", "0", c.CVAR_SERVERINFO | c.CVAR_ARCHIVE | c.CVAR_LATCH);
     engine.register("gib_enable", "1", c.CVAR_ARCHIVE);
@@ -173,6 +177,15 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
         campaign.deinit();
         campaign = state;
     }
+    if (!visit) {
+        if (persistence.save(&world.?, &clients, &targets, &systems, checkpoint_rules.slot, clock.now_ms, campaign.visited)) |_| {
+            checkpoint.saved();
+            engine.print("dk3 checkpoint: ready\n");
+        } else |err| {
+            saveFeedback(err);
+            checkpoint = .{ .pending = false };
+        }
+    }
     const restored_loadout = (try world.?.get(world.?.find(header.player_id).?, component.Weapons)).*;
     var restoration: [128]u8 = undefined;
     if (restored_loadout.weaponstate == @import("weapon_catalog").transitions.state.firing and restored_loadout.last_fire_ms != null) {
@@ -191,39 +204,73 @@ fn saveCommand(command: []const u8) !bool {
     if (!@import("domain/snapshot.zig").validName(slot) or std.mem.startsWith(u8, slot, "dk3-")) return error.InvalidSaveSlot;
     if (saving) {
         try persistence.save(&world.?, &clients, &targets, &systems, slot, clock.now_ms, campaign.visited);
+        rememberCheckpoint(slot, false) catch |err| saveFeedback(err);
         engine.print("dk3 zig: world saved\n");
     } else {
         const extra = engine.argv(2, &option);
         const previous = std.mem.eql(u8, extra, "previous");
         if (extra.len != 0 and !previous) return error.InvalidSaveOption;
-        var loaded = try persistence.prepare(slot, previous);
-        var owned = true;
-        defer if (owned) loaded.deinit(std.heap.c_allocator);
-        var name: [64]u8 = undefined;
-        if (std.mem.eql(u8, loaded.map, persistence.mapName(&name)) and @import("server/resources.zig").canRestoreInPlace(loaded.header.resources)) {
-            try restore(&loaded, false);
-            owned = false;
-        } else {
-            // A different map or resource registry needs a fresh gamestate.
-            // Decode completely before restarting; the existing atomic save
-            // service owns the internal transfer file.
-            const bytes = try @import("engine/save_storage.zig").read(std.heap.c_allocator, slot, previous);
-            defer std.heap.c_allocator.free(bytes);
-            try @import("engine/save_storage.zig").write("dk3-resume-internal", bytes, false);
-            _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_resume"), @as([*:0]const u8, "1") });
-            _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_travel_pending"), @as([*:0]const u8, "0") });
-            var text: [160]u8 = undefined;
-            const next = try std.fmt.bufPrintZ(&text, "set g_spSkill {d}\nmap {s}\n", .{ loaded.skill, loaded.map });
-            _ = engine.gateway.call(c.G_SEND_CONSOLE_COMMAND, .{ @as(isize, c.EXEC_APPEND), next.ptr });
-        }
+        try loadSlot(slot, previous);
     }
     return true;
+}
+fn loadSlot(slot: []const u8, previous: bool) !void {
+    var loaded = try persistence.prepare(slot, previous);
+    var owned = true;
+    defer if (owned) loaded.deinit(std.heap.c_allocator);
+    var name: [64]u8 = undefined;
+    if (std.mem.eql(u8, loaded.map, persistence.mapName(&name)) and @import("server/resources.zig").canRestoreInPlace(loaded.header.resources)) {
+        try restore(&loaded, false);
+        owned = false;
+    } else {
+        // A different map or resource registry needs a fresh gamestate.
+        // Decode completely before restarting; the existing atomic save
+        // service owns the internal transfer file.
+        const bytes = try @import("engine/save_storage.zig").read(std.heap.c_allocator, slot, previous);
+        defer std.heap.c_allocator.free(bytes);
+        try @import("engine/save_storage.zig").write("dk3-resume-internal", bytes, false);
+        _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_resume"), @as([*:0]const u8, "1") });
+        _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "dk3_travel_pending"), @as([*:0]const u8, "0") });
+        var text: [160]u8 = undefined;
+        const next = try std.fmt.bufPrintZ(&text, "set g_spSkill {d}\nmap {s}\n", .{ loaded.skill, loaded.map });
+        _ = engine.gateway.call(c.G_SEND_CONSOLE_COMMAND, .{ @as(isize, c.EXEC_APPEND), next.ptr });
+    }
 }
 fn saveFeedback(err: anyerror) void {
     var buffer: [160]u8 = undefined;
     const message = std.fmt.bufPrintZ(&buffer, "Save/load refused: {s}\n", .{@errorName(err)}) catch unreachable;
     engine.print(message);
     _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "com_errorMessage"), message.ptr });
+}
+fn rememberCheckpoint(slot: []const u8, previous: bool) !void {
+    if (!std.mem.eql(u8, slot, checkpoint_rules.slot)) {
+        const bytes = try @import("engine/save_storage.zig").read(std.heap.c_allocator, slot, previous);
+        defer std.heap.c_allocator.free(bytes);
+        try @import("engine/save_storage.zig").write(checkpoint_rules.slot, bytes, false);
+    }
+    checkpoint.saved();
+    engine.print("dk3 checkpoint: ready\n");
+}
+fn recovery() !void {
+    if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER or restore_pending != null or campaign.departing or targets.travel != null) return;
+    const entity = clients.entities[0] orelse return;
+    const player = (try world.?.get(entity, component.Player)).*;
+    const alive = (try world.?.get(entity, component.Health)).current > 0;
+    if (checkpoint.pending and alive and player.mode == .normal and player.command_ms > 0 and !@import("server/cinematics.zig").active(&world.?)) {
+        // A fresh playable arrival becomes a checkpoint; user save slots are untouched.
+        try persistence.save(&world.?, &clients, &targets, &systems, checkpoint_rules.slot, clock.now_ms, campaign.visited);
+        try rememberCheckpoint(checkpoint_rules.slot, false);
+    }
+    var input: c.usercmd_t = undefined;
+    engine.usercmd(0, &input);
+    if (checkpoint.wantsRestart(alive, input.buttons & c.BUTTON_ATTACK != 0 or input.upmove > 0, clock.now_ms)) {
+        if (!checkpoint.available) {
+            engine.send(0, "cp \"No death checkpoint available. Load a saved game.\"");
+            return;
+        }
+        engine.print("dk3 checkpoint: restoring after death\n");
+        try loadSlot(checkpoint_rules.slot, false);
+    }
 }
 fn probeMotion() !void {
     const movement = @import("server/motion.zig");
@@ -508,6 +555,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     @import("server/companions.zig").camera(&world.?, entity.?, &players[index]) catch |err| runtimeFailure(err);
                     campaign_module.camera(&world.?, entity.?, &players[index]) catch |err| runtimeFailure(err);
                 };
+                recovery() catch |err| saveFeedback(err);
                 if (targets.travel) |request| {
                     targets.travel = null;
                     if (@import("server/cinematics.zig").active(&world.?)) @import("server/cinematics.zig").finish(&world.?, &slots, &projection, &targets, clients.entities[0].?, clock.now_ms) catch |err| runtimeFailure(err);

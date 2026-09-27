@@ -6,7 +6,7 @@ const engine = @import("../engine/client.zig");
 const v = @import("../domain/vector.zig");
 const Random = @import("../domain/components.zig").Random;
 pub const Kind = enum { fire, smoke, bits, spark, blood1, blood2, blood3, blood4, simple, cp1, cp2, cp3, cp4, rain, bubble, sparkle1, sparkle2, snow, poison, blue_spark, ice, drip, splash1, splash2, splash3, cryo, spark1, spark2, beam_spark };
-pub const Particle = struct { born_ms: i32, until_ms: ?i32 = null, owner: u32 = 0, classic_factor: ?f32 = null, last_position: ?v.Vec3 = null, position: v.Vec3, velocity: v.Vec3, acceleration: v.Vec3, color: v.Vec3, alpha: f32, fade: f32, size: f32, kind: Kind };
+pub const Particle = struct { born_ms: i32, until_ms: ?i32 = null, owner: u32 = 0, classic_factor: ?f32 = null, last_position: ?v.Vec3 = null, position: v.Vec3, velocity: v.Vec3, acceleration: v.Vec3, color: v.Vec3, alpha: f32, fade: f32, size: f32, kind: Kind, shader: ?[:0]const u8 = null };
 var particles: [4096]?Particle = @splat(null);
 var cursor: usize = 0;
 pub fn reset() void {
@@ -56,7 +56,7 @@ pub fn draw(now: i32, ref: *const c.refdef_t) void {
         for (particle.color, color[0..3]) |value, *channel| channel.* = @intFromFloat(std.math.clamp(value, 0, 1) * 255);
         color[3] = @intFromFloat(std.math.clamp(alpha, 0, 1) * 255);
         if (particle.kind == .beam_spark) {
-            if (particle.last_position) |previous| @import("beams.zig").tapered("dk3/particle/beam-spark", point, v.add(point, v.scale(v.subtract(previous, point), 2)), particle.size, particle.size * 0.3, color, ref);
+            if (particle.last_position) |previous| @import("beams.zig").tapered(particle.shader orelse "dk3/particle/beam-spark", point, v.add(point, v.scale(v.subtract(previous, point), 2)), particle.size, particle.size * 0.3, color, ref);
             maybe.*.?.last_position = point;
             continue;
         }

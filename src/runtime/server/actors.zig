@@ -310,11 +310,12 @@ pub const Actors = struct {
         const projection = &projections[binding.slot];
         projection.state.number = binding.slot;
         projection.state.eType = c.ET_GENERAL;
-        projection.state.modelindex = binding.model;
+        projection.state.modelindex = if (actor.gibbed) 0 else binding.model;
         projection.state.angles2 = definition.scale;
         projection.state.generic1 = if (world.get(entity, data.Ailments) catch null) |ailment| @intFromFloat(ailment.freeze_level * 1000) else 0;
         projection.state.groundEntityNum = actor.ground_entity;
         projection.state.time2 = if (policy.kind == .cambot and actor.mode != .dead) if (actor.threat != 0) catalog.cambot.alert_tag else catalog.cambot.idle_tag else 0;
+        if (policy.kind == .cambot) projection.state.origin2 = actor.threat_position;
         if (policy.kind == .chaingang and actor.mode != .dead and actor.chaingang.flying) projection.state.time2 = catalog.chaingang.jet_tag;
         if (policy.kind == .deathsphere) projection.state.loopSound = if (actor.mode != .dead and actor.threat_seen_ms > 0) try @import("resources.zig").sound("e1/m_dspherehovera.wav") else 0;
         var playback: @import("../domain/animation.zig").Playback = .{ .sequence = sequence, .started = if (actor.reaction != null and actor.mode != .dead) actor.reaction_started_ms else if (catalog.sequenceAttack(policy.kind) and actor.melee.active) actor.melee.started_ms else if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_ms else if ((catalog.sequenceAttack(policy.kind)) and actor.mode == .attack) actor.melee.started_ms else if (policy.kind == .crox and actor.mode == .attack) actor.crox.started_ms else if (policy.kind == .thunderskeet and actor.mode == .attack) actor.thunder.started_ms else if (policy.kind == .froginator and actor.mode == .attack) actor.frog.started_ms else if (policy.kind == .skeeter and (actor.mode == .attack or hatching)) actor.skeeter.started_ms else if (policy.kind == .mishima_guard and (actor.mode == .attack or actor.mode == .reload)) actor.guard.started_ms else if (actor.mode == .idle and actor.idle_started_ms != null) actor.idle_started_ms.? else actor.changed_ms, .looping = !hatching and actor.reaction == null and !actor.melee.active and (actor.mode == .idle or actor.mode == .flee or actor.mode == .chase) };
@@ -462,6 +463,17 @@ pub const Actors = struct {
                 try @import("weapon_entities.zig").remove(world, slots, projections, entity);
                 continue;
             }
+            if (dead and !actor.gibbed and !petrified and engine.integer("sv_violence") == 0 and engine.integer("gib_enable") != 0) {
+                const kind = catalog.entries[actor.definition].kind;
+                const material = catalog.fragments.forClass(kind, catalog.entries[actor.definition].classname);
+                if (material.eligible((try world.get(entity, data.MapObject)).flags, hurt.amount, (try world.get(entity, data.Health)).current, @floatFromInt(self.table.definitions[actor.definition].health)) or (kind == .buboid and actor.buboid.phase == .terminal)) {
+                    try @import("actor_gibs.zig").spawn(world, slots, projections, entity, now);
+                    actor.gibbed = true;
+                    body.contents = 0;
+                    // Corpses have already fired their authored death outputs.
+                    if (actor.mode == .dead) actor.changed_ms = now;
+                }
+            }
             if (dead and (catalog.entries[actor.definition].kind == .rockgat or catalog.entries[actor.definition].kind == .lasergat)) {
                 try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode, &self.weapons);
                 try @import("actor_spawns.zig").death(self, world, slots, projections, router, entity, now);
@@ -474,10 +486,6 @@ pub const Actors = struct {
                 const kind = catalog.entries[actor.definition].kind;
                 if (kind == .kage) try @import("kages.zig").death(world, slots);
                 if (kind == .companion) try @import("companion_damage.zig").death(world, slots, projections, entity, self.episode, now);
-                if (!petrified and (catalog.ambient(kind) or kind == .dopefish or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or (kind == .buboid and actor.buboid.phase == .terminal)) and engine.integer("sv_violence") == 0) {
-                    try @import("actor_gibs.zig").spawn(world, slots, projections, entity, now);
-                    actor.gibbed = true;
-                }
                 if (catalog.entries[actor.definition].kind == .rotworm) {
                     pose.angles[0] = 0;
                     actor.rotworm.phase = .ground;

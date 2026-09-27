@@ -30,7 +30,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     state.next_ms = now;
     state.until_ms = now + 500;
     (try world.get(entity, data.WorldControl)).action.blood_cloud = state;
-    try @import("actor_gibs.zig").burst(world, slots, projections, entity, .{ .mass = state.mass, .mins = @splat(0), .maxs = @splat(0) }, .{}, false, "", @splat(0), (try world.get(entity, data.Transform)).position, now);
+    try @import("actor_gibs.zig").burst(world, slots, projections, entity, .{ .mass = state.mass, .mins = @splat(0), .maxs = @splat(0) }, .{}, .{}, "", @splat(0), (try world.get(entity, data.Transform)).position, now);
     try publish(world, entity, projections);
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection) !void {

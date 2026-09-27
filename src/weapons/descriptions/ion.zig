@@ -8,7 +8,7 @@ pub const spec: profiles.Spec = .{
     .ammo_class = "ammo_ionpack", // ion
     .ammo_pack = 50,
     .projectile = .{ .water_collision = true, .loop_sound = "e1/we_ionflyby.wav" },
-    .visual = .{ .projectile_model = "models/e1/we_ionbl.dkm", .impact_sprite = "models/e1/we_ionexpl.sp2", .blast_sound = "e1/we_ionexplodea.wav", .color = .{ 0, 0.8, 0 } },
+    .visual = .{ .projectile_model = "models/e1/we_ionbl.dkm", .projectile_sprite = "models/e1/we_ionbf.sp2", .projectile_scale = 0.8, .sprite_additive = true, .impact_sprite = "models/e1/we_ionexpl.sp2", .blast_sound = "e1/we_ionexplodea.wav", .color = .{ 0, 0.8, 0 } },
     .world_model = "models/e1/a_ion.dkm",
     .animation = .{
         .view_model = "models/e1/w_ionblaster.dkm",
@@ -30,6 +30,7 @@ pub const spec: profiles.Spec = .{
     .projectile_muzzle = true,
 };
 pub const identity = .{ .classname = "weapon_ionblaster", .label = "Ion blaster", .episode = 1, .interval = 500 };
+pub const electrical = .{ .arms = 4, .segments = 4, .length = 24, .length_random = 8, .jitter = 6, .width = 6, .degrees_per_ms = 1.8, .light = 150, .light_random = 300, .spark_interval = 33 };
 
 const v = @import("../vector.zig");
 /// Close crosshair contact may be behind the offset muzzle. Preserve that aim;

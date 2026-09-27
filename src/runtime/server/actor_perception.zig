@@ -55,14 +55,19 @@ pub fn acquire(world: *data.World, slots: *Slots, entity: ecs.Entity, actor: *da
     if (actor.ignore_player) return;
     const slot = (try world.get(entity, data.Binding)).slot;
     if (actor.threat == 0) {
+        const catalog = @import("actor_catalog");
+        const kind = catalog.entries[actor.definition].kind;
         var best = try @import("properties.zig").number((try world.get(entity, data.MapObject)).*, "sight", definition.sight_range);
+        if (kind == .protopod) best = 512;
         for (slots.occupants) |occupant| {
             const target = occupant orelse continue;
             if (!eligible(world, target, now)) continue;
             const point = (try world.get(target, data.Transform)).position;
             const offset = v.subtract(point, pose.position);
-            const distance = v.length(offset);
-            if (distance > best or v.dot(v.normalize(.{ offset[0], offset[1], 0 }), v.basis(pose.angles).forward) < @cos(definition.fov * std.math.pi / 360)) continue;
+            const distance = catalog.perception.distance(kind, offset);
+            const horizontal = v.length(.{ offset[0], offset[1], 0 });
+            const dot = v.dot(v.normalize(.{ offset[0], offset[1], 0 }), v.basis(.{ 0, pose.angles[1], 0 }).forward);
+            if (distance > best or !catalog.perception.inCone(kind, (world.get(target, data.Player) catch null) != null, horizontal, dot, definition.fov)) continue;
             if (!try sight(pose.position, v.add(point, .{ 0, 0, 16 }), slot, (try world.get(target, data.Binding)).slot)) continue;
             actor.threat = try world.persistentId(target);
             best = distance;

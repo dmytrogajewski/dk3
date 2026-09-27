@@ -93,10 +93,10 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.generic1 = if (state.explosion) policy.explosion_tag else policy.render_tag;
     projection.state.time2 = @intFromFloat(state.alpha * 255);
     projection.state.clientNum = if (state.gib) |gib| if (gib.skin_model.len > 0) try @import("resources.zig").model(gib.skin_model) else 0 else 0;
-    projection.state.weapon = if (state.gib) |gib| @as(i32, 1) | (if (gib.no_blood) @as(i32, 2) else 0) | (if (gib.bone) @as(i32, 4) else 0) else 0;
+    projection.state.weapon = if (state.gib) |gib| @as(i32, 1) | (if (gib.no_blood) @as(i32, 2) else 0) | (if (gib.bone) @as(i32, 4) else 0) else if (state.explosive_fragment) 8 else 0;
     projection.state.angles2 = state.scale;
-    projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
-    projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
+    projection.state.pos = @import("../engine/trajectory.zig").interpolated(pose.position);
+    projection.state.apos = @import("../engine/trajectory.zig").interpolated(pose.angles);
     projection.shared.currentOrigin = pose.position;
     projection.shared.currentAngles = pose.angles;
     projection.shared.mins = body.mins;
@@ -207,6 +207,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try @import("weapon_entities.zig").remove(world, slots, projections, entity);
             continue;
         };
+        if (state.explosive_fragment) {
+            if (now >= state.started_ms + 550) state.spin = @splat(0);
+            if (now >= state.started_ms + 5000) state.alpha = @max(0, state.alpha - @as(f32, @floatFromInt(elapsed)) * 0.001);
+        }
         if (state.breakable and (try world.get(entity, data.Health)).current <= 0) {
             if (state.breaking_ms == null) state.breaking_ms = now + 100 + @as(i64, @intFromFloat((try world.get(entity, data.Random)).next() * 4)) * 100;
             if (now >= state.breaking_ms.?) {
@@ -225,7 +229,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 while (remaining > 0) {
                     const delta = @as(f32, @floatFromInt(@min(remaining, 50))) * 0.001;
                     remaining -= @min(remaining, 50);
-                    velocity.linear[2] -= 800 * delta;
+                    velocity.linear[2] -= (if (world.get(entity, data.Gravity) catch null) |gravity| gravity.acceleration else 800) * delta;
                     const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, delta)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
                     if (hit.start_solid or hit.all_solid) {
                         velocity.linear = @splat(0);

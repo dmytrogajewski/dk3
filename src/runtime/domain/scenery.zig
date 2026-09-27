@@ -25,6 +25,7 @@ pub const State = struct {
     breaking_ms: ?i64 = null,
     expires_ms: ?i64 = null,
     fragment: bool = false,
+    explosive_fragment: bool = false,
     explosion: bool = false,
     gib: ?@import("gibs.zig").State = null,
 };

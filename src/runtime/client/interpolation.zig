@@ -26,7 +26,10 @@ const Track = struct {
         self.valid = true;
     }
     fn sample(self: Track, now: i32) Pose {
-        const fraction = if (self.interval > 0) std.math.clamp(@as(f32, @floatFromInt(@as(i64, now) - self.at)) / @as(f32, @floatFromInt(self.interval)), 0, 1) else 1;
+        // CG time lies between the preceding and newest snapshots. Subtracting
+        // the newest timestamp freezes every intermediate pose (862 < 900 in
+        // the captured arrival cinematic), then jumps at the next snapshot.
+        const fraction = if (self.interval > 0) std.math.clamp(@as(f32, @floatFromInt(@as(i64, now) - (self.at - self.interval))) / @as(f32, @floatFromInt(self.interval)), 0, 1) else 1;
         var result = self.current;
         result.position = v.add(self.before.position, v.scale(v.subtract(self.current.position, self.before.position), fraction));
         for (&result.angles, self.before.angles, self.current.angles) |*angle, first, last| angle.* = first + (@mod(last - first + 180, 360) - 180) * fraction;
@@ -60,18 +63,39 @@ pub fn apply(value: *c.entityState_t, now: i32) void {
 pub fn camera(now: i32) Pose {
     return camera_track.sample(now);
 }
+pub fn blendedMotion(now: i32) usize {
+    var count: usize = 0;
+    for (entities) |track| {
+        if (!track.valid or track.at != prior_time or track.interval <= 0) continue;
+        const delta = v.length(v.subtract(track.current.position, track.before.position));
+        if (delta < 0.01) continue;
+        const point = track.sample(now).position;
+        if (v.length(v.subtract(point, track.before.position)) > 0.001 and v.length(v.subtract(point, track.current.position)) > 0.001) count += 1;
+    }
+    return count;
+}
 
 test "snapshot poses interpolate shortest angles and reset on cuts gaps and clock restoration" {
     const t = std.testing;
     var track: Track = .{};
     track.put(.{ .position = .{ 0, 0, 0 }, .angles = .{ 0, 359, 0 } }, 1, 100, 0);
     track.put(.{ .position = .{ 10, 0, 0 }, .angles = .{ 0, 1, 0 } }, 1, 150, 100);
-    try t.expectEqual(@as(f32, 5), track.sample(175).position[0]);
-    try t.expectEqual(@as(f32, 360), track.sample(175).angles[1]);
+    try t.expectEqual(@as(f32, 5), track.sample(125).position[0]);
+    try t.expectEqual(@as(f32, 360), track.sample(125).angles[1]);
+    try t.expectEqual(@as(f32, 0), track.sample(99).position[0]);
+    try t.expectEqual(@as(f32, 10), track.sample(175).position[0]);
     track.put(.{ .position = .{ 100, 0, 0 } }, 2, 200, 150);
     try t.expectEqual(@as(f32, 100), track.sample(200).position[0]);
     track.put(.{ .position = .{ 200, 0, 0 } }, 2, 300, 250);
     try t.expectEqual(@as(f32, 200), track.sample(300).position[0]);
     track.put(.{ .position = .{ 1, 0, 0 } }, 2, 50, 300);
     try t.expectEqual(@as(f32, 1), track.sample(50).position[0]);
+}
+test "captured client clock interpolates both actors and cameras before the newest snapshot" {
+    var track: Track = .{};
+    track.put(.{ .position = .{ 0, 0, 0 } }, 1, 850, 800);
+    track.put(.{ .position = .{ 10, 0, 0 } }, 1, 900, 850);
+    try std.testing.expectApproxEqAbs(@as(f32, 2.4), track.sample(862).position[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 5.6), track.sample(878).position[0], 0.001);
+    try std.testing.expectApproxEqAbs(@as(f32, 8.8), track.sample(894).position[0], 0.001);
 }

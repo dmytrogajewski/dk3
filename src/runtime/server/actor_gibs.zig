@@ -21,14 +21,16 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     if (engine.integer("gib_enable") == 0) return;
     const body = (try world.get(entity, data.Body)).*;
     const hurt = (try world.get(entity, data.Hurt)).*;
-    const robotic = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition].kind == .deathsphere;
+    const material = @import("actor_catalog").fragments.forKind(@import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition].kind);
+    const robotic = material.robotic;
     const skin = if (robotic) @import("resources.zig").modelName((try world.get(entity, data.Binding)).model) else "";
     const inherited = (try world.get(entity, data.Velocity)).linear;
     const origin = if (world.find(hurt.source)) |source| (try world.get(source, data.Transform)).position else (try world.get(entity, data.Transform)).position;
-    try burst(world, slots, projections, entity, body, hurt, robotic, skin, inherited, origin, now);
+    try burst(world, slots, projections, entity, body, hurt, material, skin, inherited, origin, now);
 }
-pub fn burst(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, body: data.Body, hurt: data.Hurt, robotic: bool, skin: []const u8, inherited: v.Vec3, origin: v.Vec3, now: i64) !void {
+pub fn burst(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, body: data.Body, hurt: data.Hurt, material: @import("actor_catalog").fragments.Policy, skin: []const u8, inherited: v.Vec3, origin: v.Vec3, now: i64) !void {
     if (engine.integer("gib_enable") == 0) return;
+    const robotic = material.robotic;
     const pose = (try world.get(entity, data.Transform)).*;
     var random = (try world.get(entity, data.Random)).*;
     const away = v.normalize(v.subtract(pose.position, origin));
@@ -46,12 +48,13 @@ pub fn burst(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         const speed = std.math.clamp(@min(1, @as(f32, @floatFromInt(hurt.amount)) / 100) * random.next() * 3000, 225, 300);
         const lateral: f32 = if (robotic) 1.15 else 1.65;
         const kick: v.Vec3 = .{ direction[0] * speed * lateral, direction[1] * speed * lateral, direction[2] * speed * (if (robotic) @as(f32, 2.45) else 2.15) };
+        const model = if (material.bone) "models/global/g_bone.dkm" else policy.model(index);
         const fragment = try world.create(null, .{
-            data.Transform{ .position = v.add(v.add(pose.position, body.mins), offset) },                                                                                                                                                                                 data.Velocity{ .linear = v.add(kick, inherited) },
-            data.Body{ .mins = v.scale(policy.bounds(index), -1), .maxs = policy.bounds(index), .mass = 2, .collision_mask = c.MASK_SOLID },                                                                                                                              data.Random{ .state = random.state ^ @as(u32, @intCast(index)) },
-            data.Scenery{ .model = policy.model(index), .movement = .bounce, .started_ms = now, .scale = .{ horizontal, horizontal, vertical }, .spin = v.scale(kick, 2.5), .fragment = true, .gib = .{ .next_ms = now + 100, .robotic = robotic, .skin_model = skin } },
+            data.Transform{ .position = v.add(v.add(pose.position, body.mins), offset) },                                                                                                                                                                                                                         data.Velocity{ .linear = v.add(kick, inherited) },
+            data.Body{ .mins = v.scale(policy.bounds(index), -1), .maxs = policy.bounds(index), .mass = 2, .collision_mask = c.MASK_SOLID },                                                                                                                                                                      data.Random{ .state = random.state ^ @as(u32, @intCast(index)) },
+            data.Scenery{ .model = model, .movement = .bounce, .started_ms = now, .scale = .{ horizontal, horizontal, vertical }, .spin = v.scale(kick, 2.5), .fragment = true, .gib = .{ .next_ms = now + 100, .robotic = robotic, .bone = material.bone, .no_blood = material.no_blood, .skin_model = skin } },
         });
-        try @import("weapon_entities.zig").bind(world, slots, projections, fragment, policy.model(index));
+        try @import("weapon_entities.zig").bind(world, slots, projections, fragment, model);
         try @import("scenery.zig").publish(world, fragment, projections, now);
     }
     var sound: [64]u8 = undefined;

@@ -6,6 +6,7 @@ pub const idle_light = "models/e1/me_cambotf.sp2";
 pub const alert_light = "models/global/e_sflred.sp2";
 pub const idle_tag: i32 = 0x43414d;
 pub const alert_tag: i32 = idle_tag + 1;
+pub const searchlight = .{ .reach = 600, .radius = 2, .pitch = 45, .sweep_rate = 0.08, .sweep_span = 109, .idle_color = [3]f32{ 0.6, 0.6, 0.1 }, .alert_color = [3]f32{ 0.8, 0.1, 0.1 } };
 pub const State = struct {
     seen: bool = false,
     alarmed: u32 = 0,

@@ -5825,3 +5825,79 @@ it never loads the requested map and is retained as invalid setup. The repaired
 driver uses fewer arguments and the actual `dk3config.cfg` filename. Evidence:
 `zig-out/reports/runtime-zig-295/`; exact identities are in native acceptance.
 This is HD selection/rendering acceptance, not campaign completion.
+
+## Sequence 296 — opening-gameplay-and-effects-repairs
+
+The nine reported defects receive one connected native repair batch, followed by
+focused engine scenarios and an aggregate run. The preserved main runtime is a
+read-only behavioral reference; no gameplay backend is reconnected. Work stays on
+`rewrite/native-zig-runtime`, with the installed game, user saves and online service
+untouched.
+
+Ion now renders its class-owned additive sprite, four electrical arms, timed sparks
+and green additive light. Native skies load the already supplied map shader bindings,
+including moving cloud layers and sky lightning. Cambots use interpolated lamp
+hardpoints and the existing spotlight geometry, with the class-owned search sweep
+and alert target. The supplied asset/HD packages are unchanged.
+
+The running presentation probe exposes the animation defect: rendering time 862
+precedes the newest snapshot at 900. The old interpolator subtracts 900 and clamps
+the fraction to zero. It now interpolates across the preceding/newest timestamps;
+the captured-clock regression checks distinct intermediate positions at 862, 878
+and 894. Rendered frame blending alone had failed to detect this motion defect.
+Scenery fragments also publish interpolated motion. This is not acceptance of every
+model's animation; the pre-existing `d1_swp3` frame-2 warning remains separately open.
+
+Actor perception preserves the close-player hearing exception and pods' horizontal
+512-unit acquisition range without a view cone. Ignore-player flags and visibility
+remain authoritative. Private reference observation confirms hatching starts with
+the child at pod origin +10 and the shell shrinks after the hatch animation; that
+existing native sequence is retained, rather than importing main's different
+clearance workaround. Class-owned gib eligibility now reaches normal actor deaths,
+including robotic/no-blood and bone presentation. Already dead bodies can receive
+fragment-producing damage without awarding another kill or firing death outputs.
+Petrification, companions and resurrection controllers retain their exclusions.
+
+Death recovery captures an internal checkpoint at a playable arrival and refreshes
+it on successful manual save/load. After the four-second death delay, fire or jump
+restores that checkpoint through the normal validated load path. It writes no
+user-visible autosave slot and has no effect on multiplayer respawn.
+
+The bridge pieces are authored `func_explosive`, not moving BSP debris. Their native
+use path previously hid the brush without emitting fragments. It now emits the
+specified material, count, scale, speed, gravity and vector-target behavior through
+the existing saved scenery lifecycle. The Gold class's flags identify bit 8 as
+stone and bit 32 as metal; main's generic material mapping is not copied. The tested
+`piece_01` creates ten stone chunks, visibly flies apart, and restores those chunks
+after a real save/load.
+
+Verified installation: `0c6cc7ebd055e0dcd902d2605d8c4c2389fd3642344066f1b34170282dca43b5`.
+Combined executable/module/renderer/asset identity:
+`bc98d6be01d9c0b82c99df73adf400061c264d478721e6a66844ed927cd9e2dd`.
+Base assets remain `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD overlay remains `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+Evidence is local under `zig-out/reports/runtime-zig-296/`:
+
+| Scenario | Result and limit |
+|---|---|
+| `opening/` | Passed: entry and manual-save checkpoint death recovery, actual pod hatching into an enemy skeeter, Cambot acquisition/rendered lamp, intermediate actor motion, real Ion firing and mechanical gibs. Placement/equipment/health fixtures; not continuous campaign acceptance. |
+| `crox/` | Passed: actual water level 3/swimming movement and restoration; pending land melee saved/restored, actual contact and player health loss (25.69 damage). Placement and health fixture. |
+| `bridge-camera/` | Passed: ten stone chunks from the supplied bridge piece, visible fragments and save/load restoration. Diagnostic activation; not the complete encounter. |
+| `sky-repaired-driver/` | Passed: twelve fixed-camera captures show cloud motion and illumination variation with advancing native time. Supplied lightning shader is bound; exact original flash timing remains unqualified. |
+| `presentation-opengl2/` | Passed: ordinary menu New Game, real Escape through intro/Marsh, supplied loading art, animation poses, save/load and pause. Skips are not full-intro acceptance. |
+| `lan-regression/` | Passed: two real UDP clients, movement/fire, death/respawn, spectator/rejoin, reconnect and fast map restart with ordinary inventory. No public-room or complete multiplayer acceptance. |
+| `aggregate.log` | Passed: 379 Zig tests and 75 Python checks, with assertions enabled; all five native test roots execute (240 native tests). |
+
+Initial `presentation-initial/` on `82e96c…` retains the incorrect clock evidence;
+its narrow pose-blending pass is superseded. The first contract run exposes a
+single-precision threshold boundary; the comparison now uses sufficient precision.
+`bridge/` proves submission/restoration but points away from the fragments;
+`bridge-camera/` adds the correctly aimed inspected capture on the same build.
+`sky/` is invalid setup (unavailable Pillow), replaced by the existing ImageMagick
+reader; its cleanup timeout is also retained. No failed setup counts as acceptance.
+
+The previous fresh campaign result remains incomplete and must be replayed after
+these shared perception/death/presentation changes. This batch adds no complete
+episode, connected bridge encounter, fresh opening gate or full multiplayer claim.
+Finer Ion impact/gib presentation parity and all-class animation comparison remain
+tracked separately from the repaired missing behavior.

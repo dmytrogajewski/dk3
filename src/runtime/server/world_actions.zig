@@ -111,7 +111,9 @@ pub fn activate(world: *data.World, slots: *Slots, projections: []abi.EntityProj
         (try world.get(entity, data.Health)).current = 0;
         const slot = (try world.get(entity, data.Binding)).slot;
         const center = v.scale(v.add(projections[slot].shared.absmin, projections[slot].shared.absmax), 0.5);
+        const extent = v.subtract(projections[slot].shared.absmax, projections[slot].shared.absmin);
         try publish(world, entity, projections, false, 0);
+        try @import("explosives.zig").burst(world, slots, projections, entity, center, extent, now);
         if (state.damage > 0) {
             const occupants = slots.occupants;
             for (occupants, 0..) |occupant, target_slot| {

@@ -13,6 +13,7 @@ pub fn sprite(entity: c.entityState_t, now: i32, ref: *const c.refdef_t) !bool {
     rendered.origin = @import("../engine/trajectory.zig").evaluate(entity.pos, now);
     try decorate(&rendered, entity, now);
     sprites.draw(media, @as(usize, @intCast(@divTrunc(@max(0, now - entity.time), 50))) % sprites.count(media), rendered.origin, spec.visual.projectile_scale, spec.visual.sprite_additive, ref);
+    if (entity.weapon == catalog.ion.id) try @import("ion.zig").draw(entity, rendered.origin, now, ref);
     return true;
 }
 pub fn decorate(rendered: *c.refEntity_t, entity: c.entityState_t, now: i64) !void {
