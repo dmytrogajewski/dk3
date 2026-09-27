@@ -89,6 +89,7 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.eType = c.ET_GENERAL;
     projection.state.modelindex = binding.model;
     projection.state.frame = state.sequence.frame(now - state.started_ms, state.looping);
+    if (state.explosion) projection.state.time = @intCast(state.started_ms);
     projection.state.generic1 = if (state.explosion) policy.explosion_tag else policy.render_tag;
     projection.state.time2 = @intFromFloat(state.alpha * 255);
     projection.state.clientNum = if (state.gib) |gib| if (gib.skin_model.len > 0) try @import("resources.zig").model(gib.skin_model) else 0 else 0;
@@ -244,8 +245,12 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
 }
 
 pub fn explosion(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, origin: data.Vec3, scale: f32, now: i64) !void {
-    const effect = try world.create(null, .{ data.Transform{ .position = origin }, data.Velocity{}, data.Body{ .mins = @splat(0), .maxs = @splat(0) }, data.Scenery{ .model = "models/global/we_expl.sp2", .started_ms = now, .scale = @splat(scale), .explosion = true, .sequence = .{ .last = 6 }, .expires_ms = now + 700 } });
+    try explosionVariant(world, slots, projections, origin, scale, false, now);
+}
+pub fn explosionVariant(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, origin: data.Vec3, scale: f32, alternate: bool, now: i64) !void {
+    const model = if (alternate) "models/global/we_expla.sp2" else "models/global/we_expl.sp2";
+    const effect = try world.create(null, .{ data.Transform{ .position = origin }, data.Velocity{}, data.Body{ .mins = @splat(0), .maxs = @splat(0) }, data.Scenery{ .model = model, .started_ms = now, .scale = @splat(scale), .explosion = true, .sequence = .{ .last = if (alternate) 7 else 6 }, .expires_ms = now + @as(i64, if (alternate) 800 else 700) } });
     errdefer world.destroy(effect) catch unreachable;
-    try @import("weapon_entities.zig").bind(world, slots, projections, effect, "models/global/we_expl.sp2");
+    try @import("weapon_entities.zig").bind(world, slots, projections, effect, model);
     try publish(world, effect, projections, now);
 }

@@ -40,6 +40,8 @@ pub fn spawn(allocator: std.mem.Allocator, world: *data.World, projections: []ab
             const hazard: data.Hazard = .{ .enabled = object.flags & 3 != 3, .toggleable = object.flags & 1 != 0, .damage = @intFromFloat(amount), .interval_ms = @max(50, try prop.milliseconds(object, "wait", 0.5)), .sound = prop.text(object, "sound") orelse "" };
             try world.put(entity, hazard);
             try publish(world, entity, projections, false, if (hazard.enabled) c.CONTENTS_TRIGGER else 0);
+        } else if (is(object, "func_wall_explode")) {
+            try @import("wall_breakage.zig").initialize(world, entity);
         } else if (is(object, "func_explosive") or is(object, "func_breakable")) {
             const health = try prop.number(object, "health", 100);
             const state: data.Destructible = .{ .hidden = object.flags & 1 != 0, .shootable = object.targetname.len == 0, .nonsolid = object.flags & 512 != 0, .damage = @max(0, try prop.number(object, "dmg", 0)), .radius = @max(1, try prop.number(object, "radius", 160)) };
@@ -95,6 +97,10 @@ pub fn activate(world: *data.World, slots: *Slots, projections: []abi.EntityProj
     } else |_| {}
     if (world.get(entity, data.Destructible)) |value| {
         const state = value.*;
+        if (state.wall_explode != null) {
+            try @import("wall_breakage.zig").use(world, slots, projections, router, entity, activator, now);
+            return true;
+        }
         if (state.broken) return true;
         if (state.hidden) {
             value.hidden = false;
@@ -163,6 +169,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = occupant orelse continue;
         if (!world.alive(entity)) continue;
         if (world.get(entity, data.Destructible)) |state| {
+            if (state.wall_explode != null) {
+                try @import("wall_breakage.zig").step(world, slots, projections, router, entity, now);
+                continue;
+            }
             if (!state.broken and !state.hidden and (try world.get(entity, data.Health)).current <= 0) {
                 const attacker = (try world.get(entity, data.Hurt)).source;
                 _ = try activate(world, slots, projections, router, entity, attacker, now);

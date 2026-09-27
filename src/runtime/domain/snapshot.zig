@@ -294,7 +294,8 @@ pub fn validate(snapshot: *Loaded) !void {
         }
         if (world.get(entity, data.HealthTree) catch null) |tree| {
             try require(world, entity, .{ data.MapObject, data.Binding, data.Body, data.Transform, data.Velocity, data.Random, data.Health });
-            if (tree.maximum > 5 or tree.fruit > tree.maximum or tree.previous > 5 or !std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "misc_healthtree")) return error.InvalidSavedHealthTree;
+            if (tree.maximum > 5 or tree.fruit > tree.maximum or tree.previous > 5 or !std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, if (tree.drugbox != null) "misc_drugbox" else "misc_healthtree")) return error.InvalidSavedHealthTree;
+            if (tree.drugbox) |box| if (box.stage > 4 or (box.stage == 4) != (box.fade_ms != null)) return error.InvalidSavedDrugbox;
         }
         if (world.get(entity, data.Script) catch null) |script| {
             if (script.name.len == 0 or script.name.len > 64 or script.remaining < -1 or script.remaining > 10000 or script.depth > script.stack.len) return error.InvalidSavedScript;
@@ -524,6 +525,16 @@ pub fn validate(snapshot: *Loaded) !void {
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
             if (actor.lycanthir.phase != .living and (@import("actor_catalog").entries[actor.definition].kind != .lycanthir or actor.lycanthir.wake_ms < actor.lycanthir.started_ms and actor.lycanthir.phase == .collapsed)) return error.InvalidSavedResurrection;
         }
+        if (world.get(entity, data.Destructible) catch null) |state| if (state.wall_explode) |wall| {
+            try require(world, entity, .{ data.Binding, data.MapObject, data.Body, data.Health, data.Hurt, data.Random });
+            if (!std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "func_wall_explode")) return error.InvalidSavedExplodingWall;
+            for (wall.models) |model| if (model.len == 0 or model.len >= 64) return error.InvalidSavedExplodingWall;
+            for (wall.bounds_min ++ wall.bounds_max) |value| if (!std.math.isFinite(value)) return error.InvalidSavedExplodingWall;
+            for (wall.bursts) |burst| {
+                if (burst.due_ms != null and !state.broken) return error.InvalidSavedExplodingWall;
+                for (burst.position) |value| if (!std.math.isFinite(value)) return error.InvalidSavedExplodingWall;
+            }
+        };
         if (world.get(entity, data.WorldControl) catch null) |control| {
             try require(world, entity, .{ data.MapObject, data.Transform });
             const classname = (try world.get(entity, data.MapObject)).classname;

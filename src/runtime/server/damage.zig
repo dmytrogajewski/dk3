@@ -3,6 +3,9 @@ const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const rules = @import("../domain/damage.zig");
 pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, options: rules.Options) !rules.Result {
+    return applyResolved(world, try @import("wall_breakage.zig").recipient(world, entity, amount), amount, now, options);
+}
+fn applyResolved(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, options: rules.Options) !rules.Result {
     if ((world.get(entity, data.Performer) catch null) != null) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .psyclaw and now <= actor.psyclaw.protected_until_ms) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .column and !@import("actor_catalog").column.acceptsWeapon(options.weapon == @import("weapon_catalog").hammer.id)) return .{};
@@ -19,6 +22,7 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
     if (world.get(entity, data.ActorAttack) catch null) |attack| if (attack.attack == .npc_wisp and attack.attack.npc_wisp.fading) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .kage and actor.kage.invulnerable()) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .nharre and actor.nharre.invulnerable()) return .{};
+    if (world.get(entity, data.HealthTree) catch null) |tree| if (tree.drugbox != null) return .{};
     const health = world.get(entity, data.Health) catch return .{};
     const participant = world.get(entity, data.Session) catch null;
     if (participant) |session| {
@@ -201,4 +205,24 @@ test "Ghost pain doubles surviving player hits, not monster damage or already le
     try t.expect(player.killed);
     (try world.get(ghost, data.Health)).current = 10;
     try t.expectEqual(@as(i32, 10), (try apply(&world, ghost, 10, 300, .{ .source = 1 })).blood);
+}
+
+test "lethal wall hits select lower sections while ordinary damage and other groups stay local" {
+    const t = @import("std").testing;
+    var world = data.World.init(t.allocator, 8);
+    defer world.deinit();
+    const upper = try world.create(1, .{ data.Health{ .current = 10, .maximum = 10 }, data.Hurt{}, data.Random{ .state = 1 }, data.Destructible{ .wall_explode = .{} }, data.MapObject{ .classname = "func_wall_explode", .properties = &.{ .{ .key = "team", .value = "collapse" }, .{ .key = "indexnumber", .value = "2" } } } });
+    const lower = try world.create(2, .{ data.Health{ .current = 20, .maximum = 20 }, data.Hurt{}, data.Random{ .state = 2 }, data.Destructible{ .wall_explode = .{} }, data.MapObject{ .classname = "func_wall_explode", .properties = &.{ .{ .key = "team", .value = "collapse" }, .{ .key = "indexnumber", .value = "1" } } } });
+    const unrelated = try world.create(3, .{ data.Health{ .current = 20, .maximum = 20 }, data.Hurt{}, data.Destructible{ .wall_explode = .{} }, data.MapObject{ .classname = "func_wall_explode", .properties = &.{ .{ .key = "team", .value = "other" } } } });
+    _ = try apply(&world, upper, 3, 1000, .{ .source = 99 });
+    try t.expectEqual(@as(i32, 7), (try world.get(upper, data.Health)).current);
+    _ = try apply(&world, upper, 7, 1100, .{ .source = 99 });
+    try t.expectEqual(@as(i32, 7), (try world.get(upper, data.Health)).current);
+    try t.expectEqual(@as(i32, 13), (try world.get(lower, data.Health)).current);
+    _ = try apply(&world, upper, 13, 1200, .{ .source = 99 });
+    try t.expectEqual(@as(i32, 0), (try world.get(lower, data.Health)).current);
+    try t.expectEqual(@as(u32, 99), (try world.get(lower, data.Hurt)).source);
+    _ = try apply(&world, upper, 7, 1300, .{ .source = 99 });
+    try t.expectEqual(@as(i32, 0), (try world.get(upper, data.Health)).current);
+    try t.expectEqual(@as(i32, 20), (try world.get(unrelated, data.Health)).current);
 }

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Shared metadata for native inventory, item rules and presentation.
+pub const drugbox = @import("drugbox.zig");
 pub const hosportal = @import("hosportal.zig");
 pub const healthtree = @import("healthtree.zig");
 const std = @import("std");
@@ -76,4 +77,5 @@ test "key identities, bomb consumption and complete purifier parts" {
 test {
     _ = healthtree;
     _ = hosportal;
+    _ = drugbox;
 }

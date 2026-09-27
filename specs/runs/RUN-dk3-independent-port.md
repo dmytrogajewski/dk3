@@ -3787,3 +3787,14 @@ there; the corrected engine and three-module build exits 0. No tests, engine sce
 or connected acceptance ran. Continue authored
 breakage/debris, world effects and the complete episode/multiplayer/release scope.
 Main, installation, saves and service remain preserved; feature branch only.
+
+## Sequence 273 — medicine-boxes-and-grouped-wall-breakage (implementation checkpoint)
+
+Continues after pushed `8f66d64`. Drug boxes and grouped exploding walls now connect
+ordinary use/damage, physical objects, class media and native persistence. The matrix
+records authored contracts, retained quirks and pending contact/presentation comparison.
+New health-consumption and damage-redirection regressions are written, unexecuted.
+No compilation, test suite or engine scenario was run for this checkpoint; continue
+the coding pass with moving debris and gib emitters before consolidated verification.
+The previous sequence's engine/modules link remains compilation evidence for its
+exact earlier source. Main, playable installation, saves and service remain untouched.

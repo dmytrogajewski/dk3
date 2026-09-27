@@ -18,14 +18,15 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.Transform }), 0, 0);
     {
         defer query.deinit();
-        while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| if (std.mem.eql(u8, object.classname, "misc_healthtree")) {
+        while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| if (std.mem.eql(u8, object.classname, "misc_healthtree") or std.mem.eql(u8, object.classname, "misc_drugbox")) {
             entities[count] = entity;
             count += 1;
         };
     }
     for (entities[0..count]) |entity| {
+        const drugbox = std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "misc_drugbox");
         const maximum: u3 = @intFromFloat(std.math.clamp(try @import("properties.zig").number((try world.get(entity, data.MapObject)).*, "max_fruit", 5), 0, 5));
-        try world.put(entity, data.HealthTree{ .maximum = maximum, .fruit = maximum, .previous = 5, .changed_ms = now });
+        try world.put(entity, data.HealthTree{ .drugbox = if (drugbox) .{} else null, .maximum = maximum, .fruit = maximum, .previous = 5, .changed_ms = now });
         try world.put(entity, data.Random{ .state = try world.persistentId(entity) });
         try world.put(entity, data.Health{ .current = 100, .maximum = 100 });
         try world.put(entity, data.Hurt{});
@@ -40,7 +41,7 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             }
         }
         try world.put(entity, body);
-        try @import("weapon_entities.zig").bind(world, slots, projections, entity, policy.model);
+        try @import("weapon_entities.zig").bind(world, slots, projections, entity, if (drugbox) @import("item_catalog").drugbox.model else policy.model);
         try publish(world, entity, projections, now);
     }
 }
@@ -48,6 +49,12 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     const player = world.find(activator) orelse return;
     if ((world.get(player, data.Player) catch null) == null) return;
     const health = try world.get(player, data.Health);
+    if ((try world.get(entity, data.HealthTree)).drugbox) |*box| {
+        const dose = box.use(&health.current, health.maximum, now) orelse return;
+        if (dose.sound.len > 0) try @import("events.zig").configuredSound(world, slots, projections, dose.sound, (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now, .{ .volume = dose.volume });
+        try publish(world, entity, projections, now);
+        return;
+    }
     if (!(try world.get(entity, data.HealthTree)).take(&health.current, health.maximum, now, respawn())) return;
     const sound = policy.sounds[@intFromBool((try world.get(entity, data.Random)).next() >= 0.5)];
     try @import("events.zig").sound(world, slots, projections, sound, (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
@@ -63,7 +70,12 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.number = binding.slot;
     projection.state.eType = c.ET_GENERAL;
     projection.state.modelindex = binding.model;
-    projection.state.frame = (try world.get(entity, data.HealthTree)).frame(now);
+    const tree = (try world.get(entity, data.HealthTree)).*;
+    projection.state.frame = tree.frame(now);
+    if (tree.drugbox) |box| {
+        projection.state.generic1 = @import("item_catalog").drugbox.render_tag;
+        projection.state.time2 = @intFromFloat(box.alpha(now) * 255);
+    }
     projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
     projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
     projection.shared.currentOrigin = pose.position;
@@ -78,7 +90,13 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     for (occupants) |occupant| {
         const entity = occupant orelse continue;
         const tree = world.get(entity, data.HealthTree) catch continue;
-        if (tree.regenerate(now, respawn())) try @import("events.zig").sound(world, slots, projections, policy.regen_sound, (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
+        if (tree.drugbox) |box| {
+            if (box.alpha(now) <= 0.051) {
+                try @import("weapon_entities.zig").remove(world, slots, projections, entity);
+                continue;
+            }
+        }
+        if (tree.drugbox == null and tree.regenerate(now, respawn())) try @import("events.zig").sound(world, slots, projections, policy.regen_sound, (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
         const body = try world.get(entity, data.Body);
         const pose = try world.get(entity, data.Transform);
         const velocity = try world.get(entity, data.Velocity);

@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–272): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–273): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -871,6 +871,38 @@ Consolidated verification must use the updated engine, modules and regenerated a
 prior audio, beam, restoration and campaign/multiplayer results need affected replay.
 Authored breakage/debris, effects, remaining dynamic behavior and full-port acceptance
 remain open. Main, installed playable build, saves and live service are unchanged.
+
+## Sequence 273 — medicine-boxes-and-grouped-wall-breakage (implemented; unverified)
+
+Episode-four `misc_drugbox` now uses the existing native healing-object binding and
+toss/contact path with its own class policy: open without healing, then three finite
+ten-health doses, stage-specific cooldown/audio, supplied model frames and final fade
+/removal. Full-health use can open the box but cannot consume a dose. Damage cannot
+destroy it. Stage, deadlines and fade state persist. Existing health-tree fruit and
+multiplayer regeneration remain separate behavior; drug boxes never regenerate.
+
+`func_wall_explode` now admits authored shootable or use-only walls. Lethal hits on a
+grouped higher section route to a lowest remaining section in that team; nonlethal
+hits remain local. Destruction removes collision, dispatches targets and schedules
+saved fragment/explosion bursts from the actual brush bounds. Authored wood/rock model
+choices, chunk/velocity/sound/explosion flags, 10–20 second fragment lifetime and the
+two supplied explosion sprites use existing native effects and physics services.
+Reference quirks are retained: NO_CHUNKS also prevents burst explosions; the metal
+flag does not override the class's actual rock defaults. Broken sources stay inert
+for delayed targets and pending bursts. Common explosion presentation now resolves its
+registered sprite and publishes the orange light rather than hardcoding one variant.
+
+Private review: healthtree.cpp drug-box use/initialization/fade, Triggers.cpp grouped
+wall death and fragment generation, MISC.CPP explosion dispatch, World.cpp media names,
+and cl_tent.cpp actual explosion variants/sounds. Implementations are independently
+written. The supplied inventory has five drug boxes and 64 exploding walls; these
+counts are authoring inventory, not acceptance. Directed regressions cover real health
+consumption/cooldowns and damage redirection versus unaffected walls (written, unrun).
+No link/test/engine gate was run for this checkpoint. Drug-box animation timing and
+wall debris contact/water behavior still need presentation/physics comparison; the
+shared native fragment response is not asserted identical to the private callback.
+Fresh campaign, restoration and multiplayer verification remain required. Continue
+moving authored debris, gib emitters and the remaining world/campaign/full-port work.
 
 ## Remaining authored actor admission
 

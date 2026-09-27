@@ -9,6 +9,7 @@ pub const Hazard = struct {
     sound: []const u8 = "",
 };
 pub const Destructible = struct {
+    wall_explode: ?@import("wall_breakage.zig").State = null,
     hidden: bool = false,
     broken: bool = false,
     shootable: bool = true,

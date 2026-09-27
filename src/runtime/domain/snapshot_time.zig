@@ -18,6 +18,9 @@ fn liquid(value: *@import("environment.zig").State, delta: i64) !void {
 }
 pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)], delta: i64) !void {
     switch (id) {
+        .destructible => if (value.wall_explode) |*wall| {
+            for (&wall.bursts) |*burst| try deadline(&burst.due_ms, delta);
+        },
         .world_control => {
             try active(&value.ready_ms, delta);
             switch (value.action) {
@@ -85,6 +88,11 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.next_ms, delta);
         },
         .health_tree => {
+            if (value.drugbox) |*box| {
+                try shift(&box.ready_ms, delta);
+                try shift(&box.changed_ms, delta);
+                try deadline(&box.fade_ms, delta);
+            }
             try shift(&value.ready_ms, delta);
             try shift(&value.changed_ms, delta);
             try deadline(&value.recharge_ms, delta);
@@ -358,7 +366,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.started_ms, delta);
             try active(&value.ready_ms, delta);
         },
-        .transform, .velocity, .body, .health, .random, .binding, .map_object, .attachment, .gravity, .motion, .inventory, .keys, .sound_event, .impact_event, .destructible, .wall => {},
+        .transform, .velocity, .body, .health, .random, .binding, .map_object, .attachment, .gravity, .motion, .inventory, .keys, .sound_event, .impact_event, .wall => {},
     }
 }
 test "save time rebasing preserves deadlines, inactive sentinels and durations" {

@@ -25,6 +25,7 @@ test "health trees settle on slopes while wall and steep contacts preserve tange
     try std.testing.expect(steep[0] > 0 and steep[2] < 0);
 }
 pub const State = struct {
+    drugbox: ?@import("drugbox.zig").State = null,
     maximum: u3 = 5,
     fruit: u3 = 5,
     previous: u3 = 5,
@@ -51,6 +52,7 @@ pub const State = struct {
         return true;
     }
     pub fn frame(self: State, now: i64) i32 {
+        if (self.drugbox) |box| return box.frame(now);
         return 5 - @as(i32, if (now - self.changed_ms < 50) self.previous else self.fruit);
     }
 };

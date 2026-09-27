@@ -285,8 +285,10 @@ fn draw(now: i32) !void {
             continue;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/scenery.zig").explosion_tag) {
-            const sprite = try @import("client/sprites.zig").register("models/global/we_expl.sp2");
-            @import("client/sprites.zig").draw(sprite, @intCast(entity.frame), @import("engine/trajectory.zig").evaluate(entity.pos, now), entity.angles2[0], false, &ref);
+            const sprite = try @import("client/sprites.zig").register(try engine.config(&game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))));
+            const point = @import("engine/trajectory.zig").evaluate(entity.pos, now);
+            @import("client/sprites.zig").draw(sprite, @intCast(entity.frame), point, entity.angles2[0], false, &ref);
+            _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &point, engine.floatArg(200), engine.floatArg(1), engine.floatArg(0.5), engine.floatArg(0) });
             continue;
         }
         if (entity.eType == c.ET_MISSILE and try @import("client/projectiles.zig").sprite(entity, now, &ref)) continue;
@@ -341,6 +343,7 @@ fn draw(now: i32) !void {
             rendered.nonNormalizedAxes = c.qtrue;
         }
         rendered.shaderRGBA = @splat(255);
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("item_catalog").drugbox.render_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
         if (entity.generic1 == @import("actor_catalog").medusa.stone_tag) {
             rendered.shaderRGBA[3] = 179;
             rendered.skinNum = 3;
