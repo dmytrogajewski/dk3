@@ -10,7 +10,7 @@ const slide = @import("../domain/slide.zig");
 
 fn floor(position: v.Vec3, body: data.Body, slot: u16) !?v.Vec3 {
     const hit = try engine.collisionService().trace(.{ .start = v.add(position, .{ 0, 0, 18 }), .end = v.add(position, .{ 0, 0, -32 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
-    if (hit.start_solid or hit.fraction == 1 or hit.normal[2] < 0.7 or hit.contents & (c.CONTENTS_LAVA | c.CONTENTS_SLIME) != 0) return null;
+    if (hit.start_solid or hit.fraction == 1 or hit.normal[2] < 0.7 or hit.contents & (c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO) != 0) return null;
     return hit.end;
 }
 pub fn direct(position: v.Vec3, destination: v.Vec3, body: data.Body, slot: u16) !bool {

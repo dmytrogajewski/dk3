@@ -10,6 +10,7 @@ pub const State = struct {
     petrified_frame: ?u16 = null,
     warp: ?@import("actor_catalog").psyclaw.Warp = null,
     freeze_level: f32 = 0,
+    cold_water: bool = false,
     poison: ?Poison = null,
     freeze_at_ms: ?i64 = null,
     freeze_next_ms: ?i64 = null,
@@ -21,7 +22,7 @@ pub const State = struct {
     }
     fn thaw(self: *State, now: i64) void {
         if (self.freeze_at_ms) |at| {
-            self.freeze_level = @max(0, self.freeze_level - @as(f32, @floatFromInt(@max(0, now - at))) * 0.0001);
+            if (!self.cold_water) self.freeze_level = @max(0, self.freeze_level - @as(f32, @floatFromInt(@max(0, now - at))) * 0.0001);
             self.freeze_at_ms = @max(at, now);
             if (self.freeze_level < 0.00001) {
                 self.freeze_level = 0;

@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–268): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–269): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -714,6 +714,47 @@ No engine, connected gameplay, reference playback or fresh asset identity is acc
 Revalidate player/bot/party movement, low passages, water combat and party restoration.
 The broader audit also found absent native liquid/drowning damage; implementing
 that authored contract is the next connected gameplay work.
+
+## Sequence 269 — environment-hazards (implemented; unverified)
+
+The native world now measures actual feet/waist/head liquid contents and applies
+player/AI drowning, lava, slime, cold-water and nitro behavior through ordinary damage
+and death scoring. Air reserves, damage cadence, cold exposure, fractional damage and
+the companion nitro callback are saved/rebased. Players and land/aquatic actors retain
+separate reviewed rules. Nitro's formerly discarded BSP content is now preserved at
+`CONTENTS_DK3_NITRO`; it does not join the swimming mask. Robotic nitro immunity is
+class-owned. Existing weapon-owned `protects_water` supplies Trident breathing.
+
+Suit charge uses 400 authored units at the 100 ms gameplay cadence, pauses outside
+exposure and persists across saves/travel. The existing transport deadline projects
+remaining charge; old native timed suits migrate on their first environment update.
+This follows the counter/cadence rather than the source's approximate one-minute
+comment. Native integer health accumulates fractional drowning damage before applying
+whole units instead of rounding every tick upward. Player fall damage uses reviewed
+450 velocity threshold, 0.0625 scaling, acro reduction/boost exemption and the default-on
+multiplayer `dm_falling_damage` option. Deathtag carriers receive reviewed self-hazard
+protection without suppressing trigger or enemy damage. Cold water stops thawing while
+submerged in episode three; existing freeze effects still own slowed movement/damage.
+
+Reviewed privately: client inertial/water/powerup routines; AI_CheckWaterDamage;
+Sidekick nitro callback delay; artifact suit charge; deathtag damage flags. No private
+implementation imported. The new engine header mapping has an updated provenance digest.
+Written, unexecuted regressions cover actual liquid sampling, damage cadence, immunity,
+falling, air/charge/clock restoration and preserved converter contents. The first native
+link found a Zig nested-if assignment syntax error; the corrected three-module link is
+`/tmp/dk3-runtime-269-environment-link-fixed.log`. Module SHA-256 identities are recorded
+in `/tmp/dk3-runtime-269-link-identity.json`. This is compilation evidence only.
+No contract suite or engine scenario ran; assets require regeneration for nitro as well
+as prior boss/objective media changes. Water routes, damage, cold, falling, multiplayer
+scoring and save/travel require consolidated replay. Detailed audiovisual parity,
+horizontal inertial collisions and NPC escape behavior still require qualification.
+
+The broader supplied-world inventory is `/tmp/dk3-runtime-269-world-classes.json`;
+controls/properties are `/tmp/dk3-runtime-270-controls-authored.json`. Literal-owner
+absence is an audit candidate, not proof of missing behavior: definition tables and
+prefix owners must also be inspected. The audit confirmed missing teleports/push/timer/
+secret and authored audio controls; continue their implementation next. Full campaign,
+multiplayer and release acceptance remain open with no fresh verified gameplay identity.
 
 ## Remaining authored actor admission
 

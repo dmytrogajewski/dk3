@@ -69,6 +69,7 @@ pub const State = struct {
     scripted_ms: i64 = 0,
     script_paused_ms: ?i64 = null,
 
+    liquid: @import("environment.zig").State = .{},
     mode: Mode = .idle,
     changed_ms: i64 = 0,
     panic_until: i64 = 0,

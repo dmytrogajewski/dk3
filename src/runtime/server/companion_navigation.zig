@@ -49,7 +49,7 @@ pub fn prepare(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         heading.angles[1] = other_pose.angles[1];
         const roll: f32 = if (companion.identity == .mikiko) 0 else 1;
         if (try @import("actor_motion.zig").sidestepDistance(heading, body, slot, roll, 64)) |point| {
-            if (try engine.collisionService().contents(v.add(point, .{ 0, 0, body.mins[2] + 1 }), slot) & (c.CONTENTS_LAVA | c.CONTENTS_SLIME) != 0) return;
+            if (try engine.collisionService().contents(v.add(point, .{ 0, 0, body.mins[2] + 1 }), slot) & (c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO) != 0) return;
             companion.yield_position = point;
             companion.yielding_until_ms = now + 1000;
             actor.route = .{};

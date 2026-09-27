@@ -11,6 +11,11 @@ fn active(value: *i64, delta: i64) !void {
 fn deadline(value: *?i64, delta: i64) !void {
     if (value.*) |*at| try shift(at, delta);
 }
+fn liquid(value: *@import("environment.zig").State, delta: i64) !void {
+    if (!value.initialized) return;
+    inline for (.{ "next_ms", "air_until_ms", "damage_ms", "cold_start_ms", "cold_next_ms" }) |field| try shift(&@field(value, field), delta);
+    try deadline(&value.nitro_ms, delta);
+}
 pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)], delta: i64) !void {
     switch (id) {
         .firefly => {
@@ -114,6 +119,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
         .pickup => try deadline(&value.respawn_ms, delta),
         .item_motion => try shift(&value.started_ms, delta),
         .character => {
+            try liquid(&value.liquid, delta);
             for (&value.boost_until) |*at| try active(at, delta);
             try active(&value.invincible_until, delta);
             try active(&value.invisible_until, delta);
@@ -219,6 +225,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try deadline(&value.contact_ms, delta);
         },
         .actor => {
+            try liquid(&value.liquid, delta);
             try active(&value.gunner.ready_ms, delta);
             try active(&value.gunner.emit_ms, delta);
             try active(&value.pain_ready_ms, delta);
@@ -359,4 +366,14 @@ test "companion collection and yielding deadlines rebase without changing target
     try std.testing.expectEqual(@as(u32, 42), state.collecting);
     try std.testing.expect(state.collect_forced);
     try std.testing.expectEqual(@as(u32, 43), state.avoided_item);
+}
+
+test "liquid reserves preserve remaining air nitro callback and suit charge on restore" {
+    var character: data.Character = .{ .environment_until = 9000, .environment_charge_ms = 5000, .liquid = .{ .initialized = true, .next_ms = 4100, .air_until_ms = 12000, .damage_ms = 4200, .cold_start_ms = 4000, .cold_next_ms = 6000, .nitro_ms = 7000, .level = 3, .kind = .water, .fraction = 0.75 } };
+    try rebase(.character, &character, 8000);
+    try std.testing.expectEqual(@as(i64, 12100), character.liquid.next_ms);
+    try std.testing.expectEqual(@as(i64, 20000), character.liquid.air_until_ms);
+    try std.testing.expectEqual(@as(?i64, 15000), character.liquid.nitro_ms);
+    try std.testing.expectEqual(@as(i64, 5000), character.environment_charge_ms);
+    try std.testing.expectEqual(@as(f32, 0.75), character.liquid.fraction);
 }

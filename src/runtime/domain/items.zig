@@ -67,7 +67,8 @@ pub fn give(pickup: Pickup, receiver: Receiver, table: *const weapons.Table, now
             return true;
         },
         .environment => {
-            receiver.character.environment_until = now + 60000;
+            receiver.character.environment_charge_ms = 40000; // 400 authored charge units at 100 ms.
+            receiver.character.environment_until = now + receiver.character.environment_charge_ms;
             return true;
         },
         .ring => |mask| {

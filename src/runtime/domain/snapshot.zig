@@ -207,6 +207,9 @@ fn bounded(value: anytype) anyerror!void {
 fn require(world: *data.World, entity: ecs.Entity, comptime types: anytype) !void {
     inline for (types) |T| _ = try world.get(entity, T);
 }
+fn validLiquid(state: @import("environment.zig").State) !void {
+    if (!std.math.isFinite(state.fraction) or state.fraction < 0 or state.fraction >= 1 or (state.nitro_ms != null and !state.initialized)) return error.InvalidSavedEnvironment;
+}
 pub fn validate(snapshot: *Loaded) !void {
     const world = &snapshot.world;
     if (snapshot.header.episode < 1 or snapshot.header.episode > 4 or snapshot.header.at_ms < 0) return error.InvalidCampaignState;
@@ -515,6 +518,7 @@ pub fn validate(snapshot: *Loaded) !void {
             if (actor.deathsphere.bob > 11 or actor.deathsphere.boost_frame < -1 or actor.deathsphere.boost_frame > 65535) return error.InvalidSavedActor;
             for (actor.deathsphere.destination) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             if (actor.gibbed and ((try world.get(entity, data.Health)).current > 0 or (try world.get(entity, data.Body)).contents != 0 or actor.mode != .dead)) return error.InvalidSavedActor;
+            try validLiquid(actor.liquid);
             if (!std.math.isFinite(actor.sludge.ammo) or @abs(actor.sludge.ammo) > 1000000) return error.InvalidSavedActor;
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
             if (actor.lycanthir.phase != .living and (@import("actor_catalog").entries[actor.definition].kind != .lycanthir or actor.lycanthir.wake_ms < actor.lycanthir.started_ms and actor.lycanthir.phase == .collapsed)) return error.InvalidSavedResurrection;
@@ -737,6 +741,8 @@ pub fn validate(snapshot: *Loaded) !void {
         }
         if (world.get(entity, data.Character) catch null) |character| {
             for (character.attributes) |attribute| if (attribute < 0 or attribute > 5) return error.InvalidSavedCharacter;
+            if (character.environment_charge_ms < 0 or character.environment_charge_ms > 40000) return error.InvalidSavedEnvironment;
+            try validLiquid(character.liquid);
             if (character.level < 1 or character.level > 25 or character.points < 0 or character.experience < 0 or character.save_gems < 0) return error.InvalidSavedCharacter;
         }
         if (world.get(entity, data.Ailments) catch null) |ailments| {

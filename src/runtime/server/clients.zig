@@ -154,6 +154,10 @@ pub const Clients = struct {
         body.maxs = result.maxs;
         body.grounded = player.ground_entity != c.ENTITYNUM_NONE;
         try self.publish(world, projections, states, index, now);
+        for (result.events[0..result.event_count]) |event| switch (event) {
+            .land => |speed| try @import("environment.zig").land(world, entity, speed, now),
+            else => {},
+        };
         // Dispatch after movement/projection: spawning events may relocate ECS columns.
         for (events.values[0..events.count]) |event| switch (event) {
             .fired => |shot| try @import("combat.zig").fire(world, slots, projections, entity, shot, &self.weapon_table, now),

@@ -3733,3 +3733,18 @@ are written, unexecuted. Three native modules link in
 Full scope remains open; proceed with liquid hazards and the broader authored world
 inventory before consolidated verification. Main, installed game, saves and service
 remain preserved. No verified gameplay build or new asset identity is claimed.
+
+## Sequence 269 — environment-hazards-and-authored-world-audit (implementation checkpoint)
+
+Continues after pushed `f5fc576`. Actual liquid samples now drive distinct client/AI
+hazards, breathing protection, saved exposure and active-use suit reserves. Player
+landings cause authored fall damage; deathtag retains self-hazard protection. Nitro
+contents no longer disappear in conversion. Reviewed contracts, compatibility details,
+source provenance and qualifications are in the acceptance matrix. Three native modules
+link in `/tmp/dk3-runtime-269-environment-link-fixed.log`; initial syntax failure is
+retained separately. Module identities: `/tmp/dk3-runtime-269-link-identity.json`.
+New regression roots are written, unexecuted; no engine or connected scenario ran.
+Asset regeneration remains necessary. The broader entity/property audit identifies the
+next missing authored controls rather than treating registered monster counts as complete
+campaign coverage. Continue the broad coding pass. Main, installed game, saves and
+online service remain preserved; feature branch only.

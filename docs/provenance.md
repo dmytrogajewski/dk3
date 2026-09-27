@@ -122,3 +122,10 @@ chains, and the class's extra pain deduction. Generic engine collision/navigatio
 typed snapshots and native ECS remain the implementation mechanisms. No reference
 source or runtime is admitted. Incomplete steering/effects and integer-versus-float
 damage parity are explicit acceptance gaps.
+
+Sequence 269 admits `CONTENTS_DK3_NITRO` at the unused native contents bit 0x0800
+and its converter mapping. The engine continues ordinary numeric brush-content queries;
+no private physics or implementation is imported. Authored nitro is separate from the
+swimming mask. The updated header digest is recorded in `engine/DEVELOPMENT.json`.
+Independent liquid/fall policies were written after reviewing private client/AI/artifact
+behavior; that source remains outside the checkout and is not a build input.

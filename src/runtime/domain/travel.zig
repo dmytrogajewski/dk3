@@ -60,9 +60,11 @@ pub const Traveler = struct {
     pub fn arrive(self: *Traveler, episode: u8, now: i64, table: *const @import("weapons.zig").Table) !void {
         const delta = try std.math.sub(i64, now, self.at_ms);
         try @import("snapshot_time.zig").rebase(.character, &self.character, delta);
+        self.character.liquid = .{};
         try @import("snapshot_time.zig").rebase(.weapons, &self.weapons, delta);
         for (&self.companions) |*maybe| if (maybe.*) |*follower| {
             try @import("snapshot_time.zig").rebase(.character, &follower.character, delta);
+            follower.character.liquid = .{};
             try @import("snapshot_time.zig").rebase(.weapons, &follower.weapons, delta);
             follower.state.motor = .{ .command_ms = now };
             follower.state.jump_started_ms = 0;

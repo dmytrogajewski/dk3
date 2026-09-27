@@ -118,7 +118,7 @@ fn approach(world: *data.World, target: ecs.Entity, actor: ecs.Entity, action: @
         top[2] = @max(pose.position[2], middle[2]) + 48;
         const floor = try engine.collisionService().trace(.{ .start = top, .end = v.add(top, .{ 0, 0, -256 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_PLAYERSOLID });
         if (floor.start_solid or floor.all_solid or floor.fraction == 1 or floor.normal[2] < 0.7) continue;
-        if (try engine.collisionService().contents(v.add(floor.end, .{ 0, 0, body.mins[2] + 1 }), slot) & (c.CONTENTS_LAVA | c.CONTENTS_SLIME) != 0) continue;
+        if (try engine.collisionService().contents(v.add(floor.end, .{ 0, 0, body.mins[2] + 1 }), slot) & (c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO) != 0) continue;
         const eye = v.add(floor.end, .{ 0, 0, player.view_height });
         const sight = try engine.collisionService().trace(.{ .start = eye, .end = middle, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
         if (action != .touch and sight.entity != target_slot) continue;
@@ -153,7 +153,7 @@ pub fn yieldPoint(world: *data.World, slots: *Slots, actor: ecs.Entity, toward: 
         if (passage.fraction < 1 or passage.start_solid or passage.all_solid) continue;
         const floor = try engine.collisionService().trace(.{ .start = point, .end = v.add(point, .{ 0, 0, -40 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_PLAYERSOLID });
         if (floor.fraction == 1 or floor.normal[2] < 0.7 or floor.start_solid or floor.all_solid) continue;
-        if (try engine.collisionService().contents(v.add(floor.end, .{ 0, 0, body.mins[2] + 1 }), slot) & (c.CONTENTS_LAVA | c.CONTENTS_SLIME) != 0) continue;
+        if (try engine.collisionService().contents(v.add(floor.end, .{ 0, 0, body.mins[2] + 1 }), slot) & (c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO) != 0) continue;
         return floor.end;
     }
     return null;

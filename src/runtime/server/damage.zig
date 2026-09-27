@@ -23,6 +23,11 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
     const participant = world.get(entity, data.Session) catch null;
     if (participant) |session| {
         if (session.team == .spectator) return .{};
+        if (options.self_hazard and options.source == try world.persistentId(entity) and !options.bypass_protection and @import("../engine/server.zig").integer("g_gametype") == @import("../engine/abi.zig").c.GT_DK3_DEATHTAG) {
+            var objectives = world.queryAccess(data.World.mask(.{data.Objective}), 0, 0);
+            defer objectives.deinit();
+            while (objectives.next()) |view| for (view.read(data.Objective)) |objective| if (objective.phase == .carried and objective.carrier == options.source) return .{};
+        }
         if (!options.bypass_protection) if (world.find(options.source)) |attacker| if (attacker.index != entity.index) {
             if (world.get(attacker, data.Session) catch null) |source| if (@import("../domain/multiplayer.zig").allied(session.*, source.*) and @import("../engine/server.zig").integer("g_friendlyFire") == 0) return .{};
         };

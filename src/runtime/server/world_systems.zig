@@ -100,6 +100,7 @@ pub const State = struct {
         try @import("frog_spit.zig").step(world, slots, projections, now);
         try @import("cryo_spray.zig").step(world, slots, projections, now);
         try @import("actor_lasers.zig").step(world, slots, projections, now);
+        try @import("environment.zig").step(world, slots, projections, self.actors.episode, now);
         try @import("ailments.zig").step(world, now);
         try @import("monitors.zig").step(world, slots, now);
         try self.navigation.frame(now);

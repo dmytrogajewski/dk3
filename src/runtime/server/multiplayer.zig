@@ -91,6 +91,7 @@ pub const State = struct {
         engine.register("fraglimit", "20", c.CVAR_SERVERINFO);
         engine.register("capturelimit", "8", c.CVAR_SERVERINFO);
         engine.register("timelimit", "10", c.CVAR_SERVERINFO);
+        engine.register("dm_falling_damage", "1", c.CVAR_SERVERINFO | c.CVAR_LATCH);
         engine.register("g_friendlyFire", "0", c.CVAR_SERVERINFO);
         engine.register("g_forcerespawn", "20", 0);
         engine.config(c.CS_INTERMISSION, "0");
