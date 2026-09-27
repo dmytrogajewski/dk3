@@ -41,6 +41,9 @@ test {
     _ = @import("domain/lightstyles.zig");
     _ = @import("domain/complex_particles.zig");
     _ = @import("domain/lightning.zig");
+    _ = @import("domain/weather.zig");
+    _ = @import("client/fx_particles.zig");
+    _ = @import("server/weather.zig");
     _ = @import("server/lightning.zig");
     _ = @import("server/inventory_actions.zig");
     _ = @import("server/environment.zig");

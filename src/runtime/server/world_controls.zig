@@ -13,7 +13,7 @@ const Slots = @import("../engine/slots.zig").Slots;
 const Router = @import("targets.zig").Router;
 pub fn owns(name: []const u8) bool {
     if (@import("lights.zig").owns(name)) return true;
-    for ([_][]const u8{ "effect_lightning", "target_attractor", "sfx_complex_particle", "func_dynalight", "target_lightramp", "target_spotlight", "target_earthquake", "func_gib", "func_debris", "func_debris_visible", "trigger_change_sfx", "target_laser", "misc_hosportal", "misc_fountain", "target_speaker", "sound_ambient", "func_timer", "trigger_push", "trigger_teleport", "trigger_secret", "trigger_toggle", "trigger_changemusic", "trigger_console", "trigger_remove_inventory_item" }) |item| if (std.mem.eql(u8, name, item)) return true;
+    for ([_][]const u8{ "effect_rain", "effect_snow", "effect_drip", "effect_lightning", "target_attractor", "sfx_complex_particle", "func_dynalight", "target_lightramp", "target_spotlight", "target_earthquake", "func_gib", "func_debris", "func_debris_visible", "trigger_change_sfx", "target_laser", "misc_hosportal", "misc_fountain", "target_speaker", "sound_ambient", "func_timer", "trigger_push", "trigger_teleport", "trigger_secret", "trigger_toggle", "trigger_changemusic", "trigger_console", "trigger_remove_inventory_item" }) |item| if (std.mem.eql(u8, name, item)) return true;
     return false;
 }
 pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
@@ -31,8 +31,15 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         const object = (try world.get(entity, data.MapObject)).*;
         if (std.mem.eql(u8, object.classname, "light") and object.targetname.len == 0 and object.flags & 2 == 0) continue;
         if (std.mem.eql(u8, object.classname, "target_lightramp") and @import("multiplayer.zig").enabled()) { try world.destroy(entity); continue; }
+        // This authored name remains in e1dm2, but its reference export was removed.
+        if (std.mem.eql(u8, object.classname, "effect_drip")) {
+            if ((world.get(entity, data.Binding) catch null) != null) try @import("weapon_entities.zig").remove(world, slots, projections, entity) else try world.destroy(entity);
+            continue;
+        }
         var action: rules.Action = undefined;
-        if (std.mem.eql(u8, object.classname, "effect_lightning")) {
+        if (std.mem.eql(u8, object.classname, "effect_rain") or std.mem.eql(u8, object.classname, "effect_snow")) {
+            action = .{ .weather = try @import("weather.zig").initialize(world, entity) };
+        } else if (std.mem.eql(u8, object.classname, "effect_lightning")) {
             action = .{ .lightning = try @import("lightning.zig").initialize(world, entity, now) };
         } else if (std.mem.eql(u8, object.classname, "target_attractor")) {
             action = .{ .attractor = try @import("lightning.zig").attractor(object, now) };
@@ -95,6 +102,7 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             action = .{ .remove_item = prop.text(object, "item") orelse return error.MissingRemovedItem };
         }
         try world.put(entity, data.WorldControl{ .action = action });
+        if (action == .weather) try @import("weather.zig").publish(world, entity, projections);
         if (action == .lightning) {
             try @import("weapon_entities.zig").bind(world, slots, projections, entity, "");
             try @import("lightning.zig").publish(world, entity, projections);
@@ -136,7 +144,7 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     const object = (try world.get(entity, data.MapObject)).*;
     switch (control.action) {
         .lightning => try @import("lightning.zig").use(world, slots, projections, router, entity, now),
-        .lightning_bolt, .attractor => {},
+        .lightning_bolt, .attractor, .weather => {},
         .particles => try @import("complex_particles.zig").use(world, entity, projections, now),
         .light => try @import("lights.zig").use(world, entity, projections),
         .light_ramp => try @import("lights.zig").rampUse(world, entity, now),
@@ -227,7 +235,7 @@ pub fn touches(world: *data.World, entity: ecs.Entity, other: ecs.Entity) !bool 
     const companion = (world.get(other, data.Companion) catch null) != null;
     return switch (control.action) {
         .light => |state| state.kind == .flame and (world.get(other, data.Health) catch null) != null,
-        .light_ramp, .particles, .lightning, .lightning_bolt, .attractor => false,
+        .light_ramp, .particles, .lightning, .lightning_bolt, .attractor, .weather => false,
         .debris => |state| state.active and (player or companion or (world.get(other, data.Actor) catch null) != null),
         .timer, .speaker, .healer, .laser, .gib_emitter, .earthquake, .spotlight => false,
         .teleport => |state| state.named_subject.len == 0 and object.targetname.len == 0 and (player or (companion and object.flags & 1 == 0)),

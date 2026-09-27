@@ -125,6 +125,10 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
             try clients.publish(world, projections, states, 0, now);
             continue;
         }
+        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .weather) {
+            try @import("weather.zig").publish(world, entity, projections);
+            continue;
+        };
         if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .lightning or control.action == .lightning_bolt) {
             try @import("lightning.zig").publish(world, entity, projections);
             continue;

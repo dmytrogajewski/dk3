@@ -539,6 +539,7 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Transform });
             const classname = (try world.get(entity, data.MapObject)).classname;
             const expected = switch (control.action) {
+                .weather => |state| if (state.kind == .rain) "effect_rain" else "effect_snow",
                 .lightning => "effect_lightning",
                 .lightning_bolt => "effect_lightning_bolt",
                 .attractor => "target_attractor",
@@ -559,6 +560,12 @@ pub fn validate(snapshot: *Loaded) !void {
             };
             if (!std.mem.eql(u8, classname, expected)) return error.InvalidSavedWorldControl;
             switch (control.action) {
+                .weather => |state| {
+                    try require(world, entity, .{data.Binding, data.Body});
+                    if ((try world.get(entity, data.Body)).contents != 0) return error.InvalidSavedWeather;
+                    for (state.mins ++ state.maxs) |value| if (!std.math.isFinite(value) or @abs(value) > 1000000) return error.InvalidSavedWeather;
+                    for (state.mins, state.maxs) |lower, upper| if (lower > upper) return error.InvalidSavedWeather;
+                },
                 .lightning => |state| {
                     try require(world, entity, .{data.Binding, data.Random});
                     if (state.count > state.attractors.len or state.damage < 0 or state.damage > 1000000 or state.scale <= 0 or state.modulation < 0 or state.delay_ms <= 0 or state.duration_ms <= 0) return error.InvalidSavedLightning;

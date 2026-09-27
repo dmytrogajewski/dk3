@@ -54,7 +54,7 @@ pub fn linkAttractors(world: *data.World, now: i64) !void {
     }.less);
     for (pending[0..count]) |entry| {
         const name = (try world.get(entry.entity, data.MapObject)).targetname;
-        var query = world.queryAccess(data.World.mask(.{data.MapObject}), data.World.mask(.{data.WorldControl}), 0);
+        var query = world.queryAccess(data.World.mask(.{data.MapObject, data.WorldControl}), 0, data.World.mask(.{data.WorldControl}));
         while (query.next()) |view| for (view.read(data.MapObject), view.write(data.WorldControl)) |object, *control| {
             if (control.action != .lightning or !std.ascii.eqlIgnoreCase(object.target, name)) continue;
             const state = &control.action.lightning;

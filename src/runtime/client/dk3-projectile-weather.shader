@@ -436,3 +436,14 @@ dk3/particle/sparkle2
    tcMod transform 0.12109375 0 0 0.24218750 0.25195312 0.75390625
  }
 }
+
+dk3/particle/snow
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.24609375 0 0 0.4921875 0.001953125 0.00390625
+ }
+}
