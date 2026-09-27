@@ -26,6 +26,8 @@ pub const State = struct {
     buboid: catalog.buboid.State = .{},
     wyndrax: catalog.wyndrax.State = .{},
     garroth: catalog.garroth.State = .{},
+    mikiko: catalog.mikiko.State = .{},
+    medusa: catalog.medusa.State = .{},
     pain_ready_ms: i64 = 0,
     evasion: catalog.evasion.State = .{},
     battleboar: catalog.battleboar.State = .{},
@@ -107,6 +109,7 @@ pub const Definition = struct {
     gang_rockets: [2]catalog.weapon.Tuning = @splat(.{}),
     archer_ranged: catalog.weapon.Tuning = .{},
     rotworm_spit: catalog.weapon.Tuning = .{},
+    medusa_spit: catalog.weapon.Tuning = .{},
     vermin_rocket: catalog.weapon.Tuning = .{},
     vermin_has_leap: bool = false,
     rat_poison: catalog.weapon.Tuning = .{},
@@ -304,6 +307,10 @@ pub const Table = struct {
                     entry.offset = melee.offset;
                     entry.spread = melee.spread;
                 }
+            }
+            if (catalog.entries[id].kind == .medusa) {
+                entry.medusa_spit = try catalog.weapon.Tuning.parse(row, "weapon2_");
+                if (entry.medusa_spit.speed <= 0) return error.InvalidMedusaSpit;
             }
             if (catalog.entries[id].kind == .rotworm) {
                 entry.rotworm_spit = try catalog.weapon.Tuning.parse(row, "weapon2_");

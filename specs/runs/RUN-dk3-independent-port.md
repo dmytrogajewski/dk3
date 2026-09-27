@@ -3634,3 +3634,20 @@ campaign/multiplayer acceptance. Four remaining BSP-admitted classes, script-cre
 actors and all broader connected progression/companion/multiplayer/release outcomes
 remain open. This is the continuing implementation pass, not completion of the port.
 Main, installed gameplay, saves, private assets and online service are untouched.
+
+## Sequence 263 — mikiko-medusa-and-boss-attachments (implementation checkpoint)
+
+Continues the same coding pass after `2ea5371`. Final hostile Mikiko and Medusa
+connect their authored combat, special phases, motion, presentation and persistence.
+Private read-only review and supplied model/table inspection exposed missing named
+attachment conversion, absent Mikiko sequences/events, Medusa's shared venom callback
+and its one-frame flash. These are implemented without private runtime imports.
+
+The acceptance matrix records narrow compatibility details and remaining presentation
+qualification. New pure eye-contact and converter regressions are written, not run.
+No test suite or engine scenario runs during this checkpoint. The coherent module link is `/tmp/dk3-runtime-263-boss-final-link.log`; earlier
+sequence logs retain the initial syntax error. The changed
+converter requires a fresh asset identity for later engine acceptance. Kage, Nharre,
+dynamic Ghosts, remaining actor/script/companion phases, campaign traversal and all
+multiplayer/release acceptance remain open. Main, installation, saves and service are
+preserved. Continue implementing the remaining scope before systematic verification.

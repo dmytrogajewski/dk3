@@ -219,6 +219,9 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try active(&value.dragon.ambient_ms, delta);
             try deadline(&value.dragon.breath_until_ms, delta);
             try active(&value.wyndrax.until_ms, delta);
+            try active(&value.mikiko.aura_started_ms, delta);
+            try active(&value.medusa.until_ms, delta);
+            try active(&value.medusa.flash_until_ms, delta);
             try active(&value.buboid.started_ms, delta);
             try active(&value.buboid.until_ms, delta);
             try active(&value.chaingang.started_ms, delta);

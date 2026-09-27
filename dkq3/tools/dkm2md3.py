@@ -82,7 +82,8 @@ HARDPOINT_PREFIXES = ('hp_', 'hr_')
 # The surface names Gold's client asks R_GetModelHardpoint for that carry neither prefix: the sunflare's flame stands at the
 # view weapon's `fire` surface (base/client/cl_tent.cpp:4223, TrackEntFX_Fire; w_sflare.dkm and we_sunprj.dkm carry one).
 # Retain the authored flag attachment for dk3's multiplayer presentation.
-HARDPOINT_NAMES = ('fire', 'ctf_flag')
+# Boss artifact blades and Medusa's gaze name visible surfaces directly.
+HARDPOINT_NAMES = ('fire', 'ctf_flag', 'eye1', 'eye2', 'sword1', 'sword2')
 # md3Tag_t carries a rotation as well as a position. R_GetModelHardpoint returns a position only - it never builds an
 # orientation, and every caller gives the child the PARENT's angles (cl_ents.cpp:2096-2113) - so the tag's rotation is the
 # identity and the attachment takes its angles from the parent, as Gold does.

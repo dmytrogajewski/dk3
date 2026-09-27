@@ -5,7 +5,7 @@ pub const State = struct {
     started_ms: i64 = 0,
     destination: [3]f32 = @splat(0),
 };
-pub const Spit = struct { damage: f32 };
+pub const Spit = struct { damage: f32, kind: enum { rotworm, medusa } = .rotworm };
 pub const spit_model = "models/e3/me_rotspit.dkm";
 pub const spit_tag = 10008;
 pub fn select(distance: f32, roll: f32) u3 {

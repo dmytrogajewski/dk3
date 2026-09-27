@@ -10,6 +10,12 @@ const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").rotworm;
 const lifecycle = @import("weapon_entities.zig");
 pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+    return launchKind(world, slots, projections, owner, target, pose, tuning, false, now);
+}
+pub fn medusa(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+    return launchKind(world, slots, projections, owner, target, pose, tuning, true, now);
+}
+fn launchKind(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, is_medusa: bool, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const aim = try @import("actor_aim.zig").direct(world, target, pose, tuning, random);
     const origin = aim.origin;
@@ -20,12 +26,12 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
         data.Transform{ .position = start, .angles = .{ -std.math.atan2(direction[2], @sqrt(direction[0] * direction[0] + direction[1] * direction[1])) * 180 / std.math.pi, std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi, 0 } },
         data.Velocity{ .linear = v.scale(direction, tuning.speed) },
         data.Body{ .mins = @splat(-3), .maxs = @splat(3), .collision_mask = c.MASK_SHOT },
-        data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .rotworm_spit = .{ .damage = amount } } },
+        data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .rotworm_spit = .{ .damage = amount, .kind = if (is_medusa) .medusa else .rotworm } } },
     });
     errdefer world.destroy(entity) catch unreachable;
-    try lifecycle.bind(world, slots, projections, entity, policy.spit_model);
+    try lifecycle.bind(world, slots, projections, entity, if (is_medusa) "models/e1/me_sludge.dkm" else policy.spit_model);
     try publish(world, entity, projections, now);
-    try @import("events.zig").sound(world, slots, projections, "e3/e_firespitf.wav", pose.position, (try world.get(owner, data.Binding)).slot, c.CHAN_AUTO, now);
+    if (!is_medusa) try @import("events.zig").sound(world, slots, projections, "e3/e_firespitf.wav", pose.position, (try world.get(owner, data.Binding)).slot, c.CHAN_AUTO, now);
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     const attack = (try world.get(entity, data.ActorAttack)).*;
@@ -37,7 +43,8 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.generic1 = policy.spit_tag;
     projection.state.modelindex = binding.model;
     projection.state.frame = 0;
-    projection.state.angles2 = @splat(0.1);
+    projection.state.angles2 = @splat(if (attack.attack.rotworm_spit.kind == .medusa) @as(f32, 0.15) else 0.1);
+    projection.state.weapon = @intFromEnum(attack.attack.rotworm_spit.kind);
     projection.state.time = @intCast(attack.born_ms);
     projection.state.pos = @import("../engine/trajectory.zig").linear(pose.position, (try world.get(entity, data.Velocity)).linear, now);
     projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
@@ -60,7 +67,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
             if ((world.get(victim, data.Health) catch null) != null) {
                 const amount = attack.attack.rotworm_spit.damage;
-                _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = attack.owner, .attacker_class = "monster_rotworm" });
+                _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = attack.owner, .attacker_class = if (attack.attack.rotworm_spit.kind == .medusa) "monster_medusa" else "monster_rotworm" });
                 try @import("weapon_damage.zig").shove(world, victim, attack.owner, velocity, amount, now);
                 if ((world.get(victim, data.Player) catch null) != null) try @import("ailments.zig").apply(world, victim, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, attack.owner, 0, now);
             }

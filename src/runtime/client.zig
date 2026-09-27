@@ -35,6 +35,8 @@ fn shutdown() void {
     @import("client/dragon.zig").reset();
     @import("client/chaingang.zig").reset();
     @import("client/buboid.zig").reset();
+    @import("client/sword_aura.zig").reset();
+    @import("client/venom_spit.zig").reset();
     @import("client/wisps.zig").reset();
     @import("client/wyndrax_actor.zig").reset();
     @import("client/actor_meteors.zig").reset();
@@ -307,6 +309,10 @@ fn draw(now: i32) !void {
             rendered.nonNormalizedAxes = c.qtrue;
         }
         rendered.shaderRGBA = @splat(255);
+        if (entity.generic1 == @import("actor_catalog").medusa.stone_tag) {
+            rendered.shaderRGBA[3] = 179;
+            rendered.skinNum = 3;
+        }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/scenery.zig").render_tag) {
             rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
             if (entity.clientNum > 0) rendered.customShader = try @import("client/models.zig").firstMaterial(&game, entity.clientNum, if (rendered.shaderRGBA[3] < 255) .alpha else .ordinary);
@@ -328,15 +334,18 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_MISSILE) try @import("client/projectiles.zig").decorate(&rendered, entity, now);
         // Converted MD3 surfaces carry ordinary/alpha/bright/alpha-bright
         // variants. Selecting alpha preserves each surface's own authored skin.
-        if ((entity.eType == c.ET_GENERAL or entity.eType == c.ET_MISSILE) and rendered.shaderRGBA[3] < 255 and std.mem.endsWith(u8, try engine.config(&game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), ".dkm")) rendered.skinNum = 1;
+        if ((entity.eType == c.ET_GENERAL or entity.eType == c.ET_MISSILE) and rendered.shaderRGBA[3] < 255 and std.mem.endsWith(u8, try engine.config(&game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), ".dkm")) rendered.skinNum = if (entity.generic1 == @import("actor_catalog").medusa.stone_tag) 3 else 1;
         try @import("client/events.zig").loop(&game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
         if (entity.eType == c.ET_GENERAL and (entity.time2 == @import("actor_catalog").cambot.idle_tag or entity.time2 == @import("actor_catalog").cambot.alert_tag)) try @import("client/cambot.zig").draw(&rendered, entity.time2 == @import("actor_catalog").cambot.alert_tag, &ref);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").battleboar.flash_tag) try @import("client/battleboar.zig").draw(&rendered);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").rockgat.flash_tag) try @import("client/rockgat.zig").draw(&rendered);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").buboid.melt_tag) @import("client/buboid.zig").emit(&rendered, entity, now);
+        if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").sword_aura_tag) try @import("client/sword_aura.zig").draw(&rendered, entity, now, &ref);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").chaingang.jet_tag) @import("client/chaingang.zig").emit(&rendered, entity, now);
         if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").dragon.breath_tag) try @import("client/dragon.zig").breath(&rendered, entity, now);
+        if (entity.eType == c.ET_GENERAL and entity.time2 == @import("actor_catalog").medusa.gaze_tag and entity.origin2[0] != 0) try @import("client/medusa.zig").eyes(&rendered, &ref);
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").rotworm.spit_tag) @import("client/venom_spit.zig").draw(entity, now);
         if (entity.eType == c.ET_GENERAL and entity.generic1 > 0 and entity.generic1 <= 1000) try @import("client/status_visuals.zig").frost(rendered, @as(f32, @floatFromInt(entity.generic1)) / 1000);
     }
     if (snapshot.ps.dk3CameraActive != 0) @import("client/cinematics.zig").audio(ref.vieworg);
@@ -349,6 +358,7 @@ fn draw(now: i32) !void {
     } else {
         @import("client/status_visuals.zig").screen(ailments.*, display);
         @import("client/status_visuals.zig").psychic(psychic.blend, display);
+        @import("client/medusa.zig").flash(snapshot.entities[0..@intCast(snapshot.numEntities)], client_number, now, display);
         try hud.render(display, .{ .current = snapshot.ps.stats[c.STAT_HEALTH], .armor = snapshot.ps.stats[c.STAT_ARMOR] }, character.*, .{ .mask = @bitCast(snapshot.ps.dk3Keys), .quest = @bitCast(snapshot.ps.dk3Quest) }, loadout.*, &weapon_table, selected_weapon, now);
     }
     _ = engine.gateway.call(c.CG_S_RESPATIALIZE, .{ @as(isize, client_number), &ref.vieworg, &ref.viewaxis, @as(isize, @intFromBool(player.water_level == 3)) });

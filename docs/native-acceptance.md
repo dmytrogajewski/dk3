@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–262): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–263): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -488,10 +488,48 @@ connected campaign/multiplayer or reference-playback acceptance was performed.
 No verified gameplay build/asset identity is established for this coding pass.
 Main, the installed game, user saves and the live service remain preserved.
 
+## Sequence 263 implementation checkpoint
+
+Hostile Mikiko connects all three sword attacks, authored/default strike events,
+absolute-frame voices, direct dodge requests, swimming, pain, aura and loop-sound
+lifecycle. The supplied model lacks `dieb`, retaining the already selected `diea`
+when that reference sequence request fails. Its third attack has no CSV row and
+uses the reviewed first+1 default. The class's one-shot aura/untrack quirk remains.
+Mikiko, Kage and Medusa's visible `eye1`/`eye2`/`sword1`/`sword2` surfaces now produce
+animated attachment tags; the previously installed conversion omitted them.
+A rebuilt coherent asset manifest is required before engine verification.
+
+Medusa connects poison bites/spit, probabilistic ranged admission, partial-cover
+sidesteps, authored retreat nodes, rattle/gaze/recovery phases and mutual yaw/pitch
+contact. Its flash clears after one server frame, following the reference's per-frame
+alpha decrement. Petrification preserves the struck frame and solid body and still
+dispatches death/progression. Armor/protection remains in damage accounting; no
+special damage reduction is introduced for driver convenience. Dead petrification,
+player input, actor body state and restored phases need replay. Native player gaze
+uses the current fixed 90-degree gameplay view. Wraith/other target visibility and
+encounter navigation still need connected qualification.
+
+The shared venom callback retains the saved `rotworm_spit` union tag and defaults
+old records to Rotworm; its implementation is now `server/venom_spit.zig`. Medusa
+owns its model/scale, absence of Rotworm launch audio and particle colors. No generic
+spit substitution is used. Direct pain uses one chance roll, separate from the generic
+wrapper's heavy-hit roll. Existing evasion, melee, poison and movement adapters are
+reused. Fine blade lightning, particle atlas, stone brightness/skin blending and
+sound-volume comparison remain open. The eye-contact, direct-pain, petrification/protection and missing-attachment
+regressions are written and unexecuted.
+
+**Implemented; unverified.** All three modules link in `/tmp/dk3-runtime-263-boss-final-link.log`;
+the first link's syntax error is retained. No tests, native-engine scenarios,
+connected campaign/multiplayer or reference playback ran. This adds no verified
+build/asset identity. Revalidate affected shared actor pain/evasion, poison,
+petrification/death, converter attachments and save paths on the consolidated build.
+Main, installed play, user saves and live service remain unchanged.
+
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data (including monster factories/death
-spawns) still finds these unimplemented classes at this checkpoint: Kage, Medusa, final Mikiko and Nharre. Script-created classes and boss phases remain part of the full audit.
+spawns) still finds these unimplemented classes at this checkpoint: Kage and Nharre. The script-created Ghost used by Kage is also unimplemented; other dynamic classes and boss phases remain part of the full audit.
 This inventory is a coding work list, not campaign-load or traversal acceptance.
 
 ## Acceptance rules

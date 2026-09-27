@@ -9,14 +9,7 @@ pub fn generic(world: *data.World, entity: ecs.Entity, actor: *data.Actor, defin
     const first = @as(u8, @intFromFloat(random.next() * 99.9)) < chance;
     const second = @as(u8, @intFromFloat(random.next() * 99.9)) < chance;
     if (first or (second and amount >= limit)) {
-        const hit = definition.pain[0] orelse return false;
-        actor.reaction = hit;
-        actor.reaction_started_ms = now;
-        actor.reaction_until_ms = now + hit.duration();
-        actor.pain_ready_ms = now + @divTrunc(@as(i64, hit.last - hit.first) * 1000, hit.fps);
-        actor.melee.active = false;
-        actor.mode = .idle;
-        return true;
+        return hit(actor, definition, now);
     }
     if (!second) return false;
     const sequence = if (actor.melee.active) definition.attacks[actor.melee.pose] else if (actor.mode == .chase) definition.run else definition.idle;
@@ -27,6 +20,23 @@ pub fn generic(world: *data.World, entity: ecs.Entity, actor: *data.Actor, defin
     actor.mode = .idle;
     return true;
 }
+/// The unwrapped pain callback has one chance roll and no heavy-hit fallback.
+pub fn direct(world: *data.World, entity: ecs.Entity, actor: *data.Actor, definition: Definition, amount: i32, chance: u8, now: i64) !bool {
+    if (amount <= 0 or now <= actor.pain_ready_ms) return false;
+    if (@as(u8, @intFromFloat((try world.get(entity, data.Random)).next() * 99.9)) >= chance) return false;
+    return hit(actor, definition, now);
+}
+fn hit(actor: *data.Actor, definition: Definition, now: i64) bool {
+    const sequence = definition.pain[0] orelse return false;
+    actor.reaction = sequence;
+    actor.reaction_started_ms = now;
+    actor.reaction_until_ms = now + sequence.duration();
+    actor.pain_ready_ms = now + @divTrunc(@as(i64, sequence.last - sequence.first) * 1000, sequence.fps);
+    actor.melee.active = false;
+    actor.mode = .idle;
+    return true;
+}
+
 test "light damage can trigger the first pain roll before the heavy-hit limit" {
     const t = @import("std").testing;
     var world = data.World.init(t.allocator, 1);
@@ -62,4 +72,16 @@ test "the second light-hit roll retains the active attack and locks for that seq
     try t.expectEqual(@as(u2, 1), actor.melee.struck);
     try t.expectEqual(@as(i64, 2900), actor.pain_ready_ms);
     try t.expectEqual(@as(?i64, 1100), actor.reaction_until_ms);
+}
+
+test "direct pain does not inherit the generic wrapper's second-roll admission" {
+    const t = @import("std").testing;
+    var world = data.World.init(t.allocator, 1);
+    defer world.deinit();
+    const entity = try world.create(1, .{data.Random{ .state = 8 }});
+    var actor: data.Actor = .{ .definition = 0 };
+    var definition: Definition = .{};
+    definition.pain[0] = .{ .first = 40, .last = 49, .fps = 10 };
+    try t.expect(!try direct(&world, entity, &actor, definition, 1, 20, 1000));
+    try t.expectEqual(null, actor.reaction_until_ms);
 }

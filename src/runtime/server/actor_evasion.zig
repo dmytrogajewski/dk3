@@ -36,6 +36,13 @@ pub fn start(routes: *const Routes, world: *data.World, entity: ecs.Entity, targ
     if (flags & 0x80 != 0) return false;
     const random = try world.get(entity, data.Random);
     const kind = policy.choose(ranged, flags & 0x20 != 0, random.next(), random.next());
+    return startKind(routes, world, entity, target, actor, pose, kind, now);
+}
+pub fn dodge(routes: *const Routes, world: *data.World, entity: ecs.Entity, target: ecs.Entity, actor: *data.Actor, pose: data.Transform, now: i64) !bool {
+    return startKind(routes, world, entity, target, actor, pose, .dodge, now);
+}
+fn startKind(routes: *const Routes, world: *data.World, entity: ecs.Entity, target: ecs.Entity, actor: *data.Actor, pose: data.Transform, kind: policy.Kind, now: i64) !bool {
+    const random = try world.get(entity, data.Random);
     const body = (try world.get(entity, data.Body)).*;
     const slot = (try world.get(entity, data.Binding)).slot;
     var destination: ?v.Vec3 = null;

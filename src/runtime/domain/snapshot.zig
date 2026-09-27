@@ -460,7 +460,9 @@ pub fn validate(snapshot: *Loaded) !void {
             for (actor.griffon.destination ++ actor.griffon.previous) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             for (actor.harpy.destination) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
             for (actor.dragon.breath_direction) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1.001) return error.InvalidSavedActor;
+            for (actor.medusa.retreat) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedActor;
             for (actor.wyndrax.destination ++ actor.wyndrax.start_position) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedActor;
+            if (actor.mikiko.voice_pose > 2 or !std.math.isFinite(actor.mikiko.light_red) or actor.mikiko.light_red < 1 or actor.mikiko.light_red > 2 or (actor.mikiko.aura and !actor.mikiko.awakened)) return error.InvalidSavedActor;
             if (!std.math.isFinite(actor.buboid.alpha) or actor.buboid.alpha < 0 or actor.buboid.alpha > 1) return error.InvalidSavedActor;
             if (actor.chaingang.strafe > 5 or actor.chaingang.burst > 22) return error.InvalidSavedActor;
             for (actor.chaingang.destination ++ actor.chaingang.start_position) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1048576) return error.InvalidSavedActor;
@@ -689,6 +691,7 @@ pub fn validate(snapshot: *Loaded) !void {
                 try require(world, entity, .{data.Player});
                 if (warp.source == 0 or warp.next_ms > warp.until_ms or warp.next_ms < warp.until_ms - 7900) return error.InvalidSavedAilment;
             }
+            if (ailments.petrified_frame != null and !ailments.stone) return error.InvalidSavedAilment;
             if (ailments.freeze_level < 0 or ailments.freeze_level > 1) return error.InvalidSavedAilment;
             if (ailments.poison) |poison| if (poison.damage <= 0 or poison.damage > 1000000 or poison.interval_ms < 100 or poison.interval_ms > 3600000 or poison.weapon > 28 or poison.next_ms > poison.until_ms + poison.interval_ms) return error.InvalidSavedAilment;
         }

@@ -13,7 +13,7 @@ fn floor(position: v.Vec3, body: data.Body, slot: u16) !?v.Vec3 {
     if (hit.start_solid or hit.fraction == 1 or hit.normal[2] < 0.7 or hit.contents & (c.CONTENTS_LAVA | c.CONTENTS_SLIME) != 0) return null;
     return hit.end;
 }
-fn direct(position: v.Vec3, destination: v.Vec3, body: data.Body, slot: u16) !bool {
+pub fn direct(position: v.Vec3, destination: v.Vec3, body: data.Body, slot: u16) !bool {
     const distance = v.length(v.subtract(destination, position));
     if (distance > 512) return false;
     const count: usize = @intFromFloat(@ceil(distance / 24));

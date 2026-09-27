@@ -114,7 +114,7 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
         if (name.len > 0 and actor.melee.event(@as(u2, 1) << @intCast(i), at, now, true)) try @import("events.zig").sound(world, slots, projections, name, pose.position, slot, c.CHAN_WEAPON, now);
     };
     if (!attacks or !actor.melee.event(1, @divTrunc(@as(i64, definition.strikes[index]) * 1000, sequence.fps), now, false)) return;
-    if (index == 1) return @import("rotworm_spit.zig").launch(world, slots, projections, entity, target, pose, definition.rotworm_spit, now);
+    if (index == 1) return @import("venom_spit.zig").launch(world, slots, projections, entity, target, pose, definition.rotworm_spit, now);
     const aim = try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random));
     const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
     if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {

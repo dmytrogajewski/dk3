@@ -126,7 +126,7 @@ pub const Clients = struct {
         const character = (try world.get(entity, data.Character)).*;
         const ailments = (try world.get(entity, data.Ailments)).*;
         (try world.get(entity, data.Health)).maximum = 100 + 20 * character.attribute(.vita, now);
-        if ((try world.get(entity, data.Health)).current <= 0) player.mode = .dead;
+        if ((try world.get(entity, data.Health)).current <= 0) player.mode = if (ailments.petrified_frame != null) .frozen else .dead;
         if (command.time_ms <= player.command_ms) return;
         const transform = try world.get(entity, data.Transform);
         const velocity = try world.get(entity, data.Velocity);
@@ -242,6 +242,8 @@ pub const Clients = struct {
             const weapon = @import("weapon_catalog").find(@intCast(inventory.weapon)) orelse return error.UnknownPlayerWeapon;
             projection.state.frame = pose_set.frame(&session.pose, .{ .velocity = velocity.linear, .yaw = transform.angles[1], .ducked = player.ducked, .jumping = player.jump_held and player.ground_entity == c.ENTITYNUM_NONE and player.water_level < 2, .dead = health.current <= 0 }, weapon.spec.player_grip, now);
         }
+        projection.state.generic1 = if (ailments.stone) @import("actor_catalog").medusa.stone_tag else 0;
+        if (ailments.petrified_frame) |frame| projection.state.frame = frame;
         ps.loopSound = if (ailments.warp != null) try @import("resources.zig").sound(@import("actor_catalog").psyclaw.loop_sound) else 0;
         projection.state.loopSound = ps.loopSound;
         projection.state.groundEntityNum = ps.groundEntityNum;
