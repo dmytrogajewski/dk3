@@ -24,6 +24,14 @@ pub fn select(loadout: weapons.State, table: *const weapons.Table, distance: ?f3
     }
     return selected;
 }
+pub fn ranged(loadout: weapons.State, table: *const weapons.Table) bool {
+    for (catalog.entries) |entry| {
+        const tuning = table.entries[entry.id];
+        if (!entry.spec.auto_select or tuning.damage <= 0 or loadout.dk3Inventory & (@as(i32, 1) << entry.id) == 0 or loadout.ammo[entry.id] < tuning.ammoCost) continue;
+        if ((entry.spec.bot_range orelse tuning.range) > 128) return true;
+    }
+    return false;
+}
 pub fn attack(loadout: weapons.State, table: *const weapons.Table, distance: f32) bool {
     const entry = catalog.find(@intCast(loadout.weapon)) orelse return false;
     if (!entry.spec.auto_select or loadout.weaponstate == 1 or loadout.weaponstate == 2) return false;

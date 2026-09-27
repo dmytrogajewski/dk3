@@ -51,6 +51,7 @@ fn shutdown() void {
 fn init(server_message: i32, sequence: i32, client: i32) !void {
     shutdown();
     @import("client/models.zig").reset();
+    @import("client/objectives.zig").reset();
     @import("client/events.zig").reset();
     selected_weapon = 0;
     inventory_mask = 0;
@@ -116,6 +117,7 @@ fn draw(now: i32) !void {
                 if (@import("client/commands.zig").restored()) |restored| {
                     @import("client/messages.zig").reset();
                     @import("client/models.zig").reset();
+                    @import("client/objectives.zig").reset();
                     @import("client/events.zig").reset();
                     weapon_view.init();
                     if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
@@ -285,6 +287,10 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").stavros.id) try @import("client/stavros.zig").draw(entity, now, &ref);
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").wyndrax.id) try @import("client/wyndrax.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").metamaser.id) try @import("client/metamaser.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
+        if (entity.eType == c.ET_DK3_ITEM and entity.dk3Team != 0) {
+            try @import("client/objectives.zig").draw(&game, entity, snapshot.entities[0..@intCast(snapshot.numEntities)], client_number, now);
+            continue;
+        }
         if (entity.eType == c.ET_PLAYER and entity.number == client_number) {
             try @import("client/events.zig").loop(&game, entity, @import("engine/trajectory.zig").evaluate(entity.pos, now));
             continue;

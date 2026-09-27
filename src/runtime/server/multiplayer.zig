@@ -85,6 +85,7 @@ pub const State = struct {
     next_score_ms: i64 = 0,
     score: [2]i32 = @splat(0),
     pub fn spawn(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, episode: u8, now: i64) !void {
+        _ = episode;
         self.* = .{ .started_ms = now };
         if (!enabled()) return;
         engine.register("fraglimit", "20", c.CVAR_SERVERINFO);
@@ -112,12 +113,14 @@ pub const State = struct {
             if (found[index]) return error.DuplicateTeamObjective;
             found[index] = true;
             const pose = (try world.get(entity, data.Transform)).*;
-            var path: [96]u8 = undefined;
-            const model = if (bomb()) "models/global/dt_bpack.dkm" else if (episode == 2) try std.fmt.bufPrint(&path, "models/e2/ctflag_{s}.dkm", .{if (red) "red" else "blue"}) else if (episode == 3) try std.fmt.bufPrint(&path, "models/e3/e3ctflag_{s}.dkm", .{if (red) "red" else "blue"}) else "models/global/a_ctf_flag.dkm";
+            const model = if (bomb()) rules.pack_model else rules.flag_model;
+            const team: rules.Team = if (red) .red else .blue;
+            const supplied_color = try @import("properties.zig").number(object, "flagcolor", 0);
+            const tint = rules.color(team, if (supplied_color >= 1 and supplied_color < 9) @intFromFloat(supplied_color) else 0);
             const slot = try slots.acquire(entity, null);
             try world.put(entity, data.Binding{ .slot = slot, .model = try @import("resources.zig").model(model) });
-            try world.put(entity, data.Body{ .mins = .{ -16, -16, -16 }, .maxs = .{ 16, 16, 24 }, .contents = c.CONTENTS_TRIGGER });
-            try world.put(entity, data.Objective{ .team = if (red) .red else .blue, .home = pose.position, .angles = pose.angles });
+            try world.put(entity, data.Body{ .mins = .{ -10, -10, -10 }, .maxs = .{ 10, 8, 10 }, .contents = c.CONTENTS_TRIGGER });
+            try world.put(entity, data.Objective{ .team = team, .color = tint, .home = pose.position, .angles = pose.angles, .airborne = true, .stepped_ms = now });
             try project(world, projections, entity);
         }
         if (!found[0] or !found[1]) return error.MissingTeamObjective;
@@ -194,12 +197,11 @@ pub const State = struct {
                     const zone = other orelse continue;
                     const object = world.get(zone, data.MapObject) catch continue;
                     if (!std.mem.eql(u8, object.classname, "trigger_capture")) continue;
-                    const allowed = object.flags & 3;
-                    if ((allowed == 1 and session.team != .red) or (allowed == 2 and session.team != .blue)) continue;
+                    if (!rules.acceptsCapture(object.flags, session.team, bomb())) continue;
                     const zone_slot = (try world.get(zone, data.Binding)).slot;
                     if (!@import("interactions.zig").overlap(&projections[carrier_slot], &projections[zone_slot], 0)) continue;
                     if (!bomb() and !home(world, session.team)) continue;
-                    const points_float = try @import("properties.zig").number(object.*, "points", 1);
+                    const points_float = if (bomb()) try @import("properties.zig").number(object.*, "points", 1) else 1;
                     if (points_float < 1 or points_float > 100) return error.InvalidCapturePoints;
                     const points: i32 = @intFromFloat(points_float);
                     self.score[if (session.team == .red) @as(usize, 0) else 1] += points;
@@ -208,6 +210,12 @@ pub const State = struct {
                     member.captures += 1;
                     if (!bomb()) try captureBonuses(world, carrier.?, zone, session.team);
                     state.capture(bomb(), now);
+                    if (!bomb()) {
+                        pose.position = state.home;
+                        pose.angles = state.angles;
+                        state.airborne = true;
+                        state.stepped_ms = now;
+                    }
                     try @import("events.zig").sound(world, slots, projections, "global/bossdeath6.wav", carrier_pose.position, carrier_slot, c.CHAN_ANNOUNCER, now);
                     if (bomb()) pose.position = v.scale(v.add(projections[zone_slot].shared.absmin, projections[zone_slot].shared.absmax), 0.5);
                     (try world.get(entity, data.Objective)).* = state;
@@ -238,6 +246,10 @@ pub const State = struct {
                 switch (state.take(id, team, bomb(), now)) {
                     .none => {},
                     .returned => {
+                        pose.position = state.home;
+                        pose.angles = state.angles;
+                        state.airborne = true;
+                        state.stepped_ms = now;
                         (try world.get(player, data.Session)).score += 1;
                         try @import("events.zig").sound(world, slots, projections, "global/a_hpick.wav", pose.position, player_slot, c.CHAN_ANNOUNCER, now);
                     },
@@ -258,6 +270,10 @@ pub const State = struct {
         if (state.deadline) |deadline| if (now >= deadline) {
             if (!bomb() or state.phase == .resetting) {
                 state.reset();
+                pose.position = state.home;
+                pose.angles = state.angles;
+                state.airborne = true;
+                state.stepped_ms = now;
                 try @import("events.zig").sound(world, slots, projections, "global/a_hpick.wav", state.home, c.ENTITYNUM_NONE, c.CHAN_ANNOUNCER, now);
             } else {
                 state.carrier = null;
@@ -271,8 +287,7 @@ pub const State = struct {
                 };
             }
         };
-        if (state.phase == .home) {
-            pose.position = state.home;
+        if (state.phase == .home and state.deadline == null and !state.airborne) {
             pose.angles = state.angles;
         }
         (try world.get(entity, data.Objective)).* = state;
@@ -337,6 +352,11 @@ fn project(world: *data.World, projections: []abi.EntityProjection, entity: ecs.
     projection.state.eType = c.ET_DK3_ITEM;
     projection.state.modelindex = binding.model;
     projection.state.dk3Team = @intFromEnum(state.team);
+    projection.state.generic1 = if (bomb()) 0 else rules.color(state.team, state.color);
+    projection.state.frame = rules.stand_frame;
+    if (state.carrier) |id| if (world.find(id)) |player| {
+        projection.state.frame = rules.carry_frames[(try world.get(player, data.Session)).appearance % 3];
+    };
     projection.state.dk3Carrier = if (state.carrier) |id| if (world.find(id)) |player| @as(i32, (try world.get(player, data.Binding)).slot) + 1 else 0 else 0;
     projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);
     projection.state.apos = @import("../engine/trajectory.zig").stationary(pose.angles);
@@ -383,17 +403,19 @@ fn flight(world: *data.World, entity: ecs.Entity, state: *data.Objective, pose: 
     }
 }
 fn captureBonuses(world: *data.World, capturer: ecs.Entity, zone: ecs.Entity, team: rules.Team) !void {
-    const pose = (try world.get(zone, data.Transform)).*;
-    const body = (try world.get(zone, data.Body)).*;
-    const point = v.add(pose.position, v.scale(v.add(body.mins, body.maxs), 0.5));
-    const slot = (try world.get(zone, data.Binding)).slot;
     var query = world.queryAccess(data.World.mask(.{ data.Session, data.Transform, data.Binding }), 0, data.World.mask(.{data.Session}));
     defer query.deinit();
-    while (query.next()) |view| for (view.entities(), view.write(data.Session), view.read(data.Transform), view.read(data.Binding)) |player, *member, transform, binding| {
+    while (query.next()) |view| for (view.entities(), view.write(data.Session)) |player, *member| {
         if (member.team != team) continue;
         member.score += 5;
         if (player.index == capturer.index) continue;
-        const hit = try engine.collisionService().trace(.{ .start = point, .end = transform.position, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID });
-        if (hit.fraction == 1 or hit.entity == binding.slot) member.score += 1;
+        if (try @import("ctf_scoring.zig").visible(world, zone, player)) member.score += 1;
     };
+}
+
+pub fn teamColor(world: *data.World, team: rules.Team) u8 {
+    var query = world.queryAccess(data.World.mask(.{data.Objective}), 0, 0);
+    defer query.deinit();
+    while (query.next()) |view| for (view.read(data.Objective)) |objective| if (objective.team == team) return rules.color(team, objective.color);
+    return rules.color(team, 0);
 }

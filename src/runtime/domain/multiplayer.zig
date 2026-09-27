@@ -17,8 +17,60 @@ pub const Session = struct {
 pub fn allied(a: Session, b: Session) bool {
     return (a.team == .red or a.team == .blue) and a.team == b.team;
 }
+// The objective owns its authored presentation; network team identity is separate
+// from the map-selected color. Model frames are supplied character fit variants.
+pub const flag_model = "models/global/a_ctf_flagl.dkm";
+pub const pack_model = "models/global/dt_bpack.dkm";
+pub const stand_frame = 3;
+pub const carry_frames = [3]i32{ 4, 6, 5 };
+pub const color_skins = [8][]const u8{
+    "models/objectives/ctf/1.skin", "models/objectives/ctf/2.skin",
+    "models/objectives/ctf/3.skin", "models/objectives/ctf/4.skin",
+    "models/objectives/ctf/5.skin", "models/objectives/ctf/6.skin",
+    "models/objectives/ctf/7.skin", "models/objectives/ctf/8.skin",
+};
+pub fn color(team: Team, supplied: i32) u8 {
+    return if (supplied >= 1 and supplied <= 8) @intCast(supplied) else if (team == .blue) 2 else 1;
+}
+pub fn appearance(selected: u8, team_color: u8) u8 {
+    const rows = [8]u8{ 7, 2, 3, 0, 1, 4, 5, 6 };
+    std.debug.assert(team_color >= 1 and team_color <= 8);
+    return rows[team_color - 1] * 3 + selected % 3;
+}
+pub fn acceptsCapture(flags: u32, team: Team, bomb: bool) bool {
+    if (team != .red and team != .blue) return false;
+    const selected = flags & 3;
+    // Shared pads are authored for deathtag. CTF's spawn routine rejects them.
+    return selected == @intFromEnum(team) or (bomb and (selected == 0 or selected == 3));
+}
+pub const Defense = struct {
+    base: bool = false,
+    flag: bool = false,
+    enemy_carrier: bool = false,
+    escort: bool = false,
+    pub fn score(self: Defense) i32 {
+        return @as(i32, @intFromBool(self.base)) + @as(i32, @intFromBool(self.flag)) +
+            @as(i32, @intFromBool(self.enemy_carrier)) * 2 + @as(i32, @intFromBool(self.escort));
+    }
+};
+
+test "CTF scoring stacks defense conditions and capture pad rules differ from deathtag" {
+    const t = std.testing;
+    try t.expectEqual(@as(i32, 5), (Defense{ .base = true, .flag = true, .enemy_carrier = true, .escort = true }).score());
+    try t.expectEqual(@as(i32, 2), (Defense{ .enemy_carrier = true }).score());
+    try t.expect(!acceptsCapture(3, .red, false));
+    try t.expect(acceptsCapture(3, .red, true));
+    try t.expect(acceptsCapture(0, .blue, true));
+    try t.expect(!acceptsCapture(1, .blue, true));
+    try t.expect(!acceptsCapture(0, .spectator, true));
+    try t.expectEqual(@as(u8, 23), appearance(2, color(.red, 0)));
+    try t.expectEqual(@as(u8, 8), appearance(23, color(.blue, 0)));
+    try t.expectEqual(@as(u8, 4), appearance(1, color(.red, 5)));
+}
+
 pub const Objective = struct {
     team: Team,
+    color: u8 = 0,
     phase: enum { home, carried, dropped, planted, resetting } = .home,
     carrier: ?u32 = null,
     home: [3]f32,

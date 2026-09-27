@@ -3683,3 +3683,21 @@ multiplayer goals/interactions and release remain open. No engine or systematic 
 ran; no new gameplay identity/acceptance. A fresh asset manifest is required for the
 new boss tags and earth-crack decal. Continue the broad coding pass on the feature
 branch; preserve main, installed play, saves and the live service.
+
+## Sequence 266 — multiplayer-objectives-and-physical-controls (implementation checkpoint)
+
+Continues after pushed `de40f89`. CTF defense scoring, authored objective models/skins,
+carry attachments, character team skins, home settlement and capture rules are connected.
+Bots follow authored control links with key checks and physical use/touch/shoot input,
+yield narrow lanes, recover stolen flags and seek health/ammunition. Source contracts and
+native strategy limits are in `docs/native-acceptance.md`. Nharre reaper victim ownership
+now passes the general body-owner admission branch as well as the attack validation.
+
+All three modules link in `/tmp/dk3-runtime-266-multiplayer-consolidated-link.log`.
+The optional-return integration error remains in the first link log. New regression
+roots and converter checks are written, not executed; no scenario or broad suite ran.
+Fresh assets are required for explicit objective bindings, boss tags and the reaper
+mark. No verified gameplay build/asset identity or acceptance is added. Companion
+combat/pickups/navigation, campaign progression, complete multiplayer interactions and
+release remain open. Continue the broad coding pass before consolidated verification.
+Main, installation, saves and service preserved.

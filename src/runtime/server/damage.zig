@@ -92,6 +92,7 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
             session.respawn_ms = now + 1000;
             if (world.find(options.source)) |attacker| {
                 if (world.get(attacker, data.Session) catch null) |source| {
+                    try @import("ctf_scoring.zig").killed(world, entity, attacker);
                     source.score += if (attacker.index == entity.index or @import("../domain/multiplayer.zig").allied(session.*, source.*)) @as(i32, -1) else 1;
                 } else session.score -= 1;
             } else session.score -= 1;

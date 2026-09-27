@@ -235,6 +235,15 @@ pub fn validate(snapshot: *Loaded) !void {
             occupied[binding.slot] = true;
             if ((world.get(entity, data.Projectile) catch null) == null and (world.get(entity, data.Hammer) catch null) == null and (world.get(entity, data.Shockwave) catch null) == null and (world.get(entity, data.Nova) catch null) == null and (world.get(entity, data.Flashlight) catch null) == null and (world.get(entity, data.Zeus) catch null) == null and (world.get(entity, data.ZeusBolt) catch null) == null and (world.get(entity, data.Nightmare) catch null) == null and (world.get(entity, data.MetaRing) catch null) == null and (world.get(entity, data.MetaLaser) catch null) == null) try require(world, entity, .{data.Body});
         }
+        if (world.get(entity, data.Objective) catch null) |objective| {
+            try require(world, entity, .{ data.Body, data.Binding, data.MapObject });
+            if ((objective.team != .red and objective.team != .blue) or objective.color > 8 or ((objective.phase == .carried) != (objective.carrier != null)) or (objective.phase == .carried and objective.airborne) or (objective.phase == .home and objective.deadline != null)) return error.InvalidSavedObjective;
+            if (objective.carrier) |id| {
+                const carrier = world.find(id) orelse return error.InvalidSavedObjective;
+                try require(world, carrier, .{ data.Player, data.Session, data.Binding, data.Health });
+            }
+            for (objective.home ++ objective.angles ++ objective.velocity) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedObjective;
+        }
         if (world.get(entity, data.Exit) catch null) |exit| {
             if (exit.ending_started != null) {
                 const viewer = world.find(exit.ending_player) orelse return error.InvalidSavedEnding;
@@ -254,6 +263,8 @@ pub fn validate(snapshot: *Loaded) !void {
                     if (monitor.viewer != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
                 } else if (world.get(owner, data.Nightmare) catch null) |ritual| {
                     if (ritual.victim != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
+                } else if (world.get(owner, data.ActorAttack) catch null) |attack| {
+                    if (attack.attack != .nharre_reaper or attack.attack.nharre_reaper.released or attack.attack.nharre_reaper.target != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
                 } else {
                     const projectile = world.get(owner, data.Projectile) catch return error.InvalidSavedMotionOwner;
                     if (projectile.flight != .ballista or projectile.flight.ballista.victim != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;

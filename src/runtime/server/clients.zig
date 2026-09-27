@@ -169,6 +169,7 @@ pub const Clients = struct {
         const catalog = @import("appearance_catalog");
         const prior_appearance = session.appearance;
         session.appearance = @intCast(catalog.parse(@import("../engine/info.zig").get(info, "model") orelse "hiro/0") orelse 0);
+        if (session.team == .red or session.team == .blue) session.appearance = @import("../domain/multiplayer.zig").appearance(session.appearance, @import("multiplayer.zig").teamColor(world, session.team));
         if (prior_appearance % 3 != session.appearance % 3) session.pose = .{};
         const selection = catalog.entries[session.appearance];
         if (self.poses[session.appearance % 3] == null) {

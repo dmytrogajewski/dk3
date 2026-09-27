@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–265): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–266): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -192,7 +192,7 @@ Sequence-255 compatibility details and limitations:
   the reference contract. Armor/invulnerability now participate instead of being
   bypassed. Pickup/alarm/victory/return/tick sounds are class-mode selections; exact
   attenuation, heartbeat volume ramp and the layered polygon explosion remain open.
-  CTF/deathtag carrier attachment, skins and additional defensive bonuses still need work.
+  Sequence 266 connects CTF/deathtag carrier attachment, skins and additional defensive bonuses; their runtime qualification remains open.
 - Cryotech keeps separate 800 ms damage-pulse and 1500 ms particle lifetimes. Spray
   particles use the supplied atlas rectangle, color, spread and speed; post-half-second
   growth is elapsed-time based (60 units/second) instead of reference frame-count growth.
@@ -607,6 +607,46 @@ shared perception, freezes/restoration, actor attacks, summon visuals, dynamic s
 and the connected boss encounters on the consolidated build. Main, installation,
 saves and live service remain preserved.
 
+
+## Sequence 266 — multiplayer objectives and physical bot controls
+
+**Implemented; unverified.** CTF now awards reviewed base/flag/carrier/escort
+kill bonuses before objective release. Capture grants one team point regardless of a
+pad's deathtag points field; shared pads remain deathtag-only, matching CTF admission.
+Visibility uses opaque collision and the observer view offset. Objective hulls and
+standing/carry frames use the supplied flag contract. Home objectives settle under
+gravity, and return/capture restores the original spawn before settlement.
+
+CTF uses `a_ctf_flagl`, its authored color and body-skin mapping. Both flags and
+backpacks attach to each character's animated `ctf_flag` hardpoint. First-person
+carriers do not render their own back attachment. The model converter now packages
+eight explicit objective skins while preserving invisible helper surfaces. Current
+asset packages lack these bindings; the consolidated conversion is required.
+
+Bots seek a physically reachable use/touch/shoot control linked to the blocking mover,
+including forwarding relay chains and key requirements. They submit actual `use`
+client commands only after the current view trace reaches the control; shooting uses
+the ordinary weapon controller. This is native bot strategy, not claimed source AI
+parity. Bounded subgoal timeouts abandon unsuitable controls without changing puzzle
+rules. Safe lateral yielding prioritizes human teammates and deterministically chooses
+between bots. Goals prioritize recovering a stolen flag before an impossible capture,
+choose nearby capture pads, reject unavailable pickup routes, and seek needed health
+or ammunition. Dynamic route/mover, contested objective and network scenarios are unrun.
+
+Code review also repaired Nharre reaper victim ownership admission: the existing saved
+reaper test must pass through both the attack and body-owner validation paths. Its
+regression is written but unexecuted. New scoring, control-chain/lock/cycle and skin
+binding regressions are written and included in the intended roots, not yet run.
+
+A targeted three-module link passed in `/tmp/dk3-runtime-266-multiplayer-link-fixed.log`
+after correcting an optional error-union return; that compile failure remains in
+`/tmp/dk3-runtime-266-multiplayer-link.log`. The final coding checkpoint includes bot
+resupply and hazard rejection; all modules link in
+`/tmp/dk3-runtime-266-multiplayer-consolidated-link.log`. No
+engine, connected multiplayer/campaign, test-suite or reference-playback acceptance is
+added. Scoring, team changes, objective settlement/attachment, bot controls/yielding and
+Nharre restoration require consolidated replay. Main, installed game, saves and live
+service remain untouched.
 
 ## Remaining authored actor admission
 
