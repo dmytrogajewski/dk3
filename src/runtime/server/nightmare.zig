@@ -16,6 +16,7 @@ fn alive(world: *data.World, identity: u32) bool {
     return (world.get(target, data.Health) catch return false).current > 0;
 }
 pub fn frozen(world: *data.World, target: ecs.Entity) bool {
+    if (@import("nharre_reaper.zig").frozen(world, target)) return true;
     const body = world.get(target, data.Body) catch return false;
     const controller = world.find(body.motion_owner orelse return false) orelse return false;
     const ritual = world.get(controller, data.Nightmare) catch return false;

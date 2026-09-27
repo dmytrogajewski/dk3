@@ -29,6 +29,7 @@ pub fn shove(world: *data.World, target: ecs.Entity, owner: u32, direction: v.Ve
     if ((world.get(target, data.Player) catch null) == null and (world.get(target, data.Actor) catch null) == null) return;
     if (world.get(target, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .buboid and actor.buboid.invulnerable()) return;
     if (world.get(target, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .kage and actor.kage.invulnerable()) return;
+    if (world.get(target, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .nharre and actor.nharre.invulnerable()) return;
     if ((try world.get(target, data.Health)).current <= 0) return;
     const force = amount * try powerFactor(world, target, owner, now);
     const body = try world.get(target, data.Body);

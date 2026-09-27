@@ -28,6 +28,7 @@ pub const State = struct {
     garroth: catalog.garroth.State = .{},
     mikiko: catalog.mikiko.State = .{},
     medusa: catalog.medusa.State = .{},
+    nharre: catalog.nharre.State = .{},
     kage: catalog.kage.State = .{},
     ghost: catalog.ghost.State = .{},
     pain_ready_ms: i64 = 0,

@@ -18,6 +18,7 @@ pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, opti
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .lycanthir and actor.lycanthir.phase != .living and options.weapon != @import("weapon_catalog").silverclaw.id) return .{};
     if (world.get(entity, data.ActorAttack) catch null) |attack| if (attack.attack == .npc_wisp and attack.attack.npc_wisp.fading) return .{};
     if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .kage and actor.kage.invulnerable()) return .{};
+    if (world.get(entity, data.Actor) catch null) |actor| if (@import("actor_catalog").entries[actor.definition].kind == .nharre and actor.nharre.invulnerable()) return .{};
     const health = world.get(entity, data.Health) catch return .{};
     const participant = world.get(entity, data.Session) catch null;
     if (participant) |session| {

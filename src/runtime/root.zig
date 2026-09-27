@@ -38,6 +38,7 @@ test {
     _ = @import("server/damage.zig");
     _ = @import("server/actor_pain.zig");
     _ = @import("server/medusas.zig");
+    _ = @import("server/nharre_reaper.zig");
     _ = @import("weapon_catalog").character;
     _ = @import("domain/character.zig");
     _ = @import("weapon_catalog").gas;

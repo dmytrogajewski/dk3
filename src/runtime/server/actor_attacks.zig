@@ -5,6 +5,7 @@ const abi = @import("../engine/abi.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     switch ((try world.get(entity, data.ActorAttack)).attack) {
+        .nharre_reaper => try @import("nharre_reaper.zig").publish(world, entity, projections, now),
         .summon_effect => try @import("summon_effects.zig").publish(world, entity, projections, now),
         .fireball => try @import("actor_fireballs.zig").publish(world, entity, projections, now),
         .psyclaw_sphere => try @import("psyclaw_spheres.zig").publish(world, entity, projections, now),
@@ -26,6 +27,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (!world.alive(entity)) continue;
         const state = (world.get(entity, data.ActorAttack) catch continue).*;
         switch (state.attack) {
+            .nharre_reaper => try @import("nharre_reaper.zig").step(world, slots, projections, entity, now),
             .summon_effect => try @import("summon_effects.zig").step(world, slots, projections, entity, now),
             .fireball => try @import("actor_fireballs.zig").step(world, slots, projections, entity, now),
             .psyclaw_sphere => try @import("psyclaw_spheres.zig").step(world, slots, projections, entity, now),

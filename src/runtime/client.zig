@@ -41,6 +41,7 @@ fn shutdown() void {
     @import("client/wyndrax_actor.zig").reset();
     @import("client/actor_meteors.zig").reset();
     @import("client/summon_effects.zig").reset();
+    @import("client/nharre_reaper.zig").reset();
     @import("client/fx_particles.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
@@ -286,6 +287,10 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_MISSILE and entity.weapon == @import("weapon_catalog").metamaser.id) try @import("client/metamaser.zig").draw(entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now, &ref);
         if (entity.eType == c.ET_PLAYER and entity.number == client_number) {
             try @import("client/events.zig").loop(&game, entity, @import("engine/trajectory.zig").evaluate(entity.pos, now));
+            continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").nharre.reaper_tag) {
+            try @import("client/nharre_reaper.zig").draw(entity, now, &ref);
             continue;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").summon_effect.render_tag) {

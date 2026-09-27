@@ -16,7 +16,7 @@ fn sight(from: v.Vec3, to: v.Vec3, slot: u16, target: u16) !bool {
 fn eligible(world: *data.World, entity: ecs.Entity, now: i64) bool {
     if ((world.get(entity, data.Health) catch return false).current <= 0) return false;
     if (world.get(entity, data.Player) catch null) |player| {
-        if (player.mode != .normal) return false;
+        if (player.mode != .normal and !(player.mode == .frozen and @import("nharre_reaper.zig").frozen(world, entity))) return false;
     } else if ((world.get(entity, data.Companion) catch null) == null) return false;
     if (world.get(entity, data.Character) catch null) |character| if (character.invisible_until > now) return false;
     return true;

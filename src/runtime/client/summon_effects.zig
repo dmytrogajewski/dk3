@@ -25,5 +25,5 @@ pub fn draw(entity: c.entityState_t, now: i32, ref: *const c.refdef_t) !void {
     const right = if (entity.time2 != 0) axes.right else v.add(v.scale(ref.viewaxis[1], -@cos(roll)), v.scale(ref.viewaxis[2], @sin(roll)));
     const up = if (entity.time2 != 0) v.cross(axes.right, axes.forward) else v.add(v.scale(ref.viewaxis[1], @sin(roll)), v.scale(ref.viewaxis[2], @cos(roll)));
     const sprites = @import("sprites.zig");
-    sprites.drawPlane(try sprites.register(if (entity.weapon == 1) "models/global/e_flblue.sp2" else "models/global/e_flred.sp2"), 0, point, 1, false, v.scale(right, entity.angles2[0]), v.scale(up, entity.angles2[1]), .{ 255, 255, 255, @intFromFloat(std.math.clamp(entity.origin2[0], 0, 1) * 255) });
+    sprites.drawPlane(try sprites.register(if (entity.weapon == 1) "models/global/e_flblue.sp2" else "models/global/e_flred.sp2"), 0, point, 1, true, v.scale(right, entity.angles2[0]), v.scale(up, entity.angles2[1]), .{ 255, 255, 255, @intFromFloat(std.math.clamp(entity.origin2[0], 0, 1) * 255) });
 }

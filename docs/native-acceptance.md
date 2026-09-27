@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–264): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–265): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -43,7 +43,7 @@ release charged Hammer attacks. No live service,
 installed profile or user save has been changed. Networking and room flows are unrun
 on this candidate; earlier-runtime Internet acceptance does not transfer.
 
-Coding-pass blockers remain: missing authored actor controllers/abilities and boss
+Coding-pass work remains: the broader dynamic-actor/ability audit and connected boss
 progression, complete companion/cinematic progression, dynamic navigation/bot goals,
 complete player/multiplayer presentation, CTF/deathtag interaction parity and
 release integration. Unknown `monster_*` entities now fail admission with their
@@ -564,11 +564,60 @@ actor scripts, saved controllers, sword ownership and the new boss encounter on 
 consolidated build. Main, installed gameplay, saves and online service remain preserved.
 
 
+## Sequence 265 implementation checkpoint
+
+Nharre connects both authored casting sequences, all three ordinary summons and the
+reaper. Teleport points retain authoring order and the reference's final-point exclusion.
+The boss fades out, waits until its selected destination hull is clear, relocates, fades
+in and restarts its attack task; no extra dwell or alternative destination is inserted.
+Pain/cooldown and the shared summon deadline persist. Retreat follows the reviewed
+bounded outward node traversal, complete-hide checks and the historical pitch/yaw
+fallback, including its integer-resolution quirk and node cursor behavior. Normal
+movement, door use and reachability reuse native locomotion/navigation.
+
+The NPC reaper owns a separate saved controller from the player Nightmare weapon.
+It freezes one eligible victim, turns the view, delays appearance, strikes for the
+reviewed 50 damage, pushes players, and releases control on strike, interruption,
+owner death, victim death or removal. NPC velocity/collision mask and player view
+height restore explicitly. Other NPCs can still target a player under this specific
+freeze. Appearance audio, screams, flame, shrinking light, spiral particles, the
+jittered column and earth-crack mark are connected. Player bodies hide during the
+owned freeze. Private read-only source/contracts and supplied tables/models were
+reviewed; no private code or assets were admitted.
+
+Compatibility corrections cap the ten-point array and skip undefined empty-point
+teleports; reject failed/uninitialized or blocked summon placements; isolate dynamic
+summons from inherited boss death outputs; and prevent overlapping controllers from
+stealing a victim. Release restores view height and cleans up dead victims instead of
+retaining the reference's lost pointer/omitted restoration. Native navigation can differ
+from the original node pathfinder. The spiral and frame-driven flame use bounded fixed
+60 Hz cosmetic updates; exact particle atlas, attenuation, frame timing and visual
+comparison remain open. The shared summon flares now use the supplied additive sprite
+variant. Kage's Ghost and Nharre's Doombat begin their requested wake/flight poses at
+spawn. The earth-crack decal variant requires another asset rebuild, together with the
+sequence-263 attachment conversion.
+
+**Implemented; unverified.** All three modules link in
+`/tmp/dk3-runtime-265-nharre-consolidated-link.log`; the initial shadowed capture error
+is retained in `/tmp/dk3-runtime-265-nharre-link.log`. Teleport occupancy, release
+ownership, restored appearance/freeze boundaries and decal-admission regressions are
+written and unexecuted. No tests, engine scenarios, connected campaign/multiplayer or
+reference playback ran. No verified gameplay build/asset identity is added. Revalidate
+shared perception, freezes/restoration, actor attacks, summon visuals, dynamic spawns
+and the connected boss encounters on the consolidated build. Main, installation,
+saves and live service remain preserved.
+
+
 ## Remaining authored actor admission
 
-Read-only inspection of supplied BSP entity data (including monster factories/death
-spawns) still finds these unimplemented class at this checkpoint: Nharre. Kage and its script-created Ghost now have connected controllers; Nharre’s summoned reaper and the broader dynamic-class/boss-phase audit remain open.
-This inventory is a coding work list, not campaign-load or traversal acceptance.
+Read-only inspection of supplied BSP entity data finds no unregistered names in
+65 quoted `monster_*` strings, including factory/death-spawn values. Nharre and Kage
+now have controllers; the dynamically summoned Ghost has its separate controller.
+Firefly, Wisp and path-corner names use their existing native owners.
+Inventory: `/tmp/dk3-runtime-265-authored-classes.json`, local asset manifest
+`ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
+This inventory is not an engine run, full ability audit or campaign acceptance.
+Dynamic dependencies, task combinations and boss progression require the broader audit.
 
 ## Acceptance rules
 

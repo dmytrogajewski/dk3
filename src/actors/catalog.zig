@@ -19,6 +19,7 @@ pub const harpy = @import("harpy.zig");
 pub const dragon = @import("dragon.zig");
 pub const garroth = @import("garroth.zig");
 pub const medusa = @import("medusa.zig");
+pub const nharre = @import("nharre.zig");
 pub const kage = @import("kage.zig");
 pub const ghost = @import("ghost.zig");
 pub const summon_effect = @import("summon_effect.zig");
@@ -64,9 +65,9 @@ pub const thunderskeet = @import("thunderskeet.zig");
 pub const rockgat = @import("rockgat.zig");
 pub const crox = @import("crox.zig");
 pub const cambot = @import("cambot.zig");
-pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat, companion, ragemaster, skeleton, satyr, column, dwarf, lycanthir, spider, smallspider, cryotech, surgeon, labmonkey, inmater, lasergat, knight1, knight2, cerberus, piperat, plague_rat, shark, venomvermin, rotworm, centurion, fletcher, battleboar, rocketdude, rocketmp, thief, blackprisoner, whiteprisoner, femgang, sludgeminion, sealcaptain, sealcommando, sealgirl, uzigang, psyclaw, doombat, griffon, harpy, dragon, deathsphere, chaingang, buboid, wyndrax, garroth, stavros, mikiko, medusa, kage, ghost };
+pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat, companion, ragemaster, skeleton, satyr, column, dwarf, lycanthir, spider, smallspider, cryotech, surgeon, labmonkey, inmater, lasergat, knight1, knight2, cerberus, piperat, plague_rat, shark, venomvermin, rotworm, centurion, fletcher, battleboar, rocketdude, rocketmp, thief, blackprisoner, whiteprisoner, femgang, sludgeminion, sealcaptain, sealcommando, sealgirl, uzigang, psyclaw, doombat, griffon, harpy, dragon, deathsphere, chaingang, buboid, wyndrax, garroth, stavros, mikiko, medusa, kage, ghost, nharre };
 pub fn sequenceAttack(kind: Kind) bool {
-    return groundAttack(kind) or kind == .doombat or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or kind == .chaingang or kind == .buboid or kind == .wyndrax or kind == .garroth or kind == .stavros or kind == .mikiko or kind == .medusa or kind == .kage or kind == .ghost;
+    return groundAttack(kind) or kind == .doombat or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or kind == .chaingang or kind == .buboid or kind == .wyndrax or kind == .garroth or kind == .stavros or kind == .mikiko or kind == .medusa or kind == .kage or kind == .ghost or kind == .nharre;
 }
 pub fn groundAttack(kind: Kind) bool {
     return switch (kind) {
@@ -149,6 +150,7 @@ pub const entries = [_]Definition{
     .{ .classname = "monster_medusa", .kind = .medusa },
     .{ .classname = "monster_kage", .kind = .kage },
     .{ .classname = "monster_ghost", .kind = .ghost, .run = "flya", .death = "flya" },
+    .{ .classname = "monster_nharre", .kind = .nharre },
 };
 pub fn find(name: []const u8) ?u8 {
     for (entries, 0..) |entry, i| if (@import("std").mem.eql(u8, name, entry.classname)) return @intCast(i);
@@ -156,6 +158,7 @@ pub fn find(name: []const u8) ?u8 {
 }
 
 test {
+    _ = nharre;
     _ = kage;
     _ = ghost;
     _ = summon_effect;

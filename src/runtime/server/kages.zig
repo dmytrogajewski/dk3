@@ -216,6 +216,12 @@ fn protector(actors: *@import("actors.zig").Actors, world: *data.World, slots: *
     spawned.threat = actor.threat;
     spawned.threat_position = actor.threat_position;
     spawned.ghost.owner = try world.persistentId(entity);
+    if (actor.threat != 0) {
+        spawned.ghost.phase = .waking;
+        spawned.ghost.started_ms = now;
+        spawned.changed_ms = now;
+    }
+    try actors.publish(world, ghost, projections, now);
     try fx.flare(world, slots, projections, ghost, point, .{ 0.75, 5, 10 }, .{ 10, 5, 5 }, 1500, false, false, now);
     try fx.flare(world, slots, projections, ghost, v.add(point, .{ 0, 0, 18 }), .{ 10, 0.75, 5 }, .{ 5, 5, 10 }, 1100, false, false, now);
     try fx.smoke(world, slots, projections, ghost, v.add(point, .{ 0, 0, 18 }), now);

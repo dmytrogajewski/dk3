@@ -231,7 +231,7 @@ pub const Clients = struct {
         projection.state.modelindex = (try world.get(entity, data.Binding)).model;
         projection.state.angles2 = @splat(1);
         projection.state.dk3Team = ps.persistant[c.PERS_TEAM];
-        projection.shared.svFlags = if ((try world.get(entity, data.Player)).mode == .spectator) c.SVF_NOCLIENT else 0;
+        projection.shared.svFlags = if ((try world.get(entity, data.Player)).mode == .spectator or @import("nharre_reaper.zig").frozen(world, entity)) c.SVF_NOCLIENT else 0;
         projection.state.pos.trType = c.TR_INTERPOLATE;
         projection.state.pos.trBase = transform.position;
         projection.state.apos.trType = c.TR_INTERPOLATE;

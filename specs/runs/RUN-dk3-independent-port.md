@@ -3651,3 +3651,35 @@ converter requires a fresh asset identity for later engine acceptance. Kage, Nha
 dynamic Ghosts, remaining actor/script/companion phases, campaign traversal and all
 multiplayer/release acceptance remain open. Main, installation, saves and service are
 preserved. Continue implementing the remaining scope before systematic verification.
+
+
+## Sequence 264 — kage-ghosts-and-summon-effects (implementation checkpoint)
+
+Continues after `0f4fb5a` on the native rewrite branch. Kage and its dynamically
+summoned Ghosts now connect authored attacks, escape/recharge phases, damage/death,
+owner cleanup, presentation and persistence. The acceptance matrix records exact
+source contracts, narrow placement/cleanup corrections and remaining qualifications.
+New meaningful damage and restored-phase regressions are written, not executed.
+
+Three-module link: `/tmp/dk3-runtime-264-kage-consolidated-link.log`; the intermediate
+catalog name-shadow error remains recorded. No systematic test or engine scenario ran.
+Nharre/reaper, the broader actor/ability/script/companion audit and complete campaign,
+multiplayer and release outcomes remain open. Continue the same broad implementation
+pass before consolidated verification. Main, installation, saves and service preserved.
+
+
+## Sequence 265 — nharre-summons-teleports-and-reaper (implementation checkpoint)
+
+Continues after pushed `52b00f4`. Nharre now owns authored casting, ordinary summons,
+teleport/retreat and the NPC reaper lifecycle. Source contracts and narrow compatibility
+corrections are documented in the acceptance matrix. Shared freeze/perception and
+summon visuals are updated; new regressions remain unexecuted.
+
+All three modules link in `/tmp/dk3-runtime-265-nharre-consolidated-link.log`; the first
+shadowing failure is retained. Read-only BSP inventory finds no unregistered name in
+65 quoted monster strings (`/tmp/dk3-runtime-265-authored-classes.json`). This closes
+that inventory gap only. The dynamic ability/script/companion audit, campaign traversal,
+multiplayer goals/interactions and release remain open. No engine or systematic tests
+ran; no new gameplay identity/acceptance. A fresh asset manifest is required for the
+new boss tags and earth-crack decal. Continue the broad coding pass on the feature
+branch; preserve main, installed play, saves and the live service.

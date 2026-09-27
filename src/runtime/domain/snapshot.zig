@@ -336,6 +336,19 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
             if (attack.owner == 0 or attack.stepped_ms < attack.born_ms) return error.InvalidSavedActorAttack;
             switch (attack.attack) {
+                .nharre_reaper => |reaper| {
+                    try require(world, entity, .{data.Random});
+                    if (reaper.target == 0 or reaper.next_ms <= attack.stepped_ms or reaper.next_ms > attack.stepped_ms + 500 or (reaper.struck and !reaper.released) or !std.math.isFinite(reaper.previous_view_height) or reaper.previous_view_height < -64 or reaper.previous_view_height > 128) return error.InvalidSavedActorAttack;
+                    for (reaper.previous_velocity ++ reaper.look_angles ++ reaper.floor ++ reaper.ceiling ++ reaper.scorch ++ reaper.normal) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedActorAttack;
+                    if (reaper.appeared_ms) |at| if (at < attack.born_ms + 500 or at > attack.stepped_ms) return error.InvalidSavedActorAttack;
+                    if (!reaper.released) {
+                        const target = world.find(reaper.target) orelse return error.InvalidSavedActorAttack;
+                        try require(world, target, .{ data.Body, data.Velocity, data.Health, data.Transform, data.Binding });
+                        if ((world.get(target, data.Actor) catch null) == null and (world.get(target, data.Player) catch null) == null) return error.InvalidSavedActorAttack;
+                        if ((try world.get(target, data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedActorAttack;
+                        if (world.get(target, data.Player) catch null) |victim_player| if (victim_player.mode != .frozen and victim_player.mode != .dead) return error.InvalidSavedActorAttack;
+                    }
+                },
                 .summon_effect => |effect| {
                     for (effect.scale ++ effect.spin ++ [_]f32{ effect.alpha, effect.alpha_multiplier }) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedActorAttack;
                     if (effect.alpha < 0 or effect.alpha > 1 or effect.alpha_multiplier <= 0 or effect.alpha_multiplier > 1 or effect.expires_ms < attack.born_ms or effect.expires_ms > attack.born_ms + 2000 or effect.next_ms <= attack.stepped_ms or effect.next_ms > attack.stepped_ms + 100) return error.InvalidSavedActorAttack;
@@ -468,6 +481,10 @@ pub fn validate(snapshot: *Loaded) !void {
             for (actor.dragon.breath_direction) |coordinate| if (!std.math.isFinite(coordinate) or @abs(coordinate) > 1.001) return error.InvalidSavedActor;
             for (actor.medusa.retreat) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedActor;
             for (actor.wyndrax.destination ++ actor.wyndrax.start_position) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedActor;
+            if (!std.math.isFinite(actor.nharre.alpha) or actor.nharre.alpha < 0 or actor.nharre.alpha > 1 or actor.nharre.teleport_count > 10 or (!actor.nharre.teleports_ready and actor.nharre.teleport_count != 0)) return error.InvalidSavedActor;
+            if (actor.nharre.invulnerable() and actor.nharre.teleport_count == 0) return error.InvalidSavedActor;
+            for (actor.nharre.destination) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedActor;
+            for (actor.nharre.teleports) |point| for (point) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedActor;
             for ([_]f32{ actor.kage.alpha, actor.kage.base_health, actor.kage.health_fraction, actor.ghost.alpha }) |value| if (!std.math.isFinite(value)) return error.InvalidSavedActor;
             if (actor.kage.alpha < 0 or actor.kage.alpha > 1 or actor.kage.base_health <= 0 or actor.kage.base_health > 10000000 or actor.kage.health_fraction < 0 or actor.kage.health_fraction >= 1 or actor.kage.charges > 10 or actor.kage.escapes > 8 or actor.kage.protectors > 12 or actor.kage.return_steps > 5 or actor.kage.voice_pose > 2 or actor.ghost.alpha < 0 or actor.ghost.alpha > 1) return error.InvalidSavedActor;
             if (actor.kage.suspended) |phase| if (!actor.kage.recharging() or (phase != .smoke and phase != .hidden and phase != .returning)) return error.InvalidSavedActor;
@@ -995,4 +1012,27 @@ test "Kage interrupted smoke, Ghost wake and summon effects restore against one 
     try t.expectEqual(@as(i64, 10400), flare.expires_ms);
     (try loaded.world.get(loaded.world.find(3).?, data.Actor)).ghost.owner = 1;
     try t.expectError(error.InvalidSavedActor, validate(&loaded));
+}
+
+test "Nharre reaper restores the actual freeze owner and appearance boundary" {
+    const t = std.testing;
+    const catalog = @import("actor_catalog");
+    var world = data.World.init(t.allocator, 8);
+    defer world.deinit();
+    _ = try world.create(1, .{ data.Transform{}, data.Velocity{}, data.Player{ .mode = .frozen }, data.Body{ .motion_owner = 3 }, data.Binding{ .slot = 0 }, data.Health{}, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    _ = try world.create(2, .{ data.Transform{}, data.Velocity{}, data.Body{}, data.Health{ .current = 1000, .maximum = 1000 }, data.Hurt{}, data.Random{ .state = 2 }, data.Binding{ .slot = 64 }, data.MapObject{ .classname = "monster_nharre" }, data.Actor{ .definition = catalog.find("monster_nharre").?, .threat = 1 } });
+    _ = try world.create(3, .{ data.Transform{}, data.Velocity{}, data.Body{}, data.Random{ .state = 3 }, data.Binding{ .slot = 65 }, data.ActorAttack{ .owner = 2, .born_ms = 500, .stepped_ms = 1200, .attack = .{ .nharre_reaper = .{ .target = 1, .next_ms = 1300, .appeared_ms = 1000, .flame_next_ms = 1300, .previous_view_height = -2, .previous_mask = 1, .look_angles = .{ -25, 90, 0 } } } } });
+    var bytes: [65536]u8 = undefined;
+    const encoded = try capture(t.allocator, &bytes, &world, "e3m4c", 2, .{ .at_ms = 1200, .episode = 3, .player_id = 1, .next_id = world.next_id });
+    var loaded = try decode(t.allocator, encoded);
+    defer loaded.deinit(t.allocator);
+    try loaded.rebase(9000);
+    const reaper = (try loaded.world.get(loaded.world.find(3).?, data.ActorAttack)).attack.nharre_reaper;
+    try t.expectEqual(@as(?i64, 8800), reaper.appeared_ms);
+    try t.expectEqual(@as(i64, 9100), reaper.next_ms);
+    try t.expectEqual(@as(i64, 9100), reaper.flame_next_ms);
+    try t.expectEqual(@as(f32, -2), reaper.previous_view_height);
+    try t.expectEqual(@as(?u32, 3), (try loaded.world.get(loaded.world.find(1).?, data.Body)).motion_owner);
+    (try loaded.world.get(loaded.world.find(1).?, data.Body)).motion_owner = null;
+    try t.expectError(error.InvalidSavedActorAttack, validate(&loaded));
 }
