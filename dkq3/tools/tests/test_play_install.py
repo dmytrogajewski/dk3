@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import zipfile
+from unittest.mock import patch
 
 import play
 
@@ -66,3 +67,38 @@ class PlayInstallTest(unittest.TestCase):
             root = Path(temporary)
             with self.assertRaisesRegex(ValueError, 'zig build assets'):
                 play.install(root, root / 'absent')
+
+    def test_shared_hd_default_preserves_gameplay_and_local_overrides(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            prefix, assets = self.fixture(root)
+            shared = root / 'hd-textures/dkq3-textures_hd.pk3'
+            local = prefix / 'hd-textures/dkq3-textures_hd.pk3'
+            explicit = root / 'custom.pk3'
+
+            def publish():
+                play.install(prefix, assets, hd_textures_fallback=shared)
+                return (prefix / 'play/current').resolve()
+
+            stock = publish()  # A checkout without optional HD assets still works.
+            gameplay = json.loads((stock / 'share/dk3/compatibility.json').read_text())['gameplay']
+            overlay = 'share/dk3/zz-dk3-textures-hd.pk3'
+            self.assertFalse((stock / overlay).exists())
+            for source in (shared, local, explicit):
+                source.parent.mkdir(parents=True, exist_ok=True)
+                with zipfile.ZipFile(source, 'w') as archive:
+                    archive.writestr('textures/fixture/wall.png', str(source))
+                if source == explicit:
+                    play.install(prefix, assets, explicit, hd_textures_fallback=shared)
+                    installed = (prefix / 'play/current').resolve()
+                else:
+                    installed = publish()
+                self.assertEqual((installed / overlay).read_bytes(), source.read_bytes())
+                compatibility = json.loads((installed / 'share/dk3/compatibility.json').read_text())
+                self.assertEqual(compatibility['gameplay'], gameplay)
+                self.assertEqual(compatibility['cosmetic'], 'hd-textures-v1')
+            guard = root / 'dkguard'
+            guard.touch()
+            with patch('play.os.execv') as execute:
+                play.launch(prefix, guard, [])
+            self.assertEqual(execute.call_args.args[1][-3:], ['+set', 'r_picmip', '0'])

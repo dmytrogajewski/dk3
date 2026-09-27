@@ -23,7 +23,27 @@ is inferred from class counts or test volume.
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 233 native contracts include intermediate/reverse/final animation poses, discontinuities and dialogue surviving camera cuts | Sequence 294 real Escape → authored Marsh arrival → Escape → save/load/pause passes on both renderers; supplied Marsh loading art captured; factory monitor restoration and full e1m2a arrival replay pass | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
 
-## Sequence 294 — current presentation integration
+## Sequence 295 — default HD textures
+
+Plain `zig build play` now selects the admitted local HD image package from
+the build prefix or shared `zig-out/hd-textures` cache. An explicit
+`-Dhd-textures` package takes precedence. The isolated development installation
+is `d9159285c80cceffca37abbe0d5ab582d260967db4964b1a780c25cdd29740dc`,
+combined identity `2e0054e56e2893e26bdc08524ded2a47aa7c145bec9b413329e899dad10e4db5`.
+Native code, both renderers and gameplay asset identity are byte-identical to
+`a2f70c11…`; only the HD overlay and cosmetic compatibility field change.
+The base asset manifest remains `e7dbc256…` below.
+
+`runtime-zig-295/hd-default-repaired/` passes actual default-launcher admission
+to e1m1a, full resolution despite saved `r_picmip 2`, and 22 renderer image
+uploads matching the HD package dimensions above the original dimensions
+(for example `mossrk_02`: 1024×1024 versus 256×256). The capture is inspected.
+Six installer/media tests pass, including lookup precedence and unchanged
+gameplay compatibility. The first `hd-default/` setup exceeds the engine's
+32-startup-command limit and never loads the map; it is not acceptance.
+No campaign or complete visual-parity acceptance is transferred by this check.
+
+## Sequence 294 — presentation integration
 
 Latest repair installation:
 `a2f70c11a6a0395d5fc6041869f100394c3cf0eac41bac4b763b2f043ac0ba98`;

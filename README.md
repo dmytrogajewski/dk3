@@ -68,6 +68,10 @@ for a software-rendered test on a virtual display.
 Press **Escape** during a cinematic to skip it and continue its authored exit.
 Outside cinematics, Escape opens or closes the pause menu.
 
+HD textures are used at full resolution automatically when the local package is
+available in `zig-out/hd-textures` or the build prefix's `hd-textures` directory.
+See [HD texture setup](docs/getting-started.md) for package overrides.
+
 Native New Game, save/load and multiplayer menus are connected; their current
 acceptance is recorded in the matrix. Development uses an isolated prefix/profile
 and does not update the preserved game or saves.

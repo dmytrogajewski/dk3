@@ -13,6 +13,7 @@ pub fn declare(b: *std.Build, packages: assets.Assets, guard: *std.Build.Step.Co
     const prepare = b.addSystemCommand(&.{ packages.python, "-B" });
     prepare.addFileArg(b.path("dkq3/tools/play.py"));
     prepare.addArgs(&.{ "install", "--prefix", b.install_path, "--assets", packages.directory });
+    prepare.addArgs(&.{ "--hd-textures-fallback", b.pathFromRoot("zig-out/hd-textures/dkq3-textures_hd.pk3") });
     if (b.option([]const u8, "hd-textures", "Optional locally produced HD texture PK3")) |path| {
         prepare.addArgs(&.{ "--hd-textures", path });
     }

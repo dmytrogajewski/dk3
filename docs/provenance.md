@@ -268,3 +268,10 @@ an unused value; its server and client already share that policy constant. A
 catalog-wide uniqueness regression first fails on the real duplicate. This is
 an independent transport correction, with no authored behavior or private code
 changes. Native build identities continue rejecting mixed module installations.
+
+Sequence 295 reuses the HD image overlay already admitted locally in sequence
+183. Its 3564 texture PNGs remain outside Git; package SHA-256 is
+`d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+Native play now discovers that shared cache by default, with the existing
+image-only admission check. No reference runtime, source or additional asset
+corpus is imported. The gameplay package identity is unchanged.

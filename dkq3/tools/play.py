@@ -46,7 +46,7 @@ def checked_assets(directory):
     return manifest
 
 
-def install(prefix, assets, hd_textures=None):
+def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None):
     if not (assets / 'current' / 'manifest.json').is_file():
         raise ValueError(f'no completed asset generation in {assets}; run zig build assets '
                          '-DDK_DATA=/path/to/data -Dasset-profile=retail first, '
@@ -62,6 +62,8 @@ def install(prefix, assets, hd_textures=None):
     # Previously produced artwork is optional local input. Keep it outside the
     # gameplay asset identity so changing texture resolution preserves saves.
     hd = hd_textures or prefix / 'hd-textures' / 'dkq3-textures_hd.pk3'
+    if not hd_textures and not hd.is_file() and hd_textures_fallback:
+        hd = hd_textures_fallback
     if hd_textures or hd.is_file():
         with zipfile.ZipFile(hd) as archive:
             names = archive.namelist()
@@ -160,6 +162,7 @@ def main(argv=None):
     prepare.add_argument('--prefix', type=Path, required=True)
     prepare.add_argument('--assets', type=Path, required=True)
     prepare.add_argument('--hd-textures', type=Path, help='optional image-only HD texture package')
+    prepare.add_argument('--hd-textures-fallback', type=Path, help='shared local HD package used when the build prefix has none')
     run = sub.add_parser('launch')
     run.add_argument('--prefix', type=Path, required=True)
     run.add_argument('--dkguard', required=True)
@@ -169,7 +172,8 @@ def main(argv=None):
         prefix = arguments.prefix.resolve(strict=True)
         if arguments.command == 'install':
             if extra: parser.error('unexpected installation arguments: ' + ' '.join(extra))
-            install(prefix, arguments.assets.resolve(), arguments.hd_textures)
+            install(prefix, arguments.assets.resolve(), arguments.hd_textures,
+                    hd_textures_fallback=arguments.hd_textures_fallback)
         else:
             launch(prefix, arguments.dkguard, extra[1:] if extra[:1] == ['--'] else extra, arguments.headless)
         return 0

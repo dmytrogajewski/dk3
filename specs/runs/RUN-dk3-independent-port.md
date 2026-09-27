@@ -5796,3 +5796,32 @@ completed manifest required by the installer's preflight. Adding its synthetic
 manifest repairs the fixture; production validation is unchanged. Before/after
 logs are retained as `runtime-zig-294/aggregate-before.log` and
 `aggregate-passed.log`.
+
+## Sequence 295 — default-hd-textures
+
+The owner requests HD textures by default. Native `play-install` previously
+looked only under its new prefix, overlooking the already admitted shared local
+package. The build now supplies the shared cache as a fallback; selection order
+is explicit `-Dhd-textures`, prefix-local package, then shared package. Missing
+optional HD data retains original textures. Existing image-only validation and
+the full-resolution launcher setting remain active. The admitted overlay
+contains 3564 PNG images, SHA-256
+`d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+
+`zig build play-install --summary all` passes and publishes `d9159285…`.
+Six focused installer/media tests pass; they verify default fallback, local and
+explicit precedence, unchanged gameplay compatibility and the launcher's
+`r_picmip 0`. Actual manifest comparison against `a2f70c11…` changes only the
+overlay and `compatibility.json` cosmetic field; engine, runtime, gameplay
+assets, saved-game identity and preserved installation remain unchanged.
+
+The guarded actual launcher check uses an isolated profile with saved
+`r_picmip 2`. `hd-default-repaired/` reaches e1m1a with processed input, observes
+`r_picmip 0`, and checks 22 rendered image upload dimensions against the HD and
+original packages. A rock texture uploads at 1024×1024 instead of 256×256.
+The rendered capture is inspected. The initial `hd-default/` driver duplicates
+too many startup settings and exceeds the engine's 32-command admission limit;
+it never loads the requested map and is retained as invalid setup. The repaired
+driver uses fewer arguments and the actual `dk3config.cfg` filename. Evidence:
+`zig-out/reports/runtime-zig-295/`; exact identities are in native acceptance.
+This is HD selection/rendering acceptance, not campaign completion.

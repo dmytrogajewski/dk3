@@ -44,11 +44,13 @@ This selects `zig-out/native-dev/play/current`. Settings live under `zig-out/nat
 native saves live under `zig-out/native-dev/play/state/dk3/saves`. Presentation and campaign
 verification are still in progress; see the [opening repair record](../specs/bugs/BUG-opening-presentation-and-combat.md).
 
-An existing locally generated HD package at
-`zig-out/native-dev/hd-textures/dkq3-textures_hd.pk3` is included by `play-install` automatically.
-Use `-Dhd-textures=/path/to/package.pk3` to supply one elsewhere. The launcher selects
+HD textures are enabled by default when the locally generated package exists.
+`play-install` checks `zig-out/native-dev/hd-textures/dkq3-textures_hd.pk3` first,
+then the shared cache at `zig-out/hd-textures/dkq3-textures_hd.pk3`.
+Use `-Dhd-textures=/path/to/package.pk3` to override both. The launcher selects
 full texture resolution when this overlay is installed; `+set r_picmip 1` can override it.
-The package stays local and contains texture images only.
+The package stays local and contains texture images only. Without an HD package,
+the supplied original textures are used.
 
 For a brighter or darker image, open **Video**, adjust **Brightness**, then choose
 **Apply**. Higher values brighten textures; 1.0 is neutral. Applying reloads the video
