@@ -6,7 +6,7 @@ import re
 import shutil
 import time
 
-from runtime_opening_route import actors, walk
+from runtime_opening_route import actors, fight, walk
 from runtime_probe import wait
 
 
@@ -38,7 +38,13 @@ def resupply(driver, identity):
         tree = world_rows(driver, "tree")[identity]
         if int(tree["fruit"]) == 0:
             break
-        aim_at(driver, tree["pos"])
+        state = aim_at(driver, tree["pos"])
+        eye = (state["pos"][0], state["pos"][1], state["pos"][2] + 22)
+        if math.dist(eye, tree["pos"]) > 96:
+            raise RuntimeError(f"Tree {identity} is outside the observed use reach: {tree['pos']}")
+        trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
+        if int(re.search(r"target=(\d+)", trace)[1]) != identity:
+            raise RuntimeError(f"Tree {identity} use line is obstructed: {trace}")
         driver.until(lambda s: s["now"] >= int(tree["ready"]), description="health tree ready for use")
         before_health = driver.observe()["health"]
         before = len(driver.text())
@@ -58,6 +64,21 @@ def checkpoint(driver, capture, report, name):
     save = driver.save(name)
     shutil.copy2(save, report / save.name)
     capture(name)
+
+
+def clear_close_attackers(driver, capture):
+    deadline = time.monotonic() + 12
+    while time.monotonic() < deadline:
+        state = driver.observe()
+        nearby = [row for row in actors(driver).values()
+                  if row["class"] == "monster_slaughterskeet" and row["health"] > 0
+                  and row["threat"] != "0" and math.dist(row["pos"], state["pos"]) < 220]
+        if not nearby:
+            return
+        if state["health"] < 25:
+            raise RuntimeError("Insufficient health to stop at the control with active close attackers")
+        fight(driver, capture, "e1m1b")
+    raise TimeoutError("Close skeets remain at the authored control; inspect the combat driver")
 
 
 def shoot_control(driver, capture, identity, removed_actor):
@@ -88,11 +109,70 @@ def shoot_control(driver, capture, identity, removed_actor):
     raise RuntimeError(f"Control {identity} did not break within the observed shot budget")
 
 
+def clear_ford(driver, capture, report):
+    if driver.observe()["water"] != 0:
+        raise RuntimeError("Ford firing position is not on dry land")
+    checkpoint(driver, capture, report, "bridge_ford_bank")
+    contacts = []
+    for identity in (387, 419):
+        for shot in range(18):
+            row = actors(driver)[identity]
+            if row["health"] <= 0:
+                break
+            state = driver.ready(2)
+            if state["ammo"] <= 0 or state["health"] <= 0:
+                raise RuntimeError("Ford engagement exhausted ordinary supplies")
+            deadline = time.monotonic() + 6
+            while math.hypot(*row["velocity"][:2]) > 10 or (row["ground"] == "2047" and abs(row["velocity"][2]) > 10):
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(f"Crox {identity} did not present a stable shot from the bank")
+                row = actors(driver)[identity]
+            # Supplied Crox hull ends eight units above its origin. Aim at the
+            # visible upper body so the water-surface blast remains near it.
+            aim_at(driver, (row["pos"][0], row["pos"][1], row["pos"][2] + 7))
+            trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
+            match = re.search(r"target=(\d+)", trace)
+            if not match or int(match[1]) != identity:
+                raise RuntimeError(f"Crox {identity} firing lane changed before the shot: {trace}")
+            previous = row
+            driver.fire()
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline:
+                row = actors(driver)[identity]
+                if row["health"] < previous["health"]:
+                    break
+            else:
+                capture(f"ford-no-contact-{identity}-{shot}")
+                raise RuntimeError(f"No observed Ion damage to Crox {identity}; inspect water contact")
+            contacts.append({"target": identity, "before": previous["health"], "after": row["health"], "water": previous["crox_water"]})
+        if actors(driver)[identity]["health"] > 0:
+            raise RuntimeError(f"Crox {identity} survived the ford engagement budget")
+        checkpoint(driver, capture, report, f"bridge_crox_{identity}_cleared")
+    driver.inputs.append({"ford_contacts": contacts})
+
+
+def pond_ammunition(driver, capture, report):
+    before = driver.select(2)["ammo"]
+    for point in ((-624, -648, 664), (-398, -649, 633), (-192, -704, 640), (-112, -624, 640)):
+        walk(driver, point, capture, combat=True, tolerance=20)
+    if driver.select(2)["ammo"] <= before:
+        raise RuntimeError("First turret pond ammunition was not collected")
+    checkpoint(driver, capture, report, "bridge_pond_ammo")
+    for point in ((-192, -704, 640), (-398, -649, 633), (-624, -648, 664), (-720, -580, 664)):
+        walk(driver, point, capture, combat=True)
+
+
 def bridge_route(driver, capture, report, phase="bridge-arrival"):
-    state = driver.ready(2)
+    state = driver.select(2)
     if state["map"] != "e1m1b" or state["skill"] != 3 or state["health"] <= 0:
         raise RuntimeError(f"Invalid ordinary bridge checkpoint: {state}")
     try:
+        if phase == "bridge-supplies":
+            return bridge_span(driver, capture, report)
+        if phase == "bridge-boss":
+            return bridge_battle(driver, capture, report)
+        if phase == "bridge-health":
+            pond_ammunition(driver, capture, report)
         # Supplied ground-node route around the river; player movement still has
         # to negotiate every ledge and collision in the running authored map.
         for index, point in enumerate(((-445, -1430, 536), (-302, -1314, 581),
@@ -102,43 +182,194 @@ def bridge_route(driver, capture, report, phase="bridge-arrival"):
                 (-1406, -914, 474), (-1510, -914, 424), (-1640, -904, 408),
                 (-1768, -888, 411), (-1904, -808, 408), (-2040, -680, 415),
                 (-2072, -520, 470), (-2080, -464, 496))):
-            if index < {"bridge-arrival": 0, "bridge-control": 2, "bridge-river": 5, "bridge-ford": 11}[phase]:
+            if index < {"bridge-arrival": 0, "bridge-control": 2, "bridge-river": 5, "bridge-health": 6, "bridge-ford": 11}[phase]:
                 continue
             walk(driver, point, capture, combat=True)
+            if index == 11:
+                clear_ford(driver, capture, report)
             if index == 5:
                 before_health = driver.observe()["health"]
-                walk(driver, (-720, -580, 688), capture, combat=True)
+                walk(driver, (-720, -580, 664), capture, combat=True, tolerance=20)
                 state = driver.observe()
                 if state["health"] < min(100, before_health + 25):
                     raise RuntimeError("Health pickup was not confirmed; inspect concurrent combat and touch")
                 checkpoint(driver, capture, report, "bridge_health_pickup")
+                pond_ammunition(driver, capture, report)
             if index == 2:
+                clear_close_attackers(driver, capture)
                 checkpoint(driver, capture, report, "bridge_first_control")
                 shoot_control(driver, capture, 91, 92)
-                for supply_point in ((-119, -1044, 646), (-187, -881, 664), (40, -848, 664), (147, -690, 664)):
-                    walk(driver, supply_point, capture, combat=True)
-                resupply(driver, 139)
-                checkpoint(driver, capture, report, "bridge_east_tree")
-                before_ammo = driver.observe()["ammo"]
-                walk(driver, (-112, -624, 664), capture, combat=True)
-                if driver.observe()["ammo"] <= before_ammo:
-                    raise RuntimeError("First turret room ammunition pickup was not confirmed")
-                for supply_point in ((-192, -704, 640), (-350, -777, 633), (-432, -880, 664)):
-                    walk(driver, supply_point, capture, combat=True)
-                checkpoint(driver, capture, report, "bridge_east_supplies")
             if index in (4, 10, 17):
                 checkpoint(driver, capture, report, f"bridge_river_{index}")
         uses = resupply(driver, 110)
         checkpoint(driver, capture, report, "bridge_tree")
-        before_ammo = driver.observe()["ammo"]
+        before_ammo = driver.select(2)["ammo"]
         for point in ((-2253, -612, 489), (-2341, -419, 526), (-2272, -328, 496), (-2224, -328, 496)):
-            walk(driver, point, capture, combat=True)
-        state = driver.observe()
+            walk(driver, point, capture, combat=True, tolerance=20)
+        state = driver.select(2)
         if state["ammo"] <= before_ammo:
             raise RuntimeError("Ordinary route did not collect authored Ion ammunition")
         checkpoint(driver, capture, report, "bridge_supplies")
-        return {"scope": "Ordinary bridge arrival through river approach, health-tree use and ammo pickup. Bridge encounter and later traversal remain unverified.", "health_tree": uses, "state": state}
+        return {"scope": "Ordinary bridge arrival through river approach, health-tree use and ammo pickup.", "health_tree": uses, "state": state, "span": bridge_span(driver, capture, report)}
     except Exception as error:
         capture("bridge-failure")
         (report / "bridge-failure.json").write_text(json.dumps({"error": str(error), "state": driver.observe(), "actors": actors(driver)}, indent=2) + "\n")
         raise
+
+
+def bridge_span(driver, capture, report):
+    control_visible = False
+    for point in ((-2240, -256, 496), (-2184, -92, 479), (-2288, 48, 472), (-2411, 148, 472)):
+        walk(driver, point, capture, combat=True)
+        control = world_rows(driver, "destructible")[86]
+        aim_at(driver, control["center"])
+        trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
+        match = re.search(r"target=(\d+)", trace)
+        if match and int(match[1]) == 86:
+            control_visible = True
+            shoot_control(driver, capture, 86, 85)
+            checkpoint(driver, capture, report, "bridge_west_control")
+            break
+    if not control_visible:
+        raise RuntimeError("West turret control has no confirmed firing lane from the approach")
+    for index, point in enumerate(((-2487, 360, 472), (-2640, 463, 490), (-2687, 607, 532),
+            (-2679, 743, 528), (-2608, 944, 528), (-2384, 864, 472), (-2272, 836, 472),
+            (-2120, 784, 472), (-1972, 712, 472), (-1973, 581, 471), (-1969, 396, 517),
+            (-1973, 294, 557), (-1953, 198, 604), (-1834, 5, 705), (-1800, -84, 774),
+            (-1775, -174, 823), (-1659, -218, 824), (-1591, -51, 863), (-1568, 159, 899),
+            (-1705, 306, 961), (-1798, 463, 980), (-1751, 665, 986))):
+        walk(driver, point, capture, combat=True)
+        if index in (4, 12, 17):
+            checkpoint(driver, capture, report, f"bridge_climb_{index}")
+    for point in ((-1648, 816, 984), (-1616, 752, 984)):
+        walk(driver, point, capture, combat=True, tolerance=20)
+    checkpoint(driver, capture, report, "bridge_before_span")
+    for point in ((-1563, 622, 988), (-1420, 640, 984), (-1280, 640, 984),
+                  (-1120, 640, 984), (-1010, 640, 984), (-930, 640, 984)):
+        walk(driver, point, capture, combat=True)
+    sequence = world_rows(driver, "sequence")[70]
+    if int(sequence["start"]) <= 0 or int(sequence["cursor"].split("/")[0]) == 0:
+        raise RuntimeError("Ordinary bridge crossing did not activate its authored timeline")
+    deadline = time.monotonic() + 20
+    while time.monotonic() < deadline:
+        state = driver.observe()
+        if state["health"] <= 0:
+            raise RuntimeError("Player died during bridge destruction and actor entrance")
+        rows = actors(driver)
+        boss = next((row for row in rows.values() if row["unique"] == "tskeet"), None)
+        pieces = world_rows(driver, "destructible")
+        if boss and all(pieces[identity]["broken"] == "1" for identity in (80, 81, 82)):
+            break
+    else:
+        raise RuntimeError("Bridge destruction or authored boss creation did not complete")
+    checkpoint(driver, capture, report, "bridge_boss_arrival")
+    return {"scope": "Ordinary west turret control, climb and bridge timeline activation.",
+            "arrival": driver.observe(), "battle": bridge_battle(driver, capture, report)}
+
+
+def bridge_battle(driver, capture, report):
+    driver.select(2)
+    state = driver.observe()
+    if state["pos"][2] > 900:
+        # The east door ledge is narrower than a spray blast. Descend to the
+        # supplied arena-bank route before provoking the heavy flier.
+        for point in ((-950, 800, 984), (-1150, 800, 520), (-1350, 800, 520), (-1496, 799, 521)):
+            walk(driver, point, capture, combat=True)
+        if driver.observe()["water"] >= 2:
+            raise RuntimeError("Arena firing position is submerged; inspect the bank route")
+        checkpoint(driver, capture, report, "bridge_arena_bank")
+    deadline = time.monotonic() + 100
+    last_contact = time.monotonic()
+    contacts = []
+    waves = set()
+    northward = True
+
+    def evade():
+        nonlocal northward
+        state = driver.observe()
+        if state["pos"][1] > 1250:
+            northward = False
+        elif state["pos"][1] < 880:
+            northward = True
+        y = state["pos"][1] + (140 if northward else -140)
+        x = -1496 + (y - 799) * 163 / 548
+        walk(driver, (x, y, 521), capture, tolerance=32)
+        if driver.observe()["water"] >= 2:
+            raise RuntimeError("Evasive arena route entered deep water")
+
+    while time.monotonic() < deadline:
+        state = driver.observe()
+        if state["map"] != "e1m1b" or state["health"] <= 0:
+            raise RuntimeError("Bridge battle interrupted by death or an unexpected transition")
+        rows = actors(driver)
+        bosses = [(identity, row) for identity, row in rows.items() if row["unique"] == "tskeet"]
+        if len(bosses) != 1:
+            raise RuntimeError("Bridge battle requires exactly one authored boss")
+        identity, boss = bosses[0]
+        waves.update(row["unique"].lower() for row in rows.values()
+                     if re.fullmatch(r"skeet[1-5][ab]", row["unique"].lower()))
+        if boss["health"] <= 0:
+            break
+        if state["ammo"] <= 0:
+            raise RuntimeError("Bridge battle exhausted the collected Ion ammunition")
+        # Address close ordinary skeets before stopping to aim at the heavy flier.
+        if fight(driver, capture, "e1m1b"):
+            last_contact = time.monotonic()
+            evade()
+            continue
+        if driver.inputs[-1].get("aim_obstruction"):
+            evade()
+            continue
+        if time.monotonic() - last_contact > 15:
+            capture("boss-no-firing-lane")
+            raise RuntimeError("No productive boss firing window; inspect navigation and actor behavior")
+        if math.dist(boss["velocity"], (0, 0, 0)) > 1 or boss["sight"] != "1":
+            continue
+        driver.ready(2)
+        aim_at(driver, boss["aim"])
+        trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
+        if int(re.search(r"target=(\d+)", trace)[1]) != identity:
+            continue
+        if int(re.search(r"flight_target=(\d+)", trace)[1]) not in (0, identity):
+            evade()
+            continue
+        previous = boss["health"]
+        fired = driver.fire()
+        contact_deadline = time.monotonic() + 2
+        while time.monotonic() < contact_deadline:
+            boss = actors(driver)[identity]
+            if boss["health"] < previous:
+                last_contact = time.monotonic()
+                contacts.append({"before": previous, "after": boss["health"], "fire": fired["fire"]})
+                if boss["health"] > 0:
+                    evade()
+                break
+        else:
+            capture("boss-shot-missed")
+            raise RuntimeError("Boss moved out of the firing lane; revise aim before spending more ammunition")
+    else:
+        raise TimeoutError("Bridge boss survived the bounded battle")
+    if len(waves) != 10 or not contacts:
+        raise RuntimeError("Boss death does not establish the complete authored ten-skeet entrance")
+    checkpoint(driver, capture, report, "bridge_boss_defeated")
+    driver.load("bridge_boss_defeated")
+    restored = next(row for row in actors(driver).values() if row["unique"] == "tskeet")
+    if restored["health"] > 0:
+        raise RuntimeError("Boss death did not survive save/load")
+    # The death target opens the authored north door. Walking through its actual
+    # collision and touching the exit establishes more than a dispatched event.
+    for point in ((-1010, 820, 984), (-1120, 1030, 520), (-1333, 1347, 509),
+                  (-1331, 1415, 543), (-1314, 1510, 591), (-1314, 1578, 625),
+                  (-1270, 1700, 661), (-1047, 1676, 664), (-900, 1600, 664)):
+        walk(driver, point, capture, combat=True)
+    checkpoint(driver, capture, report, "bridge_before_exit")
+    aim_at(driver, (-760, 1600, 686))
+    driver.issue("+forward")
+    try:
+        arrival = driver.until(lambda s: s["map"] == "e1m1c" and s["mode"] == "normal",
+                               seconds=20, description="authored bridge exit into e1m1c")
+    finally:
+        driver.stop_forward()
+    checkpoint(driver, capture, report, "factory_arrival")
+    return {"scope": "Bridge boss damage/death restoration and ordinary traversal through its death-opened door into e1m1c.",
+            "waves": sorted(waves), "contacts": contacts, "state": arrival}

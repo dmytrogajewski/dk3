@@ -7,13 +7,27 @@ from runtime_opening_route import firing_pause
 
 
 class NativeInputTests(unittest.TestCase):
+    def test_save_and_load_refusals_end_the_wait_without_claiming_completion(self):
+        driver = NativeInput(None, None, None, None, [])
+        for action in (driver.save, driver.load):
+            with self.subTest(action=action.__name__), patch.object(driver, "text", return_value="prior\n"), \
+                 patch.object(driver, "issue"), patch("runtime_input.wait", return_value="prior\nSave/load refused: CannotSaveDeadPlayer\n") as wait:
+                with self.assertRaisesRegex(RuntimeError, "Save/load refused"):
+                    action("encounter")
+                self.assertTrue(wait.call_args.args[2]("prior\nSave/load refused: CannotSaveDeadPlayer\n"))
+
     def test_firing_window_excludes_expiring_attacks_and_hatching(self):
-        row = {"class": "monster_slaughterskeet", "skeeter": "attack", "velocity": (0, 0, 0), "attack_left": "599"}
+        row = {"state": "attack", "class": "monster_slaughterskeet", "skeeter": "attack", "velocity": (0, 0, 0), "attack_left": "599"}
         self.assertFalse(firing_pause(row))
         row["attack_left"] = "900"
         self.assertTrue(firing_pause(row))
         row["skeeter"] = "hatching"
         self.assertFalse(firing_pause(row))
+        row["state"] = "idle"
+        self.assertFalse(firing_pause(row))
+        row["skeeter"] = "chase"
+        self.assertTrue(firing_pause(row))
+        row["state"] = "attack"
         row.update({"class": "monster_froginator", "frog": "bite", "ground": "2046", "velocity": (0, 0, -40)})
         self.assertTrue(firing_pause(row))
         row["ground"] = "2047"

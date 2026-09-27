@@ -109,7 +109,12 @@ def run(args):
                 if args.opening:
                     from runtime_opening_route import opening_route
                     opening = opening_route(driver, capture, args.report, args.checkpoint_phase)
-                (args.report / "result.json").write_text(json.dumps({"identity": identity, "checkpoint": str(args.checkpoint) if args.checkpoint else None, "scope": ("Development replay from a legitimate checkpoint through e1m1a arrival/save/load. Not fresh campaign acceptance." if args.checkpoint else "New Game through all intro shots and e1m1a arrival cinematic, ordinary inventory, normal difficulty, arrival save/load. Connected e1m1a combat/bridge/e1m1c/e1m2a traversal not yet exercised."), "state": state, "opening": opening}, indent=2) + "\n")
+                result = {"identity": identity, "checkpoint": str(args.checkpoint) if args.checkpoint else None,
+                          "scope": ("Development replay from a legitimate checkpoint; never fresh campaign acceptance."
+                                    if args.checkpoint else "Ordinary New Game, normal difficulty and full intro; only the recorded connected route is exercised."),
+                          "intro_shots": sorted(intro_shots), "arrival": state, "final_state": driver.observe(),
+                          "opening": opening, "complete_opening_milestone": False}
+                (args.report / "result.json").write_text(json.dumps(result, indent=2) + "\n")
                 driver.issue("quit")
                 if process.wait(timeout=15) != 0:
                     raise RuntimeError("Campaign shutdown failed")
@@ -119,7 +124,11 @@ def run(args):
                     ui.close()
                 if process.poll() is None:
                     process.terminate()
-                    process.wait(timeout=15)
+                    try:
+                        process.wait(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
 
 
 def main():
@@ -128,7 +137,7 @@ def main():
     parser.add_argument("--prefix", type=Path, default=Path("zig-out/native-dev"))
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--opening", action="store_true", help="Continue with ordinary-input opening route development")
-    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle", "marsh-late", "marsh-exit", "bridge-arrival", "bridge-control", "bridge-river", "bridge-ford"), default="arrival")
+    parser.add_argument("--checkpoint-phase", choices=("arrival", "first-encounter", "marsh-middle", "marsh-late", "marsh-exit", "bridge-arrival", "bridge-control", "bridge-river", "bridge-health", "bridge-ford", "bridge-supplies", "bridge-boss"), default="arrival")
     parser.add_argument("--checkpoint-map", choices=("intro", "e1m1a", "e1m1b"), default="intro")
     parser.add_argument("--checkpoint", type=Path, help="Legitimate checkpoint for development replay; never fresh campaign acceptance")
     args = parser.parse_args()

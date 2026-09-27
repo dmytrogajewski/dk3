@@ -4,6 +4,26 @@ const std = @import("std");
 pub const model = "models/e1/healthtree.dkm";
 pub const sounds = [_][]const u8{ "e1/t_use1.wav", "e1/t_use2.wav" };
 pub const regen_sound = "e1/t_regen.wav";
+/// Toss contact removes the normal velocity and settles on a supporting floor.
+/// A tree must not keep accelerating down walkable slopes like a sliding actor.
+pub fn contact(velocity: [3]f32, normal: [3]f32) [3]f32 {
+    var dot: f32 = 0;
+    for (velocity, normal) |speed, axis| dot += speed * axis;
+    var result: [3]f32 = undefined;
+    for (&result, velocity, normal) |*out, speed, axis| {
+        out.* = speed - axis * dot;
+        if (@abs(out.*) < 0.1) out.* = 0;
+    }
+    return if (normal[2] > 0.7 and result[2] < 60) @splat(0) else result;
+}
+
+test "health trees settle on slopes while wall and steep contacts preserve tangential fall" {
+    try std.testing.expectEqual([3]f32{ 0, 0, 0 }, contact(.{ 0, 0, -40 }, .{ 0.6, 0, 0.8 }));
+    try std.testing.expectEqual([3]f32{ 0, 0, 0 }, contact(.{ 0, 0, -40 }, .{ 0, 0, 1 }));
+    try std.testing.expectEqual([3]f32{ 0, 10, -40 }, contact(.{ -100, 10, -40 }, .{ 1, 0, 0 }));
+    const steep = contact(.{ 0, 0, -40 }, .{ 0.8, 0, 0.6 });
+    try std.testing.expect(steep[0] > 0 and steep[2] < 0);
+}
 pub const State = struct {
     maximum: u3 = 5,
     fruit: u3 = 5,

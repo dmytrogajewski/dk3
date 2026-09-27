@@ -25,7 +25,7 @@ class NativeInput:
                    "dk3_runtime_observe", "dk3_runtime_actors", "dk3_runtime_world",
                    "dk3_runtime_projectiles", "dk3_runtime_beams", "dk3_runtime_ion_aim", "quit"}
         buttons = {sign + name for sign in ("+", "-") for name in
-                   ("forward", "back", "moveleft", "moveright", "moveup", "movedown", "attack")}
+                   ("forward", "back", "moveleft", "moveright", "moveup", "movedown", "attack", "speed")}
         if not self.diagnostic and (verb not in allowed | buttons or ";" in command or "\n" in command):
             raise ValueError(f"Command is outside ordinary campaign input: {command}")
         self.inputs.append({"command": command, "synchronization": "observed state"})
@@ -79,7 +79,7 @@ class NativeInput:
         self.issue(f"weapon {weapon}")
         return self.ready(weapon)
 
-    def stop_forward(self):
+    def stop_forward(self, *, settle_vertical=False):
         """Release acknowledgement precedes physical stopping under friction."""
         self.issue("-forward")
         previous = self.until(lambda s: s["forward"] == 0, description="processed forward release")
@@ -95,7 +95,7 @@ class NativeInput:
             elapsed = state["cmd"] - previous["cmd"]
             if elapsed < 50:
                 return False
-            distance = sum((state["pos"][i] - previous["pos"][i]) ** 2 for i in range(2)) ** 0.5
+            distance = sum((state["pos"][i] - previous["pos"][i]) ** 2 for i in range(3 if settle_vertical else 2)) ** 0.5
             previous = state
             return state["forward"] == 0 and distance * 1000 / elapsed < 1
 
@@ -133,7 +133,10 @@ class NativeInput:
     def save(self, slot):
         before = len(self.text())
         self.issue(f"save {slot}")
-        wait(self.process, self.log, lambda text: "dk3 zig: world saved" in text[before:], 10)
+        result = wait(self.process, self.log, lambda text: "dk3 zig: world saved" in text[before:]
+                      or "Save/load refused:" in text[before:], 10)[before:]
+        if "Save/load refused:" in result:
+            raise RuntimeError(next(line for line in result.splitlines() if "Save/load refused:" in line))
         path = self.home / f"state/dk3/saves/{slot}.sav"
         if not path.exists() or not path.read_bytes().startswith(b"DK3SAVE"):
             raise RuntimeError(f"Save completion did not produce a native save: {slot}")
@@ -142,8 +145,10 @@ class NativeInput:
     def load(self, slot):
         before = len(self.text())
         self.issue(f"load {slot}")
-        wait(self.process, self.log, lambda text: "saved world restored" in text[before:] and
-             "dk3 zig client: restoration applied" in text[before:], 15)
+        result = wait(self.process, self.log, lambda text: ("saved world restored" in text[before:] and
+             "dk3 zig client: restoration applied" in text[before:]) or "Save/load refused:" in text[before:], 15)[before:]
+        if "Save/load refused:" in result:
+            raise RuntimeError(next(line for line in result.splitlines() if "Save/load refused:" in line))
         return self.until(lambda _: True, description="restored input processing")
 
 

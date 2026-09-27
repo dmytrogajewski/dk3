@@ -3331,3 +3331,50 @@ later-admitted actors. River combat, bridge destruction/combat/death outputs, e1
 connected death/reload and visited-world persistence remain open, along with the whole
 remaining campaign/multiplayer/release scope. Current compact matrix is
 `docs/native-acceptance.md`; the historical journal is not aggregate acceptance.
+
+
+## runtime-zig — sequence 252 (river resupply and connected bridge activation)
+
+A connected river run found tree 110 displaced from (-2032,-432,496) to roughly
+(-1896,-1248,408). Shared actor slide motion kept accelerating this stationary toss
+object down a walkable slope. Reviewed private contracts: healthtree.cpp class uses
+MOVETYPE_TOSS, rotated eight-unit XY hull and z[-24,8]; P_CheckGround probes 0.5 down
+and accepts normal.z >= 0.7; P_Physics_Toss clips with unit overbounce and settles
+floor contact below vertical speed 60. Native implementation independently applies
+this contract in the health-tree adapter and class-owned contact policy. No shared
+actor movement changes or source/runtime imports. Pushed/tree-moving permutations
+remain unqualified. Existing saves preserve their recorded positions; no save repair
+or hidden position reset is used to claim the corrected result.
+
+| Scenario | State | Evidence / limits |
+|---|---|---|
+| Old sloped tree drift | Failed meaningful regression | `runtime-zig-252/tree-before/`, identity `35d1e516f54aca675bf7230a64f4364c23dfd6f513ea43405ebc1322d3f1e260`; after four seconds tree 110 is (-1884.614,-1240.284,408.126). The position assertion fails. |
+| Repaired flat/sloped settlement and restoration | Passed focused | `tree-after/`, identity `a2335b58fb0761ca4ac551e49a172da257c49e554508340270f623104369131b`. Stable fresh worlds before/after save/load, actual ten-health use and partial fruit restore. Placement and health fixture only for use. |
+| Ordinary river combat | Passed narrow segments, earlier routes fail later | `bridge-healthy-ammo/` and `bridge-upper-contact/`, same repaired identity. Pond ammo increases by 50; actual Ion contacts kill submerged Crox 387 and 419. A corpse obscured the centre visibility test; the upper-body crosshair trace establishes the actual lane. |
+| Tree, ammo, west control, climb and bridge timeline | Passed connected segment | `bridge-active-defense/`, same identity, legitimate preceding Crox checkpoint. Kills river-side attackers, five observed tree uses (15→25,24→34,34→44,44→54,53→63; poison between uses), two authored Ion packs, control 86 breaks/removes turret 85, upper health supplies, ordinary bridge crossing destroys pieces 80/81/82 and creates boss. Final health83/ammo124. Not fresh campaign; boss combat/death exit still unverified. |
+| Integrated checks | Passed | `/tmp/dk3-runtime-252-aggregate-fixed.log`: 241 Zig + 52 Python, formatting and three modules. ReleaseSafe product/Debug test assertions enabled, separately imported test roots execute. Initial aggregate caught an incomplete driver actor-state fixture; repaired fixture also rejects idle hatching. |
+
+Driver changes address observed failures: true walking speed for close pickup contact;
+physical arrival recheck; stopped diagnostic time excluded from movement failure;
+actual held-fire events include the release acknowledgement; no firing while submerged
+with Ion when the starting Disruptor can reach. The unsafe low-health disengagement
+strategy was removed after it let nearby enemies kill the player before resupply.
+Stationary visible idle enemies can be engaged; hatching/expiring attack windows are
+excluded. Driver safety bounds remain distinct from gameplay rules. No damage, geometry,
+enemy health or puzzle semantics changed. Failed attempts preserve their logs/captures.
+
+Bridge boss/door/e1m1c route is implemented in the driver, not accepted yet. The compact
+matrix remains docs/native-acceptance.md. The complete fresh New Game→intro→e1m1a→
+bridge→e1m1c→e1m2a gate, connected death/reload and visited persistence remain open;
+all later campaign, companions, multiplayer and release requirements remain in scope.
+
+Sequence-252 boss follow-ups remain failed routes: `bridge-boss-battle/` first stops
+when corpse 907 intercepts the muzzle lane to live 901; `bridge-boss-clear-lane/`
+steps aside but dies to four actual world-contact splash blasts on the narrow ledge;
+`bridge-arena-route/` stops at a submerged intermediate waypoint and dies during
+failure capture. No successful battle or exit inferred. Driver now observes first
+flight obstruction, recognizes explicit save/load refusal, and implements sustained
+swimming ascent from actual water/height state; these latest route refinements await
+replay. Nine focused input tests pass in `/tmp/dk3-runtime-252-driver-final.log`.
+A bounded kill fallback prevents temporary engine shutdown delay from hiding the
+original scenario error. Installed game/saves/service and main remain unchanged.

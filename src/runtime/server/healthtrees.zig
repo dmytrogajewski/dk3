@@ -79,19 +79,37 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = occupant orelse continue;
         const tree = world.get(entity, data.HealthTree) catch continue;
         if (tree.regenerate(now, respawn())) try @import("events.zig").sound(world, slots, projections, policy.regen_sound, (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
-        const body = (try world.get(entity, data.Body)).*;
+        const body = try world.get(entity, data.Body);
         const pose = try world.get(entity, data.Transform);
         const velocity = try world.get(entity, data.Velocity);
-        var motion: @import("../domain/slide.zig").State = .{ .position = pose.position, .velocity = velocity.linear };
+        const slot = (try world.get(entity, data.Binding)).slot;
+        const collision = engine.collisionService();
         var remaining = elapsed;
         while (remaining > 0) {
             const milliseconds = @min(remaining, 50);
             remaining -= milliseconds;
-            var movement: @import("../domain/slide.zig").Context = .{ .service = engine.collisionService(), .mins = body.mins, .maxs = body.maxs, .slot = (try world.get(entity, data.Binding)).slot, .mask = body.collision_mask, .delta = @as(f32, @floatFromInt(milliseconds)) * 0.001, .gravity = 800 };
-            _ = try movement.move(&motion);
+            body.grounded = false;
+            if (velocity.linear[2] <= 100) {
+                const floor = try collision.trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, -0.5 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+                if (!floor.start_solid and !floor.all_solid and floor.fraction < 1 and floor.normal[2] >= 0.7) {
+                    pose.position = floor.end;
+                    velocity.linear[2] = 0;
+                    body.grounded = true;
+                }
+            }
+            const seconds = @as(f32, @floatFromInt(milliseconds)) * 0.001;
+            velocity.linear[2] -= 800 * seconds;
+            const hit = try collision.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+            if (hit.start_solid or hit.all_solid) {
+                velocity.linear = @splat(0);
+                break;
+            }
+            pose.position = hit.end;
+            if (hit.fraction < 1) {
+                velocity.linear = policy.contact(velocity.linear, hit.normal);
+                body.grounded = hit.normal[2] > 0.7 and velocity.linear[2] == 0;
+            }
         }
-        pose.position = motion.position;
-        velocity.linear = motion.velocity;
         try publish(world, entity, projections, now);
     }
 }
