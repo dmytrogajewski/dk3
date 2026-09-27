@@ -78,6 +78,8 @@ pub const Actors = struct {
             .blackprisoner, .whiteprisoner => &catalog.prisoners.attacks,
             .femgang => &catalog.femgang.attacks,
             .centurion, .fletcher => &catalog.archers.attacks,
+            .sealcaptain, .sealcommando, .sealgirl, .uzigang => &catalog.gunners.attacks,
+            .sludgeminion => &catalog.sludge.attacks,
             .rotworm => &catalog.rotworm.attacks,
             .venomvermin => &catalog.vermin.attacks,
             .shark => &catalog.shark.attacks,
@@ -103,7 +105,7 @@ pub const Actors = struct {
             definition.attacks[i] = try animation.find(metadata, attack) orelse return error.MissingActorAttack;
             if ((policy.kind == .spider or policy.kind == .smallspider) and i == 0) definition.attacks[i].fps *= 2;
             if (policy.kind == .satyr and i >= 3) continue;
-            if (policy.kind == .surgeon) continue;
+            if (policy.kind == .surgeon or (policy.kind == .sludgeminion and i == 3)) continue;
             const row = try self.event(policy.classname, attack);
             definition.attack_sounds[i] = row.field("sound1") orelse "";
             definition.second_attack_sounds[i] = row.field("sound2") orelse "";
@@ -117,6 +119,7 @@ pub const Actors = struct {
             if (second < 0 or second > @as(f32, @floatFromInt(definition.attacks[i].last - definition.attacks[i].first))) return error.InvalidActorStrike;
             definition.second_strikes[i] = if (second > 0) @intFromFloat(second) else null;
             if (policy.kind == .venomvermin and (i == 1 or i == 3)) definition.second_strikes[i] = @intFromFloat(second);
+            if (policy.kind == .uzigang or ((policy.kind == .sealcaptain or policy.kind == .sealgirl) and i == 1)) definition.second_strikes[i] = @intFromFloat(second);
             if (policy.kind == .rocketmp and i != 1) definition.second_strikes[i] = @intFromFloat(second);
             if (policy.kind == .blackprisoner or policy.kind == .whiteprisoner) definition.second_strikes[i] = @intFromFloat(second);
             definition.attack_sound_ms[i] = @intFromFloat(try row.number("frame1", 0) * 1000 / @as(f32, @floatFromInt(definition.attacks[i].fps)));
@@ -125,7 +128,7 @@ pub const Actors = struct {
             definition.pain[0] = try animation.find(metadata, "hita");
             definition.pain[1] = try animation.find(metadata, "hitb");
         }
-        if (policy.kind == .dwarf or policy.kind == .lycanthir or policy.kind == .knight1 or policy.kind == .knight2 or policy.kind == .plague_rat or policy.kind == .fletcher or policy.kind == .battleboar or policy.kind == .rocketdude or policy.kind == .thief or policy.kind == .blackprisoner or policy.kind == .whiteprisoner or policy.kind == .femgang) definition.death_b = try animation.find(metadata, "dieb") orelse return error.MissingActorDeath;
+        if (policy.kind == .dwarf or policy.kind == .lycanthir or policy.kind == .knight1 or policy.kind == .knight2 or policy.kind == .plague_rat or policy.kind == .fletcher or policy.kind == .battleboar or policy.kind == .rocketdude or policy.kind == .thief or policy.kind == .blackprisoner or policy.kind == .whiteprisoner or policy.kind == .femgang or policy.kind == .sealcaptain or policy.kind == .sealcommando or policy.kind == .sealgirl or policy.kind == .uzigang) definition.death_b = try animation.find(metadata, "dieb") orelse return error.MissingActorDeath;
         if (policy.kind == .femgang) definition.alternate_idle = try animation.find(metadata, "ambb") orelse return error.MissingFemgangIdle;
         if (policy.kind == .battleboar) definition.pain_c = try animation.find(metadata, "hitc") orelse return error.MissingBoarPain;
         if (policy.kind == .skeleton) {
@@ -233,7 +236,7 @@ pub const Actors = struct {
         const policy = catalog.entries[actor.definition];
         const hatching = policy.kind == .protopod and (actor.pod.phase == .opening or actor.pod.phase == .shell) or policy.kind == .skeeter and actor.skeeter.phase == .hatching;
         const sequence = if (actor.mode == .dead and actor.death_pose != null) actor.death_pose.? else if (actor.reaction != null and actor.mode != .dead) actor.reaction.? else if (catalog.groundAttack(policy.kind) and actor.melee.active) definition.attacks[actor.melee.pose] else if (policy.kind == .crox and actor.mode == .dead and actor.crox.death_b) definition.death_b else if (policy.kind == .crox and actor.mode != .attack and actor.mode != .dead and actor.scripted_pose == null) if (actor.crox.swimming) definition.swim else if (actor.crox.wandering) definition.walk else if (actor.mode == .chase) definition.run else definition.idle else if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_pose.? else if (hatching) definition.hatch else switch (actor.mode) {
-            .idle => if (policy.kind == .femgang and actor.femgang.idle_b) definition.alternate_idle else definition.idle,
+            .idle => if (policy.kind == .femgang and actor.femgang.idle_b) definition.alternate_idle else if (policy.kind == .sludgeminion and actor.sludge.idle_scoop) definition.attacks[2] else definition.idle,
             .flee, .chase => if (actor.path != 0 and actor.moving_pose != null) actor.moving_pose.? else definition.run,
             .attack => definition.attacks[if (catalog.groundAttack(policy.kind)) actor.melee.pose else if (policy.kind == .crox) actor.crox.pose else if (policy.kind == .froginator) actor.frog.pose() else actor.guard.pose],
             .reload => definition.reload,
@@ -301,13 +304,20 @@ pub const Actors = struct {
                     pose.angles[0] = 0;
                     actor.rotworm.phase = .ground;
                 }
-                if (catalog.entries[actor.definition].kind == .dwarf or catalog.entries[actor.definition].kind == .knight1 or catalog.entries[actor.definition].kind == .knight2 or catalog.entries[actor.definition].kind == .plague_rat or catalog.entries[actor.definition].kind == .fletcher or catalog.entries[actor.definition].kind == .battleboar or catalog.entries[actor.definition].kind == .thief or catalog.entries[actor.definition].kind == .femgang) actor.death_pose = if ((try world.get(entity, data.Random)).next() < 0.5) self.table.definitions[actor.definition].death else self.table.definitions[actor.definition].death_b;
+                if (catalog.entries[actor.definition].kind == .dwarf or catalog.entries[actor.definition].kind == .knight1 or catalog.entries[actor.definition].kind == .knight2 or catalog.entries[actor.definition].kind == .plague_rat or catalog.entries[actor.definition].kind == .fletcher or catalog.entries[actor.definition].kind == .battleboar or catalog.entries[actor.definition].kind == .thief or catalog.entries[actor.definition].kind == .femgang or catalog.entries[actor.definition].kind == .sealcaptain or catalog.entries[actor.definition].kind == .sealcommando or catalog.entries[actor.definition].kind == .sealgirl) actor.death_pose = if ((try world.get(entity, data.Random)).next() < 0.5) self.table.definitions[actor.definition].death else self.table.definitions[actor.definition].death_b;
                 if (catalog.entries[actor.definition].kind == .blackprisoner or catalog.entries[actor.definition].kind == .whiteprisoner) actor.death_pose = if (hurt.amount < 20 or (try world.get(entity, data.Random)).next() < 0.3) self.table.definitions[actor.definition].death else self.table.definitions[actor.definition].death_b;
                 actor.evasion.until_ms = null;
                 if (catalog.entries[actor.definition].kind == .rocketdude) if (world.find(hurt.source)) |attacker| {
                     const dot = v.dot(v.basis(pose.angles).forward, v.normalize(v.subtract((try world.get(attacker, data.Transform)).position, pose.position)));
                     actor.death_pose = if (dot > 0.707) self.table.definitions[actor.definition].death_b else self.table.definitions[actor.definition].death;
                 };
+                if (catalog.entries[actor.definition].kind == .uzigang) {
+                    actor.death_pose = self.table.definitions[actor.definition].death_b;
+                    if (hurt.amount > 10) if (world.find(hurt.source)) |attacker| {
+                        const dot = v.dot(v.basis(pose.angles).forward, v.normalize(v.subtract((try world.get(attacker, data.Transform)).position, pose.position)));
+                        if (dot > 0.707) actor.death_pose = self.table.definitions[actor.definition].death;
+                    };
+                }
                 if (catalog.entries[actor.definition].kind == .crox) actor.crox.death_b = (try world.get(entity, data.Random)).next() >= 0.5;
                 if (catalog.entries[actor.definition].kind == .skeleton) if (world.find(hurt.source)) |attacker| {
                     const facing = v.dot(v.basis(pose.angles).forward, v.normalize(v.subtract((try world.get(attacker, data.Transform)).position, pose.position)));
@@ -417,6 +427,8 @@ pub const Actors = struct {
                     .battleboar => try @import("battleboars.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                     .rocketdude => try @import("rocketgang.zig").think(&self.water_routes, world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                     .centurion, .fletcher => try @import("archers.zig").think(&self.water_routes, world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
+                    .sealcaptain, .sealcommando, .sealgirl, .uzigang => try @import("gunners.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
+                    .sludgeminion => try @import("sludgeminions.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                     .rotworm => try @import("rotworms.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                     .venomvermin => try @import("vermin.zig").think(&self.water_routes, world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now),
                     .shark => try @import("sharks.zig").think(self, world, slots, projections, entity, &actor, &pose, now),

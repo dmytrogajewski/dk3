@@ -14,6 +14,8 @@ pub const State = struct {
     thief: catalog.thief.State = .{},
     prisoner: catalog.prisoners.State = .{},
     femgang: catalog.femgang.State = .{},
+    sludge: catalog.sludge.State = .{},
+    gunner: catalog.gunners.State = .{},
     evasion: catalog.evasion.State = .{},
     battleboar: catalog.battleboar.State = .{},
     rocketmp: catalog.rocketmp.State = .{},
@@ -80,6 +82,7 @@ pub const Definition = struct {
     thief_knife: catalog.weapon.Tuning = .{},
     prisoner_rock: catalog.weapon.Tuning = .{},
     alternate_idle: animation.Sequence = .{},
+    sludge_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
     boar_weapons: [2]catalog.weapon.Tuning = @splat(.{}),
     mp_rockets: [2]catalog.weapon.Tuning = @splat(.{}),
     gang_rockets: [2]catalog.weapon.Tuning = @splat(.{}),
@@ -221,6 +224,11 @@ pub const Table = struct {
             if (catalog.entries[id].kind == .blackprisoner or catalog.entries[id].kind == .whiteprisoner) {
                 entry.prisoner_rock = try catalog.weapon.Tuning.parse(row, "weapon2_");
                 if (entry.prisoner_rock.speed <= 0) return error.InvalidPrisonerRock;
+            }
+            if ((catalog.entries[id].kind == .sealcaptain or catalog.entries[id].kind == .sealgirl) and entry.range <= 256) return error.InvalidGunnerShotgun;
+            if (catalog.entries[id].kind == .sludgeminion) {
+                entry.sludge_weapons = .{ try catalog.weapon.Tuning.parse(row, "weapon1_"), try catalog.weapon.Tuning.parse(row, "weapon2_") };
+                for (entry.sludge_weapons) |glob| if (glob.speed <= 0) return error.InvalidSludgeGlob;
             }
             if (catalog.entries[id].kind == .battleboar) {
                 entry.boar_weapons = .{ try catalog.weapon.Tuning.parse(row, "weapon1_"), try catalog.weapon.Tuning.parse(row, "weapon2_") };

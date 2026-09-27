@@ -13,5 +13,7 @@ pub const State = struct {
         rotworm_spit: @import("actor_catalog").rotworm.Spit,
         shaft: @import("actor_catalog").shafts.Shaft,
         prisoner_rock: @import("actor_catalog").prisoners.Rock,
+        sludge_glob: @import("actor_catalog").sludge.Glob,
+        gunner_burst: @import("actor_catalog").gunners.Burst,
     },
 };

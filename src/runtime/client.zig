@@ -204,6 +204,16 @@ fn draw(now: i32) !void {
             @import("client/sprites.zig").draw(glow, 0, origin, 1, true, &ref);
             _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &origin, engine.floatArg(175), engine.floatArg(0.65), engine.floatArg(0.35), engine.floatArg(0.35) });
         }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").gunners.render_tag) {
+            try @import("client/gunner_bursts.zig").draw(&game, entity, snapshot.entities[0..@intCast(snapshot.numEntities)], now);
+            continue;
+        }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").sludge.render_tag) {
+            const origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
+            const glow = try @import("client/sprites.zig").register(@import("actor_catalog").sludge.glow);
+            @import("client/sprites.zig").draw(glow, 0, origin, 2, true, &ref);
+            _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &origin, engine.floatArg(300), engine.floatArg(0.5), engine.floatArg(1), engine.floatArg(0.5) });
+        }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").missiles.render_tag) {
             const origin = @import("engine/trajectory.zig").evaluate(entity.pos, now);
             const kind = std.enums.fromInt(@import("actor_catalog").missiles.Kind, entity.weapon) orelse return error.InvalidActorMissile;

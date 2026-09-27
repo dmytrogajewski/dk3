@@ -11,16 +11,9 @@ const policy = @import("actor_catalog").rotworm;
 const lifecycle = @import("weapon_entities.zig");
 pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     const random = try world.get(owner, data.Random);
-    const origin = @import("actor_aim.zig").muzzle(pose, tuning.offset);
-    const axes = v.basis(pose.angles);
-    const right_spread = tuning.spread[0] * random.next() * (if (random.next() < 0.5) @as(f32, -1) else 1);
-    const up_spread = tuning.spread[1] * random.next() * (if (random.next() < 0.5) @as(f32, -1) else 1);
-    var point = v.add((try world.get(target, data.Transform)).position, v.add(v.scale(axes.right, right_spread), v.scale(v.cross(axes.right, axes.forward), up_spread)));
-    if (world.get(target, data.Player) catch null) |player| if (player.ducked) {
-        const body = (try world.get(target, data.Body)).*;
-        point[2] -= (body.maxs[2] - body.mins[2]) * 0.65;
-    };
-    const direction = v.normalize(v.subtract(point, origin));
+    const aim = try @import("actor_aim.zig").direct(world, target, pose, tuning, random);
+    const origin = aim.origin;
+    const direction = aim.direction;
     const start = v.add(origin, .{ 0, 0, 10 });
     const amount = tuning.damage + random.next() * tuning.random_damage;
     const entity = try world.create(null, .{

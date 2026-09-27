@@ -309,6 +309,17 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
             if (attack.owner == 0 or attack.stepped_ms < attack.born_ms) return error.InvalidSavedActorAttack;
             switch (attack.attack) {
+                .gunner_burst => |burst| {
+                    if (burst.next_ms <= attack.stepped_ms or burst.tuning.damage < 0 or burst.tuning.damage > 1000000 or burst.tuning.random_damage < 0 or burst.tuning.random_damage > 1000000 or burst.tuning.range <= 0 or burst.tuning.range > 65536) return error.InvalidSavedActorAttack;
+                    for (burst.tuning.offset) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1024) return error.InvalidSavedActorAttack;
+                    for (burst.tuning.spread) |axis| if (!std.math.isFinite(axis) or axis < 0 or axis > 8192) return error.InvalidSavedActorAttack;
+                    if (burst.kind == .commando and burst.shots >= 5) return error.InvalidSavedActorAttack;
+                    if (burst.next_ms - attack.stepped_ms > (if (burst.kind == .shotgun) @as(i64, 200) else @import("actor_catalog").gunners.burst_tick_ms)) return error.InvalidSavedActorAttack;
+                },
+                .sludge_glob => |glob| {
+                    if (glob.damage <= 0 or glob.damage > 1000000 or glob.contacts > 1 or attack.stepped_ms > attack.born_ms + 3000) return error.InvalidSavedActorAttack;
+                    for (glob.spin) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 360) return error.InvalidSavedActorAttack;
+                },
                 .prisoner_rock => |rock| {
                     if (rock.damage <= 0 or rock.damage > 1000000 or attack.stepped_ms > attack.born_ms + 3000) return error.InvalidSavedActorAttack;
                 },
@@ -383,6 +394,7 @@ pub fn validate(snapshot: *Loaded) !void {
                 if (shot.remaining == 0 or shot.remaining > 5) return error.InvalidSavedRockgatBurst;
             };
             try require(world, entity, .{ data.Velocity, data.Body, data.Health, data.Hurt, data.Binding, data.MapObject });
+            if (!std.math.isFinite(actor.sludge.ammo) or @abs(actor.sludge.ammo) > 1000000) return error.InvalidSavedActor;
             if (@import("actor_catalog").find((try world.get(entity, data.MapObject)).classname) != actor.definition) return error.InvalidSavedActorClass;
             if (actor.lycanthir.phase != .living and (@import("actor_catalog").entries[actor.definition].kind != .lycanthir or actor.lycanthir.wake_ms < actor.lycanthir.started_ms and actor.lycanthir.phase == .collapsed)) return error.InvalidSavedResurrection;
         }

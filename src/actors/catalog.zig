@@ -13,6 +13,8 @@ pub const rocketgang = @import("rocketgang.zig");
 pub const missiles = @import("missiles.zig");
 pub const shafts = @import("shafts.zig");
 pub const archers = @import("archers.zig");
+pub const gunners = @import("gunners.zig");
+pub const sludge = @import("sludge.zig");
 pub const rotworm = @import("rotworm.zig");
 pub const vermin = @import("vermin.zig");
 pub const shark = @import("shark.zig");
@@ -42,10 +44,10 @@ pub const thunderskeet = @import("thunderskeet.zig");
 pub const rockgat = @import("rockgat.zig");
 pub const crox = @import("crox.zig");
 pub const cambot = @import("cambot.zig");
-pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat, companion, ragemaster, skeleton, satyr, column, dwarf, lycanthir, spider, smallspider, cryotech, surgeon, labmonkey, inmater, lasergat, knight1, knight2, cerberus, piperat, plague_rat, shark, venomvermin, rotworm, centurion, fletcher, battleboar, rocketdude, rocketmp, thief, blackprisoner, whiteprisoner, femgang };
+pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat, companion, ragemaster, skeleton, satyr, column, dwarf, lycanthir, spider, smallspider, cryotech, surgeon, labmonkey, inmater, lasergat, knight1, knight2, cerberus, piperat, plague_rat, shark, venomvermin, rotworm, centurion, fletcher, battleboar, rocketdude, rocketmp, thief, blackprisoner, whiteprisoner, femgang, sludgeminion, sealcaptain, sealcommando, sealgirl, uzigang };
 pub fn groundAttack(kind: Kind) bool {
     return switch (kind) {
-        .ragemaster, .skeleton, .satyr, .column, .dwarf, .lycanthir, .spider, .smallspider, .cryotech, .labmonkey, .inmater, .lasergat, .knight1, .knight2, .cerberus, .piperat, .plague_rat, .shark, .venomvermin, .rotworm, .centurion, .fletcher, .battleboar, .rocketdude, .rocketmp, .thief, .blackprisoner, .whiteprisoner, .femgang => true,
+        .ragemaster, .skeleton, .satyr, .column, .dwarf, .lycanthir, .spider, .smallspider, .cryotech, .labmonkey, .inmater, .lasergat, .knight1, .knight2, .cerberus, .piperat, .plague_rat, .shark, .venomvermin, .rotworm, .centurion, .fletcher, .battleboar, .rocketdude, .rocketmp, .thief, .blackprisoner, .whiteprisoner, .femgang, .sludgeminion, .sealcaptain, .sealcommando, .sealgirl, .uzigang => true,
         else => false,
     };
 }
@@ -104,6 +106,11 @@ pub const entries = [_]Definition{
     .{ .classname = "monster_blackprisoner", .kind = .blackprisoner },
     .{ .classname = "monster_whiteprisoner", .kind = .whiteprisoner },
     .{ .classname = "monster_femgang", .kind = .femgang },
+    .{ .classname = "monster_sludgeminion", .kind = .sludgeminion },
+    .{ .classname = "monster_sealcaptain", .kind = .sealcaptain },
+    .{ .classname = "monster_sealcommando", .kind = .sealcommando },
+    .{ .classname = "monster_sealgirl", .kind = .sealgirl },
+    .{ .classname = "monster_uzigang", .kind = .uzigang },
 };
 pub fn find(name: []const u8) ?u8 {
     for (entries, 0..) |entry, i| if (@import("std").mem.eql(u8, name, entry.classname)) return @intCast(i);
@@ -138,6 +145,8 @@ test {
     _ = shark;
     _ = vermin;
     _ = rotworm;
+    _ = sludge;
+    _ = gunners;
     _ = archers;
     _ = missiles;
     _ = battleboar;

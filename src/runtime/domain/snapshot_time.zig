@@ -155,6 +155,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.born_ms, delta);
             try shift(&value.stepped_ms, delta);
             switch (value.attack) {
+                .gunner_burst => |*burst| try shift(&burst.next_ms, delta),
                 .shaft => |*shaft| try deadline(&shaft.contact_ms, delta),
                 .rocket => |*rocket| try shift(&rocket.next_ms, delta),
                 .knight_flame => |*fire| try shift(&fire.drift_ms, delta),
@@ -164,7 +165,7 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
                         try shift(&bolt.next_ms, delta);
                     }
                 },
-                .knight_punch, .rotworm_spit, .prisoner_rock => {},
+                .knight_punch, .rotworm_spit, .prisoner_rock, .sludge_glob => {},
             }
         },
         .actor_laser => {
@@ -173,6 +174,9 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try deadline(&value.contact_ms, delta);
         },
         .actor => {
+            try active(&value.gunner.ready_ms, delta);
+            try active(&value.gunner.emit_ms, delta);
+            try active(&value.gunner.pain_lock_ms, delta);
             try active(&value.thief.next_attack_ms, delta);
             try deadline(&value.thief.sidestep_until, delta);
             try active(&value.prisoner.ready_ms, delta);

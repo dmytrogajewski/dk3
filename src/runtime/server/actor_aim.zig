@@ -48,3 +48,17 @@ pub fn clearProjectile(world: *data.World, slots: *Slots, entity: ecs.Entity, ta
     };
     return hit.fraction * distance > (if (minimum == 0) tuning.damage + 32 else minimum);
 }
+
+// ITF_NOLEAD aims at the actual target with authored spread and crouch offset.
+pub fn direct(world: *data.World, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, random: *data.Random) !struct { origin: v.Vec3, direction: v.Vec3 } {
+    const origin = muzzle(pose, tuning.offset);
+    const axes = v.basis(pose.angles);
+    const right_spread = tuning.spread[0] * random.next() * (if (random.next() < 0.5) @as(f32, -1) else 1);
+    const up_spread = tuning.spread[1] * random.next() * (if (random.next() < 0.5) @as(f32, -1) else 1);
+    var point = v.add((try world.get(target, data.Transform)).position, v.add(v.scale(axes.right, right_spread), v.scale(v.cross(axes.right, axes.forward), up_spread)));
+    if (world.get(target, data.Player) catch null) |player| if (player.ducked) {
+        const body = (try world.get(target, data.Body)).*;
+        point[2] -= (body.maxs[2] - body.mins[2]) * 0.65;
+    };
+    return .{ .origin = origin, .direction = v.normalize(v.subtract(point, origin)) };
+}

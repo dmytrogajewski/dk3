@@ -3531,3 +3531,19 @@ name-shadowing compile errors are retained in the earlier logs and repaired. Thi
 compile evidence only. No contracts, native-engine scenarios or connected playthrough
 ran in this coding pass. Supplied BSP class/factory/death-spawn inspection identifies
 21 remaining actor classes, explicitly listed in the current acceptance matrix.
+
+
+## Sequence 257 — sludge-and-gunners (implementation checkpoint)
+
+Continues the full campaign/multiplayer coding pass after pushed checkpoint `a79d091`.
+Sludgeminion and Seal Captain, Seal Commando, Seal Girl and Uzi Gang connect authored
+attacks, class weapon callbacks, rendering and persistence. Read-only authoring inspection
+confirms their attack events, tuning and converted muzzle tags. Reference contract review
+establishes the 100 ms effective bullet callback cadence. Narrow compatibility corrections
+and remaining cover/task/presentation limitations are recorded in the current matrix.
+
+All three native modules link in `/tmp/dk3-runtime-257-gunners-link-fixed.log`; the
+first client timestamp-width compile error remains in the initial link log. No tests,
+engine scenarios or connected acceptance ran. Current code changes remain implemented /
+unverified. Full remaining campaign, actors/bosses, companion progression, multiplayer
+and release work continues; no installed assets, saves, main or live services changed.

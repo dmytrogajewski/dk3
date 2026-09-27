@@ -5,6 +5,8 @@ const abi = @import("../engine/abi.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     switch ((try world.get(entity, data.ActorAttack)).attack) {
+        .gunner_burst => try @import("gunner_bursts.zig").publish(world, entity, projections, now),
+        .sludge_glob => try @import("sludge_globs.zig").publish(world, entity, projections, now),
         .prisoner_rock => try @import("prisoner_rocks.zig").publish(world, entity, projections, now),
         .shaft => try @import("shafts.zig").publish(world, entity, projections, now),
         .rotworm_spit => try @import("rotworm_spit.zig").publish(world, entity, projections, now),
@@ -19,6 +21,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (!world.alive(entity)) continue;
         const state = (world.get(entity, data.ActorAttack) catch continue).*;
         switch (state.attack) {
+            .gunner_burst => try @import("gunner_bursts.zig").step(world, slots, projections, entity, now),
+            .sludge_glob => try @import("sludge_globs.zig").step(world, slots, projections, entity, now),
             .prisoner_rock => try @import("prisoner_rocks.zig").step(world, slots, projections, entity, now),
             .shaft => try @import("shafts.zig").step(world, slots, projections, entity, now),
             .rotworm_spit => try @import("rotworm_spit.zig").step(world, slots, projections, entity, now),

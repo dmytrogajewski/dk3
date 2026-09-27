@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–256): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–257): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -49,10 +49,12 @@ complete player/multiplayer presentation, CTF/deathtag interaction parity and
 release integration. Unknown `monster_*` entities now fail admission with their
 classname instead of silently disappearing. All four episodes and multiplayer remain
 open as complete outcomes. There is no verified engine/asset identity for the current coding pass.
-Targeted link logs are compile evidence only; the last successful intermediate link
-was `/tmp/dk3-runtime-255-creatures-link.log`, covering feature checkpoint `54f15fe` with the connected knight,
-Cerberus, rat, Shark and VenomVermin batches. The episode-controller continuation now supersedes that link. `/tmp/dk3-runtime-255-multiplayer-link-fixed.log` linked the prior batch. Earlier `/tmp/dk3-runtime-255-world-link.log` also linked. These isolated
-link checks establish compilation only; new contracts have not yet been executed.
+Targeted links establish compilation only. The sequence-256 checkpoint `a79d091`
+linked all three modules in `/tmp/dk3-runtime-256-episode-link.log`. Sequence 257
+adds Sludgeminion and the four episode-four gunners; its corrected link is
+`/tmp/dk3-runtime-257-gunners-link-fixed.log`. The first link's client timestamp-width
+error is retained in `/tmp/dk3-runtime-257-gunners-link.log`. No new contract suite,
+engine scenario or connected playthrough has run in this coding pass.
 
 Shared changes invalidate prior script/cinematic, damage, actor perception,
 restoration/travel and multiplayer coverage on the developing build. Historical
@@ -65,8 +67,8 @@ manifests remain valid only for their recorded narrower builds and setups.
 | Weapon controllers | All 28 class-owned policies connected; Zeus, Wyndrax, Nightmare and Metamaser included. | Focused interactions passed in sequences 232–243. Sequence 251 repairs and exercises close Ion aiming. | Dispatch coverage does not establish all weapon interactions. Most fixtures grant equipment/health or place targets. Trident merge setup and Sunflare bright sprite edges remain open. |
 | Fresh opening campaign | Intro, opening actors, action programs, world controls and native saves connected. | **Full gate not accepted:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a exit. | No coherent full-route build accepted. Checkpoint development now defeats the bridge boss, restores the defeated encounter, collects its authored Megashield and reaches e1m1c. The factory approach reaches the first gate. Factory traversal, authored e1m2a exit and a fresh consolidated replay remain. |
 | Native restoration | Typed snapshots, controller state and visited archives have executing contracts. | Actor/action restoration has focused engine evidence. Arrival save/load exercised. | Connected natural death/reload has narrow sequence-253 evidence. Sequence 254 verifies C→B→C visited restoration after a disk load, including retained boss/control/pickup state; the current broad changes require replay. Sequence-241 travel is historical and needs replay after trigger-bounds changes. |
-| Remaining campaign | Party triggers/travel, ending intermission and additional ground actor controllers written; no legacy backend. | Unrun on sequence 255; no verified build/asset manifest. | Missing classes, abilities, bosses and connected progression. New class registration or reference-contract review does not count as encounter acceptance. |
-| Multiplayer and online rooms | Session/objective lifecycle, bots, room membership/moderation/readiness, chat, scoreboard and native menus written. | Unrun on sequence 255; no native network/room acceptance. | Animation/equipment presentation qualification, dynamic bot goals, full mode interactions and consolidated network/hosting replay remain. Live service is untouched. |
+| Remaining campaign | Party triggers/travel, ending intermission and additional ground actor controllers written; no legacy backend. | Unrun on the current coding pass; no verified build/asset manifest. | Missing classes, abilities, bosses and connected progression. New class registration or reference-contract review does not count as encounter acceptance. |
+| Multiplayer and online rooms | Session/objective lifecycle, bots, room membership/moderation/readiness, chat, scoreboard and native menus written. | Unrun on the current coding pass; no native network/room acceptance. | Animation/equipment presentation qualification, dynamic bot goals, full mode interactions and consolidated network/hosting replay remain. Live service is untouched. |
 
 ## Exact verified segments
 
@@ -263,13 +265,33 @@ Sequence-255 compatibility details and limitations:
   the reference's uninitialized absolute delay affecting freshly spawned projectiles.
   Contacted knives retain the five-second axe callback. No scenario acceptance yet.
 
+## Sequence 257 implementation checkpoint
+
+Sludgeminion connects fluid-only replenishment, two authored hand attacks, attack
+floor pitch, idle choices, bouncing damaging globs, model/glow and persistent state.
+Its particle trails/contact smoke and exact transitional/reaction presentation remain
+unqualified. Shared NOLEAD extraction retains Rotworm's aiming contract and needs its
+affected replay. A prisoner throw whose target moved to coincident XY now consumes
+the undefined ballistic shot instead of terminating the game; ordinary throws retain
+their existing solution. This narrow compatibility case still needs regression execution.
+
+Seal Captain/Girl shotgun traces retain distance falloff; Seal Commando's two stationary
+poses fire a first bullet plus five callbacks; Uzi Gang starts callbacks without an
+initial bullet and stops at absolute model frame 80. Callbacks run every 100 ms, matching
+the reference server tick despite its 10 ms requested deadlines. Authored chase/standing
+transitions, injury/death choices, attachments, sounds and saved bursts are connected.
+The supplied converted models contain the required muzzle tags (read-only asset audit).
+The commando's first bullet deliberately starts at its owner's muzzle rather than the
+reference temporary entity's unplaced world origin. Class-specific take-cover scheduling,
+tracers and exact task/reaction timing remain incomplete/unqualified. No damage/geometry
+changes were made to help an input driver. New contracts are written but unexecuted.
+
 ## Remaining authored actor admission
 
 Read-only inspection of supplied BSP entity data (including monster factories/death
 spawns) still finds these unimplemented classes at this checkpoint: Buboid, Chaingang,
 Deathsphere, Doombat, Dragon, Garroth, Griffon, Harpy, Kage, Medusa, final Mikiko, Nharre,
-Psyclaw, Seal Captain, Seal Commando, Seal Girl, Sludgeminion, Stavros, Uzi Gang, Wisp
-and Wyndrax. Script-created classes and boss phases remain part of the full audit.
+Psyclaw, Stavros, Wisp and Wyndrax. Script-created classes and boss phases remain part of the full audit.
 This inventory is a coding work list, not campaign-load or traversal acceptance.
 
 ## Acceptance rules
