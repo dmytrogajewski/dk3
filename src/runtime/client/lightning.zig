@@ -7,7 +7,9 @@ const policy = @import("../domain/lightning.zig");
 const Random = @import("../domain/components.zig").Random;
 const Clock = struct { id: i32, tick: i64, seen_ms: i32 };
 var clocks: [c.MAX_GENTITIES]?Clock = @splat(null);
-pub fn reset() void { clocks = @splat(null); }
+pub fn reset() void {
+    clocks = @splat(null);
+}
 pub fn draw(entity: c.entityState_t, snapshot: []const c.entityState_t, now: i32, ref: *const c.refdef_t) void {
     if (entity.number < 0 or entity.number >= clocks.len or entity.time2 == 0) return;
     for (entity.pos.trBase ++ entity.origin2 ++ entity.angles2 ++ entity.pos.trDelta) |value| if (!std.math.isFinite(value) or @abs(value) > 1000000) return;
@@ -15,7 +17,8 @@ pub fn draw(entity: c.entityState_t, snapshot: []const c.entityState_t, now: i32
     const origin = entity.pos.trBase;
     var end = entity.origin2;
     if (entity.otherEntityNum != c.ENTITYNUM_NONE) for (snapshot) |target| if (target.number == entity.otherEntityNum) {
-        end = @import("../engine/trajectory.zig").evaluate(target.pos, now); break;
+        end = @import("../engine/trajectory.zig").evaluate(target.pos, now);
+        break;
     };
     const tick = @divFloor(@as(i64, now) * 60, 1000);
     const seed = @as(u32, @bitCast(entity.time2)) ^ @as(u32, @truncate(@as(u64, @bitCast(tick)) *% 0x9e3779b9));
@@ -57,11 +60,14 @@ fn arc(start: v.Vec3, end: v.Vec3, radius: f32, modulation: f32, color: [4]u8, f
             for (&next) |*axis| axis.* += random.next() * displacement - bias;
         }
         const distance = v.length(v.subtract(next, position));
-        var from = color; from[3] = @intFromFloat(std.math.clamp(alpha, 0, 255));
+        var from = color;
+        from[3] = @intFromFloat(std.math.clamp(alpha, 0, 255));
         if (fade) alpha -= distance / length * @as(f32, @floatFromInt(color[3]));
-        var to = color; to[3] = @intFromFloat(std.math.clamp(alpha, 0, 255));
+        var to = color;
+        to[3] = @intFromFloat(std.math.clamp(alpha, 0, 255));
         @import("beams.zig").gradient("dk3/fx/ion-lightning", position, next, radius, radius, from, to, ref);
         if (final) break;
-        position = next; traveled += distance;
+        position = next;
+        traveled += distance;
     }
 }

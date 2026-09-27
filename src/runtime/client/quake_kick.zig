@@ -5,7 +5,10 @@ const c = @import("../engine/abi.zig").c;
 const engine = @import("../engine/client.zig");
 var started: ?i64 = null;
 var angles: v.Vec3 = @splat(0);
-pub fn reset() void { started = null; angles = @splat(0); }
+pub fn reset() void {
+    started = null;
+    angles = @splat(0);
+}
 pub fn command() void {
     var buffer: [128]u8 = @splat(0);
     _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 0), &buffer, @as(isize, buffer.len) });

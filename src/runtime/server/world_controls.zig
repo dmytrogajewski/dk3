@@ -30,7 +30,10 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     for (ids[0..count]) |entity| {
         const object = (try world.get(entity, data.MapObject)).*;
         if (std.mem.eql(u8, object.classname, "light") and object.targetname.len == 0 and object.flags & 2 == 0) continue;
-        if (std.mem.eql(u8, object.classname, "target_lightramp") and @import("multiplayer.zig").enabled()) { try world.destroy(entity); continue; }
+        if (std.mem.eql(u8, object.classname, "target_lightramp") and @import("multiplayer.zig").enabled()) {
+            try world.destroy(entity);
+            continue;
+        }
         // This authored name remains in e1dm2, but its reference export was removed.
         if (std.mem.eql(u8, object.classname, "effect_drip")) {
             if ((world.get(entity, data.Binding) catch null) != null) try @import("weapon_entities.zig").remove(world, slots, projections, entity) else try world.destroy(entity);
@@ -39,7 +42,10 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         var action: rules.Action = undefined;
         if (std.mem.eql(u8, object.classname, "target_effect")) {
             action = .{ .target_effect = try @import("target_effects.zig").initialize(world, entity, now) };
-            if (engine.integer("sv_violence") != 0 and action.target_effect.kind >= 3 and action.target_effect.kind <= 7) { try world.destroy(entity); continue; }
+            if (engine.integer("sv_violence") != 0 and action.target_effect.kind >= 3 and action.target_effect.kind <= 7) {
+                try world.destroy(entity);
+                continue;
+            }
         } else if (std.mem.eql(u8, object.classname, "effect_rain") or std.mem.eql(u8, object.classname, "effect_snow")) {
             action = .{ .weather = try @import("weather.zig").initialize(world, entity) };
         } else if (std.mem.eql(u8, object.classname, "effect_lightning")) {
@@ -170,7 +176,9 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
             timer.next_ms = if (timer.next_ms != null) null else now + timer.delay_ms;
             if (timer.next_ms != null and timer.next_ms.? <= now) try fireTimer(world, slots, projections, router, entity, now);
         },
-        .push => |*push| if (push.toggleable) { push.enabled = !push.enabled; },
+        .push => |*push| if (push.toggleable) {
+            push.enabled = !push.enabled;
+        },
         .teleport => |teleport| {
             if (teleport.named_subject.len == 0) return;
             if (std.mem.eql(u8, teleport.named_subject, "player")) {
@@ -256,7 +264,9 @@ pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     const control = try world.get(entity, data.WorldControl);
     if (now < control.ready_ms or !@import("keys.zig").allows(world, (try world.get(entity, data.MapObject)).*, try world.persistentId(other))) return;
     switch (control.action) {
-        .light => { _ = try @import("damage.zig").apply(world, other, 2, now, .{ .source = try world.persistentId(entity) }); },
+        .light => {
+            _ = try @import("damage.zig").apply(world, other, 2, now, .{ .source = try world.persistentId(entity) });
+        },
         .debris => try @import("debris.zig").contact(world, slots, projections, entity, other, now),
         .room => |preset| (try world.get(other, data.Character)).sound_environment = preset + 1,
         .push => |push| {

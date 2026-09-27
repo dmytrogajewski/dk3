@@ -36,6 +36,6 @@ test "weather densities, fill thresholds and directional flag priority remain di
     try t.expectEqual(@as(u32, 8), births(.snow, 16, 0));
     try t.expectEqual(@as(u32, 1), births(.snow, 16, 4));
     try t.expectEqual(@as(u32, 0), births(.snow, 16, 16));
-    try t.expectEqual(v.Vec3{0, 300, -400}, velocity(.rain, 15, 0));
-    try t.expectEqual(v.Vec3{-300, 0, -400}, velocity(.rain, 8, 0));
+    try t.expectEqual(v.Vec3{ 0, 300, -400 }, velocity(.rain, 15, 0));
+    try t.expectEqual(v.Vec3{ -300, 0, -400 }, velocity(.rain, 8, 0));
 }

@@ -95,7 +95,9 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     if (state.enabled and state.cone) {
         var hidden: [ecs.max_entities]u16 = undefined;
         var count: usize = 0;
-        defer for (hidden[0..count]) |slot| if (slots.occupants[slot] != null) { engine.link(&projections[slot]); };
+        defer for (hidden[0..count]) |slot| if (slots.occupants[slot] != null) {
+            engine.link(&projections[slot]);
+        };
         if (world.find(state.target)) |target| {
             var point = (try world.get(target, data.Transform)).position;
             if (world.get(target, data.Binding) catch null) |binding| {

@@ -58,7 +58,7 @@ pub const State = struct {
 };
 test "predicted shots deduplicate server echoes and finite attacks give way to idle" {
     var state: State = .{};
-    const spec: profiles.Spec = .{ .animation = .{ .ready = "ready", .away = "away", .fire = "fire", .idle = .{ "idle", null, null }, .reload = "reload" } };
+    const spec: profiles.Spec = .{ .player_grip = .pistol, .animation = .{ .ready = "ready", .away = "away", .fire = "fire", .idle = .{ "idle", null, null }, .reload = "reload" } };
     var input: Input = .{ .weapon = 21, .state = controller.ready, .sequence = 0, .reloading = false, .now_ms = 0 };
     try std.testing.expectEqual(Phase.ready, state.update(spec, input).?.phase);
     state.noteFire(21, 1, 50);
@@ -83,14 +83,14 @@ test "predicted shots deduplicate server echoes and finite attacks give way to i
 test "burst shots retain their pose and rotary fire spins down after release" {
     var view: State = .{};
     var input: Input = .{ .weapon = 4, .state = controller.firing, .sequence = 0, .reloading = false, .now_ms = 100 };
-    const spec: profiles.Spec = .{ .animation = .{ .fire = "shoot", .hold_fire = true } };
+    const spec: profiles.Spec = .{ .player_grip = .rifle, .animation = .{ .fire = "shoot", .hold_fire = true } };
     view.noteFire(4, 1, 100);
     try std.testing.expectEqual(Phase.fire, view.update(spec, input).?.phase);
     view.ended_ms = 1900;
     view.noteFire(4, 2, 370);
     input.now_ms = 370;
     try std.testing.expect(view.update(spec, input) == null);
-    const rotary: profiles.Spec = .{ .animation = .{ .fire = "shoota", .fire_loop = true, .fire_end = "spdn" } };
+    const rotary: profiles.Spec = .{ .player_grip = .rifle, .animation = .{ .fire = "shoota", .fire_loop = true, .fire_end = "spdn" } };
     input.weapon = 22;
     try std.testing.expect(view.update(rotary, input).?.loop);
     input.state = controller.ready;

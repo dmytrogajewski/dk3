@@ -7,7 +7,9 @@ const particles = @import("fx_particles.zig");
 const Random = @import("../domain/components.zig").Random;
 const Seen = struct { id: i32 = 0, serial: i32 = 0 };
 var seen: [c.MAX_GENTITIES]Seen = @splat(.{});
-pub fn reset() void { seen = @splat(.{}); }
+pub fn reset() void {
+    seen = @splat(.{});
+}
 const Media = struct { kind: particles.Kind, factor: f32 };
 fn media(kind: u8) Media {
     return switch (kind) {
@@ -54,12 +56,17 @@ pub fn emit(entity: c.entityState_t, now: i32) void {
     cache.* = .{ .id = entity.time2, .serial = entity.frame };
     var random: Random = .{ .state = @as(u32, @bitCast(entity.time2)) ^ (@as(u32, @bitCast(entity.frame)) *% 0x9e3779b9) };
     const flags: u32 = @intFromFloat(entity.origin2[2]);
-    if (flags & 2 != 0) { sparks(entity, flags & 8 != 0, &random); return; }
+    if (flags & 2 != 0) {
+        sparks(entity, flags & 8 != 0, &random);
+        return;
+    }
     const selected = media(@intFromFloat(entity.origin2[1]));
     const count: usize = @intFromFloat(entity.origin2[0]);
-    for (0..count) |_| particles.add(.{ .born_ms = entity.time, .position = entity.pos.trBase, .velocity = v.scale(entity.pos.trDelta, entity.angles2[0] * 10), .acceleration = .{0, 0, entity.angles2[2]}, .color = entity.apos.trDelta, .alpha = 1, .fade = 2 - random.next() * 0.75, .size = 0, .kind = selected.kind, .classic_factor = selected.factor });
+    for (0..count) |_| particles.add(.{ .born_ms = entity.time, .position = entity.pos.trBase, .velocity = v.scale(entity.pos.trDelta, entity.angles2[0] * 10), .acceleration = .{ 0, 0, entity.angles2[2] }, .color = entity.apos.trDelta, .alpha = 1, .fade = 2 - random.next() * 0.75, .size = 0, .kind = selected.kind, .classic_factor = selected.factor });
 }
-fn integer(random: *Random, limit: u32) u32 { return @as(u32, @intFromFloat(random.next() * 2147483648)) % limit; }
+fn integer(random: *Random, limit: u32) u32 {
+    return @as(u32, @intFromFloat(random.next() * 2147483648)) % limit;
+}
 fn sparks(entity: c.entityState_t, smoke: bool, random: *Random) void {
     const strength: u32 = @as(u32, @intFromFloat(@mod(@trunc(entity.angles2[1]), 256))) & 31;
     const count = (integer(random, 32) * (1 + strength)) & 63;
@@ -67,10 +74,10 @@ fn sparks(entity: c.entityState_t, smoke: bool, random: *Random) void {
     for (0..count) |_| {
         const variation = integer(random, 8);
         const velocity = v.add(direction, .{ (random.next() * 2 - 1) * 100, (random.next() * 2 - 1) * 100, (random.next() * 2 - 1) * 100 });
-        particles.add(.{ .born_ms = entity.time, .position = entity.pos.trBase, .last_position = entity.pos.trBase, .velocity = velocity, .acceleration = .{-velocity[0], -velocity[1], -250}, .color = entity.apos.trDelta, .alpha = 1, .fade = 0.5 + 0.1 * @as(f32, @floatFromInt(variation)), .size = @as(f32, @floatFromInt(variation * strength)) * 0.005, .kind = .beam_spark });
+        particles.add(.{ .born_ms = entity.time, .position = entity.pos.trBase, .last_position = entity.pos.trBase, .velocity = velocity, .acceleration = .{ -velocity[0], -velocity[1], -250 }, .color = entity.apos.trDelta, .alpha = 1, .fade = 0.5 + 0.1 * @as(f32, @floatFromInt(variation)), .size = @as(f32, @floatFromInt(variation * strength)) * 0.005, .kind = .beam_spark });
     }
     if (smoke) {
         const gray = 0.2 + 0.1 * (random.next() * 2 - 1);
-        particles.add(.{ .born_ms = entity.time, .position = v.add(entity.pos.trBase, .{ random.next() * 10 - 5, random.next() * 10 - 5, random.next() * 10 - 5 }), .velocity = .{0, random.next() * 20, random.next() * 20}, .acceleration = .{0, 0, 20}, .color = @splat(gray), .alpha = 1, .fade = 1.4 + 0.2 * random.next(), .size = 2, .classic_factor = 7, .kind = .smoke });
+        particles.add(.{ .born_ms = entity.time, .position = v.add(entity.pos.trBase, .{ random.next() * 10 - 5, random.next() * 10 - 5, random.next() * 10 - 5 }), .velocity = .{ 0, random.next() * 20, random.next() * 20 }, .acceleration = .{ 0, 0, 20 }, .color = @splat(gray), .alpha = 1, .fade = 1.4 + 0.2 * random.next(), .size = 2, .classic_factor = 7, .kind = .smoke });
     }
 }

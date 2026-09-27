@@ -46,7 +46,10 @@ pub const Emitter = struct {
         if (self.count == 0) return null;
         var index: usize = 0;
         if (self.flags & cycle != 0) {
-            for (self.attractors[0..self.count], 0..) |id, i| if (id == self.current) { index = i; break; };
+            for (self.attractors[0..self.count], 0..) |id, i| if (id == self.current) {
+                index = i;
+                break;
+            };
             self.current = if (index + 1 < self.count) self.attractors[index + 1] else 0;
         } else {
             index = @min(self.count - 1, @as(usize, @intFromFloat(random * @as(f32, @floatFromInt(self.count)))));
@@ -90,7 +93,8 @@ test "lightning chooses one branch; zero random interval does not invent a dwell
 test "attractor cycling wraps and missing current returns to the first survivor" {
     const t = std.testing;
     var state: Emitter = .{ .flags = cycle, .next_ms = null, .uncull_until_ms = 3000 };
-    state.attractors[0..3].* = .{ 7, 9, 13 }; state.count = 3;
+    state.attractors[0..3].* = .{ 7, 9, 13 };
+    state.count = 3;
     for ([_]u32{ 7, 9, 13, 7 }) |id| try t.expectEqual(@as(?u32, id), state.choose(0.9));
     state.current = 99;
     try t.expectEqual(@as(?u32, 7), state.choose(0));
@@ -100,9 +104,12 @@ test "finite bolts trace once while active and constant bolts last until switche
     var state: Emitter = .{ .flags = on | trace_damage, .next_ms = null, .uncull_until_ms = 3000 };
     var bolt: Bolt = .{ .emitter = 1, .endpoint = @splat(0), .next_ms = 100, .until_ms = 300, .damage = 10 };
     try t.expect(!bolt.expired(state, 299));
-    bolt.traced(state); try t.expect(!bolt.check_trace);
+    bolt.traced(state);
+    try t.expect(!bolt.check_trace);
     try t.expect(bolt.expired(state, 300));
-    state.flags |= constant; bolt.check_trace = true; bolt.traced(state);
+    state.flags |= constant;
+    bolt.check_trace = true;
+    bolt.traced(state);
     try t.expect(bolt.check_trace and !bolt.expired(state, 5000));
     state.flags &= ~@as(u32, on);
     try t.expect(bolt.expired(state, 5000));

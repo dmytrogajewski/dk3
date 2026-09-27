@@ -8,8 +8,12 @@ pub const State = struct {
     next_ms: ?i64 = null,
     sound: u16 = 0,
     parameters: @import("audio.zig").Parameters = .{ .volume = 216.0 / 255.0, .minimum = 2000, .maximum = 2024 },
-    pub fn strength(self: State, distance: f32) f32 { return @max(0, self.radius - distance) * 0.01 * self.severity * 0.05 * 0.08; }
-    pub fn damagePerPulse(self: State) i32 { return @intFromFloat(self.damage * 0.1 * self.severity * 0.05); }
+    pub fn strength(self: State, distance: f32) f32 {
+        return @max(0, self.radius - distance) * 0.01 * self.severity * 0.05 * 0.08;
+    }
+    pub fn damagePerPulse(self: State) i32 {
+        return @intFromFloat(self.damage * 0.1 * self.severity * 0.05);
+    }
 };
 /// Reference kicks reach their peak in 50 ms and return over the following 100 ms.
 pub fn kickScale(age_ms: i64) f32 {

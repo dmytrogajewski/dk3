@@ -173,12 +173,15 @@ pub fn quantize(direction: v.Vec3) v.Vec3 {
     var score: f32 = 0;
     for (normals, 0..) |normal, index| {
         const candidate = v.dot(direction, normal);
-        if (candidate > score) { selected = index; score = candidate; }
+        if (candidate > score) {
+            selected = index;
+            score = candidate;
+        }
     }
     return normals[selected];
 }
 test "zero direction retains byte-zero convention, axial directions quantize exactly" {
     try std.testing.expectEqual(normals[0], quantize(@splat(0)));
-    try std.testing.expectEqual(v.Vec3{0, 0, 1}, quantize(.{0, 0, 2}));
-    try std.testing.expectEqual(v.Vec3{1, 0, 0}, quantize(.{5, 0, 0}));
+    try std.testing.expectEqual(v.Vec3{ 0, 0, 1 }, quantize(.{ 0, 0, 2 }));
+    try std.testing.expectEqual(v.Vec3{ 1, 0, 0 }, quantize(.{ 5, 0, 0 }));
 }

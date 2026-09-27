@@ -53,7 +53,7 @@ test "bots reject unavailable ammunition and flashlight and release a charged Ha
     loadout.ammo[2] = 2;
     try std.testing.expectEqual(@as(u5, 2), select(loadout, &table, 500));
     loadout.weapon = catalog.hammer.id;
-    table.entries[loadout.weapon] = .{ .damage = 50, .range = 128 };
+    table.entries[@intCast(loadout.weapon)] = .{ .damage = 50, .range = 128 };
     try std.testing.expect(attack(loadout, &table, 80));
     loadout.dk3Charge = 900;
     try std.testing.expect(!attack(loadout, &table, 80));

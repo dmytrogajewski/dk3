@@ -173,7 +173,7 @@ pub fn find(name: []const u8) ?u8 {
     const aliases = .{
         .{ "fish_goldfish", "e_goldfish" }, .{ "goldfish", "e_goldfish" },
         .{ "fish_grayfish", "e_greyfish" }, .{ "e_grayfish", "e_greyfish" },
-        .{ "fish_guppy1", "e_guppy" }, .{ "fish_guppy2", "e_guppy2" },
+        .{ "fish_guppy1", "e_guppy" },      .{ "fish_guppy2", "e_guppy2" },
         .{ "fish_dopefish", "e_dopefish" },
     };
     inline for (aliases) |alias| if (@import("std").mem.eql(u8, name, alias[0])) return find(alias[1]);

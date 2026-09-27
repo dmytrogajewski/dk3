@@ -133,7 +133,7 @@ test "bounded pickup paths reject a looping or overlong route" {
 
 test "companions obey authored exclusions, weapon permission, carrying and actual need" {
     const t = std.testing;
-    var world = try data.World.init(t.allocator);
+    var world = data.World.init(t.allocator, 8);
     defer world.deinit();
     const collector = try world.create(1, .{ data.Companion{ .identity = .mikiko }, data.Health{ .current = 80 }, data.Weapons{}, data.Keys{}, data.Character{}, data.Ailments{} });
     const pickup = try world.create(2, .{ data.Pickup{ .kind = .{ .health = 25 } }, data.MapObject{ .classname = "item_health_25", .properties = &.{.{ .key = "itemspawnflags", .value = "2" }} } });

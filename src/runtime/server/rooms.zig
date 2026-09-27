@@ -106,6 +106,7 @@ pub const State = struct {
                 session.respawn_ms = 0;
                 session.joined_ms = 0;
                 session.ready = false;
+                session.advancement = null;
                 if (!@import("multiplayer.zig").teams() and session.team != .spectator) session.team = .free;
                 if (@import("multiplayer.zig").teams() and session.team == .free) member.session = null;
             }

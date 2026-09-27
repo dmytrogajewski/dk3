@@ -5123,3 +5123,48 @@ The next audit finds omitted native ordinary weapon drops on player/companion de
 unread item-respawn configuration, missing weapons-stay handling and missing player
 pain/death feedback. Continue those connected inventory/participant lifecycle paths
 within the broad coding pass, then consolidate assets/build and scenario verification.
+
+
+## Sequence 284 — participant-lifecycle
+
+Weapons now own `respects_weapons_stay` and pickup respawn policy. Discus,
+Sunflare and Metamaser remain consumed when multiplayer weapons-stay is enabled;
+Metamaser respawns after 60 seconds, other weapons after 30. Already-owned authored
+stay weapons cannot farm ammunition. Dropped weapons always consume, carry actual
+remaining rounds, never respawn and expire after 60 seconds only in multiplayer.
+Player/companion death uses the reviewed class-specific toss ranges, cancels personal
+controllers, discards inventory and retains the selected class only for corpse grip.
+`dm_item_respawn` controls ordinary ammunition/item respawns, not weapon callbacks.
+
+Player death now dispatches once before respawn can replace the entity: objective
+release, current-weapon drop, corpse collision, armor/invisibility cleanup and
+appearance/liquid-specific voice. Injury voices retain the reviewed one-second lock,
+35-damage sound-family boundary, underwater suppression and separate lava/slime
+voice cooldowns. Native multiplayer kill notices use sanitized participant names
+and original descriptive text. Damage flash uses surviving health damage / 40,
+a .75 display cap and elapsed-time .045/100ms decay. Poison/cold ticks clear it.
+The inactive Quake II damage-feedback function was explicitly excluded after checking
+its commented call site. Elapsed-time fading replaces reference tick-step fading;
+flash deadlines restore with the snapshot instead of replaying injury audio.
+
+Multiplayer class starting attributes and advancement survive respawn/reconnect,
+while temporary protection/inventory do not. Match rotation resets advancement.
+Kill XP uses the opponent's spent attributes and honors skill-system/level-limit
+settings; Daikatana kills accrue sword experience without ordinary XP. The same
+sword exclusion repairs monster rewards. Nightmare describes its episode-local
+credited-kill ammunition grant; progression applies it through the existing ammo cap.
+Snapshot admission validates new pickup, progression and feedback state.
+
+Contracts were reviewed in the permitted private client/weapon/death/physics reference;
+no private implementation or assets were admitted. New policy/restoration regressions
+are written but unrun. First targeted link reported a sound-channel integer mismatch
+(`/tmp/dk3-runtime-284-participant-lifecycle-link.log`); corrected intermediate link
+passed (`/tmp/dk3-runtime-284-participant-lifecycle-link-fixed.log`) before final
+obituary and inventory-discard changes. Consolidated build and verification follow.
+
+Asset regeneration is running via dkguard against read-only supplied 1.3 data,
+using the local conversion cache (`/tmp/dk3-runtime-284-assets.log`). This does not
+update the preserved playable installation, user saves or online service. All current
+native gameplay acceptance remains unverified. The broader corpse/cold-death,
+companion conversation and visual/audio parity limits remain visible; connected
+campaign and multiplayer scenarios, not implementation counts, determine acceptance.

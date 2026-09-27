@@ -8,7 +8,9 @@ const particles = @import("fx_particles.zig");
 const Random = @import("../domain/components.zig").Random;
 const Clock = struct { id: u32, tick: i64, seen_ms: i32, random: Random };
 var clocks: [c.MAX_GENTITIES]?Clock = @splat(null);
-pub fn reset() void { clocks = @splat(null); }
+pub fn reset() void {
+    clocks = @splat(null);
+}
 fn frustum(state: policy.State, ref: *const c.refdef_t) bool {
     const horizontal = @tan(ref.fov_x * std.math.pi / 360.0);
     const vertical = @tan(ref.fov_y * std.math.pi / 360.0);
@@ -35,16 +37,20 @@ pub fn emit(entity: c.entityState_t, now: i32, ref: *const c.refdef_t) void {
     const cache = &clocks[@intCast(entity.number)];
     if (cache.* == null or cache.*.?.id != id or now < cache.*.?.seen_ms) cache.* = .{ .id = id, .tick = tick, .seen_ms = now, .random = .{ .state = id } };
     const clock = &cache.*.?;
-    clock.seen_ms = now; clock.tick = @max(clock.tick, tick - 5);
+    clock.seen_ms = now;
+    clock.tick = @max(clock.tick, tick - 5);
     const maximum = policy.capacity(state.kind, width, depth, distance);
     while (clock.tick <= tick) : (clock.tick += 1) {
         const at: i32 = @intCast(@divFloor(clock.tick * 1000, 60));
         const count = policy.births(state.kind, maximum, particles.countOwner(id, at));
         for (0..count) |_| {
             var position: v.Vec3 = undefined;
-            for (&position, [_]i32{width, depth, height}, state.mins) |*axis, span, minimum| axis.* = minimum + @as(f32, @floatFromInt(integer(&clock.random, @intCast(span)))) - (if (state.kind == .rain) @as(f32, 8) else 0);
+            for (&position, [_]i32{ width, depth, height }, state.mins) |*axis, span, minimum| axis.* = minimum + @as(f32, @floatFromInt(integer(&clock.random, @intCast(span)))) - (if (state.kind == .rain) @as(f32, 8) else 0);
             var speed = policy.velocity(state.kind, state.flags, integer(&clock.random, 32768));
-            if (state.kind == .snow and state.flags & 1 == 0) { speed[0] = @as(f32, @floatFromInt(integer(&clock.random, 40))) - 20; speed[1] = @as(f32, @floatFromInt(integer(&clock.random, 40))) - 20; }
+            if (state.kind == .snow and state.flags & 1 == 0) {
+                speed[0] = @as(f32, @floatFromInt(integer(&clock.random, 40))) - 20;
+                speed[1] = @as(f32, @floatFromInt(integer(&clock.random, 40))) - 20;
+            }
             const distance_down = @as(f32, @floatFromInt(height)) - (state.maxs[2] - position[2]);
             const fall = if (state.kind == .snow) @trunc(distance_down) else distance_down;
             const until = at + @as(i32, @intFromFloat(fall / -speed[2] * 1000));
@@ -52,4 +58,6 @@ pub fn emit(entity: c.entityState_t, now: i32, ref: *const c.refdef_t) void {
         }
     }
 }
-fn integer(random: *Random, limit: u32) u32 { return @as(u32, @intFromFloat(random.next() * 2147483648)) % limit; }
+fn integer(random: *Random, limit: u32) u32 {
+    return @as(u32, @intFromFloat(random.next() * 2147483648)) % limit;
+}

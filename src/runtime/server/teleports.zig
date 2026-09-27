@@ -30,7 +30,9 @@ pub fn move(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (other_body.contents & c.CONTENTS_BODY == 0) continue;
         const position = (try world.get(other, data.Transform)).position;
         var overlaps = true;
-        for (0..3) |axis| if (target.position[axis] + body.maxs[axis] <= position[axis] + other_body.mins[axis] or target.position[axis] + body.mins[axis] >= position[axis] + other_body.maxs[axis]) { overlaps = false; };
+        for (0..3) |axis| if (target.position[axis] + body.maxs[axis] <= position[axis] + other_body.mins[axis] or target.position[axis] + body.mins[axis] >= position[axis] + other_body.maxs[axis]) {
+            overlaps = false;
+        };
         if (!overlaps) continue;
         _ = try @import("damage.zig").apply(world, other, 32000, now, .{ .source = try world.persistentId(entity), .bypass_armor = true, .bypass_protection = true });
         if ((try world.get(other, data.Health)).current > 0) return;

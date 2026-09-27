@@ -16,13 +16,16 @@ fn speak(world: *data.World, slots: *Slots, projections: []abi.EntityProjection,
     const name = try std.fmt.bufPrint(&buffer, "{s}/{s}", .{ @tagName(companion.identity), sample });
     try @import("events.zig").sound(world, slots, projections, name, (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, abi.c.CHAN_BODY, now);
 }
-pub fn death(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
+pub fn death(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, episode: u8, now: i64) !void {
     const liquid = (try world.get(entity, data.Actor)).liquid;
     const health = try world.get(entity, data.Health);
     const kind: policy.Voice = if (liquid.level > 2) .water_death else if (health.current < -40) .extreme_death else .death;
     health.armor = 0;
     health.absorption = 0;
+    try @import("items.zig").dropCurrent(world, slots, projections, entity, now, episode);
     try @import("weapon_actions.zig").cancel(world, slots, projections, entity);
+    (try world.get(entity, data.Weapons)).discardInventory();
+    (try world.get(entity, data.Companion)).selected_weapon = 0;
     try speak(world, slots, projections, entity, kind, now);
 }
 pub fn react(actors: *const Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, now: i64) !void {

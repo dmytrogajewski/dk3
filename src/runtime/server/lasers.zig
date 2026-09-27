@@ -77,7 +77,9 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         var count: usize = 0;
         // Ignore all penetrated bodies during this ray; restoration is unconditional
         // even if damage or tracing fails. Map solids and other objects stop the ray.
-        defer for (hidden[0..count]) |hidden_slot| if (slots.occupants[hidden_slot] != null) { engine.link(&projections[hidden_slot]); };
+        defer for (hidden[0..count]) |hidden_slot| if (slots.occupants[hidden_slot] != null) {
+            engine.link(&projections[hidden_slot]);
+        };
         var start = origin;
         while (count < hidden.len) {
             const hit = try engine.collisionService().trace(.{ .start = start, .end = end, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });

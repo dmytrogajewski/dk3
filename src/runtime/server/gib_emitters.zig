@@ -62,9 +62,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const velocity = v.scale(v.basis(angles).forward, state.speed * (1 + 0.25 * (random.next() * 2 - 1)));
         const bounds: v.Vec3 = if (bone) .{ 0.5, 5, 0.1 } else @splat(2);
         const fragment = try world.create(null, .{
-            data.Transform{ .position = pose.position }, data.Velocity{ .linear = velocity },
-            data.Body{ .mins = v.scale(bounds, -1), .maxs = bounds, .mass = 10, .contents = c.CONTENTS_SOLID, .collision_mask = c.MASK_DEADSOLID },
-            data.Random{ .state = random.state ^ @as(u32, @intCast(index)) },
+            data.Transform{ .position = pose.position },                                                                                                                                                                                                    data.Velocity{ .linear = velocity },
+            data.Body{ .mins = v.scale(bounds, -1), .maxs = bounds, .mass = 10, .contents = c.CONTENTS_SOLID, .collision_mask = c.MASK_DEADSOLID },                                                                                                         data.Random{ .state = random.state ^ @as(u32, @intCast(index)) },
             data.Scenery{ .model = model, .movement = .bounce, .started_ms = now, .scale = @splat(state.scale), .spin = velocity, .fragment = true, .gib = .{ .next_ms = now + 100, .robotic = robotic, .bone = bone, .no_blood = state.flags & 4 != 0 } },
         });
         try @import("weapon_entities.zig").bind(world, slots, projections, fragment, model);

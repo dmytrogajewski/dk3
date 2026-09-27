@@ -132,11 +132,11 @@ fn draw(now: i32) !void {
                     @import("client/held_weapons.zig").reset();
                     @import("client/events.zig").reset();
                     @import("client/quake_kick.zig").reset();
-    @import("client/complex_particles.zig").reset();
-    @import("client/lightning.zig").reset();
-    @import("client/weather.zig").reset();
-    @import("client/target_effects.zig").reset();
-    @import("client/blood_clouds.zig").reset();
+                    @import("client/complex_particles.zig").reset();
+                    @import("client/lightning.zig").reset();
+                    @import("client/weather.zig").reset();
+                    @import("client/target_effects.zig").reset();
+                    @import("client/blood_clouds.zig").reset();
                     weapon_view.init();
                     if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
                     selected_weapon = snapshot.ps.weapon;
@@ -439,6 +439,7 @@ fn draw(now: i32) !void {
         @import("client/cinematics.zig").overlay(snapshot.ps.dk3CameraBlend, display);
     } else {
         @import("client/status_visuals.zig").screen(ailments.*, display);
+        if (psychic.blend[3] <= 0) @import("client/status_visuals.zig").psychic(.{ 1, 0, 0, @as(f32, @floatFromInt(snapshot.ps.damageCount)) / 255 }, display);
         @import("client/status_visuals.zig").psychic(psychic.blend, display);
         @import("client/medusa.zig").flash(snapshot.entities[0..@intCast(snapshot.numEntities)], client_number, now, display);
         try hud.render(display, .{ .current = snapshot.ps.stats[c.STAT_HEALTH], .armor = snapshot.ps.stats[c.STAT_ARMOR] }, character.*, .{ .mask = @bitCast(snapshot.ps.dk3Keys), .quest = @bitCast(snapshot.ps.dk3Quest) }, loadout.*, &weapon_table, selected_weapon, now);

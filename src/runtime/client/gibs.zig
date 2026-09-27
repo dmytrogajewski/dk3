@@ -7,7 +7,9 @@ const Random = @import("../domain/components.zig").Random;
 const particles = @import("fx_particles.zig");
 const Trail = struct { born: i32, point: v.Vec3, count: u16 = 1024, random: Random };
 var trails: [2048]?Trail = @splat(null);
-pub fn reset() void { trails = @splat(null); }
+pub fn reset() void {
+    trails = @splat(null);
+}
 pub fn emit(entity: c.entityState_t, point: v.Vec3, now: i32) void {
     if (entity.number < 0 or entity.number >= trails.len) return;
     const saved = &trails[@intCast(entity.number)];
@@ -18,11 +20,17 @@ pub fn emit(entity: c.entityState_t, point: v.Vec3, now: i32) void {
         }
     }
     const trail = &saved.*.?;
-    if (entity.weapon & 2 != 0) { trail.point = point; return; }
+    if (entity.weapon & 2 != 0) {
+        trail.point = point;
+        return;
+    }
     const distance = v.length(v.subtract(point, trail.point));
     if (distance < 2) return;
     // A discontinuity is a restoration/teleport, not a segment of flight.
-    if (distance > 512) { trail.point = point; return; }
+    if (distance > 512) {
+        trail.point = point;
+        return;
+    }
     const step = v.scale(v.normalize(v.subtract(point, trail.point)), 2);
     const spread: f32 = if (trail.count > 700) 4 else if (trail.count > 400) 2 else 1;
     const speed: f32 = if (trail.count > 700) 15 else if (trail.count > 400) 10 else 5;

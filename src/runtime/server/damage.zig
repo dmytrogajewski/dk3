@@ -94,6 +94,7 @@ fn applyResolved(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, 
         receipt.amount = result.blood;
         receipt.at_ms = now;
         receipt.revision +%= 1;
+        if ((world.get(entity, data.Player) catch null) != null) receipt.feedback.hit(result.blood, now, options.suppress_flash);
     } else |_| {};
     if (result.killed) {
         if (participant) |session| {
@@ -213,7 +214,7 @@ test "lethal wall hits select lower sections while ordinary damage and other gro
     defer world.deinit();
     const upper = try world.create(1, .{ data.Health{ .current = 10, .maximum = 10 }, data.Hurt{}, data.Random{ .state = 1 }, data.Destructible{ .wall_explode = .{} }, data.MapObject{ .classname = "func_wall_explode", .properties = &.{ .{ .key = "team", .value = "collapse" }, .{ .key = "indexnumber", .value = "2" } } } });
     const lower = try world.create(2, .{ data.Health{ .current = 20, .maximum = 20 }, data.Hurt{}, data.Random{ .state = 2 }, data.Destructible{ .wall_explode = .{} }, data.MapObject{ .classname = "func_wall_explode", .properties = &.{ .{ .key = "team", .value = "collapse" }, .{ .key = "indexnumber", .value = "1" } } } });
-    const unrelated = try world.create(3, .{ data.Health{ .current = 20, .maximum = 20 }, data.Hurt{}, data.Destructible{ .wall_explode = .{} }, data.MapObject{ .classname = "func_wall_explode", .properties = &.{ .{ .key = "team", .value = "other" } } } });
+    const unrelated = try world.create(3, .{ data.Health{ .current = 20, .maximum = 20 }, data.Hurt{}, data.Destructible{ .wall_explode = .{} }, data.MapObject{ .classname = "func_wall_explode", .properties = &.{.{ .key = "team", .value = "other" }} } });
     _ = try apply(&world, upper, 3, 1000, .{ .source = 99 });
     try t.expectEqual(@as(i32, 7), (try world.get(upper, data.Health)).current);
     _ = try apply(&world, upper, 7, 1100, .{ .source = 99 });

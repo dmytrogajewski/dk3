@@ -25,6 +25,7 @@ pub const Clients = struct {
         if (self.entities[index]) |previous| if (world.get(previous, data.Session) catch null) |member| {
             session = member.*;
             session.respawn_ms = 0;
+            session.advancement = (try world.get(previous, data.Character)).advancement((try world.get(previous, data.Weapons)).dk3SwordExperience);
         };
         session.pose = .{};
         try self.disconnect(world, slots, projections, index, now);
@@ -37,6 +38,13 @@ pub const Clients = struct {
         if (multiplayer) {
             try world.put(entity, session);
             try self.userinfo(world, index);
+            const joined = try world.get(entity, data.Session);
+            const advancement = joined.advancement orelse @import("../domain/multiplayer.zig").initialAdvancement(joined.appearance);
+            joined.advancement = advancement;
+            (try world.get(entity, data.Character)).* = data.Character.fromAdvancement(advancement);
+            (try world.get(entity, data.Weapons)).dk3SwordExperience = advancement.sword;
+            const maximum = 100 + 20 * advancement.attributes[@intFromEnum(@import("../domain/character.zig").Attribute.vita)];
+            (try world.get(entity, data.Health)).* = .{ .current = maximum, .maximum = maximum };
             if (session.team == .spectator) {
                 (try world.get(entity, data.Player)).mode = .spectator;
                 (try world.get(entity, data.Body)).contents = 0;
@@ -115,7 +123,7 @@ pub const Clients = struct {
         engine.usercmd(@intCast(index), &input);
         if (world.get(entity, data.Session) catch null) |session| {
             const force = engine.integer("g_forcerespawn");
-            if ((try world.get(entity, data.Player)).mode == .dead and now >= session.respawn_ms and ((input.buttons & c.BUTTON_ATTACK != 0 or input.upmove > 0) or (force > 0 and now >= session.respawn_ms + @as(i64, force) * 1000))) {
+            if ((try world.get(entity, data.Player)).mode == .dead and (try world.get(entity, data.Hurt)).feedback.death_handled and now >= session.respawn_ms and ((input.buttons & c.BUTTON_ATTACK != 0 or input.upmove > 0) or (force > 0 and now >= session.respawn_ms + @as(i64, force) * 1000))) {
                 return self.begin(world, slots, projections, states, index, now, null);
             }
         }
@@ -207,6 +215,9 @@ pub const Clients = struct {
         ps.stats[c.STAT_HEALTH] = health.current;
         ps.stats[c.STAT_MAX_HEALTH] = health.maximum;
         ps.stats[c.STAT_ARMOR] = health.armor;
+        // This native protocol carries the current blend in the existing byte.
+        // Authoritative state also restores correctly after an injury save.
+        ps.damageCount = @intFromFloat((try world.get(entity, data.Hurt)).feedback.alpha(now) * 255);
         ps.dk3ArmorAbsorption = health.absorption;
         const keys = (try world.get(entity, data.Keys)).*;
         ps.dk3Keys = @bitCast(keys.mask);
@@ -217,6 +228,7 @@ pub const Clients = struct {
         ps.speed = @intFromFloat(bridge.characterParameters(@intCast(index), character, ailments, ps.commandTime).speed);
         ps.dk3Episode = self.episode;
         if (world.get(entity, data.Session) catch null) |session| {
+            session.advancement = character.advancement(inventory.dk3SwordExperience);
             ps.persistant[c.PERS_TEAM] = @intFromEnum(session.team);
             ps.persistant[c.PERS_SCORE] = session.score;
             ps.persistant[c.PERS_KILLED] = @intCast(session.deaths);
@@ -253,7 +265,7 @@ pub const Clients = struct {
         ps.loopSound = if (ailments.warp != null) try @import("resources.zig").sound(@import("actor_catalog").psyclaw.loop_sound) else 0;
         projection.state.loopSound = ps.loopSound;
         projection.state.groundEntityNum = ps.groundEntityNum;
-        projection.state.weapon = ps.weapon;
+        projection.state.weapon = if (health.current <= 0) 0 else ps.weapon;
         projection.shared.currentOrigin = transform.position;
         projection.shared.currentAngles = transform.angles;
         projection.shared.mins = body.mins;

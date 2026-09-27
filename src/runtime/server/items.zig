@@ -37,6 +37,28 @@ pub fn spawnDynamic(world: *data.World, slots: *Slots, projections: []abi.Entity
     try spawnOne(world, slots, projections, entity, now, episode);
     return entity;
 }
+/// Death drops carry the actual remaining ammunition and never respawn.
+pub fn dropCurrent(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, now: i64, episode: u8) !void {
+    const loadout = (try world.get(owner, data.Weapons)).*;
+    if (loadout.weapon < 1 or loadout.weapon > 28) return;
+    const id: u5 = @intCast(loadout.weapon);
+    const weapon = @import("weapon_catalog").find(id) orelse return;
+    if (!weapon.spec.droppable or loadout.ammo[id] <= 0 or loadout.dk3Inventory & (@as(i32, 1) << id) == 0) return;
+    const multiplayer = @import("multiplayer.zig").enabled();
+    const companion = (world.get(owner, data.Companion) catch null) != null;
+    var pose = (try world.get(owner, data.Transform)).*;
+    if (multiplayer) pose.position[2] += 16;
+    pose.angles = @splat(0);
+    var random: data.Random = .{ .state = (try world.persistentId(owner)) ^ @as(u32, @truncate(@as(u64, @bitCast(now)))) };
+    const velocity: data.Vec3 = .{ random.next() * (if (companion) @as(f32, 300) else 400) - 200, random.next() * (if (companion) @as(f32, 300) else 400) - 200, random.next() * (if (companion) @as(f32, 200) else 250) + (if (companion) @as(f32, 200) else 250) };
+    const item = try spawnDynamic(world, slots, projections, weapon.classname, pose, now, episode);
+    const pickup = try world.get(item, data.Pickup);
+    pickup.amount = loadout.ammo[id];
+    pickup.dropped = true;
+    pickup.expires_ms = if (multiplayer) now + 60000 else null;
+    (try world.get(item, data.ItemMotion)).* = .{ .base = pose.position, .velocity = velocity, .started_ms = now, .bounce = 0 };
+    try publish(world, item, projections);
+}
 fn spawnOne(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64, episode: u8) !void {
     const object = (try world.get(entity, data.MapObject)).*;
     const kind = rules.classify(object.classname) orelse return error.UnknownItemClass;
@@ -90,6 +112,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = occupant orelse continue;
         if (!world.alive(entity)) continue;
         const pickup = world.get(entity, data.Pickup) catch continue;
+        if (pickup.expires_ms) |due| if (now >= due) {
+            try @import("weapon_entities.zig").remove(world, slots, projections, entity);
+            continue;
+        };
         if (pickup.respawn_ms) |due| if (now >= due) {
             pickup.visible = true;
             pickup.respawn_ms = null;
@@ -126,21 +152,30 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             } else continue;
             const player_slot = (try world.get(player, data.Binding)).slot;
             if (!@import("interactions.zig").overlap(&projections[slot], &projections[player_slot], 0)) continue;
+            const single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER;
+            const stays = rules.weaponStays(pickup.*, !single_player and engine.integer("dm_weapons_stay") != 0);
+            if (stays and (try world.get(player, data.Weapons)).dk3Inventory & (@as(i32, 1) << pickup.kind.weapon) != 0) continue;
             if (!rules.give(pickup.*, .{ .keys = try world.get(player, data.Keys), .health = try world.get(player, data.Health), .loadout = try world.get(player, data.Weapons), .character = try world.get(player, data.Character), .ailments = try world.get(player, data.Ailments) }, table, now, engine.integer("g_gametype") == c.GT_SINGLE_PLAYER)) continue;
-            pickup.visible = false;
+            pickup.visible = stays;
             if (pickup.kind == .weapon and player_slot < Slots.clients) {
                 var command: [48]u8 = undefined;
                 const selected = (try world.get(player, data.Weapons)).weapon;
                 engine.send(player_slot, try std.fmt.bufPrintZ(&command, "dk3_weapon {d}", .{selected}));
             }
             const object = (try world.get(entity, data.MapObject)).*;
-            if (rules.respawnDelay(object.classname, engine.integer("g_gametype") == c.GT_SINGLE_PLAYER)) |delay| pickup.respawn_ms = now + delay;
+            const dropped = pickup.dropped;
+            // Weapon spawn callbacks own their respawn time. The item-respawn
+            // switch applies to ammunition and ordinary items, not weapons.
+            if (!stays and !dropped and (pickup.kind == .weapon or engine.integer("dm_item_respawn") != 0)) {
+                if (rules.respawnDelay(object.classname, single_player)) |delay| pickup.respawn_ms = now + delay;
+            }
             try publish(world, entity, projections);
             const sound = rules.pickupSound(pickup.kind, object.classname);
             const collector = (try world.get(player, data.Transform)).position;
             // Events add components/entities; no borrowed component pointers survive this barrier.
             try @import("events.zig").sound(world, slots, projections, sound, collector, player_slot, c.CHAN_ITEM, now);
             try router.fire(world, slots, projections, entity, try world.persistentId(player), now);
+            if (dropped and world.alive(entity)) try @import("weapon_entities.zig").remove(world, slots, projections, entity);
             break; // Targets may destroy this item or other queried entities.
         }
     }

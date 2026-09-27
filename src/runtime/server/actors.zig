@@ -462,7 +462,7 @@ pub const Actors = struct {
                 continue;
             }
             if (dead and (catalog.entries[actor.definition].kind == .rockgat or catalog.entries[actor.definition].kind == .lasergat)) {
-                try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode);
+                try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode, &self.weapons);
                 try @import("actor_spawns.zig").death(self, world, slots, projections, router, entity, now);
                 engine.unlink(&projections[binding.slot]);
                 try slots.release(binding.slot, entity);
@@ -472,7 +472,7 @@ pub const Actors = struct {
             if (dead and actor.mode != .dead and (catalog.entries[actor.definition].kind != .ghost or petrified)) {
                 const kind = catalog.entries[actor.definition].kind;
                 if (kind == .kage) try @import("kages.zig").death(world, slots);
-                if (kind == .companion) try @import("companion_damage.zig").death(world, slots, projections, entity, now);
+                if (kind == .companion) try @import("companion_damage.zig").death(world, slots, projections, entity, self.episode, now);
                 if (!petrified and (catalog.ambient(kind) or kind == .dopefish or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or (kind == .buboid and actor.buboid.phase == .terminal)) and engine.integer("sv_violence") == 0) {
                     try @import("actor_gibs.zig").spawn(world, slots, projections, entity, now);
                     actor.gibbed = true;
@@ -521,7 +521,7 @@ pub const Actors = struct {
                 try self.publish(world, entity, projections, now);
                 if (dead and !actor.death_dispatched) {
                     (try world.get(entity, data.Actor)).death_dispatched = true;
-                    try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode);
+                    try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode, &self.weapons);
                     try @import("actor_spawns.zig").death(self, world, slots, projections, router, entity, now);
                 }
                 continue;
@@ -620,7 +620,7 @@ pub const Actors = struct {
                 if (dead and !actor.death_dispatched) {
                     actor.death_dispatched = true;
                     (try world.get(entity, data.Actor)).death_dispatched = true;
-                    try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode);
+                    try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode, &self.weapons);
                     try @import("actor_spawns.zig").death(self, world, slots, projections, router, entity, now);
                 }
                 var flight = (try world.get(entity, data.Velocity)).*;
@@ -731,7 +731,7 @@ pub const Actors = struct {
             try self.publish(world, entity, projections, now);
             if (dead and !actor.death_dispatched) {
                 (try world.get(entity, data.Actor)).death_dispatched = true;
-                try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode);
+                try @import("progression.zig").kill(world, hurt, self.table.definitions[actor.definition].health, self.episode, &self.weapons);
                 try @import("actor_spawns.zig").death(self, world, slots, projections, router, entity, now);
             }
         }

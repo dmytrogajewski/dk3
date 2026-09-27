@@ -16,12 +16,17 @@ pub fn initialize(world: *data.World, entity: ecs.Entity, now: i64) !policy.Emit
     const object = (try world.get(entity, data.MapObject)).*;
     var state: policy.Emitter = .{ .flags = object.flags, .next_ms = now + if (object.flags & policy.constant != 0) @as(i64, 3750) else 100, .uncull_until_ms = now + 3000 };
     state.damage = try prop.number(object, "dmg", 0);
-    state.scale = try prop.number(object, "scale", 10); if (state.scale == 0) state.scale = 10;
+    state.scale = try prop.number(object, "scale", 10);
+    if (state.scale == 0) state.scale = 10;
     state.modulation = try prop.number(object, "modulation", 1);
-    state.chance = try prop.number(object, "chance", 0.1); if (state.chance == 0) state.chance = 0.1;
-    state.ground_chance = try prop.number(object, "gndchance", 0.2); if (state.ground_chance == 0) state.ground_chance = 0.2;
-    state.delay_ms = try prop.milliseconds(object, "delay", 2); if (state.delay_ms == 0) state.delay_ms = 2000;
-    state.duration_ms = try prop.milliseconds(object, "duration", 0.3); if (state.duration_ms == 0) state.duration_ms = 300;
+    state.chance = try prop.number(object, "chance", 0.1);
+    if (state.chance == 0) state.chance = 0.1;
+    state.ground_chance = try prop.number(object, "gndchance", 0.2);
+    if (state.ground_chance == 0) state.ground_chance = 0.2;
+    state.delay_ms = try prop.milliseconds(object, "delay", 2);
+    if (state.delay_ms == 0) state.delay_ms = 2000;
+    state.duration_ms = try prop.milliseconds(object, "duration", 0.3);
+    if (state.duration_ms == 0) state.duration_ms = 300;
     if (state.damage < 0 or state.scale <= 0 or state.modulation < 0 or state.delay_ms < 0 or state.duration_ms < 0) return error.InvalidAuthoredLightning;
     if (prop.text(object, "_color")) |color| state.color = try @import("map.zig").vector(color);
     for (object.properties) |property| {
@@ -45,21 +50,28 @@ pub fn linkAttractors(world: *data.World, now: i64) !void {
         defer query.deinit();
         while (query.next()) |view| for (view.entities(), view.read(data.WorldControl)) |entity, control| if (control.action == .attractor) {
             if (control.action.attractor.link_ms) |at| if (at <= now) {
-                pending[count] = .{ .entity = entity, .id = try world.persistentId(entity), .at = at }; count += 1;
+                pending[count] = .{ .entity = entity, .id = try world.persistentId(entity), .at = at };
+                count += 1;
             };
         };
     }
     std.mem.sort(Pending, pending[0..count], {}, struct {
-        fn less(_: void, a: Pending, b: Pending) bool { return if (a.at == b.at) a.id < b.id else a.at < b.at; }
+        fn less(_: void, a: Pending, b: Pending) bool {
+            return if (a.at == b.at) a.id < b.id else a.at < b.at;
+        }
     }.less);
     for (pending[0..count]) |entry| {
         const name = (try world.get(entry.entity, data.MapObject)).targetname;
-        var query = world.queryAccess(data.World.mask(.{data.MapObject, data.WorldControl}), 0, data.World.mask(.{data.WorldControl}));
+        var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.WorldControl }), 0, data.World.mask(.{data.WorldControl}));
         while (query.next()) |view| for (view.read(data.MapObject), view.write(data.WorldControl)) |object, *control| {
             if (control.action != .lightning or !std.ascii.eqlIgnoreCase(object.target, name)) continue;
             const state = &control.action.lightning;
-            if (state.count == state.attractors.len) { query.deinit(); return error.LightningAttractorCapacity; }
-            state.attractors[state.count] = entry.id; state.count += 1;
+            if (state.count == state.attractors.len) {
+                query.deinit();
+                return error.LightningAttractorCapacity;
+            }
+            state.attractors[state.count] = entry.id;
+            state.count += 1;
             if (state.current == 0 and state.count == 1) state.current = entry.id;
         };
         query.deinit();
@@ -71,11 +83,15 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     const binding = (try world.get(entity, data.Binding)).*;
     const origin = (try world.get(entity, data.Transform)).position;
     const out = &projections[binding.slot];
-    out.state.number = binding.slot; out.state.eType = c.ET_GENERAL;
+    out.state.number = binding.slot;
+    out.state.eType = c.ET_GENERAL;
     out.state.pos = @import("../engine/trajectory.zig").stationary(origin);
     out.state.modelindex = 0;
-    out.shared.currentOrigin = origin; out.shared.mins = @splat(-1); out.shared.maxs = @splat(1);
-    out.shared.contents = 0; out.shared.ownerNum = c.ENTITYNUM_NONE;
+    out.shared.currentOrigin = origin;
+    out.shared.mins = @splat(-1);
+    out.shared.maxs = @splat(1);
+    out.shared.contents = 0;
+    out.shared.ownerNum = c.ENTITYNUM_NONE;
     out.shared.svFlags = c.SVF_NOCLIENT;
     if (control.action == .lightning) {
         const state = control.action.lightning;
@@ -87,7 +103,10 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
         if (out.state.loopSound != 0) out.shared.svFlags = 0;
     } else {
         const bolt = control.action.lightning_bolt;
-        const emitter = world.find(bolt.emitter) orelse { engine.link(out); return; };
+        const emitter = world.find(bolt.emitter) orelse {
+            engine.link(out);
+            return;
+        };
         const state = (try world.get(emitter, data.WorldControl)).action.lightning;
         out.state.generic1 = policy.render_tag;
         out.state.time2 = @bitCast(try world.persistentId(entity));
@@ -106,7 +125,9 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     if (state.flags & policy.once != 0) {
         try strike(world, slots, projections, router, entity, now);
     } else if (state.flags & policy.on != 0) {
-        state.flags &= ~@as(u32, policy.on); state.next_ms = null; state.initialized = true;
+        state.flags &= ~@as(u32, policy.on);
+        state.next_ms = null;
+        state.initialized = true;
     } else {
         state.flags |= policy.on;
         try strike(world, slots, projections, router, entity, now);
@@ -121,7 +142,10 @@ fn spawnBolt(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     const origin = (try world.get(emitter, data.Transform)).position;
     if (now > state.uncull_until_ms and state.flags & policy.constant == 0) {
         var audible = false;
-        for (slots.occupants) |occupant| if (occupant) |client| if (recipient(world, client) and engine.inPhs((try world.get(client, data.Transform)).position, origin)) { audible = true; break; };
+        for (slots.occupants) |occupant| if (occupant) |client| if (recipient(world, client) and engine.inPhs((try world.get(client, data.Transform)).position, origin)) {
+            audible = true;
+            break;
+        };
         if (!audible) return;
     }
     const bolt = try world.create(null, .{ data.Transform{ .position = origin }, data.MapObject{ .classname = "effect_lightning_bolt" }, data.WorldControl{ .action = .{ .lightning_bolt = .{ .emitter = try world.persistentId(emitter), .target = target, .endpoint = endpoint, .next_ms = now + 100, .until_ms = now + state.duration_ms, .damage = state.damage } } } });
@@ -149,27 +173,40 @@ fn strike(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
             for (slots.occupants) |occupant| if (occupant) |client| {
                 if (!recipient(world, client)) continue;
                 const position = (try world.get(client, data.Transform)).position;
-                const direction = v.subtract(position, origin); const distance = v.length(direction);
+                const direction = v.subtract(position, origin);
+                const distance = v.length(direction);
                 if (distance >= closest) continue;
                 const hit = try engine.collisionService().trace(.{ .start = v.add(origin, v.scale(v.normalize(direction), 128)), .end = position, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-                if (hit.entity == (try world.get(client, data.Binding)).slot or hit.fraction == 1) { closest = distance; target = try world.persistentId(client); point = position; }
+                if (hit.entity == (try world.get(client, data.Binding)).slot or hit.fraction == 1) {
+                    closest = distance;
+                    target = try world.persistentId(client);
+                    point = position;
+                }
             };
         },
         .ground => for (0..6) |_| {
             const direction = v.basis(@import("../domain/complex_particles.zig").angles(.{ random.next() - 0.5, random.next() - 0.5, random.next() - 0.5 })).forward;
             const start = v.add(origin, v.scale(direction, 128));
             const hit = try engine.collisionService().trace(.{ .start = start, .end = v.add(start, v.scale(direction, 2000)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-            if (hit.entity == c.ENTITYNUM_WORLD and hit.fraction < 1) { point = hit.end; break; }
+            if (hit.entity == c.ENTITYNUM_WORLD and hit.fraction < 1) {
+                point = hit.end;
+                break;
+            }
         },
         .attractor => {
             var count: u8 = 0;
             for (state.attractors[0..state.count]) |id| if (world.find(id)) |candidate| {
                 const action = (world.get(candidate, data.WorldControl) catch continue).action;
                 if (action != .attractor) continue;
-                state.attractors[count] = id; count += 1;
+                state.attractors[count] = id;
+                count += 1;
             };
-            @memset(state.attractors[count..], 0); state.count = count;
-            if (state.choose(random.next())) |id| { attracted = world.find(id); point = (try world.get(attracted.?, data.Transform)).position; }
+            @memset(state.attractors[count..], 0);
+            state.count = count;
+            if (state.choose(random.next())) |id| {
+                attracted = world.find(id);
+                point = (try world.get(attracted.?, data.Transform)).position;
+            }
         },
     }
     state.schedule(now, random.next());
@@ -194,7 +231,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const state = &(try world.get(entity, data.WorldControl)).action.lightning;
         if (state.next_ms == null or now < state.next_ms.?) return;
         const startup = !state.initialized;
-        state.initialized = true; state.next_ms = null;
+        state.initialized = true;
+        state.next_ms = null;
         if (!startup or state.flags & policy.on != 0) try strike(world, slots, projections, router, entity, now);
         if (!world.alive(entity)) return;
         const updated = &(try world.get(entity, data.WorldControl)).action.lightning;
@@ -204,21 +242,30 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     }
     var bolt = control.action.lightning_bolt;
     if (now < bolt.next_ms) return;
-    const emitter = world.find(bolt.emitter) orelse { try entities.remove(world, slots, projections, entity); return; };
+    const emitter = world.find(bolt.emitter) orelse {
+        try entities.remove(world, slots, projections, entity);
+        return;
+    };
     const state = (try world.get(emitter, data.WorldControl)).action.lightning;
     const origin = (try world.get(entity, data.Transform)).position;
-    if (world.find(bolt.target)) |target| { bolt.endpoint = (try world.get(target, data.Transform)).position; } else bolt.target = 0;
+    if (world.find(bolt.target)) |target| {
+        bolt.endpoint = (try world.get(target, data.Transform)).position;
+    } else bolt.target = 0;
     if (bolt.expired(state, now)) {
         if (bolt.damage > 0 and state.flags & policy.trace_damage != 0) try traceDamage(world, slots, entity, bolt, origin, now);
         if (state.flags & policy.scorch != 0) {
             const hit = try engine.collisionService().trace(.{ .start = bolt.endpoint, .end = v.add(bolt.endpoint, v.scale(v.subtract(bolt.endpoint, origin), 1.1)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(emitter, data.Binding)).slot, .mask = c.MASK_SOLID });
             if (hit.entity == c.ENTITYNUM_WORLD and hit.fraction < 1) try scorchEvent(world, slots, projections, hit.end, hit.normal, now);
         }
-        try entities.remove(world, slots, projections, entity); return;
+        try entities.remove(world, slots, projections, entity);
+        return;
     }
     if (world.find(bolt.target)) |target| {
         try hurt(world, bolt, target, origin, now);
-    } else if (bolt.damage > 0 and bolt.check_trace and state.flags & policy.trace_damage != 0) { try traceDamage(world, slots, entity, bolt, origin, now); bolt.traced(state); }
+    } else if (bolt.damage > 0 and bolt.check_trace and state.flags & policy.trace_damage != 0) {
+        try traceDamage(world, slots, entity, bolt, origin, now);
+        bolt.traced(state);
+    }
     bolt.next_ms = now + if (state.flags & policy.constant != 0) @as(i64, 500) else 100;
     (try world.get(entity, data.WorldControl)).action.lightning_bolt = bolt;
     try publish(world, entity, projections);
@@ -241,9 +288,9 @@ test "attractors link once in deadline and identity order to every matching emit
     try t.expectEqual(@as(u8, 0), (try world.get(source, data.WorldControl)).action.lightning.count);
     try linkAttractors(&world, 300);
     try linkAttractors(&world, 500);
-    for ([_]ecs.Entity{source, other}) |entity| {
+    for ([_]ecs.Entity{ source, other }) |entity| {
         const state = (try world.get(entity, data.WorldControl)).action.lightning;
         try t.expectEqual(@as(u8, 3), state.count);
-        try t.expectEqualSlices(u32, &.{6, 7, 8}, state.attractors[0..state.count]);
+        try t.expectEqualSlices(u32, &.{ 6, 7, 8 }, state.attractors[0..state.count]);
     }
 }

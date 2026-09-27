@@ -69,7 +69,12 @@ fn eligible(world: *data.World, station: ecs.Entity, recipient: ecs.Entity) !boo
 }
 fn cue(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, event: policy.Cue, now: i64) !void {
     const definition = policy.definition((try world.get(entity, data.WorldControl)).action.healer.kind);
-    const name = switch (event) { .none => return, .effects => definition.particle_sound, .recharged => definition.recharged_sound, .empty => definition.empty_sound };
+    const name = switch (event) {
+        .none => return,
+        .effects => definition.particle_sound,
+        .recharged => definition.recharged_sound,
+        .empty => definition.empty_sound,
+    };
     if (name.len == 0) return;
     try @import("events.zig").configuredSound(world, slots, projections, name, (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now, .{ .volume = if (event == .effects) 0.85 else 0.5 });
 }

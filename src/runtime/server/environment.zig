@@ -68,7 +68,9 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         var exposure = try measure(engine.collisionService(), (try world.get(entity, data.Transform)).position, body, view, (try world.get(entity, data.Binding)).slot);
         exposure.subject = who;
         exposure.active = !cinematic and (try world.get(entity, data.Health)).current > 0 and (world.get(entity, data.Performer) catch null) == null;
-        if (player) |value| if (value.mode != .normal) { exposure.active = false; };
+        if (player) |value| if (value.mode != .normal) {
+            exposure.active = false;
+        };
         var state = if (person) (try world.get(entity, data.Character)).liquid else (try world.get(entity, data.Actor)).liquid;
         const fresh = !state.initialized;
         if (fresh) state.initialize(now, who);

@@ -191,7 +191,10 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try shift(&value.motion.start_ms, delta);
             try deadline(&value.action.at_ms, delta);
         },
-        .pickup => try deadline(&value.respawn_ms, delta),
+        .pickup => {
+            try deadline(&value.respawn_ms, delta);
+            try deadline(&value.expires_ms, delta);
+        },
         .item_motion => try shift(&value.started_ms, delta),
         .character => {
             try liquid(&value.liquid, delta);
@@ -408,8 +411,11 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             // Routing caches are derived from the current collision/nav world.
             value.route = .{};
         },
-        .hurt => if (value.at_ms != -1) {
-            try shift(&value.at_ms, delta);
+        .hurt => {
+            if (value.at_ms != -1) try shift(&value.at_ms, delta);
+            if (value.feedback.flash_alpha > 0) try shift(&value.feedback.flash_ms, delta);
+            try deadline(&value.feedback.pain_ready_ms, delta);
+            try deadline(&value.feedback.hazard_voice_ms, delta);
         },
         .hazard => try active(&value.ready_ms, delta),
         .exit => {
@@ -579,4 +585,19 @@ test "target-effect restore retains the strict final boundary and pulse identity
     try std.testing.expectEqual(@as(?i64, 9100), value.action.target_effect.pulse_ms);
     try std.testing.expectEqual(@as(u32, 7), value.action.target_effect.serial);
     try std.testing.expectEqual(@as(i64, 400), value.action.target_effect.duration_ms);
+}
+
+test "death-drop expiry and consumed player injury survive clock rebasing" {
+    var pickup: data.Pickup = .{ .kind = .{ .weapon = 2 }, .amount = 7, .dropped = true, .expires_ms = 61000 };
+    try rebase(.pickup, &pickup, 9000);
+    try std.testing.expectEqual(@as(?i64, 70000), pickup.expires_ms);
+    try std.testing.expectEqual(null, pickup.respawn_ms);
+    var hurt: data.Hurt = .{ .at_ms = 1000, .revision = 4, .feedback = .{ .handled_revision = 4, .death_handled = true, .pain_ready_ms = 2000, .hazard_voice_ms = 4000, .flash_alpha = 0.5, .flash_ms = 1000 } };
+    try rebase(.hurt, &hurt, 9000);
+    try std.testing.expectEqual(@as(i64, 10000), hurt.at_ms);
+    try std.testing.expectEqual(@as(?i64, 11000), hurt.feedback.pain_ready_ms);
+    try std.testing.expectEqual(@as(?i64, 13000), hurt.feedback.hazard_voice_ms);
+    try std.testing.expectEqual(hurt.revision, hurt.feedback.handled_revision);
+    try std.testing.expect(hurt.feedback.death_handled);
+    try std.testing.expectApproxEqAbs(@as(f32, 0.455), hurt.feedback.alpha(10100), 0.00001);
 }

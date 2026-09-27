@@ -55,9 +55,13 @@ pub fn defaults(now: i64) [256]u8 {
 }
 pub fn encode(values: [256]u8) [514:0]u8 {
     var text: [514:0]u8 = undefined;
-    text[0] = '1'; text[1] = ':';
+    text[0] = '1';
+    text[1] = ':';
     const hex = "0123456789abcdef";
-    for (values, 0..) |level, i| { text[2 + i * 2] = hex[level >> 4]; text[3 + i * 2] = hex[level & 15]; }
+    for (values, 0..) |level, i| {
+        text[2 + i * 2] = hex[level >> 4];
+        text[3 + i * 2] = hex[level & 15];
+    }
     text[514] = 0;
     return text;
 }
@@ -78,7 +82,9 @@ test "light ramps retain direction, do not force their endpoint early, and trans
     try t.expectEqual(@as(u8, 25), ramp.sample(2000));
     try t.expectEqual(@as(u8, 27), ramp.sample(2100));
     var levels = defaults(0);
-    levels[32] = 0; levels[33] = 25; levels[34] = 48;
+    levels[32] = 0;
+    levels[33] = 25;
+    levels[34] = 48;
     const encoded = encode(levels);
     const decoded = try decode(&encoded);
     try t.expectEqual(@as(f32, 0), decoded[32]);

@@ -23,9 +23,16 @@ pub fn initialize(object: data.MapObject, id: u32, now: i64) !policy.Light {
     if (kind == .light or kind == .spot or kind == .strobe) {
         state.pattern = prop.text(object, "lightstyle") orelse "";
         if (state.pattern.len >= 1024) return error.InvalidLightPattern;
-        if (kind == .light and state.style >= 32) { state.pattern = ""; state.level = if (state.enabled) 12 else 0; }
+        if (kind == .light and state.style >= 32) {
+            state.pattern = "";
+            state.level = if (state.enabled) 12 else 0;
+        }
     }
-    if (kind == .flame) state.model = switch (object.classname[7]) { '3' => "models/global/e3_firea.sp2", '4' => "models/global/e4_firea.sp2", else => "models/global/e2_firea.sp2" } else if (kind == .flare or (kind == .light and object.flags & 2 != 0)) state.model = prop.text(object, "model") orelse "models/global/e_flare2.sp2";
+    if (kind == .flame) state.model = switch (object.classname[7]) {
+        '3' => "models/global/e3_firea.sp2",
+        '4' => "models/global/e4_firea.sp2",
+        else => "models/global/e2_firea.sp2",
+    } else if (kind == .flare or (kind == .light and object.flags & 2 != 0)) state.model = prop.text(object, "model") orelse "models/global/e_flare2.sp2";
     if (prop.text(object, "scale")) |scale| {
         var words = std.mem.tokenizeAny(u8, scale, " \t");
         if (kind == .light) {
@@ -37,7 +44,10 @@ pub fn initialize(object: data.MapObject, id: u32, now: i64) !policy.Light {
                 axis.* = std.fmt.parseFloat(f32, word) catch return error.InvalidLightScale;
             }
         }
-        for (&state.scale) |*axis| { if (axis.* == 0) axis.* = 1; if (!std.math.isFinite(axis.*) or axis.* < 0 or axis.* > 10000) return error.InvalidLightScale; }
+        for (&state.scale) |*axis| {
+            if (axis.* == 0) axis.* = 1;
+            if (!std.math.isFinite(axis.*) or axis.* < 0 or axis.* > 10000) return error.InvalidLightScale;
+        }
     }
     return state;
 }
@@ -65,7 +75,8 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     out.shared.currentOrigin = pose.position;
     out.shared.ownerNum = c.ENTITYNUM_NONE;
     out.shared.contents = if (light.kind == .flame) c.CONTENTS_TRIGGER else 0;
-    out.shared.mins = @splat(0); out.shared.maxs = @splat(0);
+    out.shared.mins = @splat(0);
+    out.shared.maxs = @splat(0);
     // Reference ordinary lights keep their flare when switched off after first use.
     out.shared.svFlags = if (light.enabled or (light.kind == .light and (try world.get(entity, data.WorldControl)).uses != 0)) 0 else c.SVF_NOCLIENT;
     engine.link(out);
@@ -74,13 +85,17 @@ fn revision(world: *data.World) u64 {
     var latest: u64 = 0;
     var query = world.queryAccess(data.World.mask(.{data.WorldControl}), 0, 0);
     defer query.deinit();
-    while (query.next()) |view| for (view.read(data.WorldControl)) |control| if (control.action == .light) { latest = @max(latest, control.action.light.revision); };
+    while (query.next()) |view| for (view.read(data.WorldControl)) |control| if (control.action == .light) {
+        latest = @max(latest, control.action.light.revision);
+    };
     return latest + 1;
 }
 pub fn set(world: *data.World, entity: ecs.Entity, level: u8) !void {
     const next = revision(world);
     const light = &(try world.get(entity, data.WorldControl)).action.light;
-    light.level = level; light.pattern = ""; light.revision = next;
+    light.level = level;
+    light.pattern = "";
+    light.revision = next;
 }
 pub fn use(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection) !void {
     const control = try world.get(entity, data.WorldControl);
@@ -123,7 +138,8 @@ pub fn rampUse(world: *data.World, entity: ecs.Entity, now: i64) !void {
         if (control.action != .light or control.action.light.kind != .light) return error.InvalidRampTarget;
         state.target = targets.ids[0];
     }
-    state.started_ms = now; state.next_ms = now + 100;
+    state.started_ms = now;
+    state.next_ms = now + 100;
 }
 pub fn rampStep(world: *data.World, entity: ecs.Entity, now: i64) !void {
     var state = (try world.get(entity, data.WorldControl)).action.light_ramp;

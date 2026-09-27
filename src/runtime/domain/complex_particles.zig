@@ -33,32 +33,51 @@ pub const State = struct {
     direction: v.Vec3 = @splat(0),
     acceleration: v.Vec3 = .{ 0, 0, -1 },
     pub fn start(self: *State, now: i64) void {
-        self.on = true; self.tracked = true; self.started_ms = now; self.phase = .check; self.next_ms = now + 500;
+        self.on = true;
+        self.tracked = true;
+        self.started_ms = now;
+        self.phase = .check;
+        self.next_ms = now + 500;
     }
     pub fn use(self: *State, now: i64) void {
         if (self.phase == .parse or self.flags & (1024 | 2048) == 0) return;
         if (!self.on) {
             self.on = true;
-            if (self.duration_ms == 0) { self.phase = .spawn; self.next_ms = now + 200; } else {
-                self.start(now); self.until_ms = now + self.duration_ms; self.next_ms = now + 300;
+            if (self.duration_ms == 0) {
+                self.phase = .spawn;
+                self.next_ms = now + 200;
+            } else {
+                self.start(now);
+                self.until_ms = now + self.duration_ms;
+                self.next_ms = now + 300;
             }
         } else if (self.flags & 2048 != 0) {
-            self.on = false; self.tracked = false; self.phase = .idle; self.next_ms = null;
+            self.on = false;
+            self.tracked = false;
+            self.phase = .idle;
+            self.next_ms = null;
         }
     }
     pub fn check(self: *State, visible: bool, now: i64) void {
         if (!visible and self.on and !self.outside) {
-            self.tracked = false; self.outside = true; self.next_ms = now + 500; return;
+            self.tracked = false;
+            self.outside = true;
+            self.next_ms = now + 500;
+            return;
         }
         if (visible and self.outside) {
             if (self.on) {
                 if (self.duration_ms == 0) self.phase = .spawn else {
-                    self.start(now); self.until_ms = now + self.duration_ms;
+                    self.start(now);
+                    self.until_ms = now + self.duration_ms;
                 }
             }
             self.outside = false;
         }
-        if (self.duration_ms != 0 and self.on and self.until_ms < now) { self.tracked = false; self.on = false; }
+        if (self.duration_ms != 0 and self.on and self.until_ms < now) {
+            self.tracked = false;
+            self.on = false;
+        }
         self.next_ms = now + 300;
     }
 };

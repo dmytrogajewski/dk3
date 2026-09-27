@@ -21,7 +21,7 @@ pub fn step(world: *data.World, now: i64) !void {
         var state = (try world.get(entity, data.Ailments)).*;
         if ((try world.get(entity, data.Health)).current <= 0) continue;
         while (state.next(now)) |tick| {
-            const result = try @import("damage.zig").apply(world, entity, @intFromFloat(@ceil(tick.amount)), now, .{ .source = tick.source, .weapon = tick.weapon, .bypass_armor = tick.bypass_armor, .self_hazard = tick.source == try world.persistentId(entity) });
+            const result = try @import("damage.zig").apply(world, entity, @intFromFloat(@ceil(tick.amount)), now, .{ .source = tick.source, .weapon = tick.weapon, .bypass_armor = tick.bypass_armor, .self_hazard = tick.source == try world.persistentId(entity), .suppress_flash = true });
             if (result.blood > 0 and engine.integer("developer") > 0) {
                 var text: [160]u8 = undefined;
                 engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig status tick: target={d} weapon={d} blood={d} killed={d}\n", .{ try world.persistentId(entity), tick.weapon, result.blood, @intFromBool(result.killed) }));

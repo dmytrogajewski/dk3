@@ -4,6 +4,8 @@ pub const id: u5 = 26;
 pub const spec: profiles.Spec = .{
     .player_grip = .rifle,
     .combat = .metamaser,
+    .respects_weapons_stay = false,
+    .pickup_respawn_ms = 60000,
     .ammo_class = "ammo_metamaser", // metamaser
     .projectile = .{ .gravity = true, .action_delay_ms = 300, .mins = .{ -6, -6, 0 }, .maxs = .{ 6, 6, 12 } },
     .visual = .{ .projectile_model = "models/e4/we_mmprj.dkm", .projectile_scale = 8, .impact_sprite = "models/e4/we_mmaserexp.sp2", .color = .{ 0, 0, 1 }, .glow = false },

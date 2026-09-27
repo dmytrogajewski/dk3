@@ -13,7 +13,15 @@ pub const Session = struct {
     appearance: u8 = 0,
     ready: bool = false,
     pose: @import("player_pose.zig").State = .{},
+    advancement: ?@import("character.zig").Advancement = null,
 };
+pub fn initialAdvancement(appearance_id: u8) @import("character.zig").Advancement {
+    return .{ .attributes = switch (appearance_id % 3) {
+        0 => .{ 0, 1, 0, 1, 0 },
+        1 => .{ 0, 1, 1, 0, 0 },
+        else => .{ 1, 0, 0, 0, 1 },
+    }, .level = 3, .experience = @import("weapon_catalog").character.experienceThreshold(2) };
+}
 pub fn allied(a: Session, b: Session) bool {
     return (a.team == .red or a.team == .blue) and a.team == b.team;
 }
@@ -155,4 +163,31 @@ test "deathtag fuse survives a drop and transfer and a capture shortens it" {
     flag.reset();
     try t.expectEqual(@as(?i64, null), flag.deadline);
     try t.expectEqual(@as(?u32, null), flag.carrier);
+}
+
+test "class starting attributes and retained advancement exclude temporary effects" {
+    const t = std.testing;
+    const character = @import("character.zig");
+    const hiro = initialAdvancement(0);
+    const mikiko = initialAdvancement(1);
+    const superfly = initialAdvancement(2);
+    try t.expectEqual([5]i32{ 0, 1, 0, 1, 0 }, hiro.attributes);
+    try t.expectEqual([5]i32{ 0, 1, 1, 0, 0 }, mikiko.attributes);
+    try t.expectEqual([5]i32{ 1, 0, 0, 0, 1 }, superfly.attributes);
+    var state = character.State.fromAdvancement(hiro);
+    state.invincible_until = 90000;
+    state.rings = 16;
+    _ = try state.award(1000);
+    const retained = state.advancement(44);
+    const respawned = character.State.fromAdvancement(retained);
+    try t.expectEqual(state.attributes, respawned.attributes);
+    try t.expectEqual(state.points, respawned.points);
+    try t.expectEqual(state.experience, respawned.experience);
+    try t.expectEqual(@as(i32, 44), retained.sword);
+    try t.expectEqual(@as(i64, 0), respawned.invincible_until);
+    try t.expectEqual(@as(u32, 0), respawned.rings);
+    var capped = character.State.fromAdvancement(hiro);
+    _ = try capped.awardLimited(100000, 4);
+    try t.expectEqual(@as(i32, 4), capped.level);
+    try t.expectEqual(@as(i32, 1), capped.points);
 }

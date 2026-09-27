@@ -161,7 +161,7 @@ pub fn yieldPoint(world: *data.World, slots: *Slots, actor: ecs.Entity, toward: 
 
 test "route controls follow authored relay chains without bypassing locks or scripts" {
     const t = std.testing;
-    var world = try data.World.init(t.allocator);
+    var world = data.World.init(t.allocator, 8);
     defer world.deinit();
     _ = try world.create(1, .{data.Keys{}});
     const button = try world.create(2, .{data.MapObject{ .classname = "func_button", .target = "relay" }});

@@ -54,10 +54,22 @@ pub const State = struct {
                 return .recharged;
             },
             .giving => {
-                const current = health orelse { self.reset(now); return .none; };
-                if (!eligible or current.* <= 0) { self.reset(now); return .none; }
-                if (current.* >= maximum) { self.reset(now); return .recharged; }
-                if (self.charge == 0) { self.reset(now); return .empty; }
+                const current = health orelse {
+                    self.reset(now);
+                    return .none;
+                };
+                if (!eligible or current.* <= 0) {
+                    self.reset(now);
+                    return .none;
+                }
+                if (current.* >= maximum) {
+                    self.reset(now);
+                    return .recharged;
+                }
+                if (self.charge == 0) {
+                    self.reset(now);
+                    return .empty;
+                }
                 current.* += 1;
                 self.charge -= 1;
                 self.next_ms = now + 200;
@@ -69,7 +81,9 @@ pub const State = struct {
             },
         }
     }
-    pub fn frame(self: State) i32 { return @intFromBool(self.phase != .recharging); }
+    pub fn frame(self: State) i32 {
+        return @intFromBool(self.phase != .recharging);
+    }
 };
 test "healing requires continuing proximity and facing, then locks until replenished" {
     const t = std.testing;

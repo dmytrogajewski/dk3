@@ -7,7 +7,7 @@ campaign, companions, multiplayer/bots, UI, persistence and independent release 
 
 Owner-directed cadence: finish the broad connected coding pass, then consolidate the
 build/assets and run verification with repairs. No per-item suite/engine gates.
-Implementation checkpoints 255–283 add no connected acceptance. No overall percentage
+Implementation checkpoints 255–284 add no connected acceptance. No overall percentage
 is inferred from class counts or test volume.
 
 ## Current outcome matrix
@@ -18,17 +18,20 @@ is inferred from class counts or test volume.
 | Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Earlier contracts; current candidate unrun | **Not accepted:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a | Previous legitimate checkpoints reach defeated bridge boss/reward and first factory gate; complete fresh route required |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | New coding-pass regressions written, unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Historical executing contracts; current additions unrun | Sequence 253 narrow death/reload; 254 C→B→C visited restoration after disk load | Shared actor/world/script changes invalidate applicable earlier coverage; natural restoration replay required |
-| Multiplayer and bots | Native sessions, combat/respawn, DM, CTF/deathtag, physical bot input, room controls and menus connected | New implementation unrun | Current candidate unrun; previous runtime results do not transfer | Complete mode/objective interactions, bot navigation, network/reconnect/browser/room scenarios and presentation remain |
+| Multiplayer and bots | Native sessions, combat/respawn with retained advancement, death drops, DM, CTF/deathtag, physical bot input, room controls and menus connected | New implementation unrun | Current candidate unrun; previous runtime results do not transfer | Complete mode/objective interactions, bot navigation, network/reconnect/browser/room scenarios and presentation remain |
 | World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | Written policies and regression roots; coding-pass additions unrun | No new campaign or visual acceptance | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Independent release | Bundled engine, native modules, converters and isolated build/install tooling | Historical public checks; current integration unrun | No accepted fresh-checkout full-play path | Regenerated assets, complete source/provenance review, independent build/install and release verification remain |
 
 ## Build and asset identity
 
-**No verified engine/asset pair exists for the current candidate.** Latest targeted
+**No verified engine/asset pair exists for the current candidate.** Asset regeneration
+is running in the local conversion cache; the installed playable game is untouched.
+Latest completed module link before final sequence-284 obituary/inventory cleanup:
+`/tmp/dk3-runtime-284-participant-lifecycle-link-fixed.log`, exit 0. Earlier targeted
 module link: `/tmp/dk3-runtime-283-party-injury-link.log`, exit 0, including final
 sequence-282 actor cue changes and sequence-283 party injury dispatch. Latest engine/module link:
 `/tmp/dk3-runtime-277-lightning-link-fixed.log`, exit 0. These are compilation evidence.
-No tests or engine scenarios have run during sequences 255–283.
+No tests or engine scenarios have run during sequences 255–284.
 
 Authoring inventories used local asset manifest
 `ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
@@ -48,6 +51,9 @@ remain subsystem diagnostics; none closes the continuous campaign gate.
 - Shared changes require affected script/cinematic, damage, perception, companion,
   restoration/travel and multiplayer replay. Cambot now uses authored PHS; merged map
   areas remain an acoustics limitation. Earlier narrower PVS alarm evidence is superseded.
+- Sequence 284 connects class-owned weapons-stay/respawn policy, actual-ammo death
+  drops, player pain/death voices, saved damage blends, retained multiplayer attributes
+  and credited kill rewards. Replay death, respawn, pickups, progression and restores.
 - Sequence 283 adds companion injury receipt handling, grip-specific pain poses,
   retaliation and injury/death voices. Replay pain during scripts, combat and restore.
 - Sequence 282 adds authored sight/frame sounds and weighted idle selection. Revalidate

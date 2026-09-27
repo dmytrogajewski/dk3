@@ -15,7 +15,9 @@ pub fn initialize(world: *data.World, entity: ecs.Entity) !void {
     const object = (try world.get(entity, data.MapObject)).*;
     var state: policy.State = .{};
     if (object.flags & 2 != 0) state.models = .{ "models/global/e_wood1.dkm", "models/global/e_wood2.dkm", "models/global/e_wood2.dkm" };
-    for (&state.models, [_][]const u8{ "model_1", "model_2", "model_3" }) |*model, key| if (prop.text(object, key)) |name| { model.* = name; };
+    for (&state.models, [_][]const u8{ "model_1", "model_2", "model_3" }) |*model, key| if (prop.text(object, key)) |name| {
+        model.* = name;
+    };
     const health: i32 = @intFromFloat(try prop.number(object, "health", 0));
     if (health < 0) return error.InvalidWallHealth;
     try world.put(entity, data.Destructible{ .wall_explode = state, .shootable = health > 0 });
@@ -43,7 +45,10 @@ pub fn recipient(world: *data.World, entity: ecs.Entity, amount: i32) !ecs.Entit
             if (other.index == entity.index or wall.wall_explode == null or wall.broken or hitpoints.current <= 0 or !std.mem.eql(u8, prop.text(candidate, "team") orelse "", group)) continue;
             const index = try prop.number(candidate, "indexnumber", 0);
             if (index >= rank or index > lowest) continue;
-            if (index < lowest) { lowest = index; count = 0; }
+            if (index < lowest) {
+                lowest = index;
+                count = 0;
+            }
             peers[count] = other;
             count += 1;
         };

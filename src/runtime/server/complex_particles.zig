@@ -24,7 +24,10 @@ pub fn initialize(world: *data.World, entity: ecs.Entity, now: i64) !policy.Stat
         if (std.ascii.eqlIgnoreCase(property.key, "emission")) state.frequency = @max(0.01, try prop.number(object, property.key, 0));
         if (std.ascii.eqlIgnoreCase(property.key, "emissiontime")) state.emission_time = @max(0.01, try prop.number(object, property.key, 12));
         if (std.ascii.eqlIgnoreCase(property.key, "alpha_level")) state.alpha = @max(0.01, try prop.number(object, property.key, 0.75));
-        if (std.ascii.eqlIgnoreCase(property.key, "delta_alpha")) { state.fade = try prop.number(object, property.key, 0.75); if (state.fade <= 0.01) state.fade = 0.75; }
+        if (std.ascii.eqlIgnoreCase(property.key, "delta_alpha")) {
+            state.fade = try prop.number(object, property.key, 0.75);
+            if (state.fade <= 0.01) state.fade = 0.75;
+        }
         if (std.ascii.eqlIgnoreCase(property.key, "_color")) state.color = try @import("map.zig").vector(property.value);
     }
     try world.put(entity, random);
@@ -51,7 +54,8 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     out.state.time = @intCast(state.started_ms);
     out.state.time2 = @bitCast(try world.persistentId(entity));
     out.shared.currentOrigin = pose.position;
-    out.shared.mins = @splat(-8); out.shared.maxs = @splat(8);
+    out.shared.mins = @splat(-8);
+    out.shared.maxs = @splat(8);
     out.shared.ownerNum = c.ENTITYNUM_NONE;
     out.shared.contents = 0;
     out.shared.svFlags = if (state.tracked) 0 else c.SVF_NOCLIENT;
@@ -64,11 +68,15 @@ pub fn use(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProj
 fn visible(world: *data.World, slots: *const Slots, origin: v.Vec3) bool {
     var query = world.queryAccess(data.World.mask(.{data.Cinematic}), 0, 0);
     defer query.deinit();
-    while (query.next()) |view| for (view.read(data.Cinematic)) |state| if (state.active) { return true; };
+    while (query.next()) |view| for (view.read(data.Cinematic)) |state| if (state.active) {
+        return true;
+    };
     for (slots.occupants[0..c.MAX_CLIENTS]) |occupant| if (occupant) |player| {
         var point = (world.get(player, data.Transform) catch continue).position;
         if (world.get(player, data.Body) catch null) |body| if (body.motion_owner) |owner| if (world.find(owner)) |controller| {
-            if (world.get(controller, data.Monitor) catch null) |monitor| if (monitor.viewer == (world.persistentId(player) catch 0)) { point = monitor.origin; };
+            if (world.get(controller, data.Monitor) catch null) |monitor| if (monitor.viewer == (world.persistentId(player) catch 0)) {
+                point = monitor.origin;
+            };
         };
         if (v.length(v.subtract(point, origin)) < 1000 and engine.inPvs(origin, point)) return true;
     };
@@ -81,7 +89,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     const origin = (try world.get(entity, data.Transform)).position;
     switch (state.phase) {
         .parse => {
-            if (engine.integer("gib_enable") == 0 and try prop.number(object, "violence", 0) != 0) { try @import("weapon_entities.zig").remove(world, slots, projections, entity); return; }
+            if (engine.integer("gib_enable") == 0 and try prop.number(object, "violence", 0) != 0) {
+                try @import("weapon_entities.zig").remove(world, slots, projections, entity);
+                return;
+            }
             if (object.target.len > 0) {
                 const targets = try @import("names.zig").named(world, object.target);
                 state.direction = origin;
@@ -97,7 +108,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 }
             };
             state.acceleration = v.scale(state.acceleration, state.gravity);
-            if (state.flags & 1024 != 0) { state.phase = .idle; state.next_ms = null; } else {
+            if (state.flags & 1024 != 0) {
+                state.phase = .idle;
+                state.next_ms = null;
+            } else {
                 state.phase = .spawn;
                 state.on = state.flags & 2048 != 0;
                 state.next_ms = now + 500 + @as(i64, @intFromFloat((try world.get(entity, data.Random)).next() * 1000));

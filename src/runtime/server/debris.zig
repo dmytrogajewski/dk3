@@ -10,14 +10,18 @@ const engine = @import("../engine/server.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const prop = @import("properties.zig");
 const v = @import("../domain/vector.zig");
-pub fn owns(name: []const u8) bool { return std.mem.eql(u8, name, "func_debris") or std.mem.eql(u8, name, "func_debris_visible"); }
+pub fn owns(name: []const u8) bool {
+    return std.mem.eql(u8, name, "func_debris") or std.mem.eql(u8, name, "func_debris_visible");
+}
 pub fn initialize(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !policy.State {
     const object = (try world.get(entity, data.MapObject)).*;
     const binding = (try world.get(entity, data.Binding)).*;
     const visible = std.mem.eql(u8, object.classname, "func_debris_visible");
     var state: policy.State = .{ .visible = visible, .flags = object.flags | 4, .next_ms = now + @as(i64, if (visible) 200 else 100) };
     if (prop.text(object, "flag")) |flag| {
-        inline for (.{ .{ "GO_TO_ACTIVATOR", 1 }, .{ "NO_ROTATE", 2 }, .{ "MOMENTUM_DAMAGE", 4 }, .{ "NO_ROTATION_ADJUST", 8 }, .{ "DROP_ONLY", 16 }, .{ "QUARTER_SIZE", 32 } }) |entry| if (std.ascii.eqlIgnoreCase(flag, entry[0])) { state.flags |= entry[1]; };
+        inline for (.{ .{ "GO_TO_ACTIVATOR", 1 }, .{ "NO_ROTATE", 2 }, .{ "MOMENTUM_DAMAGE", 4 }, .{ "NO_ROTATION_ADJUST", 8 }, .{ "DROP_ONLY", 16 }, .{ "QUARTER_SIZE", 32 } }) |entry| if (std.ascii.eqlIgnoreCase(flag, entry[0])) {
+            state.flags |= entry[1];
+        };
     }
     state.parameters.volume = try prop.number(object, "volume", if (visible) 1 else 0.6);
     if (state.parameters.volume == 0) state.parameters.volume = if (visible) 1 else 0.6;
@@ -157,7 +161,11 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         velocity.linear[2] -= 800 * seconds;
         const previous = pose.position;
         const hit = try engine.collisionService().trace(.{ .start = previous, .end = v.add(previous, v.scale(velocity.linear, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
-        if (hit.start_solid or hit.all_solid) { velocity.linear = @splat(0); state.spin = @splat(0); break; }
+        if (hit.start_solid or hit.all_solid) {
+            velocity.linear = @splat(0);
+            state.spin = @splat(0);
+            break;
+        }
         pose.position = hit.end;
         if (hit.fraction < 1) {
             if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {

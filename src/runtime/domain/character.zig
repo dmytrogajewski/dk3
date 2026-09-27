@@ -2,6 +2,17 @@
 const std = @import("std");
 const rules = @import("weapon_catalog").character;
 pub const Attribute = enum(u3) { power, attack, speed, acro, vita };
+pub const Advancement = struct {
+    attributes: [5]i32 = @splat(0),
+    level: i32 = 1,
+    experience: i32 = 0,
+    points: i32 = 0,
+    sword: i32 = 0,
+    pub fn valid(self: Advancement) bool {
+        for (self.attributes) |attribute| if (attribute < 0 or attribute > 5) return false;
+        return self.level >= 1 and self.level <= 25 and self.experience >= 0 and self.points >= 0 and self.sword >= 0;
+    }
+};
 pub const State = struct {
     attributes: [5]i32 = @splat(0),
     boost_until: [5]i64 = @splat(0),
@@ -17,6 +28,12 @@ pub const State = struct {
     level: i32 = 1,
     experience: i32 = 0,
     points: i32 = 0,
+    pub fn advancement(self: State, sword: i32) Advancement {
+        return .{ .attributes = self.attributes, .level = self.level, .experience = self.experience, .points = self.points, .sword = sword };
+    }
+    pub fn fromAdvancement(value: Advancement) State {
+        return .{ .attributes = value.attributes, .level = value.level, .experience = value.experience, .points = value.points };
+    }
     pub fn attribute(self: State, which: Attribute, now: i64) i32 {
         const index = @intFromEnum(which);
         return rules.attribute(self.attributes[index], self.boost_until[index], now);
@@ -28,10 +45,13 @@ pub const State = struct {
         return true;
     }
     pub fn award(self: *State, amount: i32) !u8 {
+        return self.awardLimited(amount, 25);
+    }
+    pub fn awardLimited(self: *State, amount: i32, maximum: i32) !u8 {
         if (amount <= 0) return 0;
         self.experience = std.math.add(i32, self.experience, amount) catch return error.ExperienceOverflow;
         var gained: u8 = 0;
-        while (self.level < 25 and self.experience >= rules.experienceThreshold(self.level)) {
+        while (self.level < std.math.clamp(maximum, 1, 25) and self.experience >= rules.experienceThreshold(self.level)) {
             self.level += 1;
             self.points += 1;
             gained += 1;

@@ -6,13 +6,14 @@ An open-source project to bring **Daikatana to the ioquake3 engine**, built with
 
 The old gameplay runtime has been removed. The only game/client/UI implementation
 is now `src/runtime`, built on the bundled ioquake3 engine. Weapon definitions,
-movement, ECS world systems, movers and pickups are connected. Combat and civilian
-actors are partially implemented; hostile actors, scripts, save restoration and
-complete presentation/UI remain unfinished. Development stays on
+movement, ECS world systems, movers, pickups, all 28 weapon controllers, episode
+actors, scripts, cinematics, companions, saves and multiplayer modes are connected.
+The consolidated native implementation still requires gameplay verification and
+repairs; no complete episode is accepted. Development stays on
 `rewrite/native-zig-runtime`; `main` preserves the working pre-rewrite game.
 
 See the [native architecture and progress](docs/runtime-zig.md),
-[current status](docs/status.md), and [full roadmap](docs/rewrite-roadmap.md).
+[current acceptance](docs/native-acceptance.md), and [full roadmap](docs/rewrite-roadmap.md).
 Earlier screenshots and gameplay results describe the retired runtime and are
 historical evidence, not acceptance of this runtime.
 
@@ -56,8 +57,9 @@ zig build play-install --prefix zig-out/native-dev -DDK_DATA=/path/to/data -Dass
 zig build play --prefix zig-out/native-dev -DDK_DATA=/path/to/data -Dasset-profile=retail -Dpython=.venv-convert/bin/python -- +map e1m3b
 ```
 
-Native menus are incomplete; launch a map explicitly as above. Development uses an
-isolated prefix/profile and does not update the preserved game or saves.
+Native New Game, save/load and multiplayer menus are connected; their current
+acceptance is recorded in the matrix. Development uses an isolated prefix/profile
+and does not update the preserved game or saves.
 
 `play-install` includes conversion and verifies the installed files; `assets` selects conversion
 alone. ffmpeg 7 must be available on `PATH`. Use `-Dasset-profile=1.3` for the documented

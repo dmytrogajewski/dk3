@@ -21,7 +21,9 @@ pub fn countOwner(owner: u32, now: i32) u32 {
     var count: u32 = 0;
     for (particles) |maybe| if (maybe) |particle| {
         if (particle.owner != owner or now < particle.born_ms) continue;
-        if (particle.until_ms) |until| { if (now > until) continue; } else if (particle.alpha - @as(f32, @floatFromInt(now - particle.born_ms)) * 0.001 * particle.fade <= 0) continue;
+        if (particle.until_ms) |until| {
+            if (now > until) continue;
+        } else if (particle.alpha - @as(f32, @floatFromInt(now - particle.born_ms)) * 0.001 * particle.fade <= 0) continue;
         count += 1;
     };
     return count;
@@ -64,9 +66,9 @@ pub fn draw(now: i32, ref: *const c.refdef_t) void {
             var up: v.Vec3 = undefined;
             var right: v.Vec3 = undefined;
             if (particle.kind == .rain) {
-                const across = v.cross(ref.viewaxis[0], .{0, 0, -1});
+                const across = v.cross(ref.viewaxis[0], .{ 0, 0, -1 });
                 right = v.scale(if (v.length(across) > 0.001) v.normalize(across) else ref.viewaxis[1], -2.56);
-                up = .{0, 0, -64};
+                up = .{ 0, 0, -64 };
                 color[3] = @intFromFloat(std.math.clamp(alpha * 0.5, 0, 1) * 255);
             } else {
                 const depth = v.dot(v.subtract(point, ref.vieworg), ref.viewaxis[0]);
@@ -76,7 +78,7 @@ pub fn draw(now: i32, ref: *const c.refdef_t) void {
             }
             const anchor = v.subtract(point, v.scale(v.add(up, right), 0.33));
             var triangle: [3]c.polyVert_t = undefined;
-            for ([_]v.Vec3{anchor, v.add(anchor, up), v.add(anchor, right)}, [_][2]f32{.{0, 0}, .{1, 0}, .{0, 1}}, &triangle) |position, uv, *vertex| vertex.* = .{ .xyz = position, .st = uv, .modulate = color };
+            for ([_]v.Vec3{ anchor, v.add(anchor, up), v.add(anchor, right) }, [_][2]f32{ .{ 0, 0 }, .{ 1, 0 }, .{ 0, 1 } }, &triangle) |position, uv, *vertex| vertex.* = .{ .xyz = position, .st = uv, .modulate = color };
             _ = engine.gateway.call(c.CG_R_ADDPOLYTOSCENE, .{ shaders[@intFromEnum(particle.kind)], @as(isize, 3), &triangle });
             continue;
         }
@@ -90,7 +92,7 @@ pub fn positionAt(particle: Particle, seconds: f32) v.Vec3 {
     return v.add(particle.position, v.add(v.scale(particle.velocity, seconds), v.scale(particle.acceleration, 0.5 * seconds * seconds)));
 }
 test "complex particle acceleration is integrated once, with the half-square term" {
-    const particle: Particle = .{ .born_ms = 0, .position = .{10, 20, 30}, .velocity = .{20, 0, 40}, .acceleration = .{0, 0, -250}, .color = @splat(1), .alpha = 1, .fade = 0, .size = 1, .kind = .simple };
-    try std.testing.expectEqual(v.Vec3{20, 20, 18.75}, positionAt(particle, 0.5));
-    try std.testing.expectEqual(v.Vec3{30, 20, -55}, positionAt(particle, 1));
+    const particle: Particle = .{ .born_ms = 0, .position = .{ 10, 20, 30 }, .velocity = .{ 20, 0, 40 }, .acceleration = .{ 0, 0, -250 }, .color = @splat(1), .alpha = 1, .fade = 0, .size = 1, .kind = .simple };
+    try std.testing.expectEqual(v.Vec3{ 20, 20, 18.75 }, positionAt(particle, 0.5));
+    try std.testing.expectEqual(v.Vec3{ 30, 20, -55 }, positionAt(particle, 1));
 }

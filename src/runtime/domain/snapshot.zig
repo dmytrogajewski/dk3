@@ -886,6 +886,7 @@ pub fn validate(snapshot: *Loaded) !void {
         }
         if (world.get(entity, data.Pickup) catch null) |pickup| {
             try require(world, entity, .{ data.Binding, data.Body, data.ItemMotion, data.MapObject });
+            if ((pickup.dropped and (pickup.respawn_ms != null or pickup.kind != .weapon or pickup.amount <= 0)) or (!pickup.dropped and pickup.expires_ms != null)) return error.InvalidSavedPickup;
             switch (pickup.kind) {
                 .weapon, .ammunition => |id| if (id == 0 or id > 28) {
                     return error.InvalidSavedPickup;
@@ -905,6 +906,10 @@ pub fn validate(snapshot: *Loaded) !void {
             if (character.environment_charge_ms < 0 or character.environment_charge_ms > 40000) return error.InvalidSavedEnvironment;
             try validLiquid(character.liquid);
             if (character.level < 1 or character.level > 25 or character.points < 0 or character.experience < 0 or character.save_gems < 0) return error.InvalidSavedCharacter;
+        }
+        if (world.get(entity, data.Session) catch null) |session| if (session.advancement) |advancement| if (!advancement.valid()) return error.InvalidSavedCharacter;
+        if (world.get(entity, data.Hurt) catch null) |hurt| {
+            if (!std.math.isFinite(hurt.feedback.flash_alpha) or hurt.feedback.flash_alpha < 0 or hurt.feedback.flash_alpha > 0.75) return error.InvalidSavedDamage;
         }
         if (world.get(entity, data.Ailments) catch null) |ailments| {
             try require(world, entity, .{data.Health});

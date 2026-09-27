@@ -91,6 +91,9 @@ fn init(now: i64) !void {
     engine.register("gib_enable", "1", c.CVAR_ARCHIVE);
     engine.register("p_sendparticles", "0", 0);
     engine.register("dm_item_respawn", "1", c.CVAR_SERVERINFO | c.CVAR_LATCH);
+    engine.register("dm_weapons_stay", "0", c.CVAR_SERVERINFO | c.CVAR_LATCH);
+    engine.register("dm_use_skill_system", "1", c.CVAR_ARCHIVE);
+    engine.register("dm_levellimit", "0", c.CVAR_SERVERINFO | c.CVAR_LATCH);
     while (try map.read(arena.?.allocator(), engine)) |object| {
         _ = try world.?.create(null, .{ object.binding, object.transform });
     }
@@ -457,6 +460,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 systems.cinematics.step(&world.?, &slots, &projection, &targets, clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
                 bots.step(&world.?, &slots, &projection, &players, &clients, &targets, systems.navigation.service(), clock.now_ms) catch |err| runtimeFailure(err);
                 systems.step(&world.?, &slots, &projection, &targets, clock.now_ms, elapsed, &clients.weapon_table) catch |err| runtimeFailure(err);
+                @import("server/player_damage.zig").step(&world.?, &slots, &projection, clients.episode, &clients.weapon_table, clock.now_ms) catch |err| runtimeFailure(err);
                 for (clients.entities, 0..) |entity, index| if (entity != null) {
                     clients.publish(&world.?, &projection, &players, index, clock.now_ms) catch |err| runtimeFailure(err);
                     systems.cinematics.camera(&world.?, &players[index], clock.now_ms) catch |err| runtimeFailure(err);

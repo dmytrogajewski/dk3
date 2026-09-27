@@ -8,7 +8,10 @@ const character = @import("character.zig");
 pub const Keys = catalog.Keys;
 pub const Health = struct { current: i32 = 100, maximum: i32 = 100, armor: i32 = 0, absorption: i32 = 0 };
 pub const Kind = union(enum) { boost: character.Attribute, antidote, invincibility, invisibility, environment, ring: u32, save_gem, key: u5, weapon: u5, ammunition: u5, health: i32, soul, armor: struct { capacity: i32, absorption: i32 } };
-pub const Pickup = struct { kind: Kind, amount: i32 = 0, visible: bool = true, respawn_ms: ?i64 = null };
+pub const Pickup = struct { kind: Kind, amount: i32 = 0, visible: bool = true, respawn_ms: ?i64 = null, dropped: bool = false, expires_ms: ?i64 = null };
+pub fn weaponStays(pickup: Pickup, enabled: bool) bool {
+    return enabled and !pickup.dropped and pickup.kind == .weapon and weapon_catalog.find(pickup.kind.weapon).?.spec.respects_weapons_stay;
+}
 pub fn canonicalName(name: []const u8) []const u8 {
     return if (std.mem.eql(u8, name, "item_vitality_boost")) "item_vita_boost" else name;
 }
@@ -121,6 +124,7 @@ pub fn give(pickup: Pickup, receiver: Receiver, table: *const weapons.Table, now
 }
 pub fn respawnDelay(name: []const u8, single_player: bool) ?i64 {
     if (single_player or std.mem.eql(u8, name, "item_savegem")) return null;
+    if (classify(name)) |kind| if (kind == .weapon) return weapon_catalog.find(kind.weapon).?.spec.pickup_respawn_ms;
     if (std.mem.eql(u8, name, "item_goldensoul") or std.mem.endsWith(u8, name, "_boost")) return 60000;
     if (std.mem.eql(u8, name, "item_megashield") or std.mem.eql(u8, name, "item_wraithorb") or std.mem.eql(u8, name, "item_invincibility")) return 300000;
     return 30000;
@@ -202,4 +206,26 @@ test "pickup audio resolves weapon class defaults and ammunition overrides" {
         .{ "ammo_bullets", "global/i_c4ammo.wav" },
     };
     inline for (cases) |case| try std.testing.expectEqualStrings(case[1], pickupSound(classify(case[0]).?, case[0]));
+}
+
+test "staying weapons exclude consumed classes and death drops preserve ammunition" {
+    const t = std.testing;
+    const ion = weapon_catalog.ion.id;
+    try t.expect(weaponStays(.{ .kind = .{ .weapon = ion } }, true));
+    try t.expect(!weaponStays(.{ .kind = .{ .weapon = ion }, .dropped = true, .amount = 7 }, true));
+    for ([_]u5{ weapon_catalog.discus.id, weapon_catalog.sunflare.id, weapon_catalog.metamaser.id }) |id| try t.expect(!weaponStays(.{ .kind = .{ .weapon = id } }, true));
+    try t.expectEqual(@as(?i64, 60000), respawnDelay("weapon_metamaser", false));
+    try t.expectEqual(@as(?i64, 30000), respawnDelay("weapon_ionblaster", false));
+    var keys: Keys = .{};
+    var health: Health = .{};
+    var loadout: weapons.State = .{};
+    var effects: character.State = .{};
+    var ailments: character.Ailments = .{};
+    var table: weapons.Table = .{};
+    table.entries[ion].ammoMax = 100;
+    table.entries[ion].initialAmmo = 20;
+    const receiver: Receiver = .{ .keys = &keys, .health = &health, .loadout = &loadout, .character = &effects, .ailments = &ailments };
+    try t.expect(give(.{ .kind = .{ .weapon = ion }, .amount = 7, .dropped = true }, receiver, &table, 0, false));
+    try t.expectEqual(@as(i32, 7), loadout.ammo[ion]);
+    try t.expectEqual(@as(i32, 1) << ion, loadout.dk3Inventory);
 }

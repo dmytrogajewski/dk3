@@ -8,7 +8,9 @@ const Random = @import("../domain/components.zig").Random;
 const particles = @import("fx_particles.zig");
 const Clock = struct { identity: i32, born: i32, next_tick: i64, seen_ms: i32, cadence: policy.Cadence, random: Random };
 var clocks: [2048]?Clock = @splat(null);
-pub fn reset() void { clocks = @splat(null); }
+pub fn reset() void {
+    clocks = @splat(null);
+}
 pub fn emit(entity: c.entityState_t, now: i32) void {
     if (entity.number < 0 or entity.number >= clocks.len) return;
     const frequency: f32 = @bitCast(entity.apos.trTime);
@@ -34,9 +36,21 @@ fn burst(entity: c.entityState_t, at: i32, random: *Random) void {
     var direction = entity.apos.trBase;
     if (std.mem.eql(f32, &direction, &origin)) direction = .{ random.next() * 2 - 1, random.next() * 2 - 1, 0 };
     const kind: particles.Kind = switch (policy.kind(@bitCast(entity.weapon))) {
-        .simple => .simple, .cp1 => .cp1, .cp2 => .cp2, .cp3 => .cp3, .cp4 => .cp4, .rain => .rain, .smoke => .smoke, .bubble => .bubble,
+        .simple => .simple,
+        .cp1 => .cp1,
+        .cp2 => .cp2,
+        .cp3 => .cp3,
+        .cp4 => .cp4,
+        .rain => .rain,
+        .smoke => .smoke,
+        .bubble => .bubble,
     };
-    const size = entity.angles2[1] * (1 + 0.5 * (random.next() * 2 - 1)) * 3 * (switch (kind) { .simple => @as(f32, 1), .rain => 2, .smoke => 7, else => 1.5 });
+    const size = entity.angles2[1] * (1 + 0.5 * (random.next() * 2 - 1)) * 3 * (switch (kind) {
+        .simple => @as(f32, 1),
+        .rain => 2,
+        .smoke => 7,
+        else => 1.5,
+    });
     const count: usize = @intFromFloat(entity.origin2[2]);
     const spread: f32 = @floatFromInt(entity.frame);
     const radius = entity.angles2[2];

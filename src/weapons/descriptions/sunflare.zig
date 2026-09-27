@@ -2,6 +2,7 @@
 const profiles = @import("../profiles.zig");
 pub const id: u5 = 10;
 pub const spec: profiles.Spec = .{
+    .respects_weapons_stay = false,
     .player_grip = .glove, // sunflare
     .combat = .sunflare,
     .projectile = .{ .gravity = true, .mins = .{ -12, -12, -18 }, .maxs = .{ 12, 12, 18 }, .action_delay_ms = 400, .lifetime_ms = 60000 },

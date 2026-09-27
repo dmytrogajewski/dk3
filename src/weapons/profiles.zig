@@ -134,6 +134,12 @@ pub const Spec = struct {
     ammo_pack: c_int = 0,
     auto_select: bool = true,
     droppable: bool = true,
+    /// Authored pickups remain available when the server enables weapons-stay.
+    /// Dropped weapons are always consumed, regardless of this policy.
+    respects_weapons_stay: bool = true,
+    pickup_respawn_ms: u32 = 30000,
+    /// Ammunition earned by a credited, non-sword kill in this weapon's episode.
+    credited_kill_ammo: u16 = 0,
     companion: ?Companion = null,
     start_episode: u8 = 0,
     campaign_equipment: bool = false,

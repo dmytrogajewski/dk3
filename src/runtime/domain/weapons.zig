@@ -23,6 +23,17 @@ pub const State = struct {
     gas_until_ms: i64 = 0,
     event_sequence: u32 = 0,
     last_fire_ms: ?i64 = null,
+    pub fn discardInventory(self: *State) void {
+        // Retain the selected class for the body's death grip. It no longer
+        // owns a usable weapon, and respawn creates a new loadout.
+        self.dk3Inventory = 0;
+        self.ammo = @splat(0);
+        self.dk3Burst = 0;
+        self.dk3Charge = 0;
+        self.dk3NovaSpent = 0;
+        self.dk3AttackHeld = 0;
+        self.gas_until_ms = 0;
+    }
     pub fn acquire(self: *State, table: *const Table, id: u5, rounds: i32) bool {
         const entry = catalog.find(id) orelse return false;
         var owned: u32 = @bitCast(self.dk3Inventory);
