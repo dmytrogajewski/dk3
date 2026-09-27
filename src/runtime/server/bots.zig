@@ -151,9 +151,14 @@ pub const State = struct {
                 destination = brain.yield_point;
             } else brain.yield_point = null;
             var movement: v.Vec3 = @splat(0);
+            var crouch = false;
+            var ladder = false;
             if (destination) |goal| {
                 if (try brain.route.update(service, .{ .position = pose.position, .destination = goal, .slot = @intCast(index), .player = true }, now)) |waypoint| {
                     movement = v.subtract(waypoint.point, pose.position);
+                    ladder = waypoint.ladder;
+                    const hull = (try world.get(entity, data.Body)).*;
+                    crouch = waypoint.crouch or try @import("../domain/navigation_input.zig").crouch(engine.collisionService(), pose.position, waypoint.point, hull.mins, .{ hull.maxs[0], hull.maxs[1], 32 }, @intCast(index), hull.collision_mask);
                     if (waypoint.jump and player.ground_entity != c.ENTITYNUM_NONE and now >= brain.jump_ready) {
                         brain.jump_until = now + 200;
                         brain.jump_ready = now + 800;
@@ -215,7 +220,9 @@ pub const State = struct {
             const direction = v.normalize(.{ movement[0], movement[1], 0 });
             input.forwardmove = @intFromFloat(std.math.clamp(v.dot(direction, axes.forward) * 127, -127, 127));
             input.rightmove = @intFromFloat(std.math.clamp(v.dot(direction, axes.right) * 127, -127, 127));
-            if (now < brain.jump_until or (player.water_level >= 2 and movement[2] > 8)) input.upmove = 127;
+            if (crouch) input.upmove = -127;
+            if (now < brain.jump_until) input.upmove = 127;
+            if ((ladder or player.water_level >= 2) and @abs(movement[2]) > 8) input.upmove = if (movement[2] > 0) 127 else -127;
             if (use_control) _ = engine.gateway.call(c.BOTLIB_EA_COMMAND, .{ @as(isize, @intCast(index)), @as([*:0]const u8, "use") });
             _ = engine.gateway.call(c.BOTLIB_USER_COMMAND, .{ @as(isize, @intCast(index)), &input });
         }

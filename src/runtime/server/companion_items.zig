@@ -46,7 +46,7 @@ fn length(service: nav.Service, position: v.Vec3, destination: v.Vec3, slot: u16
         const remaining = v.length(v.subtract(destination, point));
         if (total + remaining >= limit) return null;
         if (remaining < 24) return total + remaining;
-        const next = try service.next(.{ .position = point, .destination = destination, .slot = slot }) orelse return null;
+        const next = try service.next(.{ .position = point, .destination = destination, .slot = slot, .player = true }) orelse return null;
         const step = v.length(v.subtract(next.point, point));
         if (step < 1) return null;
         total += step;

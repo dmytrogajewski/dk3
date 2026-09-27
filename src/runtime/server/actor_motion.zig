@@ -28,7 +28,7 @@ pub fn direct(position: v.Vec3, destination: v.Vec3, body: data.Body, slot: u16)
     }
     return true;
 }
-fn escape(service: nav.Service, position: v.Vec3, threat: v.Vec3, body: data.Body, slot: u16) !?v.Vec3 {
+pub fn escape(service: nav.Service, position: v.Vec3, threat: v.Vec3, body: data.Body, slot: u16) !?v.Vec3 {
     const away = @import("../domain/actors.zig").fleeVelocity(position, threat, 1);
     var best: ?v.Vec3 = null;
     var score: f32 = nav.horizontalDistance(position, threat);

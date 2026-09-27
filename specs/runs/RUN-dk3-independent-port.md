@@ -3720,3 +3720,16 @@ swimming/ladder/crouch traversal, broader campaign interaction/script auditing a
 complete multiplayer/release implementation before consolidated verification.
 Main remains `e3966c4d40678dbf91619034b5dcb33b763dcbed`; installed game, saves and
 live service remain untouched. Feature branch only.
+
+## Sequence 268 — companion-traversal (implementation checkpoint)
+
+Continues after pushed `ca9eb0d`. Ground-only party motion now uses the shared native
+motor with class hull/jump attributes, crouch/swim/ladder navigation and saved stance.
+Script movement, weapon water state, body poses, item routes and bot travel input
+connect to those same mechanisms. Reference contracts and compatibility limits are
+recorded in the current acceptance matrix. New movement/clock/obstruction regressions
+are written, unexecuted. Three native modules link in
+`/tmp/dk3-runtime-268-traversal-link.log`; no test suite or gameplay scenario ran.
+Full scope remains open; proceed with liquid hazards and the broader authored world
+inventory before consolidated verification. Main, installed game, saves and service
+remain preserved. No verified gameplay build or new asset identity is claimed.

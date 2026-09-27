@@ -17,7 +17,7 @@ pub fn find(world: *data.World, identity: policy.Identity) ?ecs.Entity {
 }
 pub fn initialize(world: *data.World, entity: ecs.Entity, episode: u8, table: *const @import("../domain/weapons.zig").Table, now: i64) !void {
     const classname = (try world.get(entity, data.MapObject)).classname;
-    try world.put(entity, data.Companion{ .identity = if (std.mem.eql(u8, classname, "mikiko")) .mikiko else .superfly, .carrying = std.mem.eql(u8, classname, "mikikofly"), .last_ms = now });
+    try world.put(entity, data.Companion{ .identity = if (std.mem.eql(u8, classname, "mikiko")) .mikiko else .superfly, .carrying = std.mem.eql(u8, classname, "mikikofly"), .last_ms = now, .motor = .{ .command_ms = now } });
     try world.put(entity, data.Weapons{});
     try world.put(entity, data.Character{});
     try world.put(entity, data.Keys{});
@@ -206,7 +206,7 @@ pub fn combat(actors: *const @import("actors.zig").Actors, world: *data.World, s
         if (loadout.weapon == 0 and companion.selected_weapon == 0) continue;
         var events: @import("../domain/weapons.zig").Events = .{};
         var context: @import("../domain/weapons.zig").Context = .{ .ps = loadout, .table = table, .events = &events, .service = engine.collisionService(), .slot = slot, .shot_mask = c.MASK_SHOT, .single_player = true };
-        var player: data.Player = .{};
+        var player = companion.motor;
         var motion: @import("../domain/slide.zig").State = .{ .position = pose.position, .velocity = @splat(0) };
         const hook = context.hook();
         const target = world.find(actor.threat);

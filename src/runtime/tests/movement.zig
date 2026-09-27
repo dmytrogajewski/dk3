@@ -71,3 +71,31 @@ test "walking swimming diagonal crouch jump and gravity follow bundled movement"
         }
     }
 }
+
+test "companion hull and authored jump survive crouch stand and water sampling" {
+    var context: u8 = 0;
+    defer water_surface = null;
+    water_surface = null;
+    const service: collision.Collision = .{ .context = &context, .trace_fn = trace, .contents_fn = contents };
+    var parameters = bridge.parameters(64);
+    parameters.mins = .{ -12, -12, -24 };
+    parameters.maxs = .{ 12, 12, 30 };
+    parameters.jump_speed = 350;
+    parameters.snap_velocity = false;
+    var motor: move.Player = .{};
+    var motion: @import("../domain/slide.zig").State = .{ .position = .{ 0, 0, 24 }, .velocity = @splat(0) };
+    const crouched = try move.run(&motor, &motion, .{ .time_ms = 16, .angles = @splat(0), .up = -127 }, parameters, service);
+    try std.testing.expect(motor.ducked);
+    try std.testing.expectEqual(@as(f32, 4), crouched.maxs[2]);
+    try std.testing.expectEqual(@as(f32, 12), crouched.maxs[0]);
+    const upright = try move.run(&motor, &motion, .{ .time_ms = 32, .angles = @splat(0) }, parameters, service);
+    try std.testing.expect(!motor.ducked);
+    try std.testing.expectEqual(parameters.maxs, upright.maxs);
+    _ = try move.run(&motor, &motion, .{ .time_ms = 48, .angles = @splat(0), .up = 127 }, parameters, service);
+    try std.testing.expect(motor.jump_held and motor.ground_entity == c.ENTITYNUM_NONE);
+    try std.testing.expect(motion.velocity[2] > 330); // The former ground motor forced 270.
+    water_surface = 128;
+    _ = try move.run(&motor, &motion, .{ .time_ms = 64, .angles = @splat(0), .forward = 127 }, parameters, service);
+    try std.testing.expectEqual(@as(u2, 3), motor.water_level);
+    try std.testing.expectEqual(@as(u32, c.CONTENTS_WATER), motor.water_type);
+}

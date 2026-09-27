@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–267): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–268): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -687,6 +687,33 @@ or acceptance is added. Companion swimming, ladders, crouch navigation, full scr
 progression and their movement/persistence interactions remain coding-pass work, along
 with the complete campaign/multiplayer/release outcomes. Revalidate companion orders,
 collection, travel, combat and remote presentation on the consolidated build.
+
+## Sequence 268 — companion-traversal (implemented; unverified)
+
+Companions now submit routed commands to the existing native player motor for
+water, ladders, jumps, crouching and scripted movement. The motor accepts supplied
+class bounds and upward velocity while retaining existing player defaults. Saved
+party state owns its motor independently of Player components; restoration rebases
+command/jump clocks, while travel and authored teleport reset local movement state.
+Bot and companion routes retain crouch/ladder travel flags; crouch steering requires
+a clear crouched collision sweep. Companion collection can consider these routes.
+Supplied crouch/walk/attack and swimming poses reflect actual motor state; weapon
+controllers receive actual water and stance state. Carrying Superfly has supplied
+crouch poses but no supplied swimming sequence; carrying presentation stays with
+that model's authored movement poses instead of borrowing another model's frames.
+
+Private reference inspection: `AI_File.cpp` AIATTRIBUTE_SetInfo applies authored
+bounds/run/walk/jump values after Sidekick initialization; Sidekick enables swimming,
+ladders and doors; AI crouching uses a four-unit top. This implementation reuses
+independent native acceleration/step physics and requires movement parity qualification.
+It is not an import of private AI tasks. New hull/jump/water, obstruction and restored
+clock regressions are written and unexecuted. The shared player differential root
+remains required at verification. The native three-module link completed in
+`/tmp/dk3-runtime-268-traversal-link.log`; it is compilation evidence only.
+No engine, connected gameplay, reference playback or fresh asset identity is accepted.
+Revalidate player/bot/party movement, low passages, water combat and party restoration.
+The broader audit also found absent native liquid/drowning damage; implementing
+that authored contract is the next connected gameplay work.
 
 ## Remaining authored actor admission
 

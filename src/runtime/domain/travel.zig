@@ -64,6 +64,8 @@ pub const Traveler = struct {
         for (&self.companions) |*maybe| if (maybe.*) |*follower| {
             try @import("snapshot_time.zig").rebase(.character, &follower.character, delta);
             try @import("snapshot_time.zig").rebase(.weapons, &follower.weapons, delta);
+            follower.state.motor = .{ .command_ms = now };
+            follower.state.jump_started_ms = 0;
             follower.state.target = 0;
             follower.state.collecting = 0;
             follower.state.collect_forced = false;

@@ -20,7 +20,7 @@ pub fn selection(bytes: []const u8, wanted: Mode) ![]const u8 {
     }
     return result orelse error.MissingNavigationMode;
 }
-pub const Waypoint = struct { point: v.Vec3, jump: bool = false, from_area: i32 = 0, to_area: i32 = 0 };
+pub const Waypoint = struct { point: v.Vec3, jump: bool = false, crouch: bool = false, ladder: bool = false, from_area: i32 = 0, to_area: i32 = 0 };
 pub const Request = struct { player: bool = false, position: v.Vec3, destination: v.Vec3, slot: u16 };
 pub const Service = struct {
     context: *anyopaque,
@@ -46,7 +46,7 @@ pub const State = struct {
         } else if (now - self.progress_ms >= 750) {
             self.blocked = true;
         }
-        const reached = if (self.waypoint) |point| horizontalDistance(request.position, point.point) < 16 else false;
+        const reached = if (self.waypoint) |point| (if (request.player) v.length(v.subtract(request.position, point.point)) else horizontalDistance(request.position, point.point)) < 16 else false;
         if (changed or reached or now >= self.refresh_ms) {
             self.destination = request.destination;
             self.waypoint = try service.next(request);

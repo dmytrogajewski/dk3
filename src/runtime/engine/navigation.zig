@@ -77,8 +77,8 @@ pub const Navigation = struct {
         const to = engine.gateway.call(c.BOTLIB_AI_REACHABILITY_AREA, .{ &request.destination, @as(isize, c.ENTITYNUM_NONE) });
         if (from == 0 or to == 0) return null;
         if (from == to) return .{ .point = request.destination, .from_area = @intCast(from), .to_area = @intCast(to) };
-        // Admit only travel that the ground actor motor implements.
-        const flags = c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR | (if (request.player) @as(i32, c.TFL_LADDER | c.TFL_SWIM | c.TFL_WATER | c.TFL_WALKOFFLEDGE | c.TFL_TELEPORT | c.TFL_ELEVATOR | c.TFL_FUNCBOB) else 0);
+        // Only the shared player/companion motor supports these additional travels.
+        const flags = c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR | (if (request.player) @as(i32, c.TFL_CROUCH | c.TFL_LADDER | c.TFL_SWIM | c.TFL_WATER | c.TFL_WALKOFFLEDGE | c.TFL_TELEPORT | c.TFL_ELEVATOR | c.TFL_FUNCBOB) else 0);
         var route = std.mem.zeroes(c.aas_predictroute_t);
         _ = engine.gateway.call(c.BOTLIB_AAS_PREDICT_ROUTE, .{ &route, from, &request.position, to, @as(isize, flags), @as(isize, 1), @as(isize, 0), @as(isize, c.RSE_USETRAVELTYPE), @as(isize, 0), @as(isize, flags), @as(isize, 0) });
         if (route.stopevent == c.RSE_NOROUTE) return null;
@@ -89,7 +89,7 @@ pub const Navigation = struct {
         _ = engine.gateway.call(c.BOTLIB_AAS_PREDICT_ROUTE, .{ &route, from, &request.position, to, @as(isize, flags), @as(isize, 1), @as(isize, 0), @as(isize, 0), @as(isize, 0), @as(isize, 0), @as(isize, 0) });
         // PredictRoute returns false when maxareas stops short of the final goal.
         if (route.time <= 0 or route.stopevent == c.RSE_NOROUTE) return null;
-        return .{ .point = route.endpos, .jump = route.endtravelflags & (c.TFL_JUMP | c.TFL_BARRIERJUMP) != 0, .from_area = @intCast(from), .to_area = @intCast(to) };
+        return .{ .point = route.endpos, .jump = route.endtravelflags & (c.TFL_JUMP | c.TFL_BARRIERJUMP) != 0, .crouch = route.endtravelflags & c.TFL_CROUCH != 0, .ladder = route.endtravelflags & c.TFL_LADDER != 0, .from_area = @intCast(from), .to_area = @intCast(to) };
     }
 };
 fn variable(name: [:0]const u8, value: [:0]const u8) void {

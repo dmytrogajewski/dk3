@@ -154,6 +154,8 @@ pub fn advance(world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose:
             state.next_ms = now + 100;
             const point = try clearSpot(world, entity, state.destination) orelse return true;
             pose.position = point;
+            state.motor = .{ .command_ms = now, .ducked = state.motor.ducked };
+            state.jump_started_ms = 0;
             (try world.get(entity, data.Velocity)).linear = @splat(0);
             actor.route = .{};
             state.order = state.after_teleport;

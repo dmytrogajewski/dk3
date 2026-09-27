@@ -30,6 +30,7 @@ test {
     _ = @import("server/actor_spawns.zig");
     _ = @import("server/brushes.zig");
     _ = @import("domain/navigation.zig");
+    _ = @import("domain/navigation_input.zig");
     _ = @import("domain/world_actions.zig");
     _ = @import("actor_catalog").mishima;
     _ = @import("domain/actors.zig");

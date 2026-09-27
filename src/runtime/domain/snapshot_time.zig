@@ -34,6 +34,8 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             }
         },
         .companion => {
+            try shift(&value.motor.command_ms, delta);
+            try active(&value.jump_started_ms, delta);
             try deadline(&value.animation_until, delta);
             try shift(&value.next_ms, delta);
             try shift(&value.last_ms, delta);
@@ -344,8 +346,12 @@ test "save time rebasing preserves deadlines, inactive sentinels and durations" 
 }
 
 test "companion collection and yielding deadlines rebase without changing targets" {
-    var state: data.Companion = .{ .identity = .superfly, .collecting = 42, .collect_forced = true, .collect_scan_ms = 2000, .collect_until_ms = 4000, .avoided_item = 43, .avoid_until_ms = 5000, .yielding_until_ms = 1800, .yield_position = .{ 16, 32, 0 } };
+    var state: data.Companion = .{ .identity = .superfly, .motor = .{ .command_ms = 1000, .ducked = true, .water_level = 2, .timer = .water_jump, .timer_ms = 400 }, .jump_started_ms = 900, .collecting = 42, .collect_forced = true, .collect_scan_ms = 2000, .collect_until_ms = 4000, .avoided_item = 43, .avoid_until_ms = 5000, .yielding_until_ms = 1800, .yield_position = .{ 16, 32, 0 } };
     try rebase(.companion, &state, 8000);
+    try std.testing.expectEqual(@as(i64, 9000), state.motor.command_ms);
+    try std.testing.expectEqual(@as(i64, 8900), state.jump_started_ms);
+    try std.testing.expect(state.motor.ducked and state.motor.water_level == 2);
+    try std.testing.expectEqual(@as(u32, 400), state.motor.timer_ms);
     try std.testing.expectEqual(@as(i64, 10000), state.collect_scan_ms);
     try std.testing.expectEqual(@as(i64, 12000), state.collect_until_ms);
     try std.testing.expectEqual(@as(i64, 13000), state.avoid_until_ms);

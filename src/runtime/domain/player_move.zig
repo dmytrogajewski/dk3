@@ -41,6 +41,8 @@ pub const Parameters = struct {
     mask: u32,
     water_mask: u32,
     solid_mask: u32,
+    mins: v.Vec3 = .{ -15, -15, -24 },
+    maxs: v.Vec3 = .{ 15, 15, 32 },
     fixed_ms: ?u8 = null,
     snap_velocity: bool = true,
 };
@@ -78,12 +80,12 @@ const Frame = struct {
         p.water_level = 0;
         p.water_type = 0;
         var point = self.motion.position;
-        point[2] -= 23;
+        point[2] += self.parameters.mins[2] + 1;
         const contents = try self.service.contents(point, self.parameters.slot);
         if (contents & self.parameters.water_mask == 0) return;
         p.water_type = contents;
         p.water_level = 1;
-        point[2] = self.motion.position[2] - 24 + @trunc((p.view_height + 24) / 2);
+        point[2] = self.motion.position[2] + self.parameters.mins[2] + @trunc((p.view_height - self.parameters.mins[2]) / 2);
         if (try self.service.contents(point, self.parameters.slot) & self.parameters.water_mask == 0) return;
         p.water_level = 2;
         point[2] = self.motion.position[2] + p.view_height;
@@ -97,10 +99,10 @@ const Frame = struct {
             return;
         }
         if (self.cmd.up < 0) p.ducked = true else if (p.ducked) {
-            self.result.maxs[2] = 32;
+            self.result.maxs[2] = self.parameters.maxs[2];
             if (!(try self.trace(self.motion.position, self.motion.position)).all_solid) p.ducked = false;
         }
-        self.result.maxs[2] = if (p.ducked) 4 else 32;
+        self.result.maxs[2] = if (p.ducked) 4 else self.parameters.maxs[2];
         p.view_height = if (p.ducked) -2 else 22;
     }
     fn groundTrace(self: *Frame) !void {
@@ -281,8 +283,9 @@ pub fn runWithHook(player: *Player, motion: *slide.State, command: Command, para
     if (parameters.fixed_ms) |ms| if (ms < 1 or ms > 200) return error.InvalidMovementStep;
     if (!std.math.isFinite(parameters.speed) or parameters.speed < 0 or !std.math.isFinite(parameters.gravity) or !std.math.isFinite(parameters.jump_speed)) return error.InvalidMovementParameters;
     for (command.angles) |angle| if (!std.math.isFinite(angle)) return error.InvalidMovementParameters;
-    var result: Result = .{};
-    result.maxs[2] = if (player.mode == .dead) -8 else if (player.ducked) 4 else 32;
+    for (parameters.mins, parameters.maxs) |low, high| if (!std.math.isFinite(low) or !std.math.isFinite(high) or low >= high) return error.InvalidMovementBounds;
+    var result: Result = .{ .mins = parameters.mins, .maxs = parameters.maxs };
+    result.maxs[2] = if (player.mode == .dead) -8 else if (player.ducked) 4 else parameters.maxs[2];
     if (command.time_ms < player.command_ms) return result;
     const elapsed = std.math.sub(i64, command.time_ms, player.command_ms) catch return error.InvalidMovementTime;
     if (elapsed > 1000) player.command_ms = command.time_ms - 1000;

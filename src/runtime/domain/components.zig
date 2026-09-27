@@ -34,7 +34,7 @@ pub const ZeusBolt = @import("weapon_catalog").zeus.Bolt;
 pub const Nightmare = @import("weapon_catalog").nightmare.Ritual;
 pub const MetaRing = @import("weapon_catalog").metamaser.Ring;
 pub const Cinematic = @import("cinematics.zig").Playback;
-pub const Companion = @import("actor_catalog").companions.State;
+pub const Companion = @import("companions.zig").State;
 pub const Session = @import("multiplayer.zig").Session;
 pub const Objective = @import("multiplayer.zig").Objective;
 pub const Monitor = struct { duration_ms: i32 = 3000, viewer: ?u32 = null, until_ms: ?i64 = null, camera: u32 = 0, target: u32 = 0, origin: Vec3 = @splat(0), angles: Vec3 = @splat(0) };
