@@ -158,7 +158,50 @@ def factory_interior(driver, capture, report, phase="factory-interior"):
     for identity in (313, 214, 215):
         await_open(driver, identity)
     checkpoint(driver, capture, report, "factory_exit_unlocked")
-    return {"scope": "Outer gate, yard and exit-unlocking switch only; interior lift and e1m2a contact remain open.",
+    return factory_departure(driver, capture, report)
+
+
+def factory_departure(driver, capture, report):
+    # Supplied ground nodes stop at the two lifts. Boarding and vertical travel
+    # must be demonstrated by ordinary movement and the authoritative player pose.
+    for point in ((2401, 1737, 806), (2214, 1696, 849), (2206, 1560, 849),
+                  (2208, 1478, 852), (2208, 1416, 852)):
+        walk(driver, point, capture, combat=True, tolerance=16)
+    if 219 not in movers(driver):
+        raise RuntimeError("Factory platform controller 219 is missing")
+    risen = driver.until(lambda s: s["health"] <= 0 or s["pos"][2] >= 960,
+                         seconds=10, description="ordinary platform contact raises the player")
+    if risen["health"] <= 0 or not (2100 < risen["pos"][0] < 2312 and 1328 < risen["pos"][1] < 1472):
+        raise RuntimeError("Factory ascent did not leave a living player on the platform")
+    for point in ((2177, 1394, 964), (2032, 1496, 960), (1984, 1600, 960),
+                  (1824, 1632, 984), (1728, 1660, 968)):
+        walk(driver, point, capture, combat=True, tolerance=20)
+    checkpoint(driver, capture, report, "factory_upper_lift")
+    use_button(driver, 118, (1696, 1718, 990))
+    lowered = driver.until(lambda s: s["health"] <= 0 or s["pos"][2] <= 690,
+                           seconds=8, description="authored liftmaster control lowers the player")
+    if lowered["health"] <= 0 or not (1648 < lowered["pos"][0] < 1808 and 1520 < lowered["pos"][1] < 1744):
+        raise RuntimeError("Factory descent did not leave a living player on the lift")
+    # Leave before its authored return. No wait, damage or puzzle timing changes.
+    walk(driver, (1653, 1596, 680), capture, tolerance=20)
+    checkpoint(driver, capture, report, "factory_lower_lift")
+    for point in ((1592, 1384, 680), (1574, 1286, 664), (1511, 1232, 581),
+                  (1748, 1202, 537), (1824, 981, 495), (1710, 973, 511),
+                  (1783, 769, 472), (1645, 672, 472)):
+        walk(driver, point, capture, combat=True, tolerance=24)
+    checkpoint(driver, capture, report, "factory_before_authored_exit")
+    aim_at(driver, (1520, 672, driver.observe()["pos"][2] + 22))
+    driver.issue("+forward")
+    try:
+        arrival = driver.until(lambda s: s["map"] == "e1m2a" and s["mode"] == "normal",
+                               seconds=20, description="ordinary contact with the authored e1m2a exit")
+    finally:
+        driver.issue("-forward")
+        driver.until(lambda s: s["forward"] == 0, description="processed e1m2a arrival release")
+    if arrival["health"] <= 0 or arrival["skill"] != 3:
+        raise RuntimeError("Factory exit did not retain a living normal-difficulty player")
+    checkpoint(driver, capture, report, "e1m2a_authored_arrival")
+    return {"scope": "Authored switch, monitor, platform, liftmaster and normal-input exit into e1m2a.",
             "state": driver.observe()}
 
 

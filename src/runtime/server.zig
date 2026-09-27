@@ -252,6 +252,10 @@ fn consoleCommand() isize {
         @import("server/observation.zig").match(&world.?, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }
+    if (std.mem.eql(u8, command, "dk3_runtime_pickup_routes")) {
+        @import("server/navigation_probe.zig").pickupRoutes(&world.?, &slots, systems.navigation.service()) catch |err| runtimeFailure(err);
+        return 1;
+    }
     if (saveCommand(command) catch |err| {
         saveFeedback(err);
         return 1;
@@ -556,6 +560,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
 }
 
 fn runtimeFailure(err: anyerror) noreturn {
+    if (@errorReturnTrace()) |trace| std.debug.dumpErrorReturnTrace(trace);
     var message: [160]u8 = undefined;
     engine.fatal(std.fmt.bufPrintZ(&message, "Zig runtime: {s}", .{@errorName(err)}) catch unreachable);
 }

@@ -7,6 +7,20 @@ from runtime_arena_combat import evade
 
 
 class NativeInputTests(unittest.TestCase):
+    def test_client_crash_is_reported_instead_of_waiting_for_an_absent_server(self):
+        driver = NativeInput(None, None, None, None, [])
+        fatal = "ERROR: Zig client: InvalidImpactEvent"
+        with patch.object(driver, "text", return_value=fatal + "\nnative menus initialized\n"), \
+             patch.object(driver, "issue") as issue:
+            with self.assertRaisesRegex(RuntimeError, "InvalidImpactEvent"):
+                driver.observe()
+            issue.assert_not_called()
+        with patch.object(driver, "text", return_value="prior\n"), \
+             patch.object(driver, "issue"), patch("runtime_input.wait", return_value="prior\n" + fatal) as wait:
+            with self.assertRaisesRegex(RuntimeError, "InvalidImpactEvent"):
+                driver.observe()
+            self.assertTrue(wait.call_args.args[2]("prior\n" + fatal))
+
     def test_splash_dodge_accounts_for_time_needed_to_reach_cover(self):
         corners = ((-896, 500), (-720, 500), (-720, 780), (-896, 780))
         self.assertEqual(evade((-896, 500, 984), corners, [(1.5, (-896, 500))]), (-720, 780))

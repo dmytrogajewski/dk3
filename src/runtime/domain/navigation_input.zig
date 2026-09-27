@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Collision-qualified crouch steering shared by bots and party locomotion.
+//! Body-space navigation goals and collision-qualified locomotion steering.
 const v = @import("vector.zig");
 const collision = @import("collision.zig");
+/// A pickup's render/physics origin is not the collector's navigation origin.
+/// Put the collector's feet on the pickup's support plane without moving the item.
+pub fn pickupPoint(position: v.Vec3, pickup_mins: v.Vec3, collector_mins: v.Vec3) v.Vec3 {
+    return .{ position[0], position[1], position[2] + pickup_mins[2] - collector_mins[2] };
+}
 pub fn crouch(service: collision.Collision, position: v.Vec3, destination: v.Vec3, mins: v.Vec3, standing: v.Vec3, slot: u16, mask: u32) !bool {
     const delta = v.subtract(destination, position);
     const flat: v.Vec3 = .{ delta[0], delta[1], 0 };
@@ -33,4 +38,18 @@ test "low passage steering requires a clear crouched sweep and never crouches fo
     fixture.wall = false;
     fixture.open = true;
     try t.expect(!try crouch(service, .{ 0, 0, 24 }, .{ 64, 0, 24 }, .{ -12, -12, -24 }, .{ 12, 12, 30 }, 64, 1));
+}
+
+test "pickup approach shares the support plane for different item and collector bounds" {
+    const t = @import("std").testing;
+    for ([_]f32{ -8, 0, 1 }) |item_bottom| {
+        for ([_]f32{ -24, -32 }) |collector_bottom| {
+            const goal = pickupPoint(.{ 64, -128, 112 }, .{ -8, -8, item_bottom }, .{ -16, -16, collector_bottom });
+            try t.expectEqual(@as(f32, 64), goal[0]);
+            try t.expectEqual(@as(f32, -128), goal[1]);
+            try t.expectEqual(112 + item_bottom, goal[2] + collector_bottom);
+            // Raw model origins fail this contract, including floor-height weapons.
+            try t.expect(goal[2] != 112);
+        }
+    }
 }

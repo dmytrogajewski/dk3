@@ -124,9 +124,20 @@ def run(args):
             except Exception as error:
                 # A natural death may verify the reload boundary while the route
                 # itself remains failed. Do not retry gameplay from the same save.
-                failed = driver.observe()
+                observation_error = None
+                try:
+                    failed = driver.observe()
+                except Exception as failure:
+                    observation_error = str(failure)
+                    failed = None
+                (args.report / "failure.json").write_text(json.dumps({
+                    "identity": identity, "error": str(error), "observed_failure_state": failed,
+                    "last_observed_state": driver._activity_sample,
+                    "observation_error": observation_error,
+                    "scope": "Failed route; last observation is historical if the engine disconnected."
+                }, indent=2) + "\n")
                 slot = "intro_resume" if args.checkpoint else "opening_arrival" if (home / "state/dk3/saves/opening_arrival.sav").exists() else None
-                if failed["health"] <= 0 and slot:
+                if failed and failed["health"] <= 0 and slot:
                     restored = driver.load(slot)
                     if restored["health"] <= 0 or restored["mode"] != "normal":
                         raise RuntimeError("Death reload failed to restore a living player") from error

@@ -12,6 +12,7 @@ test {
     _ = @import("domain/gibs.zig");
     _ = @import("domain/multiplayer.zig");
     _ = @import("domain/bot_combat.zig");
+    _ = @import("server/bots.zig");
     _ = @import("server/bot_routes.zig");
     _ = @import("server/companion_items.zig");
     _ = @import("server/companion_weapons.zig");

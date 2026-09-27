@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (C) 1999-2005 Id Software, Inc.
-//! Bounded protocol-1346 message codec, ported from bundled ioquake3/msg.c.
+//! Bounded protocol-1347 message codec, ported from bundled ioquake3/msg.c.
 //! C layouts are adapters only: ordered scalar fields define the wire schema.
 //! The reviewed upstream Huffman implementation remains the compression library.
 const std = @import("std");
@@ -554,6 +554,28 @@ test "Zig entity and extension wire schema matches reviewed C codec" {
         try std.testing.expectEqualSlices(u8, std.mem.asBytes(&reference_ext), std.mem.asBytes(&decoded_ext));
         from = decoded;
         from_ext = decoded_ext;
+    }
+}
+test "native effect tags and persistent identities survive the snapshot wire" {
+    var from = std.mem.zeroes(c.entityState_t);
+    var from_ext = std.mem.zeroes(c.dkq3EntityExt_t);
+    // Scenery, lightning/scorch and chest dispatch use tags above 255. Weapon
+    // effects also use this field for the complete persistent identity.
+    for ([_]c_int{ 10002, 10038, 10039, 10043, 0x12345678, -1, 0 }) |identity| {
+        var to = from;
+        to.number = 128;
+        to.generic1 = identity;
+        var storage: [1024]u8 = @splat(0);
+        var message: c.msg_t = undefined;
+        MSG_Init(&message, &storage, storage.len);
+        MSG_WriteDeltaEntityDkq3(&message, &from, &to, &from_ext, &from_ext, c.qtrue);
+        MSG_BeginReading(&message);
+        const number = MSG_ReadBits(&message, c.GENTITYNUM_BITS);
+        var decoded: c.entityState_t = undefined;
+        var decoded_ext: c.dkq3EntityExt_t = undefined;
+        MSG_ReadDeltaEntityDkq3(&message, &from, &decoded, &from_ext, &decoded_ext, number);
+        try std.testing.expectEqual(identity, decoded.generic1);
+        from = decoded;
     }
 }
 test "Zig player and command schemas match C snapshots including signed timers" {

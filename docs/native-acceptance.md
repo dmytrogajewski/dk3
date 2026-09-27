@@ -18,11 +18,45 @@ is inferred from class counts or test volume.
 | Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Current applicable contract roots pass at 285 | **Not accepted:** New Game → full intro → e1m1a → e1m1b bridge → e1m1c → authored e1m2a | Previous legitimate checkpoints reach defeated bridge boss/reward and first factory gate; complete fresh route required |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Snapshot and deadline contracts pass at 285 | Sequence 253 narrow death/reload; 254 C→B→C visited restoration after disk load | Shared actor/world/script changes invalidate applicable earlier coverage; natural restoration replay required |
-| Multiplayer and bots | Native sessions, combat/respawn with retained advancement, death drops, DM, CTF/deathtag, physical bot input, room controls and menus connected | Initial-state/objective policy contracts pass at 285 | Current candidate unrun; previous runtime results do not transfer | Complete mode/objective interactions, bot navigation, network/reconnect/browser/room scenarios and presentation remain |
+| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | Native and wire contracts pass at 287 | Four-bot DM demonstrates natural movement/pickup/combat/respawn on `8dc7a3…`; CTF/deathtag captures fail | Objective routes repaired after read-only diagnosis; replay pending. Human network/reconnect/browser/rooms remain unaccepted |
 | World/effects | Movers, controls, hazards, healing/breakage/debris, audio/lighting, emitters, lightning/attractors, rain/snow connected | World policy roots pass at 285; engine effects unverified | No new campaign or visual acceptance | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
 
 ## Build and asset identity
+
+Current sequence-287 installation
+`5414bcb6f09a75e2ac5df7fcf2297831b9d513c34f39c62910cd629a72a5af3f`
+includes resting-objective routing and the campaign surfacing-voice repair. Its 219
+native contracts pass; unaffected codec/online and driver results below remain valid.
+The preceding bridge replay defeated the boss, verified actual death/reload and
+collected its reward before surfacing exposed a missing multiplayer Session lookup
+on campaign Hiro. `runtime-zig-287/bridge-surface-repaired/` replays that legitimate
+checkpoint on the current build; no full opening gate is accepted. Factory platform,
+liftmaster and authored e1m2a exit inputs are implemented and unverified.
+
+Sequence 287 protocol repair installation
+`807f488be71e81716955e106b77363730afe74bfd2a168f4a0e2ede6d1ea4a08`
+uses the same asset manifest below. The snapshot wire now preserves native effect
+tags and persistent identities; protocol 1347 rejects the incompatible older layout.
+232 applicable native/codec/online contracts and 11 input-driver tests pass. The new
+wire regression fails against the defective layout (`10002` becomes `18`). Evidence:
+`zig-out/reports/runtime-zig-287/consolidation/`. The checkpoint bridge replay has
+passed the former lightning/scorch client crash and collected health/ammunition,
+cleared both ford Crox, defeated the boss and verified death/reload; it later failed
+in campaign surfacing audio as described above.
+Exact identity/inputs/frames: `runtime-zig-287/bridge-wire-repaired/` under the reports root.
+Native effects and visual dispatch require revalidation after this shared wire repair.
+
+The prior sequence-287 installation
+`8dc7a3d6883645b84dc2b4ca8c52189b4a177ec245aedccafd4330761acf4053`
+demonstrates natural four-bot DM movement, weapon collection, combat damage, kill and
+respawn (`runtime-zig-287/dm/`). It does not establish complete DM or human networking.
+CTF and deathtag fail their contested-capture requirements in separate directories;
+deathtag does demonstrate combat/respawn. Read-only navigation diagnostics establish
+that weapons and resting objectives need collector body origins, not model origins.
+All eight CTF objective route lookups fail at raw positions and succeed with actual
+body-bottom alignment (`runtime-zig-287/objective-navigation/`, Debug diagnostic only).
+Objective pursuit repair is implemented; replay pending.
 
 Sequence 286 launcher/save fixture uses installation
 `ef7a0c105d1454316b4f6cc9793fb2dfe8be1e48143ede5aad255749ef75e04b`
@@ -44,9 +78,13 @@ Assertions are enabled. Evidence: `zig-out/reports/runtime-zig-286/consolidation
 
 First engine attempts exposed and retained two ECS query assertion failures, missing
 non-solid effect save admission, and bot reliable-command overflow. These are repaired;
-launcher map/save replay passes. The fresh intro replay and bot scenario remain under
-verification. Bots admit successfully after message acknowledgement, but the observed
-match has not established pickup/combat/respawn. No full connected gate is accepted.
+launcher map/save replay passes. The fresh normal New Game run observes all 115 intro
+shots, saves at shots 20/50/80, restores arrival and collects/fires the Ion Blaster.
+It fails at a lower marsh ledge with health 100 (`runtime-zig-286/fresh-opening-repaired/`).
+Corrected normal-input routing reaches the authored e1m1b exit from a legitimate
+checkpoint, then exposes the client wire defect (`runtime-zig-287/marsh-checkpoint/`).
+These are distinct results across different builds, not one fresh completed playthrough.
+No full connected gate is accepted.
 The earlier inventory manifest `ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`
 is superseded for new native engine scenarios.
 
@@ -58,6 +96,14 @@ remain subsystem diagnostics; none closes the continuous campaign gate.
 
 ## Revalidation and known limits
 
+- Sequence 287 fixes the native effect snapshot field, bot/companion pickup goals and
+  resting objective goals. Revalidate native effect rendering, companion item pursuit,
+  multiplayer captures and the complete fresh campaign route on the consolidated build.
+  Earlier effect screenshots with truncated tags cannot establish correct dispatch.
+- Campaign surfacing audio no longer requires multiplayer Session. Revalidate actual
+  swimming/surfacing; character-specific multiplayer voice contracts remain covered.
+- The marsh input driver now follows the lower west ledge after a fall. Engine/client
+  disconnects invalidate the scenario immediately; a menu process is not a live server.
 - Sequence 286 turns episode-three wooden/black chests into usable solid containers,
   with one-use opening, class rewards, delayed black-chest reveal and 25-damage trap.
   Contracts pass; authored use/reward/trap/save scenes remain unrun. Trap wood fragments

@@ -815,7 +815,7 @@ netField_t	entityStateFields[] =
 { NETF(modelindex), 9 },
 { NETF(otherEntityNum2), GENTITYNUM_BITS },
 { NETF(loopSound), 10 },
-{ NETF(generic1), 8 },
+{ NETF(generic1), 32 }, // dk3 native effect tags and persistent identities
 { NETF(origin2[2]), 0 },
 { NETF(origin2[0]), 0 },
 { NETF(origin2[1]), 0 },

@@ -65,12 +65,13 @@ pub fn choose(world: *data.World, collector: ecs.Entity, table: *const weapons.T
     var result: u32 = 0;
     var nearest: f32 = std.math.inf(f32);
     var priority: u8 = 255;
-    var query = world.queryAccess(data.World.mask(.{ data.Pickup, data.Transform, data.Binding }), 0, 0);
+    var query = world.queryAccess(data.World.mask(.{ data.Pickup, data.Transform, data.Binding, data.Body }), 0, 0);
     defer query.deinit();
-    while (query.next()) |view| for (view.entities(), view.read(data.Pickup), view.read(data.Transform), view.read(data.Binding)) |entity, pickup, target, target_binding| {
+    while (query.next()) |view| for (view.entities(), view.read(data.Pickup), view.read(data.Transform), view.read(data.Binding), view.read(data.Body)) |entity, pickup, target, target_binding, target_body| {
         const id = try world.persistentId(entity);
         if (id == companion.avoided_item and now < companion.avoid_until_ms) continue;
-        const distance = v.length(v.subtract(target.position, pose));
+        const goal = @import("../domain/navigation_input.zig").pickupPoint(target.position, target_body.mins, body.mins);
+        const distance = v.length(v.subtract(goal, pose));
         if (distance >= 256 or !try allows(world, collector, entity, table, episode, false, now)) continue;
         const hit = try engine.collisionService().trace(.{ .start = pose, .end = target.position, .mins = @splat(0), .maxs = @splat(0), .slot = binding.slot, .mask = c.MASK_SHOT });
         if (hit.start_solid or (hit.fraction < 1 and hit.entity != target_binding.slot)) continue;
@@ -83,7 +84,7 @@ pub fn choose(world: *data.World, collector: ecs.Entity, table: *const weapons.T
             else => continue,
         };
         if (rank > priority) continue;
-        const path = if (try @import("actor_motion.zig").direct(pose, target.position, body, binding.slot)) distance else try length(service, pose, target.position, binding.slot, 256) orelse continue;
+        const path = if (try @import("actor_motion.zig").direct(pose, goal, body, binding.slot)) distance else try length(service, pose, goal, binding.slot, 256) orelse continue;
         if (rank == priority and path >= nearest) continue;
         nearest = path;
         priority = rank;
@@ -109,7 +110,7 @@ pub fn pursuing(world: *data.World, collector: ecs.Entity, actor: *data.Actor, p
         return false;
     }
     actor.threat = 0;
-    actor.threat_position = (try world.get(item.?, data.Transform)).position;
+    actor.threat_position = @import("../domain/navigation_input.zig").pickupPoint((try world.get(item.?, data.Transform)).position, (try world.get(item.?, data.Body)).mins, (try world.get(collector, data.Body)).mins);
     actor.mode = if (v.length(v.subtract(actor.threat_position, pose.position)) > 4) .chase else .idle;
     return true;
 }

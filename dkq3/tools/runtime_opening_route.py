@@ -273,7 +273,13 @@ def marsh_exit(driver, capture, report, start_index=0):
                 for lower in ((-560, -2008, 312), (-616, -1933, 318), (-768, -1920, 312), (-824, -1912, 320)):
                     walk(driver, lower, capture, combat=True)
                 return marsh_exit(driver, capture, report, start_index=23)
-            walk(driver, point, capture, combat=True, floor_limit=340 if 12 <= index <= 20 else None)
+            if 12 <= index <= 14 and driver.observe()["pos"][2] < 400:
+                # The descending west ledge is above the pond. Once we land on
+                # it, continue west instead of climbing back onto the upper rim.
+                driver.inputs.append({"marsh_lower_ledge": driver.observe(), "resume_index": 15})
+                return marsh_exit(driver, capture, report, start_index=15)
+            walk(driver, point, capture, combat=True,
+                 floor_limit=400 if 12 <= index <= 14 else 340 if 15 <= index <= 20 else None)
             if index in (1, 9):
                 from runtime_bridge_route import checkpoint, resupply
                 if index == 1:

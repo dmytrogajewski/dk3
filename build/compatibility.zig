@@ -32,7 +32,7 @@ pub fn declare(b: *std.Build) []const u8 {
     hash.final(&digest);
     const identity = b.dupe(&std.fmt.bytesToHex(digest, .lower));
     const generated = b.addWriteFiles();
-    const manifest = generated.add("rules.json", b.fmt("{{\"protocol\":1346,\"schema\":\"dk3-snapshot-1346-1\",\"rules\":\"{s}\"}}\n", .{identity}));
+    const manifest = generated.add("rules.json", b.fmt("{{\"protocol\":1347,\"schema\":\"dk3-snapshot-1347-1\",\"rules\":\"{s}\"}}\n", .{identity}));
     b.getInstallStep().dependOn(&b.addInstallFileWithDir(manifest, .prefix, "share/dk3/rules.json").step);
     return identity;
 }

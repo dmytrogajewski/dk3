@@ -129,7 +129,7 @@ pub const State = struct {
                 brain.goal_ms = now + 5000;
             }
             if (destination == null) if (world.find(brain.goal)) |goal| {
-                destination = (try world.get(goal, data.Transform)).position;
+                destination = @import("../domain/navigation_input.zig").pickupPoint((try world.get(goal, data.Transform)).position, (try world.get(goal, data.Body)).mins, (try world.get(entity, data.Body)).mins);
             };
             if (destination == null and resupply) destination = objectiveGoal(world, entity);
             if (destination == null) if (enemy) |other| {
@@ -234,11 +234,12 @@ pub const State = struct {
 };
 fn pickupGoal(world: *data.World, player: ecs.Entity, table: *const @import("../domain/weapons.zig").Table, service: nav.Service, avoided: u32, resupply: bool, now: i64) !u32 {
     const origin = (try world.get(player, data.Transform)).position;
+    const body = (try world.get(player, data.Body)).*;
     var nearest: f32 = std.math.inf(f32);
     var result: u32 = 0;
-    var query = world.queryAccess(data.World.mask(.{ data.Pickup, data.Transform }), 0, 0);
+    var query = world.queryAccess(data.World.mask(.{ data.Pickup, data.Transform, data.Body }), 0, 0);
     defer query.deinit();
-    while (query.next()) |view| for (view.entities(), view.read(data.Pickup), view.read(data.Transform)) |entity, pickup, pose| {
+    while (query.next()) |view| for (view.entities(), view.read(data.Pickup), view.read(data.Transform), view.read(data.Body)) |entity, pickup, pose, bounds| {
         if (!pickup.visible or try world.persistentId(entity) == avoided) continue;
         var health = (try world.get(player, data.Health)).*;
         if (resupply) switch (pickup.kind) {
@@ -251,9 +252,10 @@ fn pickupGoal(world: *data.World, player: ecs.Entity, table: *const @import("../
         var character = (try world.get(player, data.Character)).*;
         var ailments = (try world.get(player, data.Ailments)).*;
         if (!@import("../domain/items.zig").give(pickup, .{ .health = &health, .keys = &keys, .loadout = &loadout, .character = &character, .ailments = &ailments }, table, now, false)) continue;
-        const distance = v.length(v.subtract(origin, pose.position));
+        const goal = @import("../domain/navigation_input.zig").pickupPoint(pose.position, bounds.mins, body.mins);
+        const distance = v.length(v.subtract(origin, goal));
         if (distance < 24 or distance >= nearest) continue;
-        if (try service.next(.{ .position = origin, .destination = pose.position, .slot = (try world.get(player, data.Binding)).slot, .player = true }) == null) continue;
+        if (try service.next(.{ .position = origin, .destination = goal, .slot = (try world.get(player, data.Binding)).slot, .player = true }) == null) continue;
         nearest = distance;
         result = try world.persistentId(entity);
     };
@@ -275,6 +277,9 @@ fn objectiveGoal(world: *data.World, player: ecs.Entity) ?v.Vec3 {
         var rank: u8 = 0;
         var point = pose.position;
         if (world.get(entity, data.Objective) catch null) |objective| {
+            if (objective.phase == .home or objective.phase == .dropped) {
+                point = @import("../domain/navigation_input.zig").pickupPoint(pose.position, (world.get(entity, data.Body) catch continue).mins, (world.get(player, data.Body) catch continue).mins);
+            }
             if (!is_bomb and objective.team == session.team and objective.phase != .home) {
                 // Recover the flag (or pursue its carrier) before an impossible capture.
                 rank = if (held != null or objective.phase == .dropped) 4 else 3;
@@ -297,4 +302,35 @@ fn objectiveGoal(world: *data.World, player: ecs.Entity) ?v.Vec3 {
         }
     };
     return chosen;
+}
+
+test "bot resupply routes to a standing origin without moving or granting the weapon" {
+    const t = std.testing;
+    const Fake = struct {
+        calls: usize = 0,
+        fn next(raw: *anyopaque, request: nav.Request) !?nav.Waypoint {
+            const self: *@This() = @ptrCast(@alignCast(raw));
+            self.calls += 1;
+            // Reproduce the floor weapon: raw model height 112 has no reachable
+            // player area; feet at 113 require a player origin at 137.
+            if (request.destination[2] != 137) return null;
+            return .{ .point = request.destination };
+        }
+    };
+    var fake: Fake = .{};
+    const service: nav.Service = .{ .context = &fake, .next_fn = Fake.next };
+    var world = data.World.init(t.allocator, 8);
+    defer world.deinit();
+    const player = try world.create(1, .{ data.Transform{ .position = .{ 0, 0, 137 } }, data.Body{ .mins = .{ -15, -15, -24 } }, data.Binding{ .slot = 0 }, data.Health{}, data.Keys{}, data.Weapons{ .dk3Inventory = 1 << 1 }, data.Character{}, data.Ailments{} });
+    const item = try world.create(14, .{ data.Transform{ .position = .{ 128, 0, 112 } }, data.Body{ .mins = .{ -8, -8, 1 } }, data.Pickup{ .kind = .{ .weapon = 2 } } });
+    var table: @import("../domain/weapons.zig").Table = .{};
+    table.entries[2] = .{ .damage = 15, .range = 1800, .ammoCost = 1, .initialAmmo = 20, .ammoMax = 100 };
+    try t.expectEqual(@as(u32, 14), try pickupGoal(&world, player, &table, service, 0, true, 100));
+    try t.expectEqual(@as(usize, 1), fake.calls);
+    try t.expectEqual(@as(i32, 1 << 1), (try world.get(player, data.Weapons)).dk3Inventory);
+    try t.expectEqual(@as(f32, 112), (try world.get(item, data.Transform)).position[2]);
+    try t.expectEqual(@as(u32, 0), try pickupGoal(&world, player, &table, service, 14, true, 100));
+    (try world.get(item, data.Pickup)).visible = false;
+    try t.expectEqual(@as(u32, 0), try pickupGoal(&world, player, &table, service, 0, true, 100));
+    try t.expectEqual(@as(usize, 1), fake.calls);
 }

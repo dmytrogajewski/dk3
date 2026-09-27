@@ -9,6 +9,11 @@ import time
 from runtime_probe import send, wait
 
 
+def engine_failure(text):
+    """Include client and engine drops, which leave a live process at the menu."""
+    return next((line for line in reversed(text.splitlines()) if line.startswith("ERROR: ")), None)
+
+
 class NativeInput:
     def __init__(self, process, pipe, log, home, inputs, *, diagnostic=False):
         if not __debug__:
@@ -49,20 +54,20 @@ class NativeInput:
             # the pending response, then request authoritative state again.
             wait(self.process, self.log, lambda text, offset=offset:
                  "player entered isolated movement runtime" in text[offset:] or
-                 "ERROR: Zig runtime:" in text[offset:], max(0.1, deadline - time.monotonic()))
+                 engine_failure(text[offset:]), max(0.1, deadline - time.monotonic()))
         raise TimeoutError("Native player connection did not finish")
 
     def _observe_once(self):
         prior = self.text()
-        if "ERROR: Zig runtime:" in prior:
-            raise RuntimeError(next(line for line in reversed(prior.splitlines()) if "ERROR: Zig runtime:" in line))
+        if failure := engine_failure(prior):
+            raise RuntimeError(failure)
         self.serial += 1
         marker = f"dk3 observe {self.serial}: "
         before = len(self.text())
         self.issue(f"dk3_runtime_observe {self.serial}")
-        text = wait(self.process, self.log, lambda value: marker in value[before:] or "ERROR: Zig runtime:" in value[before:], 5)[before:]
-        if "ERROR: Zig runtime:" in text:
-            raise RuntimeError(next(line for line in text.splitlines() if "ERROR: Zig runtime:" in line))
+        text = wait(self.process, self.log, lambda value: marker in value[before:] or engine_failure(value[before:]), 5)[before:]
+        if failure := engine_failure(text):
+            raise RuntimeError(failure)
         line = next(line.split(marker, 1)[1] for line in text.splitlines() if marker in line)
         result = {}
         for key, value in re.findall(r"(\w+)=([^ ]+)", line):

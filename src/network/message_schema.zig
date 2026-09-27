@@ -77,7 +77,8 @@ pub const entity = [_]Field{
     Field.of(c.entityState_t, "modelindex", 9),
     Field.of(c.entityState_t, "otherEntityNum2", c.GENTITYNUM_BITS),
     Field.of(c.entityState_t, "loopSound", 10),
-    Field.of(c.entityState_t, "generic1", 8),
+    // Native effect dispatch tags and persistent effect identities need all bits.
+    Field.of(c.entityState_t, "generic1", 32),
     Field.of(c.entityState_t, "origin2[2]", 0),
     Field.of(c.entityState_t, "origin2[0]", 0),
     Field.of(c.entityState_t, "origin2[1]", 0),

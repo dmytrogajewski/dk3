@@ -37,14 +37,34 @@ fn waterWeapon(world: *data.World, entity: ecs.Entity) bool {
     const weapon = @import("weapon_catalog").find(@intCast(loadout.weapon)) orelse return false;
     return weapon.spec.protects_water;
 }
-fn voice(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, drowned: bool, now: i64) !void {
-    const player = world.get(entity, data.Player) catch return;
-    _ = player;
-    const appearance = (try world.get(entity, data.Session)).appearance % 3;
+fn voicePath(world: *data.World, entity: ecs.Entity, drowned: bool, buffer: []u8) ![]const u8 {
+    // Campaign Hiro has no multiplayer Session. Skin selection applies only to
+    // multiplayer players, as it does for their ordinary pain/death voices.
+    const appearance = if (world.get(entity, data.Session) catch null) |session| session.appearance % 3 else 0;
     const name = if (appearance == 1) "mikiko" else if (appearance == 2) "superfly" else "hiro";
     const sample = if (!drowned) "breathe2.wav" else if (appearance == 1) "waterchoke1.wav" else if (appearance == 2) "waterchoke2.wav" else "waterdeath1.wav";
+    return std.fmt.bufPrint(buffer, "{s}/{s}", .{ name, sample });
+}
+fn voice(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, drowned: bool, now: i64) !void {
+    _ = world.get(entity, data.Player) catch return;
     var path: [64]u8 = undefined;
-    try @import("events.zig").sound(world, slots, projections, try std.fmt.bufPrint(&path, "{s}/{s}", .{ name, sample }), (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, c.CHAN_VOICE, now);
+    try @import("events.zig").sound(world, slots, projections, try voicePath(world, entity, drowned, &path), (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, c.CHAN_VOICE, now);
+}
+
+test "surfacing and drowning voices support campaign Hiro without a multiplayer session" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 8);
+    defer world.deinit();
+    const player = try world.create(1, .{data.Player{}});
+    var path: [64]u8 = undefined;
+    try t.expectEqualStrings("hiro/breathe2.wav", try voicePath(&world, player, false, &path));
+    try t.expectEqualStrings("hiro/waterdeath1.wav", try voicePath(&world, player, true, &path));
+    try world.put(player, data.Session{ .appearance = 7 });
+    try t.expectEqualStrings("mikiko/breathe2.wav", try voicePath(&world, player, false, &path));
+    try t.expectEqualStrings("mikiko/waterchoke1.wav", try voicePath(&world, player, true, &path));
+    (try world.get(player, data.Session)).appearance = 14;
+    try t.expectEqualStrings("superfly/breathe2.wav", try voicePath(&world, player, false, &path));
+    try t.expectEqualStrings("superfly/waterchoke2.wav", try voicePath(&world, player, true, &path));
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, episode: u8, now: i64) !void {
     var ids: [ecs.max_entities]ecs.Entity = undefined;

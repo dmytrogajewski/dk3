@@ -5263,3 +5263,69 @@ normal New Game/full-intro run in progress, not an accepted milestone. Bot diagn
 show no meaningful pickup/combat yet. Swamp-decoration out-of-range frame warnings are
 also retained for authored animation follow-up. Full campaign, interactions, companions,
 network/multiplayer and release requirements remain open in the acceptance matrix.
+
+## Sequence 287 — native-wire-and-collector-navigation
+
+The first fresh sequence-286 New Game completes all 115 intro shots and checkpoint
+saves at 20/50/80, reaches e1m1a, restores arrival, collects the Ion Blaster and fights
+through the marsh. It stops at a driver mistake with health 100: a lower west ledge
+was treated as the upper path. The driver now continues along the connected lower
+ledge. A legitimate marsh checkpoint reaches the authored e1m1b exit and bridge
+control 91. This is not a fresh campaign gate; separate builds and replay starting
+points remain explicit in `result.json` / `failure-scope.json`.
+
+Read-only botlib diagnosis finds every observed weapon goal below the navigable
+player volume. Goal coordinates now align the collector's bottom with the item's
+actual support plane, sharing a pure helper between bots and companion collection.
+No arbitrary height offset, geometry, item position or movement rule changes. A
+resupply regression uses a floor weapon whose raw point has no route and confirms
+that choosing the goal neither moves the item nor grants inventory. Hidden/avoided
+items remain excluded. The natural four-bot e1dm1 run on installation
+`8dc7a3d6883645b84dc2b4ca8c52189b4a177ec245aedccafd4330761acf4053` demonstrates
+movement, pickups, actual attacks/contact, kill credit and respawn. It is a bounded
+DM scenario, not full mode or network acceptance. CTF/deathtag contested captures
+fail. Deathtag separately demonstrates combat and respawn. Subsequent read-only CTF
+diagnosis finds both resting flag origins outside reachable areas: all eight raw
+lookups fail and body-aligned lookups succeed. Resting objective pursuit uses the
+same correction; carried objectives retain their carrier coordinates. Replay pending.
+
+The connected bridge control exposes `InvalidImpactEvent` in the native client.
+The snapshot wire retained an 8-bit generic1 field, truncating native effect tags
+above 10000 and persistent effect identities. Lightning's scorch tag consequently
+failed client admission; many other native effects could not reach their dispatch.
+Both independent Zig transport and the bundled ioquake3 codec reference now retain
+32 bits. Protocol/schema moves to 1347 so incompatible clients are rejected. The
+live online service and installed earlier protocol are unchanged. A regression of
+actual encoded/decoded values fails on the defective layout (`10002` becomes `18`)
+and passes after repair, alongside the randomized bundled-codec comparison.
+
+Installation `807f488be71e81716955e106b77363730afe74bfd2a168f4a0e2ede6d1ea4a08`
+and unchanged asset manifest
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff` pass 232
+applicable contracts (218 native, four codec, ten online/security). Eleven input
+driver checks pass, including immediate invalidation on client/engine failure.
+The driver previously waited for a server after a client crash had returned to
+menus; it now preserves the error and last historical observation distinctly.
+The actual bridge replay passes the former crash, both ford encounters, turret
+controls, boss fight, defeated-boss save/load, authored death/reload and reward
+collection. It then fails on surfacing with `MissingComponent`: water voice lookup
+incorrectly required a multiplayer Session on campaign Hiro. Voice selection now
+uses the established campaign identity while preserving multiplayer appearance
+voices; direct contracts cover missing Session, Mikiko and Superfly. Repaired replay
+is pending. Fatal server errors now retain the Zig error-return trace when available.
+
+The remaining factory driver route is implemented from supplied ground nodes and
+brush/control authoring: platform 219, upper passage, liftmaster button 118 and
+descending lift 117, lower water path, then ordinary contact with exit 312 into
+e1m2a. It checks actual controller presence, player height, health and input
+acknowledgements. This route is unverified and does not close the milestone.
+
+Evidence is in `zig-out/reports/runtime-zig-287/`: `navigation/` and
+`objective-navigation/` are read-only Debug diagnostics, `dm/`, `ctf/`, `deathtag/`
+have separate natural match results, `marsh-checkpoint/` retains the client failure,
+`bridge-wire-repaired/` retains the successful narrower behaviors and surfacing
+failure, and `consolidation/` keeps the failing/passing wire and driver checks.
+The exact build and asset hashes accompany each run. Shared wire changes require
+native effect/presentation and multiplayer replay; collector changes require party
+pickup replay. The complete fresh gate and all-episode/multiplayer/release scope
+remain open. No acceptance is inferred from the repaired code or passing contracts.
