@@ -59,7 +59,11 @@ pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").Stat
         if (loaded.world.get(entity, data.Actor) catch null) |actor| try systems.actors.ensure(actor.definition);
         if (loaded.world.get(entity, data.Binding) catch null) |binding| {
             if ((loaded.world.get(entity, data.Hammer) catch null) != null or (loaded.world.get(entity, data.Shockwave) catch null) != null or (loaded.world.get(entity, data.Nova) catch null) != null or (loaded.world.get(entity, data.Flashlight) catch null) != null or (loaded.world.get(entity, data.Zeus) catch null) != null or (loaded.world.get(entity, data.ZeusBolt) catch null) != null or (loaded.world.get(entity, data.Nightmare) catch null) != null or (loaded.world.get(entity, data.MetaRing) catch null) != null or (loaded.world.get(entity, data.MetaLaser) catch null) != null) continue;
-            if (loaded.world.get(entity, data.WorldControl) catch null) |control| if (control.action == .light or control.action == .spotlight or control.action == .earthquake or control.action == .speaker or control.action == .laser or control.action == .healer) {
+            if (loaded.world.get(entity, data.WorldControl) catch null) |control| if (control.action == .particles or control.action == .light or control.action == .spotlight or control.action == .earthquake or control.action == .speaker or control.action == .laser or control.action == .healer) {
+                if (control.action == .spotlight and control.action.spotlight.model.len > 0) {
+                    if (binding.model == 0 or binding.model > loaded.header.resources.models.len or !std.mem.eql(u8, loaded.header.resources.models[binding.model - 1], control.action.spotlight.model)) return error.InvalidSavedSpotlight;
+                    continue;
+                }
                 if (control.action == .light) {
                     if (binding.model == 0 or binding.model > loaded.header.resources.models.len or !std.mem.eql(u8, loaded.header.resources.models[binding.model - 1], control.action.light.model)) return error.InvalidSavedLight;
                     continue;
@@ -121,6 +125,10 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
             try clients.publish(world, projections, states, 0, now);
             continue;
         }
+        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .particles) {
+            try @import("complex_particles.zig").publish(world, entity, projections);
+            continue;
+        };
         if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .light) {
             try @import("lights.zig").publish(world, entity, projections);
             continue;

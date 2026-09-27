@@ -10,8 +10,23 @@ const engine = @import("../engine/server.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const prop = @import("properties.zig");
 const v = @import("../domain/vector.zig");
-pub fn initialize(object: data.MapObject, pose: data.Transform, now: i64) !policy.State {
+pub fn initialize(object: data.MapObject, pose: *data.Transform, now: i64) !policy.State {
+    const dynamic = std.mem.eql(u8, object.classname, "func_dynalight");
+    if (dynamic and object.target.len == 0 and pose.angles[0] == 0 and pose.angles[2] == 0) {
+        if (pose.angles[1] == -1) pose.angles = .{ 270, 0, 0 } else if (pose.angles[1] == -2) pose.angles = .{ 90, 0, 0 };
+    }
     var state: policy.State = .{ .enabled = object.flags & 1 != 0, .next_ms = now + 100, .direction = if (pose.angles[1] == -1) .{ 0, 0, 1 } else if (pose.angles[1] == -2) .{ 0, 0, -1 } else v.basis(pose.angles).forward, .endpoint = pose.position };
+    state.dynamic = dynamic;
+    state.stepped_ms = now;
+    if (dynamic) {
+        state.cone = object.flags & 2 != 0;
+        state.flare = object.flags & 4 != 0;
+        state.brightness = try prop.number(object, "light_lev", try prop.number(object, "light", 200));
+        if (state.brightness < 0) return error.InvalidDynamicLight;
+        const speed = (try prop.number(object, "speed", 100)) * (if (object.flags & 64 != 0) @as(f32, -1) else 1);
+        state.spin = .{ if (object.flags & 8 != 0) speed else 0, if (object.flags & 32 != 0) speed else 0, if (object.flags & 16 != 0) speed else 0 };
+        if (state.flare or state.cone) state.model = prop.text(object, "model") orelse "models/global/e_flare2.sp2";
+    }
     state.radius = @trunc(try prop.number(object, "radius", 4));
     if (state.radius == 0) state.radius = 4;
     state.length = @trunc(try prop.number(object, "length", 2048));
@@ -38,6 +53,9 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     out.state.origin2 = state.endpoint;
     out.state.angles2 = state.color;
     out.state.frame = @intFromFloat(state.radius);
+    out.state.modelindex = binding.model;
+    out.state.weapon = @as(i32, @intFromBool(state.cone)) | (@as(i32, @intFromBool(state.flare)) << 1) | (@as(i32, @intFromBool(state.dynamic)) << 2);
+    out.state.time2 = @bitCast(state.brightness);
     out.shared.currentOrigin = pose.position;
     out.shared.mins = @splat(-8);
     out.shared.maxs = @splat(8);
@@ -51,13 +69,15 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     if (!state.initialized) return;
     state.enabled = !state.enabled;
     state.next_ms = now;
+    state.stepped_ms = now;
     try step(world, slots, projections, entity, now);
     try publish(world, entity, projections);
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     var state = (try world.get(entity, data.WorldControl)).action.spotlight;
     if (now < state.next_ms or (state.initialized and !state.enabled)) return;
-    const origin = (try world.get(entity, data.Transform)).position;
+    const pose = try world.get(entity, data.Transform);
+    const origin = pose.position;
     if (!state.initialized) {
         const target = (try world.get(entity, data.MapObject)).target;
         if (target.len > 0) {
@@ -66,7 +86,13 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         }
         state.initialized = true;
     }
-    if (state.enabled) {
+    if (state.enabled and state.dynamic) {
+        pose.angles = v.add(pose.angles, v.scale(state.spin, @as(f32, @floatFromInt(@max(0, now - state.stepped_ms))) * 0.001));
+        if (state.target == 0) state.direction = v.basis(pose.angles).forward;
+    }
+    state.stepped_ms = now;
+    state.next_ms = now + 100;
+    if (state.enabled and state.cone) {
         var hidden: [ecs.max_entities]u16 = undefined;
         var count: usize = 0;
         defer for (hidden[0..count]) |slot| if (slots.occupants[slot] != null) { engine.link(&projections[slot]); };
@@ -81,8 +107,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             }
             state.direction = v.normalize(v.subtract(point, origin));
         }
-        const end = v.add(origin, v.scale(state.direction, state.length));
-        var start = origin;
+        var start = if (state.dynamic) v.add(origin, v.scale(state.direction, 16)) else origin;
+        const end = v.add(start, v.scale(state.direction, state.length));
         while (count < hidden.len) {
             const hit = try engine.collisionService().trace(.{ .start = start, .end = end, .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.CONTENTS_SOLID | c.CONTENTS_BODY | c.CONTENTS_CORPSE });
             state.endpoint = hit.end;

@@ -39,6 +39,7 @@ test {
     _ = @import("domain/gib_emitter.zig");
     _ = @import("domain/earthquake.zig");
     _ = @import("domain/lightstyles.zig");
+    _ = @import("domain/complex_particles.zig");
     _ = @import("server/inventory_actions.zig");
     _ = @import("server/environment.zig");
     _ = @import("domain/world_actions.zig");

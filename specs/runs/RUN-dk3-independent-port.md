@@ -3820,3 +3820,14 @@ fixed log exit 0, before final table replacement/clock regression; all new tests
 engine scenarios remain unrun. Intentional spotlight endpoint and flame-damageability
 corrections and remaining qualification are explicit in docs/native-acceptance.md.
 Continue the broad full-port coding pass; no new campaign/multiplayer acceptance.
+
+## Sequence 276 — dynamic-lights-and-complex-emitters
+
+Native dynamic lights and complex particle emitters now own authored activation,
+visibility, timing, media and persistence. Private behavior review only; compatibility
+corrections and outstanding presentation qualification are recorded in
+`docs/native-acceptance.md`. Three modules linked successfully before the final monitor
+visibility addition: `/tmp/dk3-runtime-276-emitter-link.log`. All added regressions and
+engine scenarios remain unrun. Broad full-port coding pass continues with lightning,
+weather and remaining campaign/multiplayer/release behavior. No acceptance transferred
+from compilation or the preserved runtime; main/installation/saves/service untouched.

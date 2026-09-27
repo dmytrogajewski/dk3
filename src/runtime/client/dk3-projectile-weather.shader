@@ -348,3 +348,69 @@ dk3/fx/spotlight
    alphaGen vertex
  }
 }
+
+dk3/particle/simple
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.0585938 0 0 0.117188 0.189453 0.378906
+ }
+}
+
+dk3/particle/cp1
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.121094 0 0 0.242188 0.376953 0.253906
+ }
+}
+
+dk3/particle/cp2
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.121094 0 0 0.242188 0.626953 0.253906
+ }
+}
+
+dk3/particle/cp3
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.121094 0 0 0.242188 0.876953 0.253906
+ }
+}
+
+dk3/particle/cp4
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.121094 0 0 0.242188 0.876953 0.753906
+ }
+}
+
+dk3/particle/bubble
+{
+ cull disable
+ { map pics/particles/particles.tga
+   blendFunc blend
+   rgbGen vertex
+   alphaGen vertex
+   tcMod transform 0.121094 0 0 0.242188 0.00195312 0.503906
+ }
+}

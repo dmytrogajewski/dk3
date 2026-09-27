@@ -45,6 +45,7 @@ fn shutdown() void {
     @import("client/fx_particles.zig").reset();
     @import("client/gibs.zig").reset();
     @import("client/quake_kick.zig").reset();
+    @import("client/complex_particles.zig").reset();
     weapon_view.deinit();
     if (world) |*value| value.deinit();
     world = null;
@@ -127,6 +128,7 @@ fn draw(now: i32) !void {
                     @import("client/held_weapons.zig").reset();
                     @import("client/events.zig").reset();
                     @import("client/quake_kick.zig").reset();
+    @import("client/complex_particles.zig").reset();
                     weapon_view.init();
                     if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
                     selected_weapon = snapshot.ps.weapon;
@@ -326,12 +328,16 @@ fn draw(now: i32) !void {
             @import("client/lasers.zig").draw(entity, now, &ref);
             continue;
         }
+        if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/complex_particles.zig").render_tag) {
+            @import("client/complex_particles.zig").emit(entity, now);
+            continue;
+        }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/lightstyles.zig").render_tag) {
             try @import("client/lights.zig").draw(&game, entity, now, &ref);
             continue;
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("domain/spotlight.zig").render_tag) {
-            @import("client/spotlights.zig").draw(entity, now);
+            try @import("client/spotlights.zig").draw(&game, entity, now, &ref);
             continue;
         }
         var handle: c.qhandle_t = 0;

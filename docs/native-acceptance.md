@@ -7,7 +7,7 @@ results never transfer to native acceptance.
 
 ## Active implementation pass
 
-Owner-directed broad coding pass (sequences 255–273): remaining episode and multiplayer
+Owner-directed broad coding pass (sequences 255–276): remaining episode and multiplayer
 systems are developed together before consolidated verification and repairs. Opening
 route driver iteration is paused. Complete four-episode/companion/multiplayer scope
 and the fresh New Game→e1m2a integration gate remain required.
@@ -981,6 +981,31 @@ manifest `ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`.
 Regenerated assets/shaders and coherent build/replay remain required. Dynamic lights,
 lightning/attractors, particle/weather emitters and the remaining full-port campaign,
 multiplayer and release work continue. Main, installation, saves and service untouched.
+
+## Sequence 276 — dynamic-lights-and-complex-emitters
+
+Implemented; unverified. `func_dynalight` connects authored brightness/color, spin,
+cone/flare switches and optional model to the saved spotlight owner. Complex particle
+emitters connect delayed setup, activation, finite lifetime, PVS/cinematic/monitor
+visibility, emission windows, gravity helpers, planar/radial bursts and supplied atlas
+media. Native snapshots retain state, random sequence and deadlines; transient particles
+restart from the restored emitter. Policy regressions are written, unrun.
+
+Behavior review preserves flag precedence, consumed gravity markers (including shared
+ones), zero-direction down vectors and the reference start-on finite-expiry quirk.
+Intentional corrections: dynamic-light brightness/color travel explicitly instead of
+reading unused reference fields; combined cone/flare uses unit flare scale instead of
+aliasing the cone endpoint. Particle emission uses a fixed 60 Hz visual clock instead
+of render-frame counts, with bounded catch-up. Rain orientation and combined cone/flare
+appearance still require qualification; no visual parity is claimed.
+
+Three modules linked successfully in `/tmp/dk3-runtime-276-emitter-link.log`, including
+sequence 275's final public lightstyle table. That link precedes the monitor visibility
+addition. No suite, engine or connected acceptance ran. Existing manifest
+`ba03d6e56c08eef76e9a79a32b2da6c223d68433293c9e4f3b2aecead0606dc3`
+provided authoring data; new shaders still require regenerated assets. There is no
+verified build/asset identity for this candidate. Continue lightning/attractors, weather
+and remaining episode/multiplayer/release implementation; preserved environments unchanged.
 
 ## Remaining authored actor admission
 

@@ -16,6 +16,7 @@ pub const Timer = struct {
     }
 };
 pub const Action = union(enum) {
+    particles: @import("complex_particles.zig").State,
     light: @import("lightstyles.zig").Light,
     light_ramp: @import("lightstyles.zig").Ramp,
     spotlight: @import("spotlight.zig").State,
