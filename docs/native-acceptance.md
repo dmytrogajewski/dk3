@@ -14,8 +14,9 @@ is inferred from class counts or test volume.
 
 Sequence 309 repairs the shared actor ground-departure check, camera mode
 transport and multiplayer weapon presentation lifetime, and adds worker fear,
-party-health autosaves and softer Cambot lights. Current coherent build:
-`18681c…`, protocol 1350; exact scenario coverage is recorded below.
+party-health autosaves and softer Cambot lights. Sequence 310 adds the installed-map
+picker for Internet Create and LAN hosting. Latest coherent build: `e2df24…`,
+protocol 1350; earlier gameplay evidence retains its recorded identity below.
 **Seamless campaign acceptance remains incomplete.** Fresh opening development
 reaches the bridge boss but has not completed the milestone. Ground-controller
 changes require replay of earlier encounter/route evidence. Wider weapon
@@ -34,6 +35,32 @@ remaining admission stalls stay open. Supporting checks do not measure completio
 | World/effects | Authored controls, hazards, debris, lighting and sky connected; softer Cambot lamp/beam/contact pools | Applicable contracts pass; final build checks at 309 | Final 309: Cambot acquisition and rendered lamp captures inspected in both backends. 296 fragment/sky evidence retained with its original identity | Broader authored effects/audio/PHS parity remains open; enhancement is not a shadow-mapped spotlight |
 | Presentation and cinematic input | Menus/loading art, interpolation, cinematic input and all camera modes connected | Three-bit camera modes survive actual message encoding at 309 | Final 309: ordinary e1m1c button use, remote door view, release and finished-scene save/load. Earlier intro/menu evidence retains its recorded identity | Full fresh intro, all authored scenes, menu equivalence and audiovisual comparison remain unverified |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 310 — native-multiplayer-map-picker
+
+Build `e2df24ee6037eda462fc9d81f3482d609e560337ff884c46f1533f1ec4e36d0b`;
+combined identity `48e0b439886dd6c50e4c17efa4b5f7a45909d6d04b480b6b96d1df4039855666`.
+Base, HD and region manifest remain at sequence 306 identities; protocol 1350 and
+renderer ABI 12 remain unchanged. Evidence: `zig-out/reports/runtime-zig-310/`.
+
+Internet Create and LAN hosting now share a paged map picker instead of requiring
+a typed map identifier. Names, titles and mode capabilities come from the existing
+local `dk3/maps.cfg`; only mounted BSPs are offered. Mouse or keyboard selection
+persists in the existing room-map setting. Changing mode retains a compatible
+selection or chooses the first available map. Missing/incompatible selections
+cannot launch a room. Mode labels now show Deathmatch, CTF and Deathtag directly.
+
+| Evidence | State and verified outcome | Limits |
+|---|---|---|
+| `build-approved.log` | Passed: 62/62 build/check steps, 270 Zig tests and actual C runtime roots; map-catalog root explicitly executes | Applicable runtime suite and native installation only; no duplicate broad suite |
+| `map-picker-approved/` | Passed: actual XTest mouse and keyboard selection, paging, Escape cancellation, DM/CTF/DT filtering, selection shared by Create/LAN and a real e1dm1 LAN launch with processed player input. Captures inspected | Isolated profile, OpenGL1 software rendering. Internet Create selection is verified; no Internet room was submitted. This is UI acceptance, not broader multiplayer/campaign acceptance |
+
+The first build could not write the compiler cache inside the sandbox. The first
+engine setup could not access its virtual X display and exercised no menu. Both
+failures are retained; the approved replays above completed outside that sandbox
+using dkguard and temporary profiles. No private reference source/assets, preserved
+installation/saves or live service were changed. Earlier gameplay evidence keeps
+its recorded build identity; complete-port acceptance remains open.
 
 ## Sequence 309 — native gameplay feedback and grounded actors
 

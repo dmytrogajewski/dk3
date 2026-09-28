@@ -4,12 +4,12 @@ const std = @import("std");
 const engine = @import("../engine/ui.zig");
 const c = engine.c;
 const info = @import("../engine/info.zig");
-pub const Page = enum { rooms, create, filters, connection, private, lan, player, lobby };
-pub const Field = enum { room_name, region, map, rotation, coordinator, certificate, search, filter_region, private_id, code, address, player_name };
+const maps = @import("../domain/map_catalog.zig");
+pub const Page = enum { rooms, create, filters, connection, private, lan, player, lobby, maps };
+pub const Field = enum { room_name, region, rotation, coordinator, certificate, search, filter_region, private_id, code, address, player_name };
 const fields = [_]struct { name: [:0]const u8, label: []const u8, initial: [:0]const u8 }{
     .{ .name = "ui_roomName", .label = "Room", .initial = "My room" },
     .{ .name = "ui_roomRegion", .label = "Region", .initial = "default" },
-    .{ .name = "ui_roomMap", .label = "Map", .initial = "e1dm1" },
     .{ .name = "ui_roomRotation", .label = "Rotation", .initial = "" },
     .{ .name = "dk3_coordinator", .label = "Coordinator URL", .initial = "" },
     .{ .name = "dk3_ca_file", .label = "Trusted CA file", .initial = "" },
@@ -20,7 +20,7 @@ const fields = [_]struct { name: [:0]const u8, label: []const u8, initial: [:0]c
     .{ .name = "ui_lanAddress", .label = "Server address", .initial = "localhost:27960" },
     .{ .name = "name", .label = "Player name", .initial = "Hiro" },
 };
-pub const Action = union(enum) { page: Page, edit: Field, select: usize, cycle: enum { mode, slots, bots, skill, privacy, filter_mode, favorites, available, appearance }, refresh, join, favorite, create, join_private, reconnect, host_lan, join_lan, next, previous, ready, red, blue, spectator, free };
+pub const Action = union(enum) { page: Page, edit: Field, select: usize, pick_map, map_select: usize, map_next, map_previous, map_back, cycle: enum { mode, slots, bots, skill, privacy, filter_mode, favorites, available, appearance }, refresh, join, favorite, create, join_private, reconnect, host_lan, join_lan, next, previous, ready, red, blue, spectator, free };
 pub const Browser = struct {
     page: Page = .rooms,
     first: usize = 0,
@@ -28,9 +28,52 @@ pub const Browser = struct {
     selected_id: [65]u8 = @splat(0),
     editing: ?Field = null,
     text: [256:0]u8 = @splat(0),
-    pub fn init(_: *Browser) void {
+    maps: maps.Catalog = .{},
+    map_first: usize = 0,
+    map_return: Page = .create,
+    pub fn init(self: *Browser) void {
         for (fields) |field| engine.register(field.name, field.initial);
+        engine.register("ui_roomMap", "e1dm1");
         for ([_][2][:0]const u8{ .{ "ui_roomMode", "0" }, .{ "ui_roomSlots", "8" }, .{ "ui_roomBots", "0" }, .{ "ui_roomSkill", "3" }, .{ "ui_roomPrivate", "0" }, .{ "ui_roomFilterMode", "-1" }, .{ "ui_roomFavoritesOnly", "0" }, .{ "ui_roomAvailableOnly", "1" }, .{ "model", "hiro/0" } }) |pair| engine.register(pair[0], pair[1]);
+        self.loadMaps() catch |err| {
+            self.maps = .{};
+            var message: [160]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "dk3 UI map catalog: {s}\n", .{@errorName(err)}) catch unreachable);
+        };
+    }
+    fn mode() u2 {
+        return @intFromFloat(std.math.clamp(engine.number("ui_roomMode"), 0, 2));
+    }
+    fn loadMaps(self: *Browser) !void {
+        const bytes = try @import("../engine/files.zig").read(.ui, &engine.gateway, std.heap.c_allocator, "dk3/maps.cfg", 256 * 1024);
+        defer std.heap.c_allocator.free(bytes);
+        self.maps = try maps.Catalog.parse(bytes);
+        // Metadata can outlive a partial installation: offer only mounted BSPs.
+        for (self.maps.entries[0..self.maps.count]) |*entry| {
+            var path: [64]u8 = undefined;
+            const name = try std.fmt.bufPrintZ(&path, "maps/{s}.bsp", .{std.mem.sliceTo(&entry.name, 0)});
+            if (engine.gateway.call(c.UI_FS_FOPENFILE, .{ name.ptr, @as(?*c.fileHandle_t, null), @as(isize, c.FS_READ) }) <= 0) entry.modes = 0;
+        }
+    }
+    fn ensureMap(self: *Browser) void {
+        var buffer: [64]u8 = undefined;
+        if (self.maps.find(mode(), engine.get("ui_roomMap", &buffer)) != null) return;
+        engine.set("ui_roomMap", if (self.maps.at(mode(), 0)) |entry| std.mem.sliceTo(&entry.name, 0) else "");
+    }
+    fn selectedMap(self: *Browser) bool {
+        var buffer: [64]u8 = undefined;
+        return self.maps.find(mode(), engine.get("ui_roomMap", &buffer)) != null;
+    }
+    fn mapPage(self: *Browser, menu: anytype, forward: bool) void {
+        const count = self.maps.available(mode());
+        if (forward) {
+            if (self.map_first + 6 < count) self.map_first += 6;
+        } else self.map_first -|= 6;
+        menu.panel = .{ .selected = 4 };
+    }
+    fn returnFromMaps(self: *Browser, menu: anytype) void {
+        self.page = self.map_return;
+        menu.panel = .{ .selected = 4 };
     }
     fn row(self: *Browser, menu: anytype, y: f32, field: Field) !void {
         var buffer: [256]u8 = undefined;
@@ -76,8 +119,11 @@ pub const Browser = struct {
                 menu.art.text(menu.layout, 90, 416, engine.get("dk3_onlineStatus", &status), false);
             },
             .create, .lan => {
-                try self.row(menu, 130, .map);
-                try valueButton(menu, 160, "Mode (0 DM / 1 CTF / 2 DT)", "ui_roomMode", .{ .cycle = .mode });
+                var map_buffer: [64]u8 = undefined;
+                var label: [128]u8 = undefined;
+                const name = engine.get("ui_roomMap", &map_buffer);
+                try button(menu, 90, 130, 340, try std.fmt.bufPrint(&label, "Map: {s}  >", .{if (self.selectedMap()) name else "Choose map"}), .pick_map);
+                try button(menu, 90, 160, 340, try std.fmt.bufPrint(&label, "Mode: {s}", .{maps.mode_names[mode()]}), .{ .cycle = .mode });
                 try valueButton(menu, 190, "Players", "ui_roomSlots", .{ .cycle = .slots });
                 try valueButton(menu, 220, "Bots", "ui_roomBots", .{ .cycle = .bots });
                 if (self.page == .create) {
@@ -92,6 +138,28 @@ pub const Browser = struct {
                     try self.row(menu, 330, .address);
                     try button(menu, 90, 370, 180, "Join LAN server", .join_lan);
                 }
+            },
+            .maps => {
+                const count = self.maps.available(mode());
+                if (self.map_first >= count) self.map_first = 0;
+                var label: [192]u8 = undefined;
+                menu.art.text(menu.layout, 90, 130, try std.fmt.bufPrint(&label, "{s} maps ({d})", .{ maps.mode_names[mode()], count }), true);
+                var selected: [64]u8 = undefined;
+                const name = engine.get("ui_roomMap", &selected);
+                for (self.map_first..@min(self.map_first + 6, count)) |index| {
+                    const entry = self.maps.at(mode(), index).?;
+                    const id = std.mem.sliceTo(&entry.name, 0);
+                    const title = std.mem.sliceTo(&entry.title, 0);
+                    const text = try std.fmt.bufPrint(&label, "{s}{s}{s}{s}", .{ if (std.mem.eql(u8, name, id)) "> " else "", id, if (std.mem.eql(u8, id, title)) @as([]const u8, "") else " - ", if (std.mem.eql(u8, id, title)) @as([]const u8, "") else title });
+                    var length = text.len;
+                    while (length > 0 and menu.art.font.metrics.width(text[0..length], 1) > 324) length -= 1;
+                    if (length < text.len and length >= 3) @memcpy(text[length - 3 .. length], "...");
+                    try button(menu, 90, 158 + @as(f32, @floatFromInt(index - self.map_first)) * 30, 340, text[0..length], .{ .map_select = index });
+                }
+                if (count == 0) menu.art.text(menu.layout, 90, 180, "No installed maps for this mode.", false);
+                if (self.map_first > 0) try button(menu, 90, 360, 100, "< Previous", .map_previous);
+                if (self.map_first + 6 < count) try button(menu, 330, 360, 100, "Next >", .map_next);
+                try button(menu, 90, 398, 100, "Back", .map_back);
             },
             .filters => {
                 try self.row(menu, 145, .search);
@@ -129,7 +197,18 @@ pub const Browser = struct {
             },
         }
     }
-    pub fn key(self: *Browser, code: i32) bool {
+    pub fn key(self: *Browser, menu: anytype, code: i32) bool {
+        if (self.page == .maps) switch (code) {
+            c.K_ESCAPE, c.K_MOUSE2 => {
+                self.returnFromMaps(menu);
+                return true;
+            },
+            c.K_PGDN, c.K_PGUP => {
+                self.mapPage(menu, code == c.K_PGDN);
+                return true;
+            },
+            else => {},
+        };
         const field = self.editing orelse return false;
         if (code == c.K_ESCAPE) {
             self.editing = null;
@@ -157,7 +236,26 @@ pub const Browser = struct {
             .page => |page| {
                 self.page = page;
                 self.editing = null;
+                menu.panel = .{ .selected = 0 };
+                if (page == .create or page == .lan) self.ensureMap();
             },
+            .pick_map => {
+                self.map_return = self.page;
+                self.page = .maps;
+                self.editing = null;
+                self.ensureMap();
+                var selected: [64]u8 = undefined;
+                self.map_first = (self.maps.find(mode(), engine.get("ui_roomMap", &selected)) orelse 0) / 6 * 6;
+                menu.panel = .{ .selected = 4 };
+            },
+            .map_select => |index| {
+                const entry = self.maps.at(mode(), index) orelse return;
+                engine.set("ui_roomMap", std.mem.sliceTo(&entry.name, 0));
+                self.returnFromMaps(menu);
+            },
+            .map_next => self.mapPage(menu, true),
+            .map_previous => self.mapPage(menu, false),
+            .map_back => self.returnFromMaps(menu),
             .edit => |field| {
                 _ = engine.get(fields[@intFromEnum(field)].name, &self.text);
                 self.editing = field;
@@ -189,7 +287,13 @@ pub const Browser = struct {
                 self.page = .rooms;
                 engine.execute("dk3_online list\n");
             },
-            .create => engine.execute("dk3_online create\n"),
+            .create => {
+                if (!self.selectedMap()) {
+                    menu.message("Choose an installed map for this mode.");
+                    return;
+                }
+                engine.execute("dk3_online create\n");
+            },
             .join_private => engine.execute("dk3_online private\n"),
             .reconnect => engine.execute("dk3_online reconnect\n"),
             .next => self.first = @min(self.first + 6, 126),
@@ -214,12 +318,13 @@ pub const Browser = struct {
                 };
                 const value: i32 = @intFromFloat(engine.number(parameter.name));
                 engine.setNumber(parameter.name, @floatFromInt(if (value >= parameter.max) parameter.min else value + 1));
+                if (item == .mode) self.ensureMap();
             },
             .host_lan => {
                 var map_buffer: [64]u8 = undefined;
                 const map = engine.get("ui_roomMap", &map_buffer);
-                if (!@import("../domain/snapshot.zig").validName(map)) {
-                    menu.message("Enter a valid map name.");
+                if (!self.selectedMap()) {
+                    menu.message("Choose an installed map for this mode.");
                     return;
                 }
                 engine.setNumber("g_gametype", switch (@as(i32, @intFromFloat(engine.number("ui_roomMode")))) {

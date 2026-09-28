@@ -252,7 +252,7 @@ pub const Menu = struct {
     pub fn key(self: *Menu, code: i32, down: bool) !void {
         if (code == c.K_MOUSE1 and !down) self.slider_drag = null;
         if (!self.active or !down) return;
-        if (self.page == 1 and self.multiplayer.key(code)) return;
+        if (self.page == 1 and self.multiplayer.key(self, code)) return;
         if (self.capture.key(code)) return;
         if (code == c.K_ESCAPE or code == c.K_MOUSE2) {
             if (engine.inGame()) self.close() else self.selectPage(0);
