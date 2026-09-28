@@ -17,7 +17,7 @@ pub fn player(source: *Context, destination: *Context, now: i64) !void {
     defer _ = resources.select(previous_resources);
     try worlds.select(handle);
     defer worlds.select(previous) catch @panic("lost source world");
-    try destination.awaken(now);
+    try destination.expose(now);
     const entity = try source.world.?.cloneInto(original, &destination.world.?);
     errdefer destination.world.?.destroy(entity) catch unreachable;
     _ = try destination.slots.acquire(entity, 0);
@@ -67,6 +67,7 @@ pub fn player(source: *Context, destination: *Context, now: i64) !void {
             attached_count += 1;
         };
     }
+    try @import("region_presentation.zig").State.tag(destination);
     // No fallible allocation remains after the stream's ownership boundary.
     var command: [96]u8 = undefined;
     engine.send(0, try std.fmt.bufPrintZ(&command, "dk3_world_enter {d}", .{destination.network_id}));
@@ -87,4 +88,68 @@ pub fn player(source: *Context, destination: *Context, now: i64) !void {
     source.clients.entities[0] = null;
     source.projection[0].shared.contents = 0;
     source.projection[0].shared.svFlags = @import("../engine/abi.zig").c.SVF_NOCLIENT;
+}
+
+/// Relocate a free entity after its sweep reached another admitted owner. The
+/// component state and birth identity move once; local resource/slot indices do
+/// not. Map brushes retain their authored owner and cannot use this operation.
+pub fn relocate(source: *Context, destination: *Context, original: @import("../ecs/world.zig").Entity, now: i64) !void {
+    if (source == destination) return;
+    const object = source.world.?.get(original, data.MapObject) catch null;
+    if (object) |value| if (std.mem.startsWith(u8, value.model, "*")) return error.CannotTransferMapBrush;
+    const previous = try destination.select();
+    defer previous.deinit();
+    try destination.expose(now);
+    if (source.world.?.get(original, data.Actor) catch null) |actor| try destination.systems.actors.ensure(actor.definition);
+    const moved = try source.world.?.cloneInto(original, &destination.world.?);
+    errdefer destination.world.?.destroy(moved) catch unreachable;
+    const binding = try destination.world.?.get(moved, data.Binding);
+    const old_slot = binding.slot;
+    const slot = try destination.slots.acquire(moved, null);
+    errdefer destination.slots.release(slot, moved) catch unreachable;
+    binding.slot = slot;
+    if (binding.model != 0) {
+        if (binding.model >= source.resources.models.count) return error.InvalidTransferResource;
+        binding.model = try resources.model(std.mem.sliceTo(&source.resources.models.names[binding.model], 0));
+    }
+    if (destination.world.?.get(moved, data.Actor) catch null) |actor| actor.ground_entity = @import("../engine/abi.zig").c.ENTITYNUM_NONE;
+    if (destination.world.?.get(moved, data.Body) catch null) |body| body.grounded = false;
+    destination.projection[slot] = std.mem.zeroes(@import("../engine/abi.zig").EntityProjection);
+    destination.projection[slot].state.number = slot;
+    destination.projection[slot].shared.ownerNum = @import("../engine/abi.zig").c.ENTITYNUM_NONE;
+    try @import("persistence.zig").projectEntity(&destination.world.?, &destination.slots, &destination.projection, &destination.systems, moved, now);
+    errdefer engine.unlink(&destination.projection[slot]);
+    // Commit cannot unwind destination cleanup while the source is selected.
+    worlds.select(source.handle.?) catch @panic("lost transferring source");
+    engine.unlink(&source.projection[old_slot]);
+    source.slots.release(old_slot, original) catch @panic("lost transferring slot");
+    source.projection[old_slot].shared.contents = 0;
+    source.projection[old_slot].shared.svFlags = @import("../engine/abi.zig").c.SVF_NOCLIENT;
+    source.world.?.destroy(original) catch @panic("lost transferring entity");
+}
+
+/// Cuts use existing class-owned arrival/spawn rules, which can change a party
+/// member's presentation (for example carrying Mikiko). Rebind that destination
+/// incarnation to the continuing identity, then retire only the departed copy.
+/// Members without an authored arrival remain in their source world.
+pub fn party(source: *Context, destination: *Context, traveler: @import("../domain/travel.zig").Traveler) !void {
+    const companions = @import("companions.zig");
+    const prior = worlds.current();
+    defer worlds.select(prior) catch @panic("lost active party world");
+    for (traveler.companions) |maybe| if (maybe) |follower| {
+        const original = source.world.?.find(follower.persistent_id) orelse return error.MissingDepartingCompanion;
+        const arrived = companions.find(&destination.world.?, follower.state.identity) orelse continue;
+        const previous_id = try destination.world.?.persistentId(arrived);
+        // Slots and map-authored presentation belong to the new incarnation;
+        // inventory/state were applied by companions.arrive before this commit.
+        try destination.world.?.reidentify(arrived, follower.persistent_id);
+        try @import("../domain/snapshot_ids.zig").replace(&destination.world.?, &destination.targets.pending, previous_id, follower.persistent_id);
+        try worlds.select(source.handle orelse return error.WorldNotAttached);
+        const binding = (try source.world.?.get(original, data.Binding)).*;
+        engine.unlink(&source.projection[binding.slot]);
+        try source.slots.release(binding.slot, original);
+        source.projection[binding.slot].shared.contents = 0;
+        source.projection[binding.slot].shared.svFlags = @import("../engine/abi.zig").c.SVF_NOCLIENT;
+        try source.world.?.destroy(original);
+    };
 }

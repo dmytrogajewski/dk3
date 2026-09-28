@@ -902,6 +902,7 @@ typedef struct drawSurf_s {
 // as soon as it is called
 typedef struct srfPoly_s {
 	surfaceType_t	surfaceType;
+    unsigned int worldRegistration;
 	qhandle_t		hShader;
 	int				fogIndex;
 	int				numVerts;
@@ -2548,6 +2549,7 @@ void R_UpdateDkLightstyles(const refdef_t *view);
 unsigned int RE_RequestWorld(const char *name);
 int RE_PollWorld(unsigned int world);
 qboolean RE_SelectWorld(unsigned int world);
+const refEntity_t *R_ResidentPortal(const surfaceType_t *surface);
 unsigned int RE_CurrentWorld(void);
 void R_ClearResidentWorlds(void);
 qhandle_t R_WorldInlineModel(const char *name);

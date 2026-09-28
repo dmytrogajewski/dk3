@@ -4,6 +4,17 @@ const abi = @import("../engine/abi.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 pub const Options = struct { charged: bool = false, detonation: bool = false, sequence: i32 = 0 };
 pub fn contact(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, weapon: u5, hit: @import("../domain/collision.zig").Trace, options: Options, now: i64) !void {
+    if (hit.world != 0) {
+        const owner = @import("region_access.zig").byHandle(@enumFromInt(hit.world)) orelse return error.ImpactWorldUnavailable;
+        const scope = try owner.select();
+        defer scope.deinit();
+        var local = hit;
+        local.world = 0;
+        return contactLocal(&owner.world.?, &owner.slots, &owner.projection, weapon, local, options, now);
+    }
+    return contactLocal(world, slots, projections, weapon, hit, options, now);
+}
+fn contactLocal(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, weapon: u5, hit: @import("../domain/collision.zig").Trace, options: Options, now: i64) !void {
     if (hit.fraction == 1 or hit.sky or hit.no_impact) return;
     var no_blood = false;
     var kind: @import("weapon_catalog").impact_rules.Kind = switch (hit.material) {

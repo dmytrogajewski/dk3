@@ -15,6 +15,8 @@ pub const State = struct {
     initial: ?*Initial = null,
     active_id: u32 = 0,
     waiting: bool = false,
+    patches: [128]?struct { owner: u32, receiver: wire.Receiver } = @splat(null),
+    portals: [256]?@import("../domain/world_aperture.zig").Aperture = @splat(null),
     const Initial = struct {
         render: u32,
         collision: u32,
@@ -28,7 +30,7 @@ pub const State = struct {
         initial.* = .{ .render = @intCast(engine.gateway.call(c.CG_DK3_WORLD_CURRENT_V1, .{})), .collision = @intCast(engine.gateway.call(c.CG_DK3_COLLISION_CURRENT_V1, .{})), .game = game.*, .inline_models = inline_models.*, .sky = @import("sky.zig").current() };
         self.initial = initial;
     }
-    fn view(self: *State, id: u32) !View {
+    pub fn view(self: *State, id: u32) !View {
         if (id == 0) {
             const initial = self.initial orelse return error.InitialWorldUnavailable;
             return .{ .render = initial.render, .collision = initial.collision, .game = &initial.game, .inline_models = &initial.inline_models, .sky = &initial.sky };
@@ -39,6 +41,10 @@ pub const State = struct {
             return .{ .render = entry.handle, .collision = admission.collision, .game = &admission.game, .inline_models = &admission.inline_models, .sky = &admission.sky };
         };
         return error.WorldNotAdmitted;
+    }
+    pub fn selectPresentation(self: *State, id: u32) !engine.Presentation {
+        const owner = try self.view(id);
+        return (engine.Presentation{ .render = owner.render, .collision = owner.collision, .network = id }).select();
     }
     pub fn collision(self: *State) !u32 {
         return (try self.view(self.active_id)).collision;
@@ -66,12 +72,88 @@ pub const State = struct {
     pub fn deinit(self: *State) void {
         _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_region_loading"), @as([*:0]const u8, "0") });
         for (self.entries) |maybe| if (maybe) |entry| if (entry.admission) |admission| admission.destroy();
+        for (&self.patches) |*maybe| if (maybe.*) |*patch| patch.receiver.deinit(std.heap.c_allocator);
         if (self.initial) |initial| std.heap.c_allocator.destroy(initial);
         self.* = .{};
     }
     pub fn serverCommand(self: *State) !void {
         var buffer: [96]u8 = undefined;
         const command_name = arg(0, &buffer);
+        if (std.mem.eql(u8, command_name, "dk3_world_patch")) {
+            const id = try std.fmt.parseInt(u32, arg(1, &buffer), 10);
+            const serial = try std.fmt.parseInt(u64, arg(2, &buffer), 10);
+            const length = try std.fmt.parseInt(usize, arg(3, &buffer), 10);
+            const digest = try std.fmt.parseInt(u64, arg(4, &buffer), 10);
+            const offset = try std.fmt.parseInt(usize, arg(5, &buffer), 10);
+            const owner = try self.view(id);
+            var selected: ?usize = null;
+            for (self.patches, 0..) |maybe, index| if (maybe) |patch| if (patch.owner == id) {
+                selected = index;
+                break;
+            };
+            if (selected == null) {
+                if (offset != 0) return error.InvalidWorldChunk;
+                for (&self.patches, 0..) |*maybe, index| if (maybe.* == null) {
+                    maybe.* = .{ .owner = id, .receiver = try wire.Receiver.init(std.heap.c_allocator, length, digest) };
+                    selected = index;
+                    break;
+                };
+            }
+            const index = selected orelse return error.WorldPatchCapacity;
+            const receiver = &self.patches[index].?.receiver;
+            if (receiver.digest != digest or receiver.bytes.len != length) return error.WorldConfigDigest;
+            var hex: [wire.chunk_size * 2 + 1]u8 = undefined;
+            var decoded: [wire.chunk_size]u8 = undefined;
+            const encoded = arg(6, &hex);
+            if (encoded.len % 2 != 0) return error.InvalidWorldChunk;
+            try receiver.accept(offset, try std.fmt.hexToBytes(&decoded, encoded));
+            if (receiver.received != receiver.bytes.len) {
+                try patchAck(id, serial);
+                return;
+            }
+            const bytes = try receiver.validatedBytes();
+            if (bytes.len < 2) return error.InvalidWorldConfig;
+            const field = std.mem.readInt(u16, bytes[0..2], .little);
+            const value = bytes[2..];
+            const scope = try self.selectPresentation(id);
+            defer scope.deinit();
+            if (value.len != 0) {
+                if (field > c.CS_MODELS and field < c.CS_MODELS + c.MAX_MODELS) {
+                    if (std.mem.endsWith(u8, value, ".sp2")) {
+                        _ = try @import("sprites.zig").register(value);
+                    } else if (try @import("models.zig").register(value) == 0) return error.MissingWorldModel;
+                } else if (field > c.CS_SOUNDS and field < c.CS_SOUNDS + c.MAX_SOUNDS) {
+                    if (try engine.registerSound(value) == 0) return error.MissingWorldSound;
+                }
+            }
+            // Normal primary-world configstrings may have advanced other
+            // indices since the last frame. Preserve those actual definitions.
+            if (id == self.active_id) _ = engine.gateway.call(c.CG_GETGAMESTATE, .{owner.game});
+            try @import("config_patch.zig").apply(owner.game, field, value);
+            if (id == self.active_id and engine.gateway.call(c.CG_DK3_GAMESTATE_SELECT_V1, .{owner.game}) == 0) return error.WorldConfigActivation;
+            receiver.deinit(std.heap.c_allocator);
+            self.patches[index] = null;
+            var message: [160]u8 = undefined;
+            engine.print(try std.fmt.bufPrintZ(&message, "dk3 world config: owner={d} index={d} applied\n", .{ id, field }));
+            try patchAck(id, serial);
+            return;
+        }
+        if (std.mem.eql(u8, command_name, "dk3_world_portal")) {
+            const index = try std.fmt.parseInt(u8, arg(1, &buffer), 10);
+            const source = try std.fmt.parseInt(u32, arg(2, &buffer), 10);
+            const destination = try std.fmt.parseInt(u32, arg(3, &buffer), 10);
+            const axis = try std.fmt.parseInt(u2, arg(4, &buffer), 10);
+            const direction = try std.fmt.parseInt(i2, arg(5, &buffer), 10);
+            const mins = try vector(arg(6, &buffer));
+            const maxs = try vector(arg(7, &buffer));
+            const aperture: @import("../domain/world_aperture.zig").Aperture = .{ .source = source, .destination = destination, .axis = axis, .direction = direction, .mins = mins, .maxs = maxs };
+            try aperture.validate();
+            _ = try self.view(source);
+            _ = try self.view(destination);
+            self.portals[index] = aperture;
+            engine.print("dk3 world aperture: admitted\n");
+            return;
+        }
         if (std.mem.eql(u8, command_name, "dk3_region_wait")) {
             const value = arg(1, &buffer);
             if (!std.mem.eql(u8, value, "0") and !std.mem.eql(u8, value, "1")) return error.InvalidRegionWait;
@@ -142,6 +224,26 @@ pub const State = struct {
             return entry.handle;
         };
         return error.RenderWorldCapacity;
+    }
+    pub fn apertures(self: *State, ref: *const c.refdef_t) !void {
+        for (self.portals) |maybe| if (maybe) |portal| {
+            if (portal.source != self.active_id) continue;
+            const center = portal.center();
+            if ((ref.vieworg[portal.axis] - center[portal.axis]) * @as(f32, @floatFromInt(portal.direction)) >= 0) continue;
+            const destination = try self.view(portal.destination);
+            var entity = std.mem.zeroes(c.refEntity_t);
+            entity.reType = c.RT_PORTALSURFACE;
+            entity.origin = center;
+            entity.oldorigin = center;
+            entity.oldorigin[portal.axis] += @as(f32, @floatFromInt(portal.direction));
+            entity.dk3PortalWorld = destination.render;
+            _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&entity});
+            var polygon: [4]c.polyVert_t = undefined;
+            for (&polygon, portal.vertices()) |*vertex, position| vertex.* = .{ .xyz = position, .st = .{ 0, 0 }, .modulate = .{ 255, 255, 255, 255 } };
+            const shader = engine.gateway.call(c.CG_R_REGISTERSHADER, .{@as([*:0]const u8, "dk3/world-aperture")});
+            if (shader == 0) return error.MissingWorldApertureShader;
+            _ = engine.gateway.call(c.CG_R_ADDPOLYTOSCENE, .{ shader, @as(isize, polygon.len), &polygon });
+        };
     }
     pub fn step(self: *State) !void {
         for (0..self.entries.len) |_| {
@@ -234,4 +336,9 @@ fn vector(text: []const u8) ![3]f32 {
     }
     if (values.next() != null) return error.InvalidWorldView;
     return result;
+}
+
+fn patchAck(owner: u32, serial: u64) !void {
+    var message: [96]u8 = undefined;
+    _ = engine.gateway.call(c.CG_SENDCLIENTCOMMAND, .{(try std.fmt.bufPrintZ(&message, "dk3_world_patch_ack {d} {d}", .{ owner, serial })).ptr});
 }

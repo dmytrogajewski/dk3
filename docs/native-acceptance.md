@@ -12,17 +12,89 @@ is inferred from class counts or test volume.
 
 ## Current outcome matrix
 
+Sequence 303 connects reviewed opening views, qualified attacks and neighboring
+presentation. The coherent build is `f9ba99…`, detailed below. It supports the
+controlled A↔B crossing and foreign-target scenarios; **seamless campaign acceptance
+remains incomplete**. Actor/companion pursuit, specialized weapon interactions,
+multiple simultaneous portal views and the full fresh route remain open.
+
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
-| Seamless connected regions | Automatic region preparation/ordinary authored exits; 302 adds on-demand old visited-save migration and renderer brush ownership | 387 Zig, 81 Python and actual C memory/collision/inline-handle checks pass | Current build passes GL1 A→B→A, GL2 six-world cinematic restoration, old A/B visited-state migration and UDP lifecycle | Portal views, cross-boundary combat/actors/party, other seam qualification, eviction and admission stalls remain open. [Exact evidence](#sequence-302--visited-migration-and-admission-lifetime-repairs). |
+| Seamless connected regions | Region admission/ordinary exits, 303 qualified traces, selected projectile transfers, portal views and map-owned snapshots/resources | 398 Zig, 81 Python and actual C owner/collision/inline-handle contracts pass | Both renderers show and damage a controlled target in B from A; a late model definition is delivered. Controlled automatic A→B→A and region restoration replay on the same build | One aperture and three weapon paths; actor/companion pursuit, specialized weapons, multiple/recursive views, remaining seam qualification, eviction and admission stalls remain open. [Evidence](#sequence-303--connected-views-and-qualified-combat). |
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at 296; full interactions unverified | 296 verifies rendered Ion flight/light; earlier narrow controller fixtures do not establish full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
 | Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Travel/admission/restore changes through 302 require full fresh replay | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
-| Saves and visited worlds | Schema-2 resident members, typed reference/time mapping, on-demand flat native archive migration and recovery | Snapshot, region and migration contracts pass at 302 | 302 restores all 53 archived A/B actors with recorded health, preserves hero 574 at health89, resaves/reloads and repairs a handoff/load race; saved factory arrival completes after six-world restore | Broader legacy controller/party combinations, cross-map controller restoration and fresh campaign replay remain open |
-| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 240 native contracts pass at 296; wire contracts remain green | 296 `lan-regression/` replays two real UDP clients through movement/fire/death/respawn/spectator/rejoin/reconnect/restart. Earlier 294 CTF verifies four bots and one contested capture; full modes remain open | Natural deathtag reaches carriers but cannot complete capture. Water-jump routing now passes the explicit slime-escape query; stationary lift waiting is repaired; the physical exit is an authored teleporter, but the new local passage recovery still fails to select it. Client-driver inputs are automated. Public admission, browser, authenticated reconnect/rooms and complete modes remain open |
+| Saves and visited worlds | Schema-2 residents, typed references/time, flat native archive migration and recovery | Snapshot/migration and qualified ownership roots execute at 303 | Actual restore boundary contains all 53 archived A/B actors with exact health. Subsequent gib retirement is observed separately; schema-2 reload and six-world cinematic restoration pass | Party/controller combinations and fresh campaign save/death restoration remain unverified after shared changes |
+| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected; protocol 1349 | Native wire and runtime roots pass at 303 | Two actual UDP clients replay movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart on the current build | Complete CTF/deathtag, natural bot traversal, public admission/browser/authenticated rooms and full modes remain open. No online service deployment. |
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. Earlier factory arrival replay needs revalidation after shared changes | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 303 — connected views and qualified combat
+
+Immutable build `f9ba99b696f7ac14bf84776586b4affcee55b42b27c439690e26c30e319b6b11`;
+combined identity `5f174004f53ad81db214e07b8c84591e34358b03c99e30a0600715426c20c9cd`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`;
+local region manifest `f0cb127dcc3fa705a51cc5d9fd597960396e7bfdc3ca2cc55e709998e6a1368d`.
+Evidence: `zig-out/reports/runtime-zig-303/`. No fresh campaign route is claimed.
+
+| Evidence | Outcome | Limits |
+|---|---|---|
+| `foreign-final-opengl1/`, `foreign-final-opengl2/` | Qualified ray confirms B-world target contact while the hero stays in A. Normal attack input from Glock, Ion and Sidewinder reduces health. Target model is submitted through its owning renderer; a newly registered episode-two model reaches B while the hero remains in A. Normal/destination-only screenshots retained. | Diagnostic placement, equipment and synthetic `runtime_target`; one aperture, no authored encounter/pursuit, fresh route or reference-presentation acceptance. |
+| `crossing-final/` | Ordinary movement after controlled approach enters B and returns to A with retained identity, health, input and connection; region save succeeds. | No continuous opening campaign route. |
+| `legacy-visited-boundary/` | Unmodified sequence-294 fixture restores all 17 A and 36 B actors with exact health at the actual installation boundary. Hero identity/health, controlled visits, schema-2 save/reload and obsolete-handoff rejection pass. | 36 already-dead actors subsequently retire through observed class-owned gib cleanup; their later absence is not presented as restoration loss. Fixture unchanged. |
+| `cinematic-restore-final/` | Six-world saved factory arrival restores, cinematic completes, movement resumes and saving succeeds during further preparation. | Earlier controlled fixture, not full intro or fresh factory traversal. |
+| `lan-final/` | Two real UDP clients exercise the complete existing lifecycle scenario on protocol 1349. | Full multiplayer modes/online service remain unverified. |
+| `aggregate-final.log` | 44/44 steps, 398 Zig and 81 Python tests pass; actual C owner/collision/inline-handle checks execute. New ownership, slot leases, aperture, cycle, config/ack and party contracts execute explicitly. | Supports the narrow engine cases; it is not campaign acceptance. |
+
+Useful earlier failure/repair evidence is preserved:
+
+- `foreign-combat-grounded/`, build
+  `9add9da80de1d5f3dfa3963db9a91d6b0a2f75aeeb86a0e7e61c0aa6b1431322`:
+  a checked trace reaches the target's actual B-world slot while the player remains
+  in A. Ordinary Glock, Ion and Sidewinder attack input reduces its health without
+  a handoff or reconnection. No rendering claim on this build. The preceding
+  `foreign-combat-initial/` setup failed while aiming during a fall and is invalid.
+- `aperture-opengl2-debug/`, build
+  `3cbfe91cb550c02318b1e718720904c4300f0f23d89f58b701a46308046f6f21`:
+  actual GL2 crash backtrace reaches `R_DlightBmodel` through the resident portal.
+  A source brush was indexed against destination surfaces. Both renderers now
+  filter scene entities and polygons by checked owner before generating surfaces.
+- `qualified-snapshots-opengl2/`, build
+  `1e648c7718893d0ba5aea08debe9ea8ec48f2ec7179950cafcf86aec2d2ee73c`,
+  combined identity `efc1aea42f1f0ce7f3ee040bce21691848b68c5ff3752a9ac2e3cfee2cb87e25`:
+  the same attack diagnostic passes with the foreign target actually submitted
+  through its own model registry. Normal and destination-only screenshots were
+  inspected: the target is visible beyond the seam. This establishes that narrow
+  view, not multiple simultaneous/recursive portal composition or actor pursuit.
+- `foreign-combat-config-opengl1/` and `foreign-combat-config-opengl2/`, build
+  `08d9e620a0d0a55bfa25bbddadce8b13cd9b62ba9c0883d19a1a3c7a7b2fc93d`:
+  resource-publication regression fails with `InvalidSoundPath` and reliable
+  command overflow respectively. Repairs preserve newer active configstrings,
+  prioritize resource definitions and bound outstanding update chunks by actual
+  client acknowledgements. The scenario now also demands a model newly registered
+  in B while the player stays in A; the final replay above proves its delivery.
+
+Protocol 1349 carries each entity's resource owner and persistent identity.
+Foreign presentation borrows transport slots without duplicating ECS actors or
+solids. Owner-scoped media, interpolation keys, transient effects and collision
+queries prevent local slot/resource aliases. Ordinary multiplayer arenas retain
+match boundaries. Party birth-ID rebinding and all specialized cross-world weapon,
+actor/companion/navigation, multi-aperture, resource eviction and further seam work
+remain separately unverified or incomplete; earlier full scenarios need revalidation.
+
+`legacy-visited/` and `legacy-visited-lifecycle/` used observations after gameplay
+resumed, so ordinary corpse removal raced the assertion and even the requested
+save. The final runner requires an opt-in, read-only ECS audit before simulation,
+then accepts later absence only with an actual class-owned retirement event. All
+restored health is checked before that allowance. No damage, corpse lifetime or
+world simulation was changed to make this probe pass.
+
+The first aggregate passed all 398 Zig checks but caught an engine config helper
+inside the pure domain layer. It now lives in the client adapter; the final suite
+passes without weakening the architectural boundary check. Main, preserved game,
+user saves and live service remain unchanged.
 
 ## Sequence 302 — visited migration and admission lifetime repairs
 

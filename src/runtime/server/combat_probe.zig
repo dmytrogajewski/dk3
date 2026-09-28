@@ -9,6 +9,34 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_target_model")) {
+        var argument: [96]u8 = undefined;
+        const identity = try std.fmt.parseInt(u32, engine.argv(1, &argument), 10);
+        const target = @import("region_access.zig").find(world, identity) orelse return error.MissingProbeTarget;
+        if (!std.mem.eql(u8, (try target.get(data.MapObject)).classname, "runtime_target")) return error.NotProbeTarget;
+        const context = @import("region_access.zig").contextFor(target.world) orelse return error.MissingProbeOwner;
+        const scope = try context.select();
+        defer scope.deinit();
+        const before = context.resources.models.count;
+        const model = try @import("resources.zig").model(engine.argv(2, &argument));
+        const binding = try target.get(data.Binding);
+        binding.model = model;
+        context.projection[binding.slot].state.modelindex = model;
+        var output: [160]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&output, "dk3 region target model: identity={d} model={d} added={d} world={d}\n", .{ identity, model, @intFromBool(context.resources.models.count > before), context.network_id }));
+        return true;
+    }
+    if (std.mem.eql(u8, name, "dk3_runtime_region_trace")) {
+        const owner = player orelse return error.MissingPlayer;
+        const pose = (try world.get(owner, data.Transform)).*;
+        const eye = @import("../domain/combat.zig").eye(pose.position, (try world.get(owner, data.Player)).view_height);
+        const hit = try @import("region_collision.zig").trace(.{ .start = eye, .end = v.add(eye, v.scale(v.basis(pose.angles).forward, 2000)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(owner, data.Binding)).slot, .mask = c.MASK_SHOT });
+        const target = @import("region_access.zig").victim(world, slots, hit);
+        const context = if (hit.world != 0) @import("region_access.zig").byHandle(@enumFromInt(hit.world)) else null;
+        var output: [256]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&output, "dk3 region trace: world={d} map={s} target={d} slot={d} fraction={d:.4} solid={d} end={d:.3},{d:.3},{d:.3}\n", .{ hit.world, if (context) |value| std.mem.sliceTo(&value.map_name, 0) else "local", if (target) |value| try value.id() else 0, hit.entity, hit.fraction, @intFromBool(hit.start_solid or hit.all_solid), hit.end[0], hit.end[1], hit.end[2] }));
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_ion_aim")) {
         const owner = player orelse return error.MissingPlayer;
         const pose = (try world.get(owner, data.Transform)).*;
@@ -257,13 +285,16 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
         return true;
     }
     if (std.mem.eql(u8, name, "dk3_runtime_targets")) {
-        for (slots.occupants) |occupant| {
-            const entity = occupant orelse continue;
-            const object = world.get(entity, data.MapObject) catch continue;
+        var targets = @import("region_access.zig").Damageables.init(world, slots);
+        while (targets.next()) |entity| {
+            const object = entity.get(data.MapObject) catch continue;
             if (!std.mem.eql(u8, object.classname, "runtime_target")) continue;
-            var output: [128]u8 = undefined;
-            engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig combat: target={d} health={d}\n", .{ try world.persistentId(entity), (try world.get(entity, data.Health)).current }));
+            const pose = (try entity.get(data.Transform)).position;
+            const context = @import("region_access.zig").contextFor(entity.world);
+            var output: [256]u8 = undefined;
+            engine.print(try std.fmt.bufPrintZ(&output, "dk3 zig combat: target={d} health={d} map={s} slot={d} pos={d:.3},{d:.3},{d:.3}\n", .{ try entity.id(), (try entity.get(data.Health)).current, if (context) |value| std.mem.sliceTo(&value.map_name, 0) else "local", (try entity.get(data.Binding)).slot, pose[0], pose[1], pose[2] }));
         }
+        engine.print("dk3 region targets complete\n");
         return true;
     }
     return false;

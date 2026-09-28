@@ -172,6 +172,7 @@ pub const State = struct {
                     };
                     if (admitting >= 4) continue;
                     entry.publication = try @import("world_publication.zig").State.capture(entry.handle);
+                    entry.context.?.configuration.enabled = true;
                 }
                 try entry.publication.?.step(entry.handle, std.mem.sliceTo(&entry.name, 0));
                 continue;

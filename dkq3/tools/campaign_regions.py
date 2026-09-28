@@ -19,6 +19,11 @@ SEAMS = {('e1m1a', 25): ('e1m1b', 449),
          ('e1m1c', 410): ('e1m1b', 97),
          ('e1m1b', 105): ('e1m1c', 411),
          ('e1m1c', 411): ('e1m1b', 105)}
+# Outward normals of the reviewed corridor brushes. These select the outgoing
+# face, not a translation derived from the deliberately separated return trigger.
+NORMALS = {('e1m1a', 25): (0, 1), ('e1m1b', 449): (0, -1),
+           ('e1m1b', 97): (1, 1), ('e1m1c', 410): (1, -1),
+           ('e1m1b', 105): (0, 1), ('e1m1c', 411): (0, -1)}
 
 
 def encode(document):
@@ -39,8 +44,12 @@ def encode(document):
             if reciprocal not in edge['return_exit_candidates']:
                 raise ValueError('reviewed seam lost its reciprocal exit')
             kind = 'identity'
+        normal = ''
+        if kind == 'identity':
+            axis, sign = NORMALS[(source, edge['entity'])]
+            normal = f' axis "{axis}" direction "{sign}"'
         rows.append(f'{{ source "{source}" destination "{destination}" exit "{edge["entity"]}" '
-                    f'kind "{kind}" reciprocal "{reciprocal}" }}')
+                    f'kind "{kind}" reciprocal "{reciprocal}"{normal} }}')
     return '\n'.join(rows) + '\n'
 
 

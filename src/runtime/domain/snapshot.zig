@@ -135,7 +135,7 @@ pub fn migrateVisited(allocator: std.mem.Allocator, bytes: []const u8, namespace
     var saved = try decode(allocator, bytes);
     errdefer saved.deinit(allocator);
     if (saved.header.namespace != 0 or saved.residents.len != 0 or saved.visited.len != 0 or saved.header.journey != null or saved.header.player_id == 0 or player_id == 0 or namespace == player_id >> 24) return error.InvalidLegacyArchive;
-    const mapping: @import("snapshot_ids.zig").Mapping = .{ .namespace = namespace, .old_player = saved.header.player_id, .player = player_id };
+    const mapping: @import("snapshot_ids.zig").Mapping = .{ .namespace = namespace, .from = saved.header.player_id, .to = player_id };
     var mapped = data.World.initNamespaced(allocator, 1024, namespace);
     errdefer mapped.deinit();
     {

@@ -5,7 +5,7 @@ const std = @import("std");
 const tables = @import("tables.zig");
 pub const limit = 128;
 pub const Kind = enum { cut, landing, identity };
-pub const Edge = struct { source: u7, destination: u7, exit: u24, reciprocal: u24, kind: Kind };
+pub const Edge = struct { source: u7, destination: u7, exit: u24, reciprocal: u24, kind: Kind, axis: u2 = 0, direction: i2 = 1 };
 pub const Manifest = struct {
     names: [limit][]const u8 = @splat(""),
     count: usize = 0,
@@ -29,13 +29,18 @@ pub const Manifest = struct {
                 continue;
             }
             if (self.edge_count == self.edges.len) return error.RegionEdgeCapacity;
-            const edge: Edge = .{
+            var edge: Edge = .{
                 .source = self.find(row.field("source") orelse return error.MissingRegionSource) orelse return error.UnknownRegionSource,
                 .destination = self.find(row.field("destination") orelse return error.MissingRegionDestination) orelse return error.UnknownRegionDestination,
                 .exit = try std.fmt.parseInt(u24, row.field("exit") orelse return error.MissingRegionExit, 10),
                 .reciprocal = try std.fmt.parseInt(u24, row.field("reciprocal") orelse "0", 10),
                 .kind = std.meta.stringToEnum(Kind, row.field("kind") orelse return error.MissingRegionKind) orelse return error.InvalidRegionKind,
             };
+            if (edge.kind == .identity) {
+                edge.axis = try std.fmt.parseInt(u2, row.field("axis") orelse return error.MissingSeamNormal, 10);
+                edge.direction = try std.fmt.parseInt(i2, row.field("direction") orelse return error.MissingSeamNormal, 10);
+                if (edge.axis > 2 or (edge.direction != -1 and edge.direction != 1)) return error.InvalidSeamNormal;
+            }
             if (edge.exit == 0 or edge.source == edge.destination or (edge.kind == .identity and edge.reciprocal == 0)) return error.InvalidRegionEdge;
             for (self.edges[0..self.edge_count]) |prior| if (prior.source == edge.source and prior.exit == edge.exit) return error.DuplicateRegionExit;
             self.edges[self.edge_count] = edge;
@@ -44,6 +49,7 @@ pub const Manifest = struct {
         for (self.edges[0..self.edge_count]) |edge| if (edge.kind == .identity) {
             const back = self.exit(edge.destination, edge.reciprocal) orelse return error.MissingReciprocalSeam;
             if (back.kind != .identity or back.destination != edge.source or back.reciprocal != edge.exit) return error.MismatchedReciprocalSeam;
+            if (back.axis != edge.axis or back.direction != -edge.direction) return error.MismatchedSeamNormal;
         };
         return self;
     }
@@ -80,8 +86,8 @@ test "regions preserve parallel exits and separate authored cuts from seam quali
     const digest = "0000000000000000000000000000000000000000000000000000000000000000";
     const manifest = try Manifest.parse("dk3_table 1 {map movie sha256 " ++ digest ++ "} {map first sha256 " ++ digest ++ "} {map second sha256 " ++ digest ++ "} {map next sha256 " ++ digest ++ "}" ++
         "{source movie destination first exit 2 kind cut}" ++
-        "{source first destination second exit 8 kind identity reciprocal 4}" ++
-        "{source second destination first exit 4 kind identity reciprocal 8}" ++
+        "{source first destination second exit 8 kind identity reciprocal 4 axis 0 direction 1}" ++
+        "{source second destination first exit 4 kind identity reciprocal 8 axis 0 direction -1}" ++
         "{source first destination second exit 9 kind landing}" ++
         "{source second destination next exit 5 kind cut}");
     const movie = manifest.region(0);
@@ -91,5 +97,5 @@ test "regions preserve parallel exits and separate authored cuts from seam quali
     const ahead = manifest.ahead(0);
     try std.testing.expect(ahead[1] and ahead[2] and !ahead[3]);
     try std.testing.expectEqual(Kind.landing, manifest.exit(1, 9).?.kind);
-    try std.testing.expectError(error.MissingReciprocalSeam, Manifest.parse("dk3_table 1 {map a sha256 " ++ digest ++ "} {map b sha256 " ++ digest ++ "} {source a destination b exit 1 kind identity reciprocal 2}"));
+    try std.testing.expectError(error.MissingReciprocalSeam, Manifest.parse("dk3_table 1 {map a sha256 " ++ digest ++ "} {map b sha256 " ++ digest ++ "} {source a destination b exit 1 kind identity reciprocal 2 axis 0 direction 1}"));
 }

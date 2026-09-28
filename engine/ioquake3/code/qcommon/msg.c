@@ -772,6 +772,8 @@ netField_t	entityStateFields[] =
 { NETF(origin[2]), 0 },
 { NETF(solid), 24 },
 { NETF(powerups), MAX_POWERUPS },
+{ NETF(dk3World), 32 },
+{ NETF(dk3Identity), 32 },
 { NETF(dk3Team), 2 },
 { NETF(dk3Carrier), 7 },
 { NETF(dk3SoundVolume), 0 },

@@ -3,7 +3,7 @@ const std = @import("std");
 const engine = @import("../engine/client.zig");
 const c = @import("../engine/abi.zig").c;
 var room: i32 = -1;
-var seen: [c.MAX_GENTITIES]u32 = @splat(0);
+var seen: [c.MAX_GENTITIES]u128 = @splat(0);
 var names: [c.MAX_SOUNDS][c.MAX_QPATH]u8 = @splat(@splat(0));
 var sounds: [c.MAX_SOUNDS]c.sfxHandle_t = @splat(0);
 pub fn reset() void {
@@ -43,8 +43,9 @@ pub fn consume(game: *const c.gameState_t, entities: []const c.entityState_t) !v
         if (entity.number < 0 or entity.number >= seen.len or entity.otherEntityNum < 0 or entity.otherEntityNum >= c.MAX_GENTITIES or entity.generic1 < 0 or entity.generic1 > c.CHAN_ANNOUNCER) return error.InvalidSoundEvent;
         const slot: usize = @intCast(entity.number);
         const serial: u32 = @bitCast(entity.time2);
-        if (serial == 0 or seen[slot] == serial) continue;
-        seen[slot] = serial;
+        const key = @as(u128, @as(u32, @bitCast(entity.dk3World))) << 64 | @as(u128, @as(u32, @bitCast(entity.dk3Identity))) << 32 | serial;
+        if (serial == 0 or seen[slot] == key) continue;
+        seen[slot] = key;
         const handle = try sound(game, entity.eventParm);
         if (handle == 0) {
             engine.print("dk3 zig: snapshot sound unavailable\n");

@@ -17,16 +17,33 @@ pub const Context = struct {
     world: ?component.World = null,
     projection: [c.MAX_GENTITIES]abi.EntityProjection = undefined,
     players: [c.MAX_CLIENTS]c.playerState_t = undefined,
+    presentation: @import("region_presentation.zig").State = .{},
     slots: @import("../engine/slots.zig").Slots = .{},
     restored_arena: ?*std.heap.ArenaAllocator = null,
     restore_pending: ?@import("../domain/snapshot.zig").Loaded = null,
+    configuration: @import("configuration.zig").State = .{},
     resources: @import("resources.zig").State = .{},
     prepared_at: i64 = 0,
     stepped_at: i64 = 0,
     handle: ?worlds.Handle = null,
     network_id: u32 = 0,
     activated: bool = false,
+    running: bool = false,
     map_name: [c.MAX_QPATH]u8 = @splat(0),
+
+    pub const Scope = struct {
+        world: worlds.Handle,
+        resource_owner: *resources.State,
+        pub fn deinit(self: Scope) void {
+            worlds.select(self.world) catch @panic("lost scoped world owner");
+            _ = resources.select(self.resource_owner);
+        }
+    };
+    pub fn select(self: *Context) !Scope {
+        const previous = worlds.current();
+        try worlds.select(self.handle orelse return error.WorldNotAttached);
+        return .{ .world = previous, .resource_owner = resources.select(&self.resources) };
+    }
 
     /// Creates authored entities without stepping encounters or admitting players.
     /// The caller owns the matching engine context and releases it on failure.
@@ -99,6 +116,7 @@ pub const Context = struct {
         defer worlds.select(prior) catch @panic("lost active world");
         const previous_resources = resources.select(&self.resources);
         defer _ = resources.select(previous_resources);
+        self.presentation.clear(self);
         for (&self.projection) |*entity| if (entity.shared.linked != 0) engine.unlink(entity);
         self.world.?.deinit();
         if (self.restored_arena) |arena| {
@@ -109,11 +127,26 @@ pub const Context = struct {
         self.restored_arena = saved.arena;
         saved.ownership_transferred = true;
         self.activated = saved.header.activated;
+        self.running = false;
         self.stepped_at = now;
         self.targets = .{ .pending = saved.header.pending, .scripts = &self.systems.scripts, .cinematics = &self.systems.cinematics, .actors = &self.systems.actors };
         try resources.restore(saved.header.resources);
+        try self.systems.actors.prepareParty();
         try @import("persistence.zig").project(&self.world.?, &self.slots, &self.projection, &self.clients, &self.players, &self.systems, saved.header, now);
         self.players[0].dk3World = @bitCast(self.network_id);
+        try self.auditRestore(now);
+    }
+    /// Read-only evidence at the actual restoration boundary, before controllers
+    /// can retire an already gibbed corpse or resume an unfinished encounter.
+    pub fn auditRestore(self: *Context, now: i64) !void {
+        if (engine.integer("dk3_runtime_restore_audit") == 0) return;
+        var message: [192]u8 = undefined;
+        for (self.slots.occupants) |maybe| if (maybe) |entity| {
+            _ = self.world.?.get(entity, component.Actor) catch continue;
+            const health = try self.world.?.get(entity, component.Health);
+            engine.print(try std.fmt.bufPrintZ(&message, "dk3 restore actor: map={s} id={d} health={d} at={d}\n", .{ std.mem.sliceTo(&self.map_name, 0), try self.world.?.persistentId(entity), health.current, now }));
+        };
+        engine.print(try std.fmt.bufPrintZ(&message, "dk3 restore actors complete: map={s} at={d}\n", .{ std.mem.sliceTo(&self.map_name, 0), now }));
     }
     pub fn awaken(self: *Context, now: i64) !void {
         const delta = try std.math.sub(i64, now, self.stepped_at);
@@ -130,7 +163,12 @@ pub const Context = struct {
         self.activated = true;
         self.stepped_at = now;
     }
+    pub fn expose(self: *Context, now: i64) !void {
+        if (!self.running) try self.awaken(now);
+        self.running = true;
+    }
     pub fn destroy(self: *Context) void {
+        self.configuration.deinit();
         self.systems.deinit(false);
         if (self.restore_pending) |*saved| saved.deinit(std.heap.c_allocator);
         if (self.world) |*value| value.deinit();

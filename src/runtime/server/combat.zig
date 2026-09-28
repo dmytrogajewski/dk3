@@ -13,10 +13,7 @@ const v = @import("../domain/vector.zig");
 const c = abi.c;
 const damage = @import("weapon_damage.zig");
 fn trace(start: v.Vec3, end: v.Vec3, skip: u16, radius: f32, mask: u32) !@import("../domain/collision.zig").Trace {
-    return engine.collisionService().trace(.{ .start = start, .end = end, .mins = @splat(-radius), .maxs = @splat(radius), .slot = skip, .mask = mask });
-}
-fn victim(slots: *const Slots, slot: u16) ?ecs.Entity {
-    return if (slot < slots.occupants.len) slots.occupants[slot] else null;
+    return @import("region_collision.zig").trace(.{ .start = start, .end = end, .mins = @splat(-radius), .maxs = @splat(radius), .slot = skip, .mask = mask });
 }
 pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, shot: weapons.Fired, table: *const weapons.Table, now: i64) !void {
     const entry = catalog.find(shot.weapon) orelse return error.UnknownWeapon;
@@ -32,14 +29,15 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             const height = (if (shot.ducked) policy.crouching_height else policy.standing_height) orelse shot.view_height;
             const start = rules.eye(shot.position, height);
             const hit = try trace(start, v.add(start, v.scale(forward, tuning.range)), slot, 0, c.MASK_SHOT);
-            if (hit.fraction < 1) if (victim(slots, hit.entity)) |target| {
+            if (hit.fraction < 1) if (@import("region_access.zig").victim(world, slots, hit)) |target| {
                 const amount = tuning.damage * (if (engine.integer("g_gametype") == c.GT_SINGLE_PLAYER) policy.single_player_scale else 1);
-                if (try damage.hurt(world, target, owner_id, shot.weapon, amount, now, false)) if (policy.inertial) try damage.shove(world, target, owner_id, forward, amount, now);
+                if (try damage.hurt(target.world, target.entity, owner_id, shot.weapon, amount, now, false)) if (policy.inertial) try damage.shove(target.world, target.entity, owner_id, forward, amount, now);
             };
             try @import("impacts.zig").contact(world, slots, projections, shot.weapon, hit, .{ .charged = hit.entity < c.ENTITYNUM_WORLD or v.length(v.subtract(hit.end, shot.position)) < 40 }, now);
         },
         .pellets => |policy| {
-            const start = (try trace(eye, rules.muzzle(eye, shot.angles, tuning.muzzle), slot, 0, c.MASK_SHOT)).end;
+            const muzzle = try trace(eye, rules.muzzle(eye, shot.angles, tuning.muzzle), slot, 0, c.MASK_SHOT);
+            const start = muzzle.end;
             const aim = (try trace(eye, v.add(eye, v.scale(forward, if (policy.aim_reach) policy.range else 2000)), slot, 0, c.MASK_SHOT)).end;
             const direction = rules.aim(start, aim, forward);
             const perpendicular = v.cross(direction, .{ 0, 0, 1 });
@@ -53,16 +51,16 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 const x = random.next();
                 const y = random.next();
                 const spread = @import("../domain/pellets.zig").direction(direction, right, x, y, policy.spread);
-                last = try trace(start, v.add(start, v.scale(spread, reach)), slot, 0, c.MASK_SHOT);
-                if (last.fraction < 1) if (victim(slots, last.entity)) |target| {
-                    if ((world.get(target, data.Health) catch null) != null) hits.add(try world.persistentId(target), policy.max_victims);
+                last = try @import("region_collision.zig").from(muzzle.world, .{ .start = start, .end = v.add(start, v.scale(spread, reach)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT }, owner_id);
+                if (last.fraction < 1) if (@import("region_access.zig").victim(world, slots, last)) |target| {
+                    if ((target.get(data.Health) catch null) != null) hits.add(try target.id(), policy.max_victims);
                 };
             }
             (try world.get(owner, data.Random)).* = random;
             const blast_damage = tuning.damage * (if (engine.integer("g_gametype") == c.GT_SINGLE_PLAYER) policy.single_player_scale else 1);
-            for (hits.ids[0..hits.used], 0..) |id, i| if (world.find(id)) |target| {
+            for (hits.ids[0..hits.used], 0..) |id, i| if (@import("region_access.zig").find(world, id)) |target| {
                 const amount = hits.damage(i, blast_damage, policy.count);
-                if (try damage.hurt(world, target, owner_id, shot.weapon, amount, now, false)) if (policy.inertial) try damage.shove(world, target, owner_id, direction, amount, now);
+                if (try damage.hurt(target.world, target.entity, owner_id, shot.weapon, amount, now, false)) if (policy.inertial) try damage.shove(target.world, target.entity, owner_id, direction, amount, now);
             };
             try @import("impacts.zig").contact(world, slots, projections, shot.weapon, last, .{}, now);
             if (engine.integer("developer") > 0) {

@@ -9,7 +9,13 @@ pub const motion = @import("server/motion.zig");
 pub const map = @import("server/map.zig");
 test {
     _ = @import("domain/world_admission.zig");
+    _ = @import("client/config_patch.zig");
     _ = @import("domain/campaign_regions.zig");
+    _ = @import("domain/portal_trace.zig");
+    _ = @import("domain/world_aperture.zig");
+    _ = @import("server/region_access.zig");
+    _ = @import("server/region_presentation.zig");
+    _ = @import("server/configuration.zig");
     _ = @import("domain/scenery.zig");
     _ = @import("domain/gibs.zig");
     _ = @import("domain/multiplayer.zig");

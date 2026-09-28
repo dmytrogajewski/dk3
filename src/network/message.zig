@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (C) 1999-2005 Id Software, Inc.
-//! Bounded protocol-1348 message codec, ported from bundled ioquake3/msg.c.
+//! Bounded protocol-1349 message codec, ported from bundled ioquake3/msg.c.
 //! C layouts are adapters only: ordered scalar fields define the wire schema.
 //! The reviewed upstream Huffman implementation remains the compression library.
 const std = @import("std");

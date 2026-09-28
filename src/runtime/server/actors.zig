@@ -47,6 +47,17 @@ pub const Actors = struct {
             };
         }
         for (candidates[0..count]) |entity| try self.spawnOne(world, slots, projections, entity, now);
+        try self.prepareParty();
+    }
+    /// Party members can arrive after preparation, including at a submap landing
+    /// without a local start marker. Admit their existing class models/metadata
+    /// before publishing the destination's resource table; do not spawn actors.
+    pub fn prepareParty(self: *Actors) !void {
+        if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return;
+        for (catalog.entries, 0..) |entry, id| if (entry.kind == .companion) {
+            try self.ensure(@intCast(id));
+            _ = try @import("resources.zig").model(self.table.definitions[id].model);
+        };
     }
     pub fn ensure(self: *Actors, id: u8) !void {
         if (self.animations[id]) return;
@@ -460,6 +471,7 @@ pub const Actors = struct {
             const dead = (try world.get(entity, data.Health)).current <= 0;
             const petrified = if (world.get(entity, data.Ailments) catch null) |status| status.petrified_frame != null else false;
             if (dead and actor.gibbed and actor.death_dispatched and now >= actor.changed_ms + 100) {
+                try retirement(world, entity, "gibbed", now);
                 try @import("weapon_entities.zig").remove(world, slots, projections, entity);
                 continue;
             }
@@ -479,6 +491,7 @@ pub const Actors = struct {
                 try @import("actor_spawns.zig").death(self, world, slots, projections, router, entity, now);
                 engine.unlink(&projections[binding.slot]);
                 try slots.release(binding.slot, entity);
+                try retirement(world, entity, "turret", now);
                 try world.destroy(entity);
                 continue;
             }
@@ -778,4 +791,11 @@ pub fn diagnostics(self: *const Actors, world: *data.World, slots: *const Slots,
         engine.print(try std.fmt.bufPrintZ(&text, "crox_water={d} crox_swim={d} crox_wander={d} crox_pose={d} crox_struck={d} gun={s} gun_shots={d} gun_pending={d} gun_frame={d} now={d} attack_left={d} angles={d:.3},{d:.3},{d:.3}\n", .{ actor.crox.water, @intFromBool(actor.crox.swimming), @intFromBool(actor.crox.wandering), actor.crox.pose, @intFromBool(actor.crox.struck), @tagName(actor.rockgat.phase), actor.rockgat.shots, pending, actor.rockgat.frame(now), now, @max(0, attack_until - now), pose.angles[0], pose.angles[1], pose.angles[2] }));
     }
     engine.print("dk3 zig actor states complete\n");
+}
+
+fn retirement(world: *data.World, entity: ecs.Entity, reason: []const u8, now: i64) !void {
+    if (engine.integer("dk3_runtime_restore_audit") == 0) return;
+    var map_name: [c.MAX_QPATH]u8 = undefined;
+    var message: [160]u8 = undefined;
+    engine.print(try std.fmt.bufPrintZ(&message, "dk3 actor retired: map={s} id={d} reason={s} at={d}\n", .{ engine.mapName(&map_name), try world.persistentId(entity), reason, now }));
 }

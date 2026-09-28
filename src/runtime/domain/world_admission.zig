@@ -54,9 +54,13 @@ pub const Receiver = struct {
         @memcpy(self.bytes[self.received..][0..bytes.len], bytes);
         self.received += bytes.len;
     }
-    pub fn finish(self: *const Receiver) !Reader {
+    pub fn validatedBytes(self: *const Receiver) ![]const u8 {
         if (self.received != self.bytes.len) return error.IncompleteWorldConfig;
         if (std.hash.Wyhash.hash(0, self.bytes) != self.digest) return error.WorldConfigDigest;
+        return self.bytes;
+    }
+    pub fn finish(self: *const Receiver) !Reader {
+        _ = try self.validatedBytes();
         var reader: Reader = .{ .bytes = self.bytes };
         while (try reader.next()) |_| {}
         return .{ .bytes = self.bytes };

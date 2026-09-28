@@ -12,11 +12,21 @@ const rules = @import("../domain/combat.zig");
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 const damage = @import("weapon_damage.zig");
+const region = @import("region_collision.zig");
+const access = @import("region_access.zig");
 fn trace(start: v.Vec3, end: v.Vec3, skip: u16, radius: f32, mask: u32) !@import("../domain/collision.zig").Trace {
-    return engine.collisionService().trace(.{ .start = start, .end = end, .mins = @splat(-radius), .maxs = @splat(radius), .slot = skip, .mask = mask });
+    return region.trace(.{ .start = start, .end = end, .mins = @splat(-radius), .maxs = @splat(radius), .slot = skip, .mask = mask });
 }
-fn victim(slots: *const Slots, slot: u16) ?ecs.Entity {
-    return if (slot < slots.occupants.len) slots.occupants[slot] else null;
+fn ownerOf(world: *data.World) u32 {
+    return if (access.contextFor(world)) |context| @intFromEnum(context.handle.?) else 0;
+}
+fn finish(world: *data.World, projections: []abi.EntityProjection, entity: ecs.Entity, owner: u32, now: i64) !void {
+    if (owner != 0) {
+        const destination = access.byHandle(@enumFromInt(owner)) orelse return error.ProjectileWorldUnavailable;
+        const source = access.contextFor(world) orelse return error.ProjectileWorldUnavailable;
+        if (destination != source) return @import("world_transfer.zig").relocate(source, destination, entity, now);
+    }
+    try publish(world, entity, projections, now);
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     const binding = (try world.get(entity, data.Binding)).*;
@@ -60,18 +70,17 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     engine.link(projection);
 }
 const remove = @import("weapon_entities.zig").remove;
-fn splash(world: *data.World, slots: *Slots, projectile: data.Projectile, position: v.Vec3, skip: u16, now: i64) !void {
-    for (slots.occupants, 0..) |occupant, index| {
-        const target = occupant orelse continue;
-        _ = world.get(target, data.Health) catch continue;
-        const target_position = (try world.get(target, data.Transform)).position;
-        const owner = try world.persistentId(target) == projectile.owner;
-        const distance = v.length(v.add(target_position, v.scale(position, -1)));
-        const amount = rules.radiusDamage(projectile.damage, distance, catalog.find(projectile.weapon).?.spec.combat.ion.water_radius, owner, projectile.bounces != 0);
+fn splash(world: *data.World, slots: *Slots, projectile: data.Projectile, position: v.Vec3, owner: u32, skip: u32, now: i64) !void {
+    var targets = access.Damageables.init(world, slots);
+    while (targets.next()) |target| {
+        const target_position = (try target.get(data.Transform)).position;
+        const self = try target.id() == projectile.owner;
+        const distance = v.length(v.subtract(target_position, position));
+        const amount = rules.radiusDamage(projectile.damage, distance, catalog.find(projectile.weapon).?.spec.combat.ion.water_radius, self, projectile.bounces != 0);
         if (amount <= 0) continue;
-        const hit = try trace(position, target_position, skip, 0, c.MASK_SOLID);
-        if (hit.fraction < 1 and hit.entity != index) continue;
-        _ = try damage.hurt(world, target, projectile.owner, projectile.weapon, amount, now, true);
+        const hit = try region.from(owner, .{ .start = position, .end = target_position, .mins = @splat(0), .maxs = @splat(0), .slot = c.ENTITYNUM_NONE, .mask = c.MASK_SOLID }, skip);
+        if (!region.reaches(world, hit, target)) continue;
+        _ = try damage.hurt(target.world, target.entity, projectile.owner, projectile.weapon, amount, now, true);
     }
 }
 fn stepIon(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
@@ -81,37 +90,39 @@ fn stepIon(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
         if (!world.alive(entity)) continue;
         var projectile = (world.get(entity, data.Projectile) catch continue).*;
         if (catalog.find(projectile.weapon).?.spec.combat != .ion) continue;
-        const binding = (try world.get(entity, data.Binding)).*;
         const policy = catalog.find(projectile.weapon).?.spec.combat.ion;
         if (now - projectile.born_ms > policy.cleanup_ms) {
             try remove(world, slots, projections, entity);
             continue;
         }
         var position = (try world.get(entity, data.Transform)).position;
+        var movement_owner = ownerOf(world);
+        const identity = try world.persistentId(entity);
         var velocity = (try world.get(entity, data.Velocity)).linear;
         var remaining: f32 = @as(f32, @floatFromInt(@max(0, now - projectile.stepped_ms))) * 0.001;
         var destroyed = false;
         while (remaining > 0) {
             const skip: u16 = if (projectile.bounces == 0) (if (world.find(projectile.owner)) |owner| slots.find(owner) orelse c.ENTITYNUM_NONE else c.ENTITYNUM_NONE) else c.ENTITYNUM_NONE;
-            const hit = try trace(position, v.add(position, v.scale(velocity, remaining)), skip, policy.radius, c.MASK_SHOT | c.MASK_WATER);
+            const hit = try region.from(movement_owner, .{ .start = position, .end = v.add(position, v.scale(velocity, remaining)), .mins = @splat(-policy.radius), .maxs = @splat(policy.radius), .slot = skip, .mask = c.MASK_SHOT | c.MASK_WATER }, if (projectile.bounces == 0) projectile.owner else 0);
+            movement_owner = hit.world;
             position = hit.end;
-            const wet = hit.contents & c.MASK_WATER != 0 or (try engine.collisionService().contents(position, binding.slot)) & c.MASK_WATER != 0;
+            const wet = hit.contents & c.MASK_WATER != 0 or (try region.contents(movement_owner, position, identity)) & c.MASK_WATER != 0;
             if (hit.sky) {
                 try remove(world, slots, projections, entity);
                 destroyed = false;
                 break;
             }
             if (wet) {
-                try splash(world, slots, projectile, position, binding.slot, now);
-                try @import("events.zig").impact(world, slots, projections, .{ .weapon = projectile.weapon, .kind = .water, .normal = v.scale(v.normalize(velocity), -1) }, position, now);
+                try splash(world, slots, projectile, position, movement_owner, identity, now);
+                try @import("events.zig").impactOwned(world, slots, projections, movement_owner, .{ .weapon = projectile.weapon, .kind = .water, .normal = v.scale(v.normalize(velocity), -1) }, position, now);
                 destroyed = true;
                 break;
             }
             if (hit.fraction == 1) break;
             try @import("impacts.zig").contact(world, slots, projections, projectile.weapon, hit, .{}, now);
-            if (victim(slots, hit.entity)) |target| {
-                if (world.get(target, data.Health)) |_| {
-                    _ = try damage.hurt(world, target, projectile.owner, projectile.weapon, projectile.damage * (if (try world.persistentId(target) == projectile.owner) @as(f32, 0.5) else 1), now, true);
+            if (access.victim(world, slots, hit)) |target| {
+                if (target.get(data.Health)) |_| {
+                    _ = try damage.hurt(target.world, target.entity, projectile.owner, projectile.weapon, projectile.damage * (if (try target.id() == projectile.owner) @as(f32, 0.5) else 1), now, true);
                     destroyed = true;
                     break;
                 } else |_| {}
@@ -134,7 +145,7 @@ fn stepIon(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
             (try world.get(entity, data.Projectile)).* = projectile;
             (try world.get(entity, data.Transform)).position = position;
             (try world.get(entity, data.Velocity)).linear = velocity;
-            try publish(world, entity, projections, now);
+            try finish(world, projections, entity, movement_owner, now);
         }
     }
 }
@@ -197,20 +208,19 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
 fn explode(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, projectile: data.Projectile, hit: @import("../domain/collision.zig").Trace, now: i64) !void {
     const spec = catalog.find(projectile.weapon).?.spec;
     const skip = (try world.get(entity, data.Binding)).slot;
-    for (slots.occupants, 0..) |occupant, index| {
-        const target = occupant orelse continue;
-        const health = world.get(target, data.Health) catch continue;
-        if (health.current <= 0) continue;
-        const body = (try world.get(target, data.Body)).*;
-        const origin = (try world.get(target, data.Transform)).position;
+    var targets = access.Damageables.init(world, slots);
+    while (targets.next()) |target| {
+        if ((try target.get(data.Health)).current <= 0) continue;
+        const body = (try target.get(data.Body)).*;
+        const origin = (try target.get(data.Transform)).position;
         const center = v.add(origin, v.scale(v.add(body.mins, body.maxs), 0.5));
         const distance = v.length(v.subtract(center, hit.end));
-        const owner = try world.persistentId(target) == projectile.owner;
+        const owner = try target.id() == projectile.owner;
         const amount = rules.radiusDamage(projectile.damage * spec.projectile.splash_scale, distance, spec.projectile.splash_radius, false, false) * (if (owner) spec.projectile.self_splash else 1);
         if (amount <= 0) continue;
-        const visible = try trace(hit.end, center, skip, 0, c.MASK_SOLID);
-        if (visible.fraction < 1 and visible.entity != index) continue;
-        _ = try damage.hurt(world, target, projectile.owner, projectile.weapon, amount, now, false);
+        const visible = try region.from(hit.world, .{ .start = hit.end, .end = center, .mins = @splat(0), .maxs = @splat(0), .slot = skip, .mask = c.MASK_SOLID }, try world.persistentId(entity));
+        if (!region.reaches(world, visible, target)) continue;
+        _ = try damage.hurt(target.world, target.entity, projectile.owner, projectile.weapon, amount, now, false);
     }
     try @import("impacts.zig").contact(world, slots, projections, projectile.weapon, hit, .{ .detonation = true }, now);
     if (engine.integer("developer") > 0) {
@@ -262,8 +272,9 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         var projectile = (world.get(entity, data.Projectile) catch continue).*;
         const spec = catalog.find(projectile.weapon).?.spec;
         if (spec.combat != .projectile) continue;
-        const binding = (try world.get(entity, data.Binding)).*;
         var pose = (try world.get(entity, data.Transform)).*;
+        var movement_owner = ownerOf(world);
+        const identity = try world.persistentId(entity);
         var velocity = (try world.get(entity, data.Velocity)).linear;
         const expires = (try world.get(entity, data.Lifetime)).expires_ms;
         if (now >= expires) {
@@ -281,10 +292,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         while (at < now) {
             const milliseconds: u32 = @intCast(@min(20, now - at));
             const seconds = @as(f32, @floatFromInt(milliseconds)) * 0.001;
-            const wet = (try engine.collisionService().contents(pose.position, binding.slot)) & c.MASK_WATER != 0;
+            const wet = (try region.contents(movement_owner, pose.position, identity)) & c.MASK_WATER != 0;
             const motion = try catalog.flightMotion(projectile.weapon, &projectile.flight, .{ .age_ms = at - projectile.born_ms, .delta_ms = milliseconds, .distance = v.length(v.subtract(pose.position, projectile.launch_position)), .wet = wet, .was_wet = projectile.wet, .velocity = velocity, .speed = projectile.speed });
             if (motion.remove) {
-                if (wet) try @import("events.zig").impact(world, slots, projections, .{ .weapon = projectile.weapon, .kind = .water, .normal = .{ 0, 0, 1 } }, pose.position, now);
+                if (wet) try @import("events.zig").impactOwned(world, slots, projections, movement_owner, .{ .weapon = projectile.weapon, .kind = .water, .normal = .{ 0, 0, 1 } }, pose.position, now);
                 try remove(world, slots, projections, entity);
                 break;
             }
@@ -293,7 +304,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             const goal = v.add(v.add(pose.position, v.scale(velocity, seconds)), .{ 0, 0, -0.5 * motion.gravity * seconds * seconds });
             velocity[2] -= motion.gravity * seconds;
             const skip: u16 = if (spec.projectile.collide_owner_after_bounce and projectile.bounces != 0) c.ENTITYNUM_NONE else if (world.find(projectile.owner)) |owner| slots.find(owner) orelse c.ENTITYNUM_NONE else c.ENTITYNUM_NONE;
-            const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = goal, .mins = spec.projectile.mins, .maxs = spec.projectile.maxs, .slot = skip, .mask = c.MASK_SHOT });
+            const hit = try region.from(movement_owner, .{ .start = pose.position, .end = goal, .mins = spec.projectile.mins, .maxs = spec.projectile.maxs, .slot = skip, .mask = c.MASK_SHOT }, if (spec.projectile.collide_owner_after_bounce and projectile.bounces != 0) 0 else projectile.owner);
+            movement_owner = hit.world;
             pose.position = hit.end;
             at += milliseconds;
             if (hit.sky or hit.no_impact) {
@@ -301,10 +313,11 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 break;
             }
             if (hit.fraction == 1) continue;
-            const target = victim(slots, hit.entity);
-            const damageable = if (target) |who| (world.get(who, data.Health) catch null) != null else false;
-            const living = if (target) |who| (world.get(who, data.Actor) catch null) != null or (world.get(who, data.Player) catch null) != null else false;
-            const brush = hit.entity < projections.len and projections[hit.entity].shared.bmodel != 0;
+            const target = access.victim(world, slots, hit);
+            const damageable = if (target) |who| (who.get(data.Health) catch null) != null else false;
+            const living = if (target) |who| (who.get(data.Actor) catch null) != null or (who.get(data.Player) catch null) != null else false;
+            const hit_projections = if (hit.world != 0) &(access.byHandle(@enumFromInt(hit.world)) orelse return error.ProjectileWorldUnavailable).projection else projections;
+            const brush = hit.entity < hit_projections.len and hit_projections[hit.entity].shared.bmodel != 0;
             const response = try catalog.flightContact(projectile.weapon, .{ .damageable = damageable, .living = living, .brush = brush });
             if (response == .explode) {
                 try explode(world, slots, projections, entity, projectile, hit, now);
@@ -313,7 +326,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try @import("impacts.zig").contact(world, slots, projections, projectile.weapon, hit, .{}, now);
             switch (response) {
                 .direct => {
-                    if (target) |who| try directHit(world, who, projectile, velocity, now);
+                    if (target) |who| try directHit(who.world, who.entity, projectile, velocity, now);
                     try remove(world, slots, projections, entity);
                     break;
                 },
@@ -350,6 +363,6 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         (try world.get(entity, data.Projectile)).* = projectile;
         (try world.get(entity, data.Transform)).* = pose;
         (try world.get(entity, data.Velocity)).linear = velocity;
-        try publish(world, entity, projections, now);
+        try finish(world, projections, entity, movement_owner, now);
     }
 }

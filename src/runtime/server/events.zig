@@ -71,3 +71,10 @@ pub fn impact(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     projection.shared.ownerNum = c.ENTITYNUM_NONE;
     engine.link(projection);
 }
+pub fn impactOwned(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: u32, value: data.ImpactEvent, position: data.Vec3, now: i64) !void {
+    if (owner == 0) return impact(world, slots, projections, value, position, now);
+    const context = @import("region_access.zig").byHandle(@enumFromInt(owner)) orelse return error.ImpactWorldUnavailable;
+    const scope = try context.select();
+    defer scope.deinit();
+    try impact(&context.world.?, &context.slots, &context.projection, value, position, now);
+}

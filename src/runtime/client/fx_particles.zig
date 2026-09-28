@@ -6,7 +6,7 @@ const engine = @import("../engine/client.zig");
 const v = @import("../domain/vector.zig");
 const Random = @import("../domain/components.zig").Random;
 pub const Kind = enum { fire, smoke, bits, spark, blood1, blood2, blood3, blood4, simple, cp1, cp2, cp3, cp4, rain, bubble, sparkle1, sparkle2, snow, poison, blue_spark, ice, drip, splash1, splash2, splash3, cryo, spark1, spark2, beam_spark };
-pub const Particle = struct { born_ms: i32, until_ms: ?i32 = null, owner: u32 = 0, classic_factor: ?f32 = null, last_position: ?v.Vec3 = null, position: v.Vec3, velocity: v.Vec3, acceleration: v.Vec3, color: v.Vec3, alpha: f32, fade: f32, size: f32, kind: Kind, shader: ?[:0]const u8 = null };
+pub const Particle = struct { presentation: engine.Presentation = .{}, born_ms: i32, until_ms: ?i32 = null, owner: u32 = 0, classic_factor: ?f32 = null, last_position: ?v.Vec3 = null, position: v.Vec3, velocity: v.Vec3, acceleration: v.Vec3, color: v.Vec3, alpha: f32, fade: f32, size: f32, kind: Kind, shader: ?[:0]const u8 = null };
 var particles: [4096]?Particle = @splat(null);
 var cursor: usize = 0;
 pub fn reset() void {
@@ -15,6 +15,7 @@ pub fn reset() void {
 }
 pub fn add(particle: Particle) void {
     particles[cursor] = particle;
+    particles[cursor].?.presentation = engine.Presentation.current();
     cursor = (cursor + 1) % particles.len;
 }
 pub fn countOwner(owner: u32, now: i32) u32 {
@@ -37,8 +38,7 @@ pub fn cloud(point: v.Vec3, direction: v.Vec3, color: v.Vec3, alpha: v.Vec3, siz
         const flight = v.basis(v.add(angles, .{ (random.next() * 2 - 1) * cone, (random.next() * 2 - 1) * cone, 0 })).forward;
         const angle = 2 * std.math.pi * @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(count));
         const jitter: v.Vec3 = if (radius > 0) v.add(v.scale(basis.right, @cos(angle) * radius), v.scale(up, @sin(angle) * radius)) else .{ random.next() - 0.5, random.next() - 0.5, 0 };
-        particles[cursor] = .{ .born_ms = now, .position = v.add(point, jitter), .velocity = v.scale(flight, speed * (0.55 + random.next() * 0.45)), .acceleration = acceleration, .color = color, .alpha = alpha[0], .fade = alpha[1] + random.next() * alpha[2], .size = size * 3 * (if (kind == .smoke) @as(f32, 7) else if (kind == .sparkle1 or kind == .sparkle2) @as(f32, 3) else 1.5), .kind = kind };
-        cursor = (cursor + 1) % particles.len;
+        add(.{ .born_ms = now, .position = v.add(point, jitter), .velocity = v.scale(flight, speed * (0.55 + random.next() * 0.45)), .acceleration = acceleration, .color = color, .alpha = alpha[0], .fade = alpha[1] + random.next() * alpha[2], .size = size * 3 * (if (kind == .smoke) @as(f32, 7) else if (kind == .sparkle1 or kind == .sparkle2) @as(f32, 3) else 1.5), .kind = kind });
     }
 }
 pub fn draw(now: i32, ref: *const c.refdef_t) void {
@@ -51,6 +51,8 @@ pub fn draw(now: i32, ref: *const c.refdef_t) void {
             maybe.* = null;
             continue;
         }
+        const scope = particle.presentation.select();
+        defer scope.deinit();
         const point = positionAt(particle, seconds);
         var color: [4]u8 = undefined;
         for (particle.color, color[0..3]) |value, *channel| channel.* = @intFromFloat(std.math.clamp(value, 0, 1) * 255);

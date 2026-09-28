@@ -14,9 +14,9 @@ const Track = struct {
     current: Pose = .{},
     at: i32 = 0,
     interval: i32 = 0,
-    key: u64 = 0,
+    key: u128 = 0,
     valid: bool = false,
-    fn put(self: *Track, value: Pose, key: u64, time: i32, previous: i32) void {
+    fn put(self: *Track, value: Pose, key: u128, time: i32, previous: i32) void {
         const continuous = self.valid and self.at == previous and time > previous and self.key == key;
         self.before = if (continuous) self.current else value;
         self.current = value;
@@ -54,7 +54,7 @@ pub fn ingest(snapshot: *const c.snapshot_t, boundary: u32) void {
     }
     for (snapshot.entities[0..@intCast(snapshot.numEntities)]) |entity| {
         if (entity.number < 0 or entity.number >= entities.len) continue;
-        const key = @as(u64, @intCast(entity.modelindex)) | (@as(u64, @intCast(entity.eType)) << 16) | (@as(u64, @intCast(entity.eFlags & c.EF_TELEPORT_BIT)) << 32);
+        const key = (@as(u128, @as(u32, @bitCast(entity.dk3Identity))) << 64) | (@as(u128, @as(u32, @bitCast(entity.dk3World))) << 96) | @as(u128, @intCast(entity.modelindex)) | (@as(u64, @intCast(entity.eType)) << 16) | (@as(u64, @intCast(entity.eFlags & c.EF_TELEPORT_BIT)) << 32);
         entities[@intCast(entity.number)].put(.{ .position = entity.pos.trBase, .angles = entity.apos.trBase }, key, snapshot.serverTime, prior_time);
     }
     camera_track.put(.{ .position = snapshot.ps.dk3CameraOrigin, .angles = snapshot.ps.dk3CameraAngles, .fov = snapshot.ps.dk3CameraFov }, @as(u64, boundary) << 32 | @as(u32, @bitCast(snapshot.ps.dk3CameraActive)), snapshot.serverTime, prior_time);

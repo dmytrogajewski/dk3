@@ -1,6 +1,6 @@
 {
   "base": "UPSTREAM.json",
-  "description": "Independent dk3 native runtime and protocol 1344, native media/startup, campaign map mode, defined field offsets and JPEG encoding, authored audio and nine-bit AAS mover indices. Local restore world-hold service v1 and stationary native projectile handling. Local pause excludes menu elapsed time from the client simulation clock. Reserved powerup slot 15 for Gas Hands lifetime. Native equipped weapon sound loop for Gas Hands. Zero velocity before a delayed stop trajectory begins. Explicit per-axis actor scale and simulation-based animation ranges, render interpolation, cinematic facing, native HUD/menu hooks and bounded damage tint. Original loading art/progress, weapon contact audio and surface marks, supplied pain sounds, and cambot spotlight presentation. Save service accepts bounded campaign archives. Both renderers share cloud geometry across shader stages to avoid unreferenced duplicate vertices. Finite reverse turret animation and campaign death checkpoint restart. Standalone software gamma avoids compositor-dependent fullscreen darkening. Exact ignore exceptions preserve the complete pinned upstream tree in Git. Native trigger bounds contact and persistent fragment scale during tumbling. Projected additive lights modulate the surface material and its animated texture coordinates in both renderers. Native Ion flight and contact presentation entry points. Damageable missiles never clip their own hull, and setviewpos accepts an optional pitch. Save previews are written as small thumbnails so high-resolution menus can load them. Renderer dlight and pshadow bit masks use unsigned shifts so a full 32-light scene stays defined. Intermission and spectator placement fall back to team starts on maps without deathmatch spawns. Native Zig weapons own prediction, water protection, grants and kill hooks; C module callers use the narrow integration ABI. Weapon-owned self-damage scaling bypasses the stock second reduction; timed weapon holds freeze living clients during Nightmare reaps. Native liquid hazards preserve a distinct authored nitro contents bit without changing swimming masks. Authored room IDs map to the pinned OpenAL EFX preset definitions with full EAX parameters where available and preset-derived software response; prior native styles retain their semantics. Native sequence 288 retains the chosen AAS portal reachability as well as its cost, rejects zero-cost unavailable portal routes, and logs client disconnect reasons on the server. Native sequence 294 routes Escape to active cinematic completion and exposes a channel-scoped local stream stop in both audio backends. OpenGL2 sky faces reuse the tessellation buffer after source polygons are clipped, avoiding overflow from appending to the occupied batch. Native sequence 297 adds independently owned resident collision worlds, stale-handle rejection, bounded independent background asset reads and versioned preparation/trace imports. Native sequence 298 adds renderer world contexts with scoped inline models/lightmaps/materials, staged surface admission, explicit server entity/configuration/spatial-tree ownership and map-owned AAS routing/link/model-type state with releasable allocations. Renderer and botlib ABI versions advance for the new world services. Ordinary travel still reloads maps; continuous crossing, cross-world combat and region persistence are incomplete. Native sequence 299 admits checksum- and digest-checked destination definitions and media, supports resident player ownership transfer without reconnecting, namespaces entity allocation, and prevents snapshot deltas across world boundaries. Protocol 1348 carries the active world identity in both native and C message codecs. Automatic seam traversal, cross-world combat and atomic region saves remain incomplete. Native sequence 300 keeps the native connection/loading screen visible while a saved resident region prepares asynchronously; game input is admitted only after actual client world readiness. The native client honors the existing SNAPFLAG_NOT_ACTIVE connection contract before ingesting snapshot ownership. Native sequence 301 gives renderer CPU allocations an independently tracked heap lifetime, avoiding the fixed single-map zone limit while prefetching campaign regions; shutdown reclaims interrupted allocations. Sequence 301 also moves map navigation and server spatial owners out of the fixed single-map zone. Renderer and botlib allocations share a small explicit lifetime heap; their individual shutdowns reclaim only their own outstanding blocks. Native sequence 302 gives each renderer world its own inline brush-model storage and generation-checked handles, preserving the shared ordinary-model cache. Cgame initialization exposes the existing reliable gamestate boundary so native resident commands for the previous map cannot activate destroyed resources after load; ordinary reliable command handling is preserved.",
+  "description": "Independent dk3 native runtime and protocol 1344, native media/startup, campaign map mode, defined field offsets and JPEG encoding, authored audio and nine-bit AAS mover indices. Local restore world-hold service v1 and stationary native projectile handling. Local pause excludes menu elapsed time from the client simulation clock. Reserved powerup slot 15 for Gas Hands lifetime. Native equipped weapon sound loop for Gas Hands. Zero velocity before a delayed stop trajectory begins. Explicit per-axis actor scale and simulation-based animation ranges, render interpolation, cinematic facing, native HUD/menu hooks and bounded damage tint. Original loading art/progress, weapon contact audio and surface marks, supplied pain sounds, and cambot spotlight presentation. Save service accepts bounded campaign archives. Both renderers share cloud geometry across shader stages to avoid unreferenced duplicate vertices. Finite reverse turret animation and campaign death checkpoint restart. Standalone software gamma avoids compositor-dependent fullscreen darkening. Exact ignore exceptions preserve the complete pinned upstream tree in Git. Native trigger bounds contact and persistent fragment scale during tumbling. Projected additive lights modulate the surface material and its animated texture coordinates in both renderers. Native Ion flight and contact presentation entry points. Damageable missiles never clip their own hull, and setviewpos accepts an optional pitch. Save previews are written as small thumbnails so high-resolution menus can load them. Renderer dlight and pshadow bit masks use unsigned shifts so a full 32-light scene stays defined. Intermission and spectator placement fall back to team starts on maps without deathmatch spawns. Native Zig weapons own prediction, water protection, grants and kill hooks; C module callers use the narrow integration ABI. Weapon-owned self-damage scaling bypasses the stock second reduction; timed weapon holds freeze living clients during Nightmare reaps. Native liquid hazards preserve a distinct authored nitro contents bit without changing swimming masks. Authored room IDs map to the pinned OpenAL EFX preset definitions with full EAX parameters where available and preset-derived software response; prior native styles retain their semantics. Native sequence 288 retains the chosen AAS portal reachability as well as its cost, rejects zero-cost unavailable portal routes, and logs client disconnect reasons on the server. Native sequence 294 routes Escape to active cinematic completion and exposes a channel-scoped local stream stop in both audio backends. OpenGL2 sky faces reuse the tessellation buffer after source polygons are clipped, avoiding overflow from appending to the occupied batch. Native sequence 297 adds independently owned resident collision worlds, stale-handle rejection, bounded independent background asset reads and versioned preparation/trace imports. Native sequence 298 adds renderer world contexts with scoped inline models/lightmaps/materials, staged surface admission, explicit server entity/configuration/spatial-tree ownership and map-owned AAS routing/link/model-type state with releasable allocations. Renderer and botlib ABI versions advance for the new world services. Ordinary travel still reloads maps; continuous crossing, cross-world combat and region persistence are incomplete. Native sequence 299 admits checksum- and digest-checked destination definitions and media, supports resident player ownership transfer without reconnecting, namespaces entity allocation, and prevents snapshot deltas across world boundaries. Protocol 1348 carries the active world identity in both native and C message codecs. Automatic seam traversal, cross-world combat and atomic region saves remain incomplete. Native sequence 300 keeps the native connection/loading screen visible while a saved resident region prepares asynchronously; game input is admitted only after actual client world readiness. The native client honors the existing SNAPFLAG_NOT_ACTIVE connection contract before ingesting snapshot ownership. Native sequence 301 gives renderer CPU allocations an independently tracked heap lifetime, avoiding the fixed single-map zone limit while prefetching campaign regions; shutdown reclaims interrupted allocations. Sequence 301 also moves map navigation and server spatial owners out of the fixed single-map zone. Renderer and botlib allocations share a small explicit lifetime heap; their individual shutdowns reclaim only their own outstanding blocks. Native sequence 302 gives each renderer world its own inline brush-model storage and generation-checked handles, preserving the shared ordinary-model cache. Cgame initialization exposes the existing reliable gamestate boundary so native resident commands for the previous map cannot activate destroyed resources after load; ordinary reliable command handling is preserved. Native sequence 303 qualifies entity resources and persistent identities in protocol 1349, and adds identity portal views over the reviewed resident corridor brushes. Both renderers tag scene entities/polygons with their owning world so a destination view cannot index source brush surfaces. Native frontend portals retain ordinary engine mirror handling. The renderer ABI advances to 12; multiplayer arenas retain ordinary match boundaries.",
   "files": {
     ".gitignore": {
       "current_sha256": "5300b0caf48f9694dff85321aaecf4ea38f926a0df2f7287442d6867c3242d57",
@@ -311,7 +311,7 @@
       "upstream_sha256": "c47de51f8a3798a6158c3bc8ff282c9a82ece037a08a128d5e67ebb820a67142"
     },
     "code/qcommon/msg.c": {
-      "current_sha256": "00ce0bb091f0330fdae0b1a5428b3a60aa92c26c1a91d0fb913c43f991952421",
+      "current_sha256": "1e74e721fe3ec398331e886d5415345b84f6bb056f928c62fb72a01af64bbfa7",
       "upstream_sha256": "4bec709886666852b248f9974c4ccdee169a812c48d93f0ee5df71b76a8fe3a1"
     },
     "code/qcommon/net_chan.c": {
@@ -319,11 +319,11 @@
       "upstream_sha256": "51f5bf0dd123df4c5f554d822487d3bccc0013dde13b36884c943adee6256d19"
     },
     "code/qcommon/q_shared.h": {
-      "current_sha256": "f55be8b16f64225dde681a28ad0b96fc5fdc44fa692a9ace77ad70936287c18d",
+      "current_sha256": "85bc9a6dca652cbcdafd47db92c896ba6d6cbced4a025bd6904cf2ee4e9d8c52",
       "upstream_sha256": "bd2515c5eae4e0e49304285e47b999650e52cd2468e40cfbe6fe9ec69a69e3f2"
     },
     "code/qcommon/qcommon.h": {
-      "current_sha256": "fd99ebe12efcb8e7249470429148dab9caa570d063ad8f9c02b7f029d466af4e",
+      "current_sha256": "935fdbd5cf5833a415d2cac33211b8db8813a769def35d73fec317f7fc756676",
       "upstream_sha256": "1bc3f8ad1c47a540cd999367453d053b68b6baee9716f059bae970e79cbd12fe"
     },
     "code/qcommon/surfaceflags.h": {
@@ -355,11 +355,11 @@
       "upstream_sha256": "6f5014b62507fee2e83b0a15abd1b117e17258b6f0f0843ae03698c074fb2ca8"
     },
     "code/renderercommon/tr_public.h": {
-      "current_sha256": "586914ab022b4cf9af6efa9c6801b4c9843cd303a5a4bfe208615c68d7f67fba",
+      "current_sha256": "ab31bffd99b168de420f9a1888e63aef721bd4abadaacc9b4542bb9609227ece",
       "upstream_sha256": "8288050560e591e21c8da7ddaf8ce5a54fb0a1d0e1af8ca337b899b123f859d9"
     },
     "code/renderercommon/tr_types.h": {
-      "current_sha256": "de197076892a0f42fc78d46155549b757d4c00fe6129cb1a90fd1c044259e419",
+      "current_sha256": "4a22ef58eb67bd84e9ecf38e28e8d035aaa47d1dae626a1728acf27d22de43b5",
       "upstream_sha256": "03d97d5bf800a06cb7dd9a9449b917f18009bc0e4ff6982e468eb8804cc0eed0"
     },
     "code/renderergl1/tr_altivec.c": {
@@ -388,14 +388,14 @@
     },
     "code/renderergl1/tr_local.h": {
       "upstream_sha256": "5dd215ba8e9f27fbbe45a399d641811f1c92bfeccacc256a89ca7e8db0252b31",
-      "current_sha256": "29087f8a96e07c7e73b65c28525cbc6b75b36529803177665af1f8c559858b83"
+      "current_sha256": "b7d77f09d766f9435e2f0cd9f951fca16b0e783711b5b79ae0f51ca3bc01ff13"
     },
     "code/renderergl1/tr_model.c": {
       "upstream_sha256": "265cdc0f083ad415cfaa1e2a2b12bcba0776b88941a668b12344ea6030e18fa7",
       "current_sha256": "15e79a0a44582cef23bd8be845cb8d9d10f6804a72b096aedd302897be143309"
     },
     "code/renderergl1/tr_scene.c": {
-      "current_sha256": "263d5c966cc8f96919b4c4336a044dcfd8cd752b11ba66b99784115918b88fcf",
+      "current_sha256": "b517cb3a338475c5e4da7f65a87c22c3d8a6d3b20a571a45e954a52bd2e981f6",
       "upstream_sha256": "e0c96cb10efdcb82d9a1b37524ddba1b1331008900c955eccf0fe47bbe301609"
     },
     "code/renderergl1/tr_shade.c": {
@@ -448,10 +448,10 @@
     },
     "code/renderergl2/tr_local.h": {
       "upstream_sha256": "859618b0c8e6ea69e7273660e1579cad202a8048360c296c5975baf365c9ffa3",
-      "current_sha256": "1a8cddb501d882db8786288cc87094994f316ed259c32eabb6259a066875105f"
+      "current_sha256": "05c6618579cb163f760e3585eb8735741f528333b98de268ca2f4573469ddd94"
     },
     "code/renderergl2/tr_main.c": {
-      "current_sha256": "4609dd9a7e9edd5dea93c422664bda6f33b7025893f96dda22de1b95411bc950",
+      "current_sha256": "97d7fb71910b74e0e0d6c1f9fd1447a5fe958f9e0e24eb3746a95c436bda249e",
       "upstream_sha256": "ed70737574ede3bd53b6a769880f1d1f027ee8e2189dd09903157ac6d636213e"
     },
     "code/renderergl2/tr_model.c": {
@@ -459,7 +459,7 @@
       "current_sha256": "e1edb57f41e55a201b30a0c6b20d2cbaa1cddcfb5695165fda7d16237a5710cf"
     },
     "code/renderergl2/tr_scene.c": {
-      "current_sha256": "e644e493e86b2b02d7ed916586d3aa58c76a71166d68c575059ec49b39383cdd",
+      "current_sha256": "38ab0591a6d8d98ca18bfae3868d594d9178a8f5eba24af142f182c78f8b074f",
       "upstream_sha256": "30b965d428c8d631ea9871bdfbeb8946d90a3328b3b16835133053a54016a86c"
     },
     "code/renderergl2/tr_shade.c": {
@@ -541,6 +541,10 @@
     "code/renderercommon/dk3_inline_handles.h": {
       "upstream_sha256": null,
       "current_sha256": "5d7121d3450b8184fb59335c2a6f1a04f62a4f340c2fcd49b90edec17a1ab803"
+    },
+    "code/renderergl1/tr_main.c": {
+      "upstream_sha256": "f22e1ea5773663bce8329a2e68e241e997974aa335fe09906b48a41a032b466a",
+      "current_sha256": "dfbef9b9ed28ed8a99f57e48e32aec505e6ae0b9171562a9ec9582f1ca2f5da8"
     }
   }
 }

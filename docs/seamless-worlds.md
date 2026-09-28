@@ -1,6 +1,6 @@
 # Seamless connected worlds
 
-Sequences 297–302 implement connected owners on `rewrite/native-zig-runtime`.
+Sequences 297–303 implement connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary campaign exits now use resident ownership.**
 Automatic handoff is not acceptance of portal views or cross-world combat.
 
@@ -163,6 +163,35 @@ The native client receives the reliable-command boundary of each new gamestate.
 Obsolete resident commands cannot reactivate resources destroyed by a load, while
 ordinary reliable commands retain the bundled engine’s existing handling. Current
 evidence and remaining cross-world controller/residency work are in native acceptance.
+
+Sequence 303 adds qualified sweeps through the six reviewed opening brushes.
+Collision results retain the actual world handle and local contact slot; a nearer
+wall wins. Generic hitscan/melee, Ion and ordinary projectile/explosion paths use
+those results, while controllers retain their class-owned damage and interactions.
+Moving projectiles relocate with their birth ID and map-local resource projection.
+Exposed connected worlds continue simulating; preparation alone does not start them.
+Specialized weapon and actor/companion behavior across seams remains incomplete.
+
+Both renderers use the measured rectangular brush faces for resident portal views.
+Scene entities and polygons retain renderer ownership, preventing source brush
+surface indices from being evaluated in the destination map. The current engine
+path still supports one portal view per scene and excludes recursion; multiple
+simultaneously visible apertures remain open. One opening view and foreign target
+are verified in both renderers; this is not complete regional presentation.
+
+Protocol 1349 carries entity resource owner and persistent identity. Neighboring
+presentation borrows transport slots without creating duplicate gameplay actors or
+solids. Visibility sampling uses the supplied aperture and actual collision/PVS;
+resource lookup, interpolation, particles/decals and prediction retain their owner.
+Late configstring updates are digest-checked, chunked and bounded by actual client
+acknowledgements; snapshots defer foreign resource references until their complete
+update is queued before that snapshot. Ordinary arena boundaries remain unchanged.
+
+Cut/landing party selection preserves authored companion masks and arrival models,
+then rebinds the arrived incarnation to its continuing birth ID and retires the
+source copy. These paths and natural companion seam pursuit need running coverage.
+Restore diagnostics can report actual actor identities/health at the installation
+boundary, before ordinary corpse retirement or encounter simulation resumes.
 
 ## Remaining implementation, in dependency order
 

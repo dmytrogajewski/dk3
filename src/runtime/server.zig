@@ -27,6 +27,8 @@ export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown(restart: bool) void {
+    engine.config_observer = null;
+    @import("server/region_access.zig").region = null;
     // Engine bot client slots outlive a fast VM restart. Release their input
     // owners before unloading; the new match population admits fresh bots.
     if (restart) if (active.world) |*value| for (active.bots.brains, 0..) |brain, index| {
@@ -34,6 +36,8 @@ fn shutdown(restart: bool) void {
     };
     if (active.world) |*value| rooms.checkpoint(value, &active.clients) catch |err| runtimeFailure(err);
     active = &initial_context;
+    active.running = false;
+    active.configuration.deinit();
     if (active.handle) |handle| @import("engine/worlds.zig").select(handle) catch {};
     _ = @import("server/resources.zig").select(&active.resources);
     resident_worlds.deinit();
@@ -71,6 +75,8 @@ fn init(now: i64, restart: bool) !void {
     active.world = component.World.initNamespaced(std.heap.c_allocator, 1024, 0);
     active.handle = @import("engine/worlds.zig").current();
     active.network_id = 0;
+    @import("server/region_access.zig").region = .{ .initial = &initial_context, .residents = &resident_worlds, .manifest = &progression.manifest };
+    engine.config_observer = @import("server/configuration.zig").changed;
     active.activated = true;
     active.stepped_at = now;
     _ = engine.mapName(&active.map_name);
@@ -83,6 +89,7 @@ fn init(now: i64, restart: bool) !void {
     }
     clock = .{ .now_ms = now };
     active.slots = .{};
+    active.presentation = .{};
     active.clients = .{};
     active.bots = .{};
     social = .{};
@@ -150,6 +157,7 @@ fn init(now: i64, restart: bool) !void {
     }
     try rooms.init();
     if (engine.integer("dk3_runtime_probe") == 2) try progression.init();
+    active.configuration.enabled = true;
     // Publish the saved resource registry while the engine is still loading the
     // map. The initial gamestate must contain these identities; replacing them
     // at ClientBegin can overflow reliable commands before any acknowledgement.
@@ -182,8 +190,10 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
     // Remaining work publishes admitted state; unexpected invariant failures are
     // runtime errors, never a partially successful load reported to the player.
     @import("server/resources.zig").restore(header.resources) catch |err| runtimeFailure(err);
+    active.systems.actors.prepareParty() catch |err| runtimeFailure(err);
     active.targets = .{ .pending = header.pending, .scripts = &active.systems.scripts, .cinematics = &active.systems.cinematics, .actors = &active.systems.actors };
     persistence.project(&active.world.?, &active.slots, &active.projection, &active.clients, &active.players, &active.systems, header, clock.now_ms) catch |err| runtimeFailure(err);
+    try active.auditRestore(clock.now_ms);
     if (staged_campaign) |state| {
         campaign.deinit();
         campaign = state;
@@ -568,14 +578,18 @@ fn depart(request: @import("domain/travel.zig").Request) !void {
     var arrival: ?campaign_module.Arrival = null;
     if (edge.kind != .identity) {
         var traveler = try @import("domain/travel.zig").Traveler.capture(&active.world.?, player, active.clients.episode, clock.now_ms);
+        traveler.selectParty(journey);
         try @import("server/weapon_actions.zig").cancel(&active.world.?, &active.slots, &active.projection, player);
         try traveler.arrive(destination.clients.episode, clock.now_ms, &destination.clients.weapon_table);
         arrival = .{ .journey = journey, .traveler = traveler };
     }
+    const source = active;
     try activateWorld(destination);
     if (arrival) |value| {
         try active.clients.arrive(&active.world.?, &active.slots, &active.projection, &active.players, value, &active.systems.actors, clock.now_ms);
+        try @import("server/world_transfer.zig").party(source, active, value.traveler);
     } else try campaign_module.disarmArrival(&active.world.?, &active.projection, active.clients.entities[0].?);
+    try @import("server/region_presentation.zig").State.tag(active);
     progression.pending = null;
     progression.hold(false);
     checkpoint.pending = true;
@@ -662,11 +676,13 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     engine.print("dk3 region: initial admission committed\n");
                 }
                 _ = progression.ready(&resident_worlds, &initial_context, std.mem.sliceTo(&active.map_name, 0), true) catch |err| runtimeFailure(err);
+                progression.publishPortals() catch |err| runtimeFailure(err);
                 if (progression.pending) |request| {
                     depart(request) catch |err| runtimeFailure(err);
                     return 0;
                 }
                 rooms.tick(&active.world.?, &active.clients, clock.now_ms) catch |err| runtimeFailure(err);
+                active.running = true;
                 active.systems.multiplayer.warmup = rooms.warmup_ms != 0;
                 campaign_module.endings(&active.world.?, &active.targets, clock.now_ms) catch |err| runtimeFailure(err);
                 active.systems.cinematics.step(&active.world.?, &active.slots, &active.projection, &active.targets, active.clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
@@ -681,6 +697,9 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     campaign_module.camera(&active.world.?, entity.?, &active.players[index]) catch |err| runtimeFailure(err);
                 };
                 active.stepped_at = clock.now_ms;
+                @import("server/region_simulation.zig").step(active, clock.now_ms, elapsed) catch |err| runtimeFailure(err);
+                @import("server/configuration.zig").publish() catch |err| runtimeFailure(err);
+                active.presentation.publish(active, clock.now_ms) catch |err| runtimeFailure(err);
                 recovery() catch |err| saveFeedback(err);
                 if (active.targets.travel) |request| {
                     active.targets.travel = null;
@@ -697,6 +716,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             if (arg0 < 0 or arg0 >= c.MAX_CLIENTS) return 0;
             var command_buffer: [64]u8 = undefined;
             const client_command = engine.argv(0, &command_buffer);
+            if (@import("server/configuration.zig").clientCommand(@intCast(arg0), client_command)) return 0;
             if (resident_worlds.clientCommand(@intCast(arg0), client_command) catch |err| runtimeFailure(err)) return 0;
             if (arg0 == 0 and (saveCommand(client_command) catch |err| {
                 saveFeedback(err);

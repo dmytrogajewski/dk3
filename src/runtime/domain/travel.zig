@@ -27,6 +27,7 @@ pub fn kind(source: []const u8, destination: []const u8) Kind {
     return .chapter;
 }
 pub const Follower = struct {
+    persistent_id: u32 = 0,
     classname: []const u8,
     offset: data.Vec3 = @splat(0),
     angles: data.Vec3 = @splat(0),
@@ -53,9 +54,15 @@ pub const Traveler = struct {
         while (query.next()) |view| for (view.entities(), view.read(data.Companion)) |entity, state| {
             if (state.owner != try world.persistentId(player)) continue;
             const pose = (try world.get(entity, data.Transform)).*;
-            result.companions[@intFromEnum(state.identity)] = .{ .offset = @import("vector.zig").subtract(pose.position, (try world.get(player, data.Transform)).position), .angles = pose.angles, .classname = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition].classname, .state = state, .health = (try world.get(entity, data.Health)).*, .weapons = (try world.get(entity, data.Weapons)).*, .character = (try world.get(entity, data.Character)).*, .keys = (try world.get(entity, data.Keys)).*, .ailments = (try world.get(entity, data.Ailments)).* };
+            result.companions[@intFromEnum(state.identity)] = .{ .persistent_id = try world.persistentId(entity), .offset = @import("vector.zig").subtract(pose.position, (try world.get(player, data.Transform)).position), .angles = pose.angles, .classname = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition].classname, .state = state, .health = (try world.get(entity, data.Health)).*, .weapons = (try world.get(entity, data.Weapons)).*, .character = (try world.get(entity, data.Character)).*, .keys = (try world.get(entity, data.Keys)).*, .ailments = (try world.get(entity, data.Ailments)).* };
         };
         return result;
+    }
+    pub fn selectParty(self: *Traveler, journey: Journey) void {
+        if (journey.kind != .submap) return;
+        for (&self.companions, 0..) |*follower, index| if (journey.companions & (@as(u2, 1) << @as(u1, @intCast(index))) == 0) {
+            follower.* = null;
+        };
     }
     pub fn arrive(self: *Traveler, episode: u8, now: i64, table: *const @import("weapons.zig").Table) !void {
         const delta = try std.math.sub(i64, now, self.at_ms);
@@ -146,4 +153,21 @@ test "travel separates submap continuity from chapter and episode reset" {
     try std.testing.expectEqual(@as(u32, 0), traveler.keys.mask);
     try std.testing.expectEqual(@as(i32, 800), traveler.weapons.dk3SwordExperience);
     try std.testing.expectEqual(@as(i32, 64), traveler.health.current);
+}
+
+test "submap party selection honors exit flags and retains continuing birth identities" {
+    const t = std.testing;
+    const mikiko: Follower = .{ .persistent_id = 0x1000010, .classname = "mikiko", .state = .{ .identity = .mikiko }, .health = .{ .current = 61 }, .weapons = .{}, .character = .{}, .keys = .{}, .ailments = .{} };
+    const superfly: Follower = .{ .persistent_id = 0x1000011, .classname = "superfly", .state = .{ .identity = .superfly }, .health = .{ .current = 72 }, .weapons = .{}, .character = .{}, .keys = .{}, .ailments = .{} };
+    var traveler: Traveler = .{ .companions = .{ mikiko, superfly }, .health = .{}, .weapons = .{}, .character = .{}, .keys = .{}, .ailments = .{}, .episode = 3, .at_ms = 1000 };
+    var chapter = traveler;
+    traveler.selectParty(.{ .destination = "e3m1b", .kind = .submap, .companions = 2 });
+    try t.expectEqual(null, traveler.companions[0]);
+    try t.expectEqual(superfly.persistent_id, traveler.companions[1].?.persistent_id);
+    try t.expectEqual(@as(i32, 72), traveler.companions[1].?.health.current);
+    try traveler.arrive(3, 2000, &.{});
+    try t.expectEqual(superfly.persistent_id, traveler.companions[1].?.persistent_id);
+    chapter.selectParty(.{ .destination = "e3m2a", .kind = .chapter });
+    try t.expectEqual(mikiko.persistent_id, chapter.companions[0].?.persistent_id);
+    try t.expectEqual(superfly.persistent_id, chapter.companions[1].?.persistent_id);
 }

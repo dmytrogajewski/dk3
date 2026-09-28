@@ -43,14 +43,15 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const player = (try world.get(owner.?, data.Player)).*;
         const eye = @import("../domain/combat.zig").eye(pose.position, player.view_height);
         const muzzle = @import("../domain/combat.zig").muzzle(eye, pose.angles, W.muzzle);
-        const start = (try engine.collisionService().trace(.{ .start = eye, .end = muzzle, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT })).end;
-        const hit = try engine.collisionService().trace(.{ .start = start, .end = v.add(start, v.scale(v.basis(pose.angles).forward, W.visual.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+        const muzzle_hit = try @import("region_collision.zig").trace(.{ .start = eye, .end = muzzle, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+        const start = muzzle_hit.end;
+        const hit = try @import("region_collision.zig").from(muzzle_hit.world, .{ .start = start, .end = v.add(start, v.scale(v.basis(pose.angles).forward, W.visual.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT }, beam.owner);
         beam.endpoint = hit.end;
         const previous = beam.phase;
         const tick = beam.advance(now, (try world.get(owner.?, data.Weapons)).ammo[W.id]);
         (try world.get(owner.?, data.Weapons)).ammo[W.id] -= tick.consumed;
-        if (tick.damage > 0 and hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |target| {
-            _ = try @import("weapon_damage.zig").hurt(world, target, beam.owner, W.id, tick.damage, now, false);
+        if (tick.damage > 0) if (@import("region_access.zig").victim(world, slots, hit)) |target| {
+            _ = try @import("weapon_damage.zig").hurt(target.world, target.entity, beam.owner, W.id, tick.damage, now, false);
         };
         if (tick.finish) try @import("events.zig").sound(world, slots, projections, W.spec.audio.finish.?, start, slot, c.CHAN_WEAPON, now);
         if (engine.integer("developer") > 0 and previous != beam.phase) {

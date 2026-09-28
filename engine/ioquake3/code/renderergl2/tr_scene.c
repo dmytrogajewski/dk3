@@ -126,6 +126,8 @@ void R_AddPolygonSurfaces( void ) {
 	fogMask = -((tr.refdef.rdflags & RDF_NOFOG) == 0);
 
 	for ( i = 0, poly = tr.refdef.polys; i < tr.refdef.numPolys ; i++, poly++ ) {
+        if (!(tr.refdef.rdflags & RDF_NOWORLDMODEL) && poly->worldRegistration != tr.worldRegistration) continue;
+        if (tr.viewParms.isPortal && R_ResidentPortal(&poly->surfaceType)) continue;
 		sh = R_GetShaderByHandle( poly->hShader );
 		R_AddDrawSurf( ( void * )poly, sh, poly->fogIndex & fogMask, qfalse, qfalse, 0 /*cubeMap*/  );
 	}
@@ -169,6 +171,7 @@ void RE_AddPolyToScene( qhandle_t hShader, int numVerts, const polyVert_t *verts
 
 		poly = &backEndData->polys[r_numpolys];
 		poly->surfaceType = SF_POLY;
+        poly->worldRegistration = tr.worldRegistration;
 		poly->hShader = hShader;
 		poly->numVerts = numVerts;
 		poly->verts = &backEndData->polyVerts[r_numpolyverts];
@@ -251,6 +254,8 @@ void RE_AddRefEntityToScene( const refEntity_t *ent ) {
 	}
 
 	backEndData->entities[r_numentities].e = *ent;
+    if (!backEndData->entities[r_numentities].e.dk3World)
+        backEndData->entities[r_numentities].e.dk3World = tr.worldRegistration;
 	backEndData->entities[r_numentities].lightingCalculated = qfalse;
 
 	CrossProduct(ent->axis[0], ent->axis[1], cross);

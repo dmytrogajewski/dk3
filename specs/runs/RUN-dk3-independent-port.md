@@ -6168,3 +6168,44 @@ are historical evidence and require replay after the shared owner/restore change
 
 Main, installed playable game, user saves and live service remain unchanged.
 Continue with cross-world gameplay and party ownership; this checkpoint is not completion.
+
+## runtime-zig-303 — connected views and qualified combat
+
+Consolidated build `f9ba99b696f7ac14bf84776586b4affcee55b42b27c439690e26c30e319b6b11`;
+combined identity `5f174004f53ad81db214e07b8c84591e34358b03c99e30a0600715426c20c9cd`.
+All six final scenarios record that identity. Base assets
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`;
+region manifest `f0cb127dcc3fa705a51cc5d9fd597960396e7bfdc3ca2cc55e709998e6a1368d`.
+Evidence: `zig-out/reports/runtime-zig-303/`.
+
+Implemented qualified collision, selected projectile transfers, neighbor simulation,
+world-owned aperture rendering, foreign snapshot slot leases and acknowledged late
+resource publication. Protocol 1349 and renderer ABI 12 carry explicit ownership.
+Party ID rebinding is implemented/contract-tested; natural companion traversal and
+running-engine party transfer acceptance remain open.
+
+| Evidence | Outcome | Limits |
+|---|---|---|
+| `foreign-final-opengl1/`, `foreign-final-opengl2/` | Both renderers submit the actual B-owned target while the hero stays in A; verified qualified contact and ordinary Glock/Ion/Sidewinder attacks reduce health. A newly registered B model arrives through acknowledged updates. Normal and destination-only frames retained; final normal frames inspected. | Controlled placement/equipment and synthetic target; one aperture, not authored pursuit or fresh campaign acceptance. |
+| `crossing-final/` | Actual movement triggers A→B→A, retaining identity, health, input and connection; region save succeeds. | Controlled initial approach. |
+| `legacy-visited-boundary/` | Original sequence-294 fixture restores all 53 A/B actors with exact health before simulation. Actual retirement events account separately for 36 subsequent gib removals. Controlled visits, schema-2 save/reload and obsolete-handoff rejection pass. | Fixture unchanged; no fresh traversal or complete saved-controller coverage. |
+| `cinematic-restore-final/` | Controlled six-world fixture restores its factory cinematic, completes it, resumes movement and saves during further preparation. Final frame inspected. | Not full intro/factory progression. |
+| `lan-final/` | Two real UDP clients pass the existing movement/fire/death/respawn/spectate/rejoin/reconnect/restart scenario on protocol 1349. | Full modes and public service unverified; no deployment. |
+| `aggregate-final.log` | 44/44 steps, 398 Zig and 81 Python tests pass; actual C owner/collision/inline-handle checks and intended roots execute with assertions enabled. | Contracts support the narrower engine scenarios. |
+
+Failure evidence is preserved and detailed in `docs/native-acceptance.md`. GL2
+portal rendering first crashed by indexing a source brush against destination
+surfaces; explicit scene ownership repairs both renderers. Resource update replay
+caught active configstring loss and reliable-command overflow; preserving current
+gamestate, prioritizing resource fields and limiting chunks by actual acknowledgements
+repairs both. Restore probes initially sampled after legitimate corpse retirement;
+read-only installation-boundary auditing now establishes restoration first. No
+damage, lifetime, geometry or puzzle change was made to satisfy these diagnostics.
+
+The first aggregate caught a client helper in the pure domain layer; relocation
+to the client adapter passes the unchanged architecture check in the final suite.
+Actor/companion pursuit, specialized cross-world weapons, multiple/recursive views,
+remaining seam classification, eviction/admission stalls and fresh campaign/full
+multiplayer acceptance remain open. Continue implementation beyond this checkpoint.
+Main, preserved installation, user saves and live service remain unchanged.

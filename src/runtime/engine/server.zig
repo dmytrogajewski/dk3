@@ -16,8 +16,15 @@ pub fn integer(name: [:0]const u8) i32 {
 pub fn register(name: [:0]const u8, value: [:0]const u8, flags: i32) void {
     _ = gateway.call(c.G_CVAR_REGISTER, .{ @as(?*c.vmCvar_t, null), name.ptr, value.ptr, @as(isize, flags) });
 }
+pub var config_observer: ?*const fn (i32) void = null;
 pub fn config(index: i32, text: [:0]const u8) void {
+    if (config_observer != null) {
+        var previous: [c.MAX_GAMESTATE_CHARS]u8 = undefined;
+        _ = gateway.call(c.G_GET_CONFIGSTRING, .{ @as(isize, index), &previous, @as(isize, previous.len) });
+        if (std.mem.eql(u8, std.mem.sliceTo(&previous, 0), text)) return;
+    }
     _ = gateway.call(c.G_SET_CONFIGSTRING, .{ @as(isize, index), text.ptr });
+    if (config_observer) |observer| observer(index);
 }
 pub fn token(out: []u8) ?[]const u8 {
     if (gateway.call(c.G_GET_ENTITY_TOKEN, .{ out.ptr, @as(isize, @intCast(out.len)) }) == 0) return null;

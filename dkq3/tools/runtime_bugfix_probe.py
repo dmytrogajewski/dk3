@@ -175,12 +175,17 @@ def run(args, scenario=None):
         stage_client_modules(args.engine, home, installation=args.engine)
         settings = client_settings(args.engine, home, args.renderer)
         settings.update(g_spSkill="3", r_picmip="0")
+        if getattr(args, "restore_audit", False):
+            settings["dk3_runtime_restore_audit"] = "1"
         if getattr(args, "cinematics", False):
             settings['dk3_cinematics'] = '1'
         command = [str(args.engine / "bin/dk3")]
         for key, value in settings.items():
             command += ["+set", key, value]
         command += ["+devmap", getattr(args, "start_map", "e1m1b" if args.scenario == "bridge" else "e1m1a")]
+        if getattr(args, 'debugger', False):
+            command = ['gdb', '--batch', '-ex', 'set pagination off', '-ex', 'handle SIGILL stop print nopass',
+                       '-ex', 'run', '-ex', 'thread apply all bt', '-ex', 'info registers', '--args'] + command
         log = args.report / "client.log"
         with log.open("w") as output:
             process = subprocess.Popen(command, stdout=output, stderr=subprocess.STDOUT)

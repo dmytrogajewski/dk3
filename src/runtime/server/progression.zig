@@ -13,17 +13,17 @@ fn ammunition(world: *data.World, attacker: @import("../ecs/world.zig").Entity, 
     }
 }
 pub fn kill(world: *data.World, receipt: data.Hurt, base_health: i32, episode: u8, table: *const @import("../domain/weapons.zig").Table) !void {
-    const attacker = world.find(receipt.source) orelse return;
-    const character = world.get(attacker, data.Character) catch return;
+    const attacker = @import("region_access.zig").find(world, receipt.source) orelse return;
+    const character = attacker.get(data.Character) catch return;
     const amount = @divTrunc(base_health * @as(i32, episode), 10);
     const sword_kill = receipt.weapon == @import("weapon_catalog").daikatana.id;
     const levels = if (sword_kill) 0 else try character.award(amount);
     const sword = @import("weapon_catalog").swordExperience(receipt.weapon, base_health);
-    if (world.get(attacker, data.Weapons) catch null) |loadout| loadout.dk3SwordExperience = try std.math.add(i32, loadout.dk3SwordExperience, sword);
-    if (!sword_kill and amount > 0) try ammunition(world, attacker, episode, table);
+    if (attacker.get(data.Weapons) catch null) |loadout| loadout.dk3SwordExperience = try std.math.add(i32, loadout.dk3SwordExperience, sword);
+    if (!sword_kill and amount > 0) try ammunition(attacker.world, attacker.entity, episode, table);
     if (engine.integer("developer") > 0) {
         var message: [192]u8 = undefined;
-        engine.print(try std.fmt.bufPrintZ(&message, "dk3 zig progression: player={d} experience={d} sword={d} level={d} gained={d} points={d}\n", .{ receipt.source, character.experience, if (world.get(attacker, data.Weapons) catch null) |loadout| loadout.dk3SwordExperience else 0, character.level, levels, character.points }));
+        engine.print(try std.fmt.bufPrintZ(&message, "dk3 zig progression: player={d} experience={d} sword={d} level={d} gained={d} points={d}\n", .{ receipt.source, character.experience, if (attacker.get(data.Weapons) catch null) |loadout| loadout.dk3SwordExperience else 0, character.level, levels, character.points }));
     }
 }
 

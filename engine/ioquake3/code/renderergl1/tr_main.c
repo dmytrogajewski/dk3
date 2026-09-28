@@ -666,14 +666,37 @@ be moving and rotating.
 Returns qtrue if it should be mirrored
 =================
 */
+/* An admitted resident aperture names its own quad, not every coplanar
+ * engine portal. The original mirror matching remains unchanged. */
+const refEntity_t *R_ResidentPortal(const surfaceType_t *surface) {
+    const srfPoly_t *poly;
+    vec3_t center, delta;
+    int i, j;
+    if (!surface || *surface != SF_POLY) return NULL;
+    poly = (const srfPoly_t *)surface;
+    if (poly->numVerts != 4) return NULL;
+    VectorClear(center);
+    for (i = 0; i < poly->numVerts; ++i) VectorAdd(center, poly->verts[i].xyz, center);
+    VectorScale(center, 0.25f, center);
+    for (j = 0; j < tr.refdef.num_entities; ++j) {
+        const refEntity_t *entity = &tr.refdef.entities[j].e;
+        if (entity->reType != RT_PORTALSURFACE || !entity->dk3PortalWorld) continue;
+        VectorSubtract(center, entity->origin, delta);
+        if (VectorLengthSquared(delta) < 0.0001f) return entity;
+    }
+    return NULL;
+}
+
 qboolean R_GetPortalOrientations( drawSurf_t *drawSurf, int entityNum, 
 							 orientation_t *surface, orientation_t *camera,
-							 vec3_t pvsOrigin, qboolean *mirror ) {
+							 vec3_t pvsOrigin, qboolean *mirror, unsigned int *residentWorld ) {
 	int			i;
 	cplane_t	originalPlane, plane;
 	trRefEntity_t	*e;
 	float		d;
 	vec3_t		transformed;
+
+    *residentWorld = 0;
 
 	// create plane axis for the portal we are seeing
 	R_PlaneForSurface( drawSurf->surface, &originalPlane );
@@ -710,10 +733,23 @@ qboolean R_GetPortalOrientations( drawSurf_t *drawSurf, int entityNum,
 			continue;
 		}
 
+        if (e->e.dk3PortalWorld && R_ResidentPortal(drawSurf->surface) != &e->e) continue;
+
 		d = DotProduct( e->e.origin, originalPlane.normal ) - originalPlane.dist;
 		if ( d > 64 || d < -64) {
 			continue;
 		}
+
+        if (e->e.dk3PortalWorld) {
+            /* Reviewed identity seam: no camera translation or reflection.
+             * The separately supplied PVS point is inside the far corridor. */
+            VectorCopy(e->e.origin, surface->origin);
+            *camera = *surface;
+            VectorCopy(e->e.oldorigin, pvsOrigin);
+            *mirror = qfalse;
+            *residentWorld = e->e.dk3PortalWorld;
+            return qtrue;
+        }
 
 		// get the pvsOrigin from the entity
 		VectorCopy( e->e.oldorigin, pvsOrigin );
@@ -792,6 +828,9 @@ static qboolean IsMirror( const drawSurf_t *drawSurf, int entityNum )
 	trRefEntity_t	*e;
 	float		d;
 
+    /* Resident apertures never use distance-alpha fading. */
+    if (R_ResidentPortal(drawSurf->surface)) return qtrue;
+
 	// create plane axis for the portal we are seeing
 	R_PlaneForSurface( drawSurf->surface, &originalPlane );
 
@@ -857,6 +896,9 @@ static qboolean SurfIsOffscreen( const drawSurf_t *drawSurf, vec4_t clipDest[128
 	int i;
 	unsigned int pointAnd = (unsigned int)~0;
 
+    cplane_t polygonPlane;
+    if (*drawSurf->surface == SF_POLY) R_PlaneForSurface(drawSurf->surface, &polygonPlane);
+
 	R_RotateForViewer();
 
 	R_DecomposeSort( drawSurf->sort, &entityNum, &shader, &fogNum, &dlighted );
@@ -912,7 +954,7 @@ static qboolean SurfIsOffscreen( const drawSurf_t *drawSurf, vec4_t clipDest[128
 			shortest = len;
 		}
 
-		if ( DotProduct( normal, tess.normal[tess.indexes[i]] ) >= 0 )
+		if ( DotProduct( normal, *drawSurf->surface == SF_POLY ? polygonPlane.normal : tess.normal[tess.indexes[i]] ) >= 0 )
 		{
 			numTriangles--;
 		}
@@ -950,6 +992,9 @@ qboolean R_MirrorViewBySurface (drawSurf_t *drawSurf, int entityNum) {
 	viewParms_t		oldParms;
 	orientation_t	surface, camera;
 
+    unsigned int residentWorld = 0, previousWorld = RE_CurrentWorld();
+    byte savedAreaMask[MAX_MAP_AREA_BYTES];
+
 	// don't recursively mirror
 	if (tr.viewParms.isPortal) {
 		ri.Printf( PRINT_DEVELOPER, "WARNING: recursive mirror/portal found\n" );
@@ -971,7 +1016,7 @@ qboolean R_MirrorViewBySurface (drawSurf_t *drawSurf, int entityNum) {
 	newParms = tr.viewParms;
 	newParms.isPortal = qtrue;
 	if ( !R_GetPortalOrientations( drawSurf, entityNum, &surface, &camera, 
-		newParms.pvsOrigin, &newParms.isMirror ) ) {
+		newParms.pvsOrigin, &newParms.isMirror, &residentWorld ) ) {
 		return qfalse;		// bad portal, no portalentity
 	}
 
@@ -986,8 +1031,20 @@ qboolean R_MirrorViewBySurface (drawSurf_t *drawSurf, int entityNum) {
 
 	// OPTIMIZE: restrict the viewport on the mirrored view
 
-	// render the mirror view
-	R_RenderView (&newParms);
+    // Resident backend tables are scoped across the complete queued view.
+    // Ordinary engine mirrors retain their existing path.
+    if (residentWorld) {
+        if (!RE_SelectWorld(residentWorld)) ri.Error(ERR_DROP, "Lost resident portal destination");
+        Com_Memcpy(savedAreaMask, tr.refdef.areamask, sizeof(savedAreaMask));
+        Com_Memset(tr.refdef.areamask, 0, sizeof(tr.refdef.areamask));
+        tr.refdef.areamaskModified = qtrue;
+    }
+    R_RenderView(&newParms);
+    if (residentWorld) {
+        if (!RE_SelectWorld(previousWorld)) ri.Error(ERR_DROP, "Lost resident portal source");
+        Com_Memcpy(tr.refdef.areamask, savedAreaMask, sizeof(savedAreaMask));
+        tr.refdef.areamaskModified = qtrue;
+    }
 
 	tr.viewParms = oldParms;
 
@@ -1191,6 +1248,7 @@ void R_AddEntitySurfaces (void) {
 	      tr.currentEntityNum < tr.refdef.num_entities; 
 		  tr.currentEntityNum++ ) {
 		ent = tr.currentEntity = &tr.refdef.entities[tr.currentEntityNum];
+		if (!(tr.refdef.rdflags & RDF_NOWORLDMODEL) && ent->e.dk3World != tr.worldRegistration) continue;
 
 		ent->needDlights = qfalse;
 

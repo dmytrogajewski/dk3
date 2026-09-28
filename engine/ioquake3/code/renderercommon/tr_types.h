@@ -117,6 +117,8 @@ typedef struct {
 	// extra sprite information
 	float		radius;
 	float		rotation;
+    unsigned int dk3World; /* scene owner; zero captures the selected resident world */
+    unsigned int dk3PortalWorld; /* checked resident renderer owner, zero for ordinary portals */
 } refEntity_t;
 
 

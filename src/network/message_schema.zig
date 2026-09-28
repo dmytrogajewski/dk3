@@ -34,6 +34,8 @@ pub const entity = [_]Field{
     Field.of(c.entityState_t, "origin[2]", 0),
     Field.of(c.entityState_t, "solid", 24),
     Field.of(c.entityState_t, "powerups", c.MAX_POWERUPS),
+    Field.of(c.entityState_t, "dk3World", 32),
+    Field.of(c.entityState_t, "dk3Identity", 32),
     Field.of(c.entityState_t, "dk3Team", 2),
     Field.of(c.entityState_t, "dk3Carrier", 7),
     Field.of(c.entityState_t, "dk3SoundVolume", 0),

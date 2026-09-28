@@ -61,7 +61,7 @@ fn applyResolved(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, 
             actor.kage.refund(&health.current, amount);
             result.killed = false;
         }
-        if (kind == .ghost and !result.killed) if (world.find(options.source)) |source| if ((world.get(source, data.Player) catch null) != null) {
+        if (kind == .ghost and !result.killed) if (@import("region_access.zig").find(world, options.source)) |source| if ((source.get(data.Player) catch null) != null) {
             health.current -= amount;
             result.blood += amount;
             result.killed = health.current <= 0;

@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Explicit migration of persistent references from independent visited saves.
+//! Explicit rewriting of persistent references for save and actor ownership.
 //! Slots, counters, random seeds, masks and resource indices are never identities.
 const std = @import("std");
 const data = @import("components.zig");
 pub const Mapping = struct {
-    namespace: u7,
-    old_player: u32,
-    player: u32,
+    namespace: ?u7 = null,
+    from: u32,
+    to: u32,
     pub fn id(self: Mapping, value: u32) !u32 {
         if (value == 0) return 0;
-        if (value > 0xffffff) return error.InvalidLegacyIdentity;
-        if (value == self.old_player) return self.player;
-        return (@as(u32, self.namespace) << 24) | value;
+        if (self.namespace != null and value > 0xffffff) return error.InvalidLegacyIdentity;
+        if (value == self.from) return self.to;
+        return if (self.namespace) |namespace| (@as(u32, namespace) << 24) | value else value;
     }
     fn one(self: Mapping, value: *u32) !void {
         value.* = try self.id(value.*);
@@ -26,6 +26,24 @@ pub const Mapping = struct {
         for (values) |*value| try self.one(value);
     }
 };
+/// Rebind references to an authored destination incarnation before retiring its
+/// old ID. The same typed inventory used by legacy migration excludes counters.
+pub fn replace(world: *data.World, pending: *@import("target_actions.zig").Queue, from: u32, to: u32) !void {
+    if (from == 0 or to == 0) return error.InvalidEntityIdentity;
+    if (from == to) return;
+    const mapping: Mapping = .{ .from = from, .to = to };
+    var query = world.queryAccess(0, 0, 0);
+    defer query.deinit();
+    while (query.next()) |view| for (view.entities()) |entity| {
+        inline for (std.meta.fields(data.Component)) |field| if (world.get(entity, field.type) catch null) |value| {
+            try remap(@field(data.ComponentId, field.name), value, mapping);
+        };
+    };
+    for (pending) |*entry| if (entry.*) |*action| {
+        action.source = try mapping.id(action.source);
+        action.activator = try mapping.id(action.activator);
+    };
+}
 pub fn remap(comptime kind: data.ComponentId, value: *data.types[@intFromEnum(kind)], map: Mapping) !void {
     switch (kind) {
         .body => try map.optional(&value.motion_owner),
@@ -125,7 +143,7 @@ pub fn remap(comptime kind: data.ComponentId, value: *data.types[@intFromEnum(ki
 
 test "legacy reference mapping preserves counters resources and random state" {
     const t = std.testing;
-    const map: Mapping = .{ .namespace = 3, .old_player = 7, .player = 0x1000008 };
+    const map: Mapping = .{ .namespace = 3, .from = 7, .to = 0x1000008 };
     var actor: data.Actor = .{ .definition = 0, .uses = 7, .receipt = 7, .threat = 7, .path = 12, .ground_entity = 12, .audio = .{ .threat = 7 }, .cambot = .{ .alarmed = 12 }, .wyndrax = .{ .source = 13, .charge = 14 } };
     try remap(.actor, &actor, map);
     try t.expectEqual(@as(u32, 0x1000008), actor.threat);
@@ -151,4 +169,25 @@ test "legacy reference mapping preserves counters resources and random state" {
     try remap(.binding, &binding, map);
     try t.expectEqual(data.Binding{ .slot = 7, .model = 12 }, binding);
     try t.expectError(error.InvalidLegacyIdentity, map.id(0x2000007));
+}
+
+test "rebinding a party incarnation rewrites typed references without renaming other identities" {
+    const t = std.testing;
+    var world = data.World.initNamespaced(t.allocator, 4, 2);
+    defer world.deinit();
+    const old: u32 = 0x200002a;
+    const birth: u32 = 0x1000021;
+    const actor = try world.create(null, .{data.Actor{ .definition = 0, .threat = old, .path = 0x200001b, .receipt = old }});
+    const script = try world.create(null, .{data.Script{ .name = "arrival", .activator = old, .revision = old }});
+    var pending: @import("target_actions.zig").Queue = @splat(null);
+    pending[0] = .{ .source = old, .activator = 7, .due_ms = 1500 };
+    try replace(&world, &pending, old, birth);
+    try t.expectEqual(birth, (try world.get(actor, data.Actor)).threat);
+    try t.expectEqual(@as(u32, 0x200001b), (try world.get(actor, data.Actor)).path);
+    try t.expectEqual(old, (try world.get(actor, data.Actor)).receipt);
+    try t.expectEqual(birth, (try world.get(script, data.Script)).activator);
+    try t.expectEqual(old, (try world.get(script, data.Script)).revision);
+    try t.expectEqual(birth, pending[0].?.source);
+    try t.expectEqual(@as(u32, 7), pending[0].?.activator);
+    try t.expectEqual(@as(i64, 1500), pending[0].?.due_ms);
 }

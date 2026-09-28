@@ -4,6 +4,7 @@
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import struct
 import zlib
@@ -87,9 +88,18 @@ def migration(driver, report, capture, fixture):
         expected = {namespace << 24 | identity: entity['health']['current']
                     for identity, entity in old_entities.items() if 'actor' in entity}
         assert expected and any(health <= 0 for health in expected.values()), name
+        boundary = {int(identity): int(health) for owner, identity, health in re.findall(
+            r'dk3 restore actor: map=(\w+) id=(\d+) health=(-?\d+) at=\d+', driver.text()[start:]) if owner == name}
+        assert f'dk3 restore actors complete: map={name} ' in driver.text()[start:]
+        assert boundary == expected, (name, expected, boundary)
+        retired = {int(identity) for owner, identity, reason in re.findall(
+            r'dk3 actor retired: map=(\w+) id=(\d+) reason=(gibbed|turret) at=\d+', driver.text()[start:]) if owner == name}
         for identity, health in expected.items():
-            assert new_entities[identity]['health']['current'] == health, (name, identity)
-        evidence[name] = dict(namespace=namespace, actors=expected,
+            if identity in new_entities:
+                assert new_entities[identity]['health']['current'] == health, (name, identity)
+            else:
+                assert health <= 0 and identity in retired, (name, identity, health)
+        evidence[name] = dict(namespace=namespace, actors=expected, restoration_boundary=boundary,
                               archived_player=old_header['player_id'])
     # Controlled transfer permits direct inspection of each actual restored ECS.
     # The old worlds are already admitted; placement avoids crossing an exit while
@@ -101,8 +111,18 @@ def migration(driver, report, capture, fixture):
         state = driver.until(lambda s: s['map'] == name)
         assert state['player_id'] == header['player_id']
         actual = actors(driver)
+        retired = []
         for identity, health in evidence[name]['actors'].items():
-            assert identity in actual and actual[identity]['health'] == health, (name, identity, health, actual.get(identity))
+            if identity not in actual:
+                # The boundary audit must prove this actor was restored first;
+                # only an observed class-owned retirement permits later absence.
+                retired_ids = {int(value) for owner, value in re.findall(
+                    r'dk3 actor retired: map=(\w+) id=(\d+) reason=(?:gibbed|turret) at=\d+', driver.text()[start:]) if owner == name}
+                assert health <= 0 and identity in retired_ids, (name, identity, health, state)
+                retired.append(identity)
+            else:
+                assert actual[identity]['health'] == health, (name, identity, health, actual[identity])
+        evidence[name]['retired_after_restore'] = retired
         event(driver, 'dk3 world presentation: entered=', presentation_start)
         capture(f'{name}-migrated')
     # A second actual load must use schema-2 residents, not migrate the same
@@ -131,4 +151,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
     args.engine, args.report = args.engine.resolve(), args.report.resolve()
     args.scenario = 'visited-migration'
+    args.restore_audit = True
     run(args, lambda driver, report, capture: migration(driver, report, capture, args.fixture.resolve()))

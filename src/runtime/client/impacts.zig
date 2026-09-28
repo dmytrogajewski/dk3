@@ -8,11 +8,11 @@ const v = @import("../domain/vector.zig");
 const marks = @import("../engine/marks.zig");
 const Random = @import("../domain/components.zig").Random;
 const sprites = @import("sprites.zig");
-const Sprite = struct { media: ?u8 = null, origin: v.Vec3 = @splat(0), scale: f32 = 1, rate: u8 = 20, at: i64 = 0, normal: ?v.Vec3 = null, additive: bool = true, alpha: u8 = 255, fade: bool = false };
-const Mark = struct { polygon: marks.Polygon = .{}, shader: c.qhandle_t = 0, at: i64 = 0, origin: v.Vec3 = @splat(0), normal: v.Vec3 = @splat(0) };
-const Particle = struct { shader: c.qhandle_t = 0, origin: v.Vec3 = @splat(0), velocity: v.Vec3 = @splat(0), color: [3]f32 = @splat(1), at: i64 = 0, radius: f32 = 2 };
-const Light = struct { origin: v.Vec3 = @splat(0), color: [3]f32 = @splat(1), radius: f32 = 0, at: i64 = 0, duration: u16 = 1 };
-var seen: [c.MAX_GENTITIES]u32 = @splat(0);
+const Sprite = struct { presentation: engine.Presentation = .{}, media: ?u8 = null, origin: v.Vec3 = @splat(0), scale: f32 = 1, rate: u8 = 20, at: i64 = 0, normal: ?v.Vec3 = null, additive: bool = true, alpha: u8 = 255, fade: bool = false };
+const Mark = struct { presentation: engine.Presentation = .{}, polygon: marks.Polygon = .{}, shader: c.qhandle_t = 0, at: i64 = 0, origin: v.Vec3 = @splat(0), normal: v.Vec3 = @splat(0) };
+const Particle = struct { presentation: engine.Presentation = .{}, shader: c.qhandle_t = 0, origin: v.Vec3 = @splat(0), velocity: v.Vec3 = @splat(0), color: [3]f32 = @splat(1), at: i64 = 0, radius: f32 = 2 };
+const Light = struct { presentation: engine.Presentation = .{}, origin: v.Vec3 = @splat(0), color: [3]f32 = @splat(1), radius: f32 = 0, at: i64 = 0, duration: u16 = 1 };
+var seen: [c.MAX_GENTITIES]u128 = @splat(0);
 var decals: [128]Mark = @splat(.{});
 var particles: [256]Particle = @splat(.{});
 var lights: [32]Light = @splat(.{});
@@ -39,8 +39,9 @@ pub fn consume(entity: c.entityState_t) !void {
     for (entity.pos.trBase ++ entity.origin2) |coordinate| if (!std.math.isFinite(coordinate)) return error.InvalidImpactPosition;
     const slot: usize = @intCast(entity.number);
     const serial: u32 = @bitCast(entity.time2);
-    if (serial == 0 or seen[slot] == serial) return;
-    seen[slot] = serial;
+    const key = @as(u128, @as(u32, @bitCast(entity.dk3World))) << 64 | @as(u128, @as(u32, @bitCast(entity.dk3Identity))) << 32 | serial;
+    if (serial == 0 or seen[slot] == key) return;
+    seen[slot] = key;
     if (authored_scorch) {
         var random: Random = .{ .state = serial };
         const dimensions = sprites.extent(try sprites.register("models/global/we_scorch.sp2"), 0);
@@ -57,7 +58,7 @@ pub fn consume(entity: c.entityState_t) !void {
     }
     const normal = v.normalize(entity.origin2);
     if (cue.sprite) |name| {
-        animations[next_animation] = .{ .media = try sprites.register(name), .origin = v.add(entity.pos.trBase, v.scale(normal, 2)), .scale = cue.sprite_scale, .rate = cue.sprite_rate, .at = entity.time, .normal = if (cue.oriented) normal else null, .additive = cue.additive, .alpha = cue.alpha, .fade = cue.fade };
+        animations[next_animation] = .{ .presentation = engine.Presentation.current(), .media = try sprites.register(name), .origin = v.add(entity.pos.trBase, v.scale(normal, 2)), .scale = cue.sprite_scale, .rate = cue.sprite_rate, .at = entity.time, .normal = if (cue.oriented) normal else null, .additive = cue.additive, .alpha = cue.alpha, .fade = cue.fade };
         next_animation = (next_animation + 1) % animations.len;
     }
     var mark_count: usize = 0;
@@ -70,12 +71,12 @@ pub fn consume(entity: c.entityState_t) !void {
         var random: Random = .{ .state = serial ^ 0x496d7061 };
         for (0..cue.particles) |_| {
             const direction = v.normalize(v.add(normal, .{ random.next() * 2 - 1, random.next() * 2 - 1, random.next() * 2 - 1 }));
-            particles[next_particle] = .{ .shader = shader, .origin = v.add(entity.pos.trBase, v.scale(normal, 1)), .velocity = v.scale(direction, 35 + random.next() * 65), .color = cue.color, .at = entity.time, .radius = if (kind == .flesh) 3 else 2 };
+            particles[next_particle] = .{ .presentation = engine.Presentation.current(), .shader = shader, .origin = v.add(entity.pos.trBase, v.scale(normal, 1)), .velocity = v.scale(direction, 35 + random.next() * 65), .color = cue.color, .at = entity.time, .radius = if (kind == .flesh) 3 else 2 };
             next_particle = (next_particle + 1) % particles.len;
         }
     }
     if (cue.light_radius > 0) {
-        lights[next_light] = .{ .origin = v.add(entity.pos.trBase, v.scale(normal, 4)), .color = cue.color, .radius = cue.light_radius, .at = entity.time, .duration = cue.light_ms };
+        lights[next_light] = .{ .presentation = engine.Presentation.current(), .origin = v.add(entity.pos.trBase, v.scale(normal, 4)), .color = cue.color, .radius = cue.light_radius, .at = entity.time, .duration = cue.light_ms };
         next_light = (next_light + 1) % lights.len;
     }
     if (engine.integer("developer") > 0) {
@@ -90,6 +91,8 @@ pub fn draw(now: i64, ref: *const c.refdef_t) void {
         const frame: usize = @intCast(@divTrunc(age * animation.rate, 1000));
         const duration = @divTrunc(@as(i64, sprites.count(index)) * 1000, animation.rate);
         if (age >= duration) continue;
+        const scope = animation.presentation.select();
+        defer scope.deinit();
         const alpha: u8 = if (animation.fade) @intCast(@divTrunc((duration - age) * animation.alpha, duration)) else animation.alpha;
         var right = v.scale(ref.viewaxis[1], -1);
         var up = ref.viewaxis[2];
@@ -103,6 +106,8 @@ pub fn draw(now: i64, ref: *const c.refdef_t) void {
     for (&decals) |*mark| {
         const age = now - mark.at;
         if (mark.shader == 0 or age < 0 or age >= 10000) continue;
+        const scope = mark.presentation.select();
+        defer scope.deinit();
         const alpha: u8 = @intCast(@min(255, @divTrunc((10000 - age) * 255, 1000)));
         for (mark.polygon.vertices[0..mark.polygon.count]) |*vertex| vertex.modulate[3] = alpha;
         _ = engine.gateway.call(c.CG_R_ADDPOLYTOSCENE, .{ @as(isize, mark.shader), @as(isize, mark.polygon.count), &mark.polygon.vertices });
@@ -110,6 +115,8 @@ pub fn draw(now: i64, ref: *const c.refdef_t) void {
     for (particles) |particle| {
         const age = now - particle.at;
         if (particle.shader == 0 or age < 0 or age >= 450) continue;
+        const scope = particle.presentation.select();
+        defer scope.deinit();
         const seconds = @as(f32, @floatFromInt(age)) * 0.001;
         var rendered = std.mem.zeroes(c.refEntity_t);
         rendered.reType = c.RT_SPRITE;
@@ -123,6 +130,8 @@ pub fn draw(now: i64, ref: *const c.refdef_t) void {
     for (lights) |light| {
         const age = now - light.at;
         if (light.radius <= 0 or age < 0 or age >= light.duration) continue;
+        const scope = light.presentation.select();
+        defer scope.deinit();
         const fade = 1 - @as(f32, @floatFromInt(age)) / @as(f32, @floatFromInt(light.duration));
         _ = engine.gateway.call(c.CG_R_ADDLIGHTTOSCENE, .{ &light.origin, engine.floatArg(light.radius * fade), engine.floatArg(light.color[0]), engine.floatArg(light.color[1]), engine.floatArg(light.color[2]) });
     }
@@ -131,12 +140,12 @@ pub fn draw(now: i64, ref: *const c.refdef_t) void {
 /// Actor effects use the same bounded decal lifetime and overlap policy as weapons.
 pub fn decal(origin: v.Vec3, normal: v.Vec3, radius: f32, name: [:0]const u8, angle: f32, now: i64) !usize {
     const shader: c.qhandle_t = @intCast(engine.gateway.call(c.CG_R_REGISTERSHADER, .{name.ptr}));
-    for (&decals) |*mark| if (mark.shader == shader and v.dot(mark.normal, normal) > 0.95 and v.length(v.subtract(mark.origin, origin)) < radius * 0.5) {
+    for (&decals) |*mark| if (mark.presentation.network == engine.entity_world and mark.shader == shader and v.dot(mark.normal, normal) > 0.95 and v.length(v.subtract(mark.origin, origin)) < radius * 0.5) {
         mark.shader = 0;
     };
     const projected = try marks.project(origin, normal, radius, angle);
     for (projected.polygons[0..projected.count]) |polygon| {
-        decals[next_mark] = .{ .polygon = polygon, .shader = shader, .at = now, .origin = origin, .normal = normal };
+        decals[next_mark] = .{ .presentation = engine.Presentation.current(), .polygon = polygon, .shader = shader, .at = now, .origin = origin, .normal = normal };
         next_mark = (next_mark + 1) % decals.len;
     }
     return projected.count;

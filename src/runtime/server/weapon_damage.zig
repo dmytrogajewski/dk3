@@ -8,6 +8,7 @@ const catalog = @import("weapon_catalog");
 const v = @import("../domain/vector.zig");
 const c = @import("../engine/abi.zig").c;
 pub fn hurt(world: *data.World, target: ecs.Entity, owner_id: u32, weapon: u5, amount: f32, now: i64, bypass_armor: bool) !bool {
+    try @import("region_access.zig").expose(world, now);
     const scaled = amount * try powerFactor(world, target, owner_id, now);
     if (!std.math.isFinite(scaled) or scaled <= 0) return false;
     const result = try @import("damage.zig").apply(world, target, @intFromFloat(@min(@ceil(scaled), 1000000)), now, .{ .bypass_armor = bypass_armor, .source = owner_id, .weapon = weapon });
@@ -18,9 +19,9 @@ pub fn hurt(world: *data.World, target: ecs.Entity, owner_id: u32, weapon: u5, a
     return result.blood > 0 or result.armor > 0;
 }
 fn powerFactor(world: *data.World, target: ecs.Entity, owner_id: u32, now: i64) !f32 {
-    if (world.find(owner_id)) |owner| {
+    if (@import("region_access.zig").find(world, owner_id)) |owner| {
         if (try world.persistentId(target) != owner_id) {
-            if (world.get(owner, data.Character)) |state| return catalog.character.powerFactor(state.attribute(.power, now)) else |_| {}
+            if (owner.get(data.Character)) |state| return catalog.character.powerFactor(state.attribute(.power, now)) else |_| {}
         }
     }
     return 1;

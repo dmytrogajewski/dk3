@@ -1333,6 +1333,8 @@ typedef struct entityState_s {
 	int		constantLight;	// r + (g<<8) + (b<<16) + (intensity<<24)
 	int		loopSound;		// constantly loop this sound
 
+    int dk3World; /* resource/collision owner of this entity */
+    int dk3Identity; /* persistent identity; transport numbers can be reused */
 	int		dk3Team;
     int dk3Carrier; /* Player entity number plus one, zero while an objective is uncarried. */
     float dk3SoundVolume, dk3SoundMin, dk3SoundMax;

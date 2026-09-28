@@ -125,6 +125,22 @@ pub fn World(comptime Components: anytype) type {
         pub fn persistentId(self: *const Self, entity: Entity) Error!u32 {
             return (try self.slot(entity)).id;
         }
+        /// Keep an authored destination incarnation's local slot/components,
+        /// assigning the continuing actor's persistent identity at commit.
+        pub fn reidentify(self: *Self, entity: Entity, id: u32) Error!void {
+            try self.editable();
+            const previous = try self.persistentId(entity);
+            if (previous == id) return;
+            if (id == 0 or id == std.math.maxInt(u32)) return error.Capacity;
+            if (self.ids.contains(id)) return error.DuplicateId;
+            try self.ids.ensureUnusedCapacity(self.allocator, 1);
+            const removed = self.ids.remove(previous);
+            std.debug.assert(removed);
+            self.ids.putAssumeCapacity(id, entity);
+            self.slots[entity.index].id = id;
+            if (id >= self.id_first and id <= self.id_last) self.next_id = @max(self.next_id, id + 1);
+            self.epoch += 1;
+        }
         pub fn count(self: *const Self) usize {
             return self.ids.count();
         }
@@ -388,4 +404,24 @@ test "resident transfers retain birth IDs and never consume a destination namesp
     try t.expectError(error.Capacity, second.cloneInto(moved, &full));
     try t.expect(second.alive(moved));
     try t.expectEqual(@as(usize, 0), full.count());
+}
+
+test "authored incarnation rebinding retains local handles and allocation ranges" {
+    const t = std.testing;
+    var world = TestWorld.initNamespaced(t.allocator, 4, 2);
+    defer world.deinit();
+    const actor = try world.create(null, .{ Position{ .x = 1, .y = 2, .z = 3 }, Health{ .value = 71 } });
+    const prior = try world.persistentId(actor);
+    const next_id = world.next_id;
+    try world.reidentify(actor, 0x100001a);
+    try t.expect(world.find(prior) == null);
+    try t.expectEqual(actor, world.find(0x100001a).?);
+    try t.expectEqual(next_id, world.next_id);
+    try t.expectEqual(@as(i32, 71), (try world.get(actor, Health)).value);
+    const other = try world.create(null, .{Health{ .value = 23 }});
+    try t.expectError(error.DuplicateId, world.reidentify(actor, try world.persistentId(other)));
+    try t.expectEqual(@as(u32, 0x100001a), try world.persistentId(actor));
+    try t.expectEqual(@as(usize, 2), world.count());
+    try world.destroy(actor);
+    try t.expect(world.find(0x100001a) == null);
 }

@@ -567,3 +567,14 @@ dk3/particle/beam-spark
    alphaGen vertex
  }
 }
+// A resident view is drawn first. The aperture retains its color and writes
+// depth so the source BSP's authored end cap cannot cover the destination.
+dk3/world-aperture
+{
+ portal
+ cull none
+ { map $whiteimage
+   blendFunc GL_ZERO GL_ONE
+   depthWrite
+ }
+}

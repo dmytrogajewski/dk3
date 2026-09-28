@@ -16,7 +16,7 @@ pub fn launch(world: *data.World, owner: ecs.Entity, shot: weapons.Fired, table:
     _ = try world.create(null, .{ data.Transform{ .position = shot.position }, action });
 }
 fn trace(start: v.Vec3, end: v.Vec3, radius: f32, slot: u16) !@import("../domain/collision.zig").Trace {
-    return engine.collisionService().trace(.{ .start = start, .end = end, .mins = @splat(-radius), .maxs = @splat(radius), .slot = slot, .mask = c.MASK_SHOT });
+    return @import("region_collision.zig").trace(.{ .start = start, .end = end, .mins = @splat(-radius), .maxs = @splat(radius), .slot = slot, .mask = c.MASK_SHOT });
 }
 fn arc(pose: data.Transform, plan: catalog.melee.Plan, index: u8, range: f32, muzzle: v.Vec3, slot: u16, ducked: bool) !@import("../domain/collision.zig").Trace {
     const basis = v.basis(pose.angles);
@@ -24,7 +24,7 @@ fn arc(pose: data.Transform, plan: catalog.melee.Plan, index: u8, range: f32, mu
     const origin = v.add(v.add(pose.position, if (plan.world_muzzle) muzzle else @as(v.Vec3, @splat(0))), .{ 0, 0, if (ducked) plan.crouching_height else plan.height });
     if (v.length(plan.from[index]) < 0.01) {
         const goal = v.add(origin, v.scale(basis.forward, plan.range orelse range));
-        if (plan.body_trace) return engine.collisionService().trace(.{ .start = origin, .end = goal, .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, if (ducked) @as(f32, 4) else 32 }, .slot = slot, .mask = c.MASK_SHOT });
+        if (plan.body_trace) return @import("region_collision.zig").trace(.{ .start = origin, .end = goal, .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, if (ducked) @as(f32, 4) else 32 }, .slot = slot, .mask = c.MASK_SHOT });
         return trace(origin, goal, plan.radius, slot);
     }
     var last: @import("../domain/collision.zig").Trace = .{ .fraction = 1, .end = origin, .normal = @splat(0) };
@@ -72,14 +72,14 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         while (try action.due(now)) {
             const hit = try arc(pose, plan, action.next_hit, if (table.entries[action.weapon].range > 0) table.entries[action.weapon].range else plan.fallback_range, table.entries[action.weapon].muzzle, binding.slot, ducked);
             if (plan.sound_on_strike and action.next_hit == 0) if (catalog.fireSound(action.weapon, action.sequence, try world.persistentId(entity))) |sound| try @import("events.zig").sound(world, slots, projections, sound, pose.position, binding.slot, c.CHAN_WEAPON, now);
-            if (hit.fraction < 1 and hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |target| {
-                const target_pose = (try world.get(target, data.Transform)).*;
-                const object = world.get(target, data.MapObject) catch null;
-                const defending = if (world.get(target, data.Weapons) catch null) |weapons_state| weapons_state.weapon == action.weapon else false;
+            if (hit.fraction < 1) if (@import("region_access.zig").victim(world, slots, hit)) |target| {
+                const target_pose = (try target.get(data.Transform)).*;
+                const object = target.get(data.MapObject) catch null;
+                const defending = if (target.get(data.Weapons) catch null) |weapons_state| weapons_state.weapon == action.weapon else false;
                 const result = catalog.meleeDamage(action.weapon, .{ .damage = action.damage, .lifetime_ms = @intFromFloat(std.math.clamp(table.entries[action.weapon].lifetime * 1000, 0, 3600000)), .experience = action.experience, .victim_class = if (object) |value| value.classname else "", .forward = v.basis(pose.angles).forward, .facing = v.basis(target_pose.angles).forward, .defending = defending, .serial = try world.persistentId(entity) });
-                if (try @import("weapon_damage.zig").hurt(world, target, action.owner, action.weapon, result.amount, now, false)) {
-                    if (plan.inertial) try @import("weapon_damage.zig").shove(world, target, action.owner, v.basis(pose.angles).forward, result.amount, now);
-                    try @import("ailments.zig").apply(world, target, result.effect, action.owner, action.weapon, now);
+                if (try @import("weapon_damage.zig").hurt(target.world, target.entity, action.owner, action.weapon, result.amount, now, false)) {
+                    if (plan.inertial) try @import("weapon_damage.zig").shove(target.world, target.entity, action.owner, v.basis(pose.angles).forward, result.amount, now);
+                    try @import("ailments.zig").apply(target.world, target.entity, result.effect, action.owner, action.weapon, now);
                 }
                 if (result.sound) |sound| try @import("events.zig").sound(world, slots, projections, sound, pose.position, binding.slot, c.CHAN_BODY, now);
             };

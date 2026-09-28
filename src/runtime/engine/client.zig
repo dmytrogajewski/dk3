@@ -6,6 +6,25 @@ const collision = @import("../domain/collision.zig");
 pub var gateway: abi.Gateway = .{};
 var entities: []const c.entityState_t = &.{};
 var time: i32 = 0;
+pub var entity_world: u32 = 0;
+pub const Presentation = struct {
+    render: u32 = 0,
+    collision: u32 = 0,
+    network: u32 = 0,
+    pub fn current() Presentation {
+        return .{ .render = @intCast(gateway.call(c.CG_DK3_WORLD_CURRENT_V1, .{})), .collision = @intCast(gateway.call(c.CG_DK3_COLLISION_CURRENT_V1, .{})), .network = entity_world };
+    }
+    pub fn select(self: Presentation) Presentation {
+        const previous = current();
+        if (self.render != previous.render and gateway.call(c.CG_DK3_WORLD_SELECT_V1, .{@as(isize, self.render)}) == 0) fatal("Lost entity render owner");
+        if (self.collision != previous.collision and gateway.call(c.CG_DK3_COLLISION_SELECT_V1, .{@as(isize, self.collision)}) == 0) fatal("Lost entity collision owner");
+        entity_world = self.network;
+        return previous;
+    }
+    pub fn deinit(self: Presentation) void {
+        _ = self.select();
+    }
+};
 pub fn setSnapshot(values: []const c.entityState_t, now: i32) void {
     entities = values;
     time = now;
@@ -49,6 +68,7 @@ fn trace(raw: *anyopaque, request: collision.Request) !collision.Trace {
     _ = engine.call(c.CG_CM_BOXTRACE, .{ &result, &request.start, &request.end, &request.mins, &request.maxs, @as(isize, 0), @as(isize, @as(i32, @bitCast(request.mask))) });
     result.entityNum = if (result.fraction < 1 or result.allsolid != 0) c.ENTITYNUM_WORLD else c.ENTITYNUM_NONE;
     for (entities) |entity| {
+        if (@as(u32, @bitCast(entity.dk3World)) != entity_world) continue;
         if (entity.number == request.slot or entity.solid == 0) continue;
         const brush = entity.solid == c.SOLID_BMODEL;
         var model: isize = undefined;
@@ -78,6 +98,7 @@ fn contents(raw: *anyopaque, point: @import("../domain/vector.zig").Vec3, skip: 
     const engine: *abi.Gateway = @ptrCast(@alignCast(raw));
     var result: u32 = @bitCast(@as(i32, @intCast(engine.call(c.CG_CM_POINTCONTENTS, .{ &point, @as(isize, 0) }))));
     for (entities) |entity| {
+        if (@as(u32, @bitCast(entity.dk3World)) != entity_world) continue;
         if (entity.number == skip or entity.solid != c.SOLID_BMODEL) continue;
         const origin = @import("trajectory.zig").evaluate(entity.pos, time);
         const angles = @import("trajectory.zig").evaluate(entity.apos, time);
