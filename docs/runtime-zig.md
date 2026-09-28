@@ -666,3 +666,19 @@ admission and independently releasable owner heaps repair those cases. Current
 identities, failed evidence and exact acceptance limits are in
 [native-acceptance.md](native-acceptance.md). Portal views/cross-boundary gameplay,
 old visited-archive migration and full campaign acceptance remain open.
+
+## runtime-zig-302 — visited migration and admission lifetime repairs
+
+Old flat native visited archives are converted on demand into resident namespaces,
+with explicitly mapped entity references and one current traveler. Unrequested
+archives remain cold; admitted maps save once as schema-2 members. Typed migration
+contracts cover overlapping identities, delayed actions and counters that must not
+change. Original save bytes remain untouched.
+
+Resident brush models no longer exhaust the renderer’s shared ordinary-model
+table. Authored doubled sound separators normalize to the supplied asset. The
+client uses the actual gamestate reliable boundary to discard old resident
+commands during load while keeping current-map readiness validation strict.
+Exact consolidated evidence and limitations live in [native acceptance](native-acceptance.md).
+Portal views, cross-world gameplay, residency eviction and complete campaign
+acceptance remain required work.

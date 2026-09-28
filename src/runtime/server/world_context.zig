@@ -39,7 +39,9 @@ pub const Context = struct {
         defer worlds.select(previous_world) catch @panic("lost active server world");
         const previous_resources = resources.select(&self.resources);
         defer _ = resources.select(previous_resources);
-        if (saved) |value| if (value.header.asset_crc != @as(u32, @truncate(@as(usize, @bitCast(engine.gateway.call(c.G_DK3_WORLD_CHECKSUM_V1, .{})))))) return error.ResidentAssetMismatch;
+        // Older flat archives did not record an asset checksum. Their saved
+        // class/resource contracts still undergo normal admission below.
+        if (saved) |value| if (value.header.asset_crc != 0 and value.header.asset_crc != @as(u32, @truncate(@as(usize, @bitCast(engine.gateway.call(c.G_DK3_WORLD_CHECKSUM_V1, .{})))))) return error.ResidentAssetMismatch;
         self.prepared_at = now;
         self.stepped_at = now;
         self.handle = handle;

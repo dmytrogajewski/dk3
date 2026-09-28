@@ -3,6 +3,7 @@
  * shutdown releases the region after pending draw commands have completed. */
 #define DK3_RENDER_WORLDS 128
 #define DK3_WORLD_INLINE_MODELS 512
+#include "dk3_inline_handles.h"
 typedef struct {
     world_t world;
     unsigned int generation;
@@ -13,7 +14,7 @@ typedef struct {
     int status; /* 0 free, 1 reading, 2 ready, -1 failed */
     struct fsReadJob_s *read;
     char name[MAX_QPATH];
-    qhandle_t inlineModels[DK3_WORLD_INLINE_MODELS];
+    model_t *inlineModels;
     int inlineCount;
     int numLightmaps;
     image_t **lightmaps;

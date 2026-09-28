@@ -80,3 +80,23 @@ test "authored gains retain original byte quantization including supplied gain t
     try std.testing.expectEqual(@as(f32, 127.0 / 255.0), try wireVolume(0.5));
     try std.testing.expectError(error.InvalidSoundVolume, wireVolume(-1));
 }
+
+pub fn soundPath(path: []const u8, normalized: []u8) ![]const u8 {
+    var length: usize = 0;
+    for (path) |char| {
+        const next = if (char == '\\') '/' else std.ascii.toLower(char);
+        if (next == '/' and length > 0 and normalized[length - 1] == '/') continue;
+        if (length == normalized.len) return error.InvalidResourcePath;
+        normalized[length] = next;
+        length += 1;
+    }
+    const name = normalized[0..length];
+    return if (std.mem.startsWith(u8, name, "sounds/")) name[7..] else name;
+}
+
+test "authored sound separators normalize without replacing the named asset" {
+    var buffer: [64]u8 = undefined;
+    try std.testing.expectEqualStrings("global/e_forcefield.wav", try soundPath("Sounds\\GLOBAL\\\\e_forcefield.wav", &buffer));
+    try std.testing.expectEqualStrings("global/e_forcefield.wav", try soundPath("global//e_forcefield.wav", &buffer));
+    try std.testing.expectEqualStrings("weapons/ion/fire.wav", try soundPath("weapons/ion/fire.wav", &buffer));
+}

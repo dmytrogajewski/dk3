@@ -30,6 +30,7 @@ test {
     _ = @import("domain/menu.zig");
     _ = @import("domain/snapshot.zig");
     _ = @import("domain/snapshot_time.zig");
+    _ = @import("domain/snapshot_ids.zig");
     _ = @import("domain/travel.zig");
     _ = @import("server/spawns.zig");
     _ = @import("server/actor_spawns.zig");

@@ -226,6 +226,9 @@ static int numModelLoaders = ARRAY_LEN(modelLoaders);
 model_t	*R_GetModelByHandle( qhandle_t index ) {
 	model_t		*mod;
 
+    mod = R_ResidentInlineModel(index);
+    if (mod) return mod;
+
 	// out of range gets the defualt model
 	if ( index < 1 || index >= tr.numModels ) {
 		return tr.models[0];

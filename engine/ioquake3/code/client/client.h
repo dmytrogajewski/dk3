@@ -192,6 +192,7 @@ typedef struct {
 
 	// reliable messages received from server
 	int			serverCommandSequence;
+	int         gamestateCommandSequence; // Reliable boundary of the current map.
 	int			lastExecutedServerCommand;		// last server command grabbed or executed with CL_GetServerCommand
 	char		serverCommands[MAX_RELIABLE_COMMANDS][MAX_STRING_CHARS];
 
@@ -642,4 +643,3 @@ qboolean CL_VideoRecording( void );
 // cl_main.c
 //
 void CL_WriteDemoMessage ( msg_t *msg, int headerBytes );
-

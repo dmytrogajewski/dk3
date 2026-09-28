@@ -57,7 +57,9 @@ pub fn capture(allocator: std.mem.Allocator) !@import("../domain/snapshot.zig").
 pub fn restore(saved: @import("../domain/snapshot.zig").Resources) !void {
     reset();
     for (saved.models) |name| _ = try model(name);
-    for (saved.sounds) |name| _ = try sound(name);
+    // Preserve old wire indices even when two archived spellings resolve to the
+    // same normalized asset. New registrations use the canonical spelling.
+    for (saved.sounds) |name| _ = try selected.sounds.add(name);
 }
 /// Rewinding the current resource prefix is safe without another gamestate.
 /// New or reordered identities must be admitted through map initialization.
@@ -76,11 +78,9 @@ pub fn soundName(index: u16) []const u8 {
     return std.mem.sliceTo(&selected.sounds.names[index], 0);
 }
 pub fn sound(path: []const u8) !u16 {
-    if (path.len >= c.MAX_QPATH) return error.InvalidResourcePath;
     var normalized: [c.MAX_QPATH]u8 = undefined;
-    for (path, 0..) |char, i| normalized[i] = if (char == '\\') '/' else std.ascii.toLower(char);
-    const name = normalized[0..path.len];
-    return selected.sounds.add(if (std.mem.startsWith(u8, name, "sounds/")) name[7..] else name);
+    if (path.len >= c.MAX_QPATH) return error.InvalidResourcePath;
+    return selected.sounds.add(try @import("../domain/audio.zig").soundPath(path, &normalized));
 }
 pub fn floorBounds(path: []const u8) !?@import("../domain/md3.zig").Bounds {
     if (!std.mem.endsWith(u8, path, ".dkm")) return null;

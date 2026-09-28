@@ -1998,6 +1998,7 @@ void		RE_Shutdown( qboolean destroyWindow );
 qboolean	R_GetEntityToken( char *buffer, int size );
 
 model_t		*R_AllocModel( void );
+model_t *R_ResidentInlineModel(qhandle_t handle);
 
 void    	R_Init( void );
 void		R_UpdateSubImage( image_t *image, byte *pic, int x, int y, int width, int height, GLenum picFormat );

@@ -128,6 +128,44 @@ fn parse(comptime T: type, allocator: std.mem.Allocator, field: stream.Field) !T
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Loaded {
     return decodeWorld(allocator, bytes, true, false);
 }
+/// Admit one old flat visited archive into a distinct resident namespace. Keep
+/// the original archive cold until requested; no engine or asset work occurs here.
+/// The archived player is a stale copy of the current traveler, not another actor.
+pub fn migrateVisited(allocator: std.mem.Allocator, bytes: []const u8, namespace: u7, player_id: u32) !Loaded {
+    var saved = try decode(allocator, bytes);
+    errdefer saved.deinit(allocator);
+    if (saved.header.namespace != 0 or saved.residents.len != 0 or saved.visited.len != 0 or saved.header.journey != null or saved.header.player_id == 0 or player_id == 0 or namespace == player_id >> 24) return error.InvalidLegacyArchive;
+    const mapping: @import("snapshot_ids.zig").Mapping = .{ .namespace = namespace, .old_player = saved.header.player_id, .player = player_id };
+    var mapped = data.World.initNamespaced(allocator, 1024, namespace);
+    errdefer mapped.deinit();
+    {
+        var query = saved.world.queryAccess(0, 0, 0);
+        defer query.deinit();
+        while (query.next()) |view| for (view.entities()) |source| {
+            const id = try saved.world.persistentId(source);
+            if (id == saved.header.player_id) continue;
+            const entity = try saved.world.cloneIntoAs(source, &mapped, try mapping.id(id));
+            inline for (std.meta.fields(data.Component)) |field| if (mapped.get(entity, field.type) catch null) |value| {
+                try @import("snapshot_ids.zig").remap(@field(data.ComponentId, field.name), value, mapping);
+            };
+        };
+    }
+    for (&saved.header.pending) |*entry| if (entry.*) |*action| {
+        action.source = try mapping.id(action.source);
+        action.activator = try mapping.id(action.activator);
+    };
+    // The next local ID is an allocation boundary, never an entity reference.
+    if (saved.header.next_id > 0x1000000) return error.InvalidLegacyIdentity;
+    mapped.next_id = (@as(u32, namespace) << 24) + saved.header.next_id;
+    saved.header.next_id = mapped.next_id;
+    saved.header.namespace = namespace;
+    saved.header.player_id = 0;
+    saved.header.activated = true;
+    saved.region_member = true;
+    saved.world.deinit();
+    saved.world = mapped;
+    return saved;
+}
 fn decodeWorld(allocator: std.mem.Allocator, bytes: []const u8, allow_visited: bool, region_member: bool) anyerror!Loaded {
     if (bytes.len > maximum) return error.SnapshotCapacity;
     var reader = try stream.Reader.init(bytes);
@@ -1380,4 +1418,49 @@ test "schema one migrates to an owned initial namespace without modifying saved 
     try t.expectEqual(@as(u32, 0xffffff), loaded.world.id_last);
     try t.expectEqual(@as(u32, 8), loaded.world.next_id);
     try t.expectEqual(@as(i32, 63), (try loaded.world.get(loaded.world.find(7).?, data.Health)).current);
+}
+
+test "flat visited migration removes stale travelers and qualifies overlapping worlds and delayed actions" {
+    const t = std.testing;
+    var old = data.World.init(t.allocator, 16);
+    defer old.deinit();
+    _ = try old.create(7, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{ .current = 12 }, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    _ = try old.create(8, .{ data.Transform{ .position = .{ 2, 3, 4 } }, data.Binding{ .slot = 64 }, data.Flashlight{ .owner = 7, .expires_ms = 1200, .strength = 0.75 } });
+    _ = try old.create(9, .{ data.Transform{}, data.MapObject{ .classname = "func_train", .target = "next" }, data.Train{ .destination = 10, .owner = 7, .phase = .dwelling, .action = .{ .at_ms = 2000 }, .next_target = "next" } });
+    _ = try old.create(10, .{ data.Transform{}, data.MapObject{ .classname = "path_corner", .targetname = "next" } });
+    var old_header: Header = .{ .at_ms = 1000, .episode = 1, .player_id = 7, .next_id = old.next_id };
+    old_header.pending[0] = .{ .source = 9, .activator = 7, .due_ms = 1800 };
+    var old_buffer: [32768]u8 = undefined;
+    const old_bytes = try capture(t.allocator, &old_buffer, &old, "e1m1a", 3, old_header);
+    const original_hash = std.hash.Wyhash.hash(0, old_bytes);
+    var first = try migrateVisited(t.allocator, old_bytes, 1, 17);
+    defer first.deinit(t.allocator);
+    var second = try migrateVisited(t.allocator, old_bytes, 2, 17);
+    defer second.deinit(t.allocator);
+    try t.expect(first.world.find(7) == null and first.world.find(0x1000007) == null);
+    try t.expectEqual(@as(u32, 0x100000b), first.world.next_id);
+    try t.expectEqual(@as(u32, 17), (try first.world.get(first.world.find(0x1000008).?, data.Flashlight)).owner);
+    try t.expectEqual(@as(u32, 0x100000a), (try first.world.get(first.world.find(0x1000009).?, data.Train)).destination);
+    try t.expectEqual(@as(u32, 0x2000009), second.header.pending[0].?.source);
+    try t.expectEqual(@as(u32, 17), second.header.pending[0].?.activator);
+    try t.expectEqual(@as(i64, 1800), second.header.pending[0].?.due_ms);
+    try t.expectEqual(@as(u32, 0), first.header.player_id);
+    try t.expectEqual(original_hash, std.hash.Wyhash.hash(0, old_bytes));
+    try t.expectEqual(@as(i32, 12), (try old.get(old.find(7).?, data.Health)).current);
+
+    var root = data.World.initNamespaced(t.allocator, 16, 0);
+    defer root.deinit();
+    _ = try root.create(17, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{ .current = 63 }, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    const header: Header = .{ .at_ms = 2000, .episode = 1, .player_id = 17, .next_id = root.next_id, .namespace = 0 };
+    var first_buffer: [32768]u8 = undefined;
+    var second_buffer: [32768]u8 = undefined;
+    var region_buffer: [98304]u8 = undefined;
+    const first_bytes = try capture(t.allocator, &first_buffer, &first.world, "e1m1a", 3, first.header);
+    const second_bytes = try capture(t.allocator, &second_buffer, &second.world, "e1m1b", 3, second.header);
+    const bytes = try captureRegion(t.allocator, &region_buffer, &root, "e1m1c", 3, header, &.{}, &.{ .{ .map = "e1m1a", .bytes = first_bytes }, .{ .map = "e1m1b", .bytes = second_bytes } });
+    var loaded = try decode(t.allocator, bytes);
+    defer loaded.deinit(t.allocator);
+    try t.expectEqual(@as(usize, 2), loaded.residents.len);
+    try t.expectEqual(@as(i32, 63), (try loaded.world.get(loaded.world.find(17).?, data.Health)).current);
+    try t.expectError(error.InvalidLegacyArchive, migrateVisited(t.allocator, old_bytes, 0, 17));
 }

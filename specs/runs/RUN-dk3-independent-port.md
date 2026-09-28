@@ -6126,3 +6126,45 @@ actors/projectiles/hitscan/sound across seams, eviction/admission stalls, legacy
 visited-save migration and complete campaign/multiplayer acceptance remain open.
 Main, installed playable game, user saves and live service remain unchanged.
 Continue beyond this implementation checkpoint.
+
+## runtime-zig-302 — visited migration and admission lifetime repairs
+
+Consolidated installation `10b056cafcf909dd3114a3e6dd97bd40bfe302de30a00daffdfbf5b4595f7581`;
+combined identity `93ed84bcc6e64b701b3991e8176d4111adf9a1600df61401c53f0e350bad4733`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`;
+local region manifest `af0c2eea2324fd08577c5db4a0293175424540d1b94e3b3f1babd843d8835320`.
+Evidence: `zig-out/reports/runtime-zig-302/`.
+
+| Evidence | Outcome | Limits |
+|---|---|---|
+| `legacy-visited-final/` | Unmodified sequence-294 save loads into C with hero 574 at health 89. A/B archives become namespaces 1/2, preserving all 53 recorded actors' health (42 dead), without stale player copies. Both maps are inspected in-engine, schema-2 save/reload succeeds, and a handoff plus load in one command batch correctly discards obsolete world commands. Original fixture hash remains `7e3a04f8e4dcb4c7eaae9ede1c41f71941a369d0109526b6288a4b76dd5dbf73`. | Controlled transfers/placement for inspection; no ordinary traversal or fresh campaign claim. Broader saved controller/party combinations remain unverified. |
+| `cinematic-restore-final/` | Six-world save restores in GL2; the saved factory arrival cinematic advances through completion, normal movement resumes, and saving succeeds while the next region preloads. Final rendered frame inspected. | Immutable controlled sequence-301 fixture, hash `4d04edef2e1f2d2cbaca9a0ace7610fc48c3b72b0609e6d670fa597c91271b73`; not full intro or connected factory progression. |
+| `automatic-crossing-final/` | GL1 automatic A→B→A authored touches preserve identity, health, input and connection after inline-model ownership changes. | Controlled initial approach; no portal view or cross-world combat claim. |
+| `lan-final/` | Two real UDP clients pass movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart with the new cgame initialization boundary. | Full multiplayer modes remain open. |
+| `aggregate-final.log` | 44/44 steps, 387 Zig and 81 Python tests pass; actual C collision/owner-allocation/inline-handle contracts execute with assertions enabled. Migration roots explicitly execute. | Contracts support the narrower running scenarios above. |
+
+Before/after evidence is retained. The additional sequence-301
+`six-world-cinematic-restore/` run fails on the renderer's shared 1,024-model table.
+`cinematic-restore-inline-models/` on `63d52…` passes that allocation point, then
+fails on the supplied `global//e_forcefield.wav` spelling. Map-owned brush handles
+and sound separator normalization repair those defects; no substitute asset or
+raised global model ceiling is used. `cinematic-restore-normalized-sounds/` on
+`2f4b6…` first passes complete cinematic restoration; the consolidated run above
+replays it after the reliable-command repair.
+
+`legacy-visited/` has an invalid driver timeout: root restoration completes before
+required region admission releases input. The driver now waits for actual processed
+input with the bounded restoration timeout. `legacy-visited-synchronized/` then
+preserves and inspects both worlds but fails its second load with `WorldNotAdmitted`:
+an unexecuted world-entry command belonged to the old gamestate. The final replay
+explicitly queues that race and records the obsolete command's sequence before the
+new gamestate boundary. Current-map readiness errors remain strict.
+
+The full fresh opening milestone, portal clipping and qualified cross-map gameplay,
+other seam geometry, party identity/transfer, residency eviction, admission stalls
+and complete campaign/multiplayer acceptance remain open. Earlier broad scenarios
+are historical evidence and require replay after the shared owner/restore changes.
+
+Main, installed playable game, user saves and live service remain unchanged.
+Continue with cross-world gameplay and party ownership; this checkpoint is not completion.

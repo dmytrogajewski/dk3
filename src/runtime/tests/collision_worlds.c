@@ -3,8 +3,28 @@
 #include "q_shared.h"
 #include "qcommon.h"
 #include "owned_memory.h"
+#include "../../../engine/ioquake3/code/renderercommon/dk3_inline_handles.h"
 
 #define CHECK(condition) do { if (!(condition)) { fprintf(stderr, "collision worlds: line %d: %s\n", __LINE__, #condition); exit(1); } } while (0)
+
+static void inlineIdentities(void) {
+    unsigned int owner, model, generation, decodedOwner, decodedModel, handle, previous = 0;
+    for (owner = 0; owner < 128; ++owner) for (model = 0; model < 512; ++model) {
+        handle = DK3_InlineHandle(17, owner, model);
+        CHECK(handle > previous && handle <= 0x7fffffffu);
+        CHECK(DK3_InlineParts(handle, &generation, &decodedOwner, &decodedModel));
+        CHECK(generation == 17 && decodedOwner == owner && decodedModel == model);
+        CHECK(handle != DK3_InlineHandle(18, owner, model));
+        previous = handle;
+    }
+    CHECK(DK3_InlineHandle(DK3_RENDER_GENERATION_MAX, 127, 511) == 0x7fffffffu);
+    CHECK(!DK3_InlineHandle(0, 0, 0) && !DK3_InlineHandle(DK3_RENDER_GENERATION_MAX + 1, 0, 0));
+    CHECK(!DK3_InlineHandle(1, 128, 0) && !DK3_InlineHandle(1, 0, 512));
+    CHECK(!DK3_InlineParts(1023, &generation, &decodedOwner, &decodedModel));
+    CHECK(!DK3_InlineParts(DK3_INLINE_TAG, &generation, &decodedOwner, &decodedModel));
+    CHECK(!DK3_InlineParts(0xffffffffu, &generation, &decodedOwner, &decodedModel));
+    puts("resident inline identities: all 65536 owner/model pairs, generations and malformed handles passed");
+}
 
 static void ownedMemory(void) {
     ownedHeap_t renderer = {0}, navigation = {0};
@@ -139,6 +159,7 @@ int main(void) {
     CHECK(CM_CurrentWorld() != base);
     CM_ClearMap();
     ownedMemory();
+    inlineIdentities();
     puts("collision worlds: isolated geometry, inline models, pinned ownership, stale handles and malformed-header rejection passed");
     return 0;
 }

@@ -497,6 +497,7 @@ void CL_ParseGamestate( msg_t *msg ) {
 
 	// a gamestate always marks a server command sequence
 	clc.serverCommandSequence = MSG_ReadLong( msg );
+	clc.gamestateCommandSequence = clc.serverCommandSequence;
 
 	// parse all the configstrings and baselines
 	cl.gameState.dataCount = 1;	// leave a 0 at the beginning for uninitialized configstrings
@@ -959,5 +960,4 @@ void CL_ParseServerMessage( msg_t *msg ) {
 		}
 	}
 }
-
 

@@ -1840,22 +1840,20 @@ static	void R_LoadSubmodels( lump_t *l ) {
 	s_worldData.numBModels = count;
 	if (count > DK3_WORLD_INLINE_MODELS) ri.Error(ERR_DROP, "Resident world inline model limit");
     dkLoadingWorld->inlineCount = count;
+    dkLoadingWorld->inlineModels = ri.Malloc(count * sizeof(model_t));
+    memset(dkLoadingWorld->inlineModels, 0, count * sizeof(model_t));
 	s_worldData.bmodels = out = ri.Hunk_Alloc( count * sizeof(*out), h_low );
 
 	for ( i=0 ; i<count ; i++, in++, out++ ) {
 		model_t *model;
 
-		model = R_AllocModel();
-
-		assert( model != NULL );			// this should never happen
-		if ( model == NULL ) {
-			ri.Error(ERR_DROP, "R_LoadSubmodels: R_AllocModel() failed");
-		}
+        model = &dkLoadingWorld->inlineModels[i];
+        model->index = DK3_InlineHandle(dkLoadingWorld->generation,
+            (unsigned int)(dkLoadingWorld - dkRenderWorlds), (unsigned int)i);
 
 		model->type = MOD_BRUSH;
 		model->bmodel = out;
 		Com_sprintf( model->name, sizeof( model->name ), "*w%u/%d", tr.worldRegistration, i );
-        dkLoadingWorld->inlineModels[i] = model->index;
 
 		for (j=0 ; j<3 ; j++) {
 			out->bounds[0][j] = LittleFloat (in->mins[j]);

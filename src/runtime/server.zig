@@ -188,6 +188,8 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
         campaign.deinit();
         campaign = state;
     }
+    resident_worlds.legacy_archives = campaign.visited;
+    resident_worlds.traveler_id = header.player_id;
     if (!visit) {
         if (saveRegion(checkpoint_rules.slot)) |_| {
             checkpoint.saved();
@@ -230,7 +232,13 @@ fn saveRegion(slot: []const u8) !void {
     var scratch = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     defer scratch.deinit();
     const members = try resident_worlds.captureOthers(scratch.allocator(), &initial_context, active);
-    try persistence.save(&active.world.?, &active.clients, &active.targets, &active.systems, slot, clock.now_ms, campaign.visited, members);
+    var cold: std.ArrayList(@import("domain/snapshot.zig").Archive) = .empty;
+    archives: for (campaign.visited) |archive| {
+        if (std.mem.eql(u8, archive.map, std.mem.sliceTo(&active.map_name, 0))) continue;
+        for (members) |member| if (std.mem.eql(u8, archive.map, member.map)) continue :archives;
+        try cold.append(scratch.allocator(), archive);
+    }
+    try persistence.save(&active.world.?, &active.clients, &active.targets, &active.systems, slot, clock.now_ms, cold.items, members);
 }
 fn loadSlot(slot: []const u8, previous: bool) !void {
     var loaded = try persistence.prepare(slot, previous);
@@ -644,6 +652,8 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     engine.print("dk3 region: restoration committed\n");
                 }
                 if (progression.initial_pending) {
+                    resident_worlds.legacy_archives = campaign.visited;
+                    resident_worlds.traveler_id = active.world.?.persistentId(active.clients.entities[0] orelse return 0) catch |err| runtimeFailure(err);
                     resident_worlds.initial_namespace = @intCast(active.world.?.id_first >> 24);
                     if (!(progression.ready(&resident_worlds, &initial_context, std.mem.sliceTo(&active.map_name, 0), false) catch |err| runtimeFailure(err))) return 0;
                     active.awaken(clock.now_ms) catch |err| runtimeFailure(err);

@@ -168,7 +168,10 @@ class NativeInput:
             raise RuntimeError(failure)
         if "Save/load refused:" in result:
             raise RuntimeError(next(line for line in result.splitlines() if "Save/load refused:" in line))
-        restored = self.until(lambda _: True, description="restored input processing")
+        # A legacy single-world snapshot can finish restoring its root before
+        # initial connected-region admission releases input. Observe that actual
+        # processing boundary with the same bounded restoration deadline.
+        restored = self.until(lambda _: True, seconds=120, description="restored input processing")
         self.last_save = slot
         return restored
 

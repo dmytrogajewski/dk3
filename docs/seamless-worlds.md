@@ -1,6 +1,6 @@
 # Seamless connected worlds
 
-Sequences 297–301 implement connected owners on `rewrite/native-zig-runtime`.
+Sequences 297–302 implement connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary campaign exits now use resident ownership.**
 Automatic handoff is not acceptance of portal views or cross-world combat.
 
@@ -142,9 +142,27 @@ heap lifetimes; server spatial owners also use releasable heap storage. This fix
 observed exhaustion of the old 48 MB single-map zone during region preparation.
 The failed runs and repaired-build verification are recorded in native acceptance.
 
-Renderer
-allocations are retained until region/renderer shutdown; fine-grained GPU eviction
-is not implemented. Complete old-archive-to-region migration remains open.
+Renderer allocations are retained until region/renderer shutdown; fine-grained GPU
+eviction is not implemented.
+
+Sequence 302 assigns inline brush models to their renderer owner with checked
+generation/owner/model handles. They no longer consume the shared 1,024-model
+cache. This repairs the observed assertion while preloading beyond six maps.
+Authored sound separator normalization resolves an existing doubled-slash path
+without substituting another asset; restoration preserves old resource indices.
+
+Flat visited native archives now migrate when their map is requested. The cold
+archive remains untouched until admission. Explicit typed mapping qualifies entity
+IDs, nested controller references and delayed actions, removes the stale traveler
+copy and binds its references to the current hero. Snapshots retain unrequested
+archives and serialize admitted maps once as schema-2 residents. This does not
+preload every old visited map. Saves without historical asset checksums still
+undergo class/resource admission; a checksum that exists must match.
+
+The native client receives the reliable-command boundary of each new gamestate.
+Obsolete resident commands cannot reactivate resources destroyed by a load, while
+ordinary reliable commands retain the bundled engine’s existing handling. Current
+evidence and remaining cross-world controller/residency work are in native acceptance.
 
 ## Remaining implementation, in dependency order
 
@@ -161,8 +179,8 @@ is not implemented. Complete old-archive-to-region migration remains open.
    movement/prediction, actor transfer and cross-portal combat with ordinary inputs.
    Replace `map`/module shutdown/hunk clearing for intra-region crossings only when
    all participating owners exist and readiness is proven.
-4. Extend the admitted region persistence through legacy visited-world migration,
-   live cross-map controllers and cancellation/failure scenarios. Preserve original
+4. Extend the admitted region persistence through live cross-map controllers,
+   broader legacy archive fixtures and cancellation/failure scenarios. Preserve original
    saves. The current controlled two-map restore is not acceptance of every map,
    pending action or cross-map combat restoration.
 5. Finish region residency/eviction, deterministic cut presentation and failure

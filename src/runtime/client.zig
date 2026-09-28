@@ -23,6 +23,7 @@ var predicted: ?@import("ecs/world.zig").Entity = null;
 var have_snapshot = false;
 var snapshot_number: i32 = -1;
 var command_sequence: i32 = 0;
+var gamestate_sequence: i32 = 0;
 var client_number: i32 = 0;
 var view_angles: v.Vec3 = @splat(0);
 var weapon_view: @import("client/weapon_view.zig").View = .{};
@@ -68,7 +69,7 @@ fn shutdown() void {
     world = null;
     predicted = null;
 }
-fn init(server_message: i32, sequence: i32, client: i32) !void {
+fn init(server_message: i32, sequence: i32, client: i32, boundary: i32) !void {
     shutdown();
     @import("client/models.zig").reset();
     @import("client/objectives.zig").reset();
@@ -140,6 +141,7 @@ fn init(server_message: i32, sequence: i32, client: i32) !void {
     have_snapshot = false;
     client_number = client;
     command_sequence = sequence;
+    gamestate_sequence = boundary;
     snapshot_number = server_message - 1;
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "viewpos")});
     _ = engine.gateway.call(c.CG_ADDCOMMAND, .{@as([*:0]const u8, "dk3_runtime_render_world")});
@@ -181,8 +183,21 @@ fn draw(now: i32) !void {
         while (command_sequence < snapshot.serverCommandSequence) {
             command_sequence += 1;
             if (engine.gateway.call(c.CG_GETSERVERCOMMAND, .{@as(isize, command_sequence)}) != 0) {
-                try resident_worlds.serverCommand();
-                _ = try resident_worlds.enter(&inline_models);
+                if (command_sequence > gamestate_sequence) {
+                    try resident_worlds.serverCommand();
+                    _ = try resident_worlds.enter(&inline_models);
+                } else {
+                    // The engine deliberately retains unexecuted reliable
+                    // commands across gamestates. Resident resources do not
+                    // survive that boundary; commands for them are obsolete.
+                    var name: [96]u8 = undefined;
+                    _ = engine.gateway.call(c.CG_ARGV, .{ @as(isize, 0), &name, @as(isize, name.len) });
+                    const command_name = std.mem.sliceTo(&name, 0);
+                    if (std.mem.startsWith(u8, command_name, "dk3_world_") or std.mem.eql(u8, command_name, "dk3_region_wait")) {
+                        var message: [160]u8 = undefined;
+                        engine.print(try std.fmt.bufPrintZ(&message, "dk3 world command: obsolete={s} sequence={d} gamestate={d}\n", .{ command_name, command_sequence, gamestate_sequence }));
+                    }
+                }
                 try @import("client/cinematics.zig").command();
                 try @import("client/events.zig").command();
                 @import("client/messages.zig").command(now);
@@ -597,9 +612,9 @@ fn failure(err: anyerror) noreturn {
     engine.fatal(std.fmt.bufPrintZ(&message, "Zig client: {s}", .{@errorName(err)}) catch unreachable);
 }
 export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, arg6: isize, arg7: isize, arg8: isize, arg9: isize, arg10: isize, arg11: isize) callconv(.c) isize {
-    _ = .{ arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11 };
+    _ = .{ arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11 };
     switch (command) {
-        c.CG_INIT => init(@intCast(arg0), @intCast(arg1), @intCast(arg2)) catch |err| failure(err),
+        c.CG_INIT => init(@intCast(arg0), @intCast(arg1), @intCast(arg2), @intCast(arg3)) catch |err| failure(err),
         c.CG_SHUTDOWN => shutdown(),
         c.CG_DRAW_ACTIVE_FRAME => draw(@intCast(arg0)) catch |err| failure(err),
         c.CG_CONSOLE_COMMAND => return console(),

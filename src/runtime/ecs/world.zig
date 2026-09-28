@@ -172,9 +172,14 @@ pub fn World(comptime Components: anytype) type {
         /// Stage a complete transfer without mutating the source. The caller
         /// commits ownership only after destination projection admission succeeds.
         pub fn cloneInto(self: *Self, entity: Entity, destination: *Self) Error!Entity {
+            return self.cloneIntoAs(entity, destination, try self.persistentId(entity));
+        }
+        /// Legacy independent save namespaces are assigned once on admission.
+        /// Ordinary transfers must retain their birth ID through cloneInto.
+        pub fn cloneIntoAs(self: *Self, entity: Entity, destination: *Self, id: u32) Error!Entity {
             const source_slot = try self.slot(entity);
             const source = &self.archetypes.items[source_slot.archetype];
-            const result = try destination.reserveEntity(source_slot.id, source.mask);
+            const result = try destination.reserveEntity(id, source.mask);
             const target_slot = destination.slots[result.index];
             const target = &destination.archetypes.items[target_slot.archetype];
             inline for (Components, 0..) |T, i| if (source.mask & (@as(Mask, 1) << i) != 0) {

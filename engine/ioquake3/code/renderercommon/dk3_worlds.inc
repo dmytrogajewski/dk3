@@ -77,7 +77,7 @@ static dkRenderWorld_t *R_ReserveWorld(const char *name) {
     if (!name || strncmp(name, "maps/", 5) || !COM_CompareExtension(name, ".bsp") || strlen(name) >= MAX_QPATH) return NULL;
     for (i = 0; i < DK3_RENDER_WORLDS; ++i) {
         dkRenderWorld_t *world = &dkRenderWorlds[i];
-        if (world->status || world->generation == 0x7fffff) continue;
+        if (world->status || world->generation == DK3_RENDER_GENERATION_MAX) continue;
         if (!world->generation) world->generation = 1;
         Q_strncpyz(world->name, name, sizeof(world->name));
         world->status = 1;
@@ -169,7 +169,16 @@ qhandle_t R_WorldInlineModel(const char *name) {
     if (!world || world->status != 2 || !name || name[0] != '*') return 0;
     index = strtol(name + 1, &end, 10);
     if (end == name + 1 || *end || index < 0 || index >= world->inlineCount) return 0;
-    return world->inlineModels[index];
+    return world->inlineModels[index].index;
+}
+
+model_t *R_ResidentInlineModel(qhandle_t handle) {
+    unsigned int generation, owner, model;
+    dkRenderWorld_t *world;
+    if (!DK3_InlineParts((unsigned int)handle, &generation, &owner, &model)) return NULL;
+    world = &dkRenderWorlds[owner];
+    if (world->status != 2 || world->generation != generation || model >= (unsigned int)world->inlineCount) return NULL;
+    return &world->inlineModels[model];
 }
 
 void R_ClearResidentWorlds(void) {
@@ -180,8 +189,9 @@ void R_ClearResidentWorlds(void) {
         unsigned int generation = world->generation;
         if (world->read) ri.EndBackgroundRead(world->read);
         if (world->hdrVertices) ri.Free(world->hdrVertices);
+        if (world->inlineModels) ri.Free(world->inlineModels);
         memset(world, 0, sizeof(*world));
-        world->generation = generation < 0x7fffff ? generation + 1 : generation;
+        world->generation = generation < DK3_RENDER_GENERATION_MAX ? generation + 1 : generation;
     }
     dkLoadingWorld = NULL;
     dkLightBlocks = NULL;

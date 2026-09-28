@@ -6,6 +6,7 @@ const worlds = @import("../engine/worlds.zig");
 const engine = @import("../engine/server.zig");
 const c = @import("../engine/abi.zig").c;
 const Context = @import("world_context.zig").Context;
+const snapshot = @import("../domain/snapshot.zig");
 const Entry = struct {
     name: [64]u8 = @splat(0),
     handle: worlds.Handle,
@@ -17,11 +18,14 @@ const Entry = struct {
     client_failed: bool = false,
     namespace: u7 = 1,
     saved: ?*@import("../domain/snapshot.zig").Loaded = null,
+    migrated: ?*snapshot.Loaded = null,
 };
 pub const State = struct {
     entries: [127]?Entry = @splat(null),
     cursor: usize = 0,
     initial_namespace: u7 = 0,
+    legacy_archives: []const snapshot.Archive = &.{},
+    traveler_id: u32 = 0,
     pub fn ensure(self: *State, name: []const u8) !bool {
         for (self.entries) |maybe| if (maybe) |entry| {
             if (!std.mem.eql(u8, name, std.mem.sliceTo(&entry.name, 0))) continue;
@@ -97,6 +101,10 @@ pub const State = struct {
         for (&self.entries) |*maybe| if (maybe.*) |*entry| {
             if (entry.publication) |*publication| publication.deinit(entry.handle);
             if (entry.context) |context| context.destroy();
+            if (entry.migrated) |saved| {
+                saved.deinit(std.heap.c_allocator);
+                std.heap.c_allocator.destroy(saved);
+            }
             _ = worlds.release(entry.handle);
         };
         self.* = .{};
@@ -124,7 +132,22 @@ pub const State = struct {
                 return error.WorldNamespaceCapacity;
             };
             if (occupied[namespace]) return error.DuplicateWorldNamespace;
-            var entry: Entry = .{ .handle = try worlds.request(name), .gameplay = gameplay, .namespace = namespace, .saved = saved };
+            var migrated: ?*snapshot.Loaded = null;
+            errdefer if (migrated) |value| {
+                value.deinit(std.heap.c_allocator);
+                std.heap.c_allocator.destroy(value);
+            };
+            if (saved == null and gameplay) for (self.legacy_archives) |archive| {
+                if (!std.mem.eql(u8, archive.map, name)) continue;
+                const value = try std.heap.c_allocator.create(snapshot.Loaded);
+                value.* = snapshot.migrateVisited(std.heap.c_allocator, archive.bytes, namespace, self.traveler_id) catch |err| {
+                    std.heap.c_allocator.destroy(value);
+                    return err;
+                };
+                migrated = value;
+                break;
+            };
+            var entry: Entry = .{ .handle = try worlds.request(name), .gameplay = gameplay, .namespace = namespace, .saved = if (migrated) |value| value else saved, .migrated = migrated };
             @memcpy(entry.name[0..name.len], name);
             slot.* = entry;
             return;
@@ -171,6 +194,10 @@ pub const State = struct {
                 try entry.context.?.systems.navigation.frame(now);
                 if (engine.gateway.call(c.BOTLIB_AAS_INITIALIZED, .{}) == 0) return;
                 entry.ready = true;
+                if (entry.migrated != null) {
+                    var migrated_message: [160]u8 = undefined;
+                    engine.print(try std.fmt.bufPrintZ(&migrated_message, "dk3 region: visited archive admitted map={s} namespace={d}\n", .{ std.mem.sliceTo(&entry.name, 0), entry.namespace }));
+                }
                 const elapsed = engine.gateway.call(c.G_MILLISECONDS, .{}) - before;
                 var message: [256]u8 = undefined;
                 engine.print(try std.fmt.bufPrintZ(&message, "dk3 resident: map={s} stage=gameplay_prepared entities={d} navigation=1 admission_ms={d}\n", .{ std.mem.sliceTo(&entry.name, 0), entry.context.?.world.?.count(), elapsed }));

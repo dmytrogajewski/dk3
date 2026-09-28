@@ -91,6 +91,8 @@ pub fn floatArg(value: f32) isize {
 }
 pub fn registerSound(name: []const u8) !c.sfxHandle_t {
     var buffer: [c.MAX_QPATH + 8]u8 = undefined;
-    const path = try std.fmt.bufPrintZ(&buffer, "sounds/{s}", .{name});
+    var normalized: [c.MAX_QPATH]u8 = undefined;
+    const relative = try @import("../domain/audio.zig").soundPath(name, &normalized);
+    const path = try std.fmt.bufPrintZ(&buffer, "sounds/{s}", .{relative});
     return @intCast(gateway.call(c.CG_S_REGISTERSOUND, .{ path.ptr, @as(isize, 0) }));
 }

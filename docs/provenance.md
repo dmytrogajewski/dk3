@@ -339,3 +339,12 @@ implementation was consulted or copied for this sequence. New engine owned_memor
 is independent GPL-2.0-or-later code; reviewed renderer/navigation/server allocations
 retain their existing owners and explicit shutdowns. Engine file hashes and pinned
 upstream identities are recorded in engine/DEVELOPMENT.json.
+
+Sequence 302 independently maps native visited-save identities from the project’s
+existing typed components. No private implementation or original save codec was
+consulted or imported. Local sequence-294/301 native fixtures supply regression
+evidence and remain outside public sources. The renderer’s inline handle codec is
+independent GPL-2.0-or-later code. The reliable boundary repair follows the bundled
+engine’s CL_ParseGamestate and CL_InitCGame contracts; it preserves ordinary
+reliable handling. The doubled sound separator is verified against the supplied
+local sound package. Updated engine file identities are in engine/DEVELOPMENT.json.
