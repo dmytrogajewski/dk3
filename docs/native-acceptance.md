@@ -18,7 +18,9 @@ party-health autosaves and softer Cambot lights. Sequence 310 adds the installed
 picker for Internet Create and LAN hosting. Sequence 311 repairs pickup raises,
 first-person stair/duck smoothing, pickup rotation/lighting and weapon shine.
 Sequence 312 repairs saved-region loading, worker ZIP cleanup and wet-floor
-robot navigation. Latest coherent build: `268649…`,
+robot navigation. Sequence 313 enables model silhouette shadows and makes the
+launcher explicitly select OpenGL2. Sequence 314 gives the multiplayer Load menu
+a local campaign transition. Latest coherent build: `83d6e0…`,
 protocol 1350; earlier gameplay evidence retains its recorded identity below.
 **Seamless campaign acceptance remains incomplete.** Fresh opening development
 reaches the bridge boss but has not completed the milestone. Ground-controller
@@ -35,10 +37,84 @@ remaining admission stalls stay open. Supporting checks do not measure completio
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Region recovery, autosaves, bounded loading work, actual progress and owner-thread ZIP finalization | Runtime/party-health and actual concurrent ZIP/CRC/cancellation contracts pass at 312 | On `268649…`, user autosave/save2 restore via both menus and death recovery in both renderers with all 10/12 resident worlds; original files preserved | Full live-party autosave and fresh campaign restoration remain unverified. 309 autosave timing retains its identity; historical state stays mandatory. [Evidence](#sequence-312--native-restoration-wet-ground) |
 | Multiplayer and bots | Native sessions/modes/bots; spawn-aware shared weapon presentation; protocol 1350 | Wire, counter-wrap and respawn contracts pass at 309 | Final 309: two actual UDP clients show advancing attack frames before/after respawn and pass spectate/rejoin/reconnect/restart | Every weapon interaction, full CTF/deathtag, public admission/authenticated rooms and full modes remain open. No service deployment |
-| World/effects | Authored controls, hazards, debris, lighting and sky connected; softer Cambot lamp/beam/contact pools | Applicable contracts pass; final build checks at 309 | Final 309: Cambot acquisition and rendered lamp captures inspected in both backends. 296 fragment/sky evidence retained with its original identity | Broader authored effects/audio/PHS parity remains open; enhancement is not a shadow-mapped spotlight |
+| World/effects | Authored controls, hazards, debris, lighting and sky connected; softer Cambot lights and default model silhouettes | Applicable aggregate contracts pass at 313 | Final 313: character floor/wall shadows and restoration in both backends; armor/ammunition shadows and resident combat in OpenGL2. Earlier Cambot/sky evidence retains its identity | Full material/terrain, foreign-view shadow generation, brush casting and performance remain open; Cambot enhancement is not a shadow-mapped spotlight |
 | Presentation and cinematic input | Menus/loading art, interpolation, cinematic input and all camera modes connected | Three-bit camera modes survive actual message encoding at 309 | Final 309: ordinary e1m1c button use, remote door view, release and finished-scene save/load. Earlier intro/menu evidence retains its recorded identity | Full fresh intro, all authored scenes, menu equivalence and audiovisual comparison remain unverified |
 | Pickup and first-person feedback | Shared class-owned raise transition, stair/duck offsets, selected rotating pickups, minimum model light and neutral shine | Acquisition/queued-input, rotation exclusions and camera replay/boundary contracts execute at 311 | Final 311: one actual Ion pickup draw, smooth crouch/stand and ready-weapon restore in both renderers; three actual e1m1c step rises; armor/ammo/shine captures inspected | Main camera timing and private pickup behavior inspected. Controlled setup; broader weapon interactions, custom rotation overrides and exact glow/material parity remain open |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 314 — native-host-to-save
+
+Build `83d6e0d090472eed29e915d8da2a30db37ca0e3fdbc14812c3acc2d05641a4bb`;
+combined identity `be918e9f14163e479fcbafa82bdfe73360d933f8bed38a44587bc9bf44249dc8`.
+Protocol 1350, renderer ABI 12, assets, shadows and renderer defaults are unchanged.
+
+The native Load menu validates the selected save before closing. During a hosted
+or remote match it now disconnects and starts the local saved campaign through
+`dk3_loadmenu`, which stages the save and selects single-player mode. An active
+local campaign keeps its existing `load` path. Previously the menu forwarded
+`load` to the match; the actual hosted reproduction refuses it with
+`SaveRequiresSinglePlayer`.
+
+The reported screenshot also showed missing 2D HUD art/text while 3D inventory
+models remained visible. The owner clarified that this happened immediately
+after Escape → Load in a hosted match and recovered about a minute later.
+That transient rendering symptom has **not been reproduced or independently
+confirmed fixed**. No speculative renderer change is included in this sequence.
+
+Evidence is under `zig-out/reports/runtime-zig-314/`. All runs use dkguard and
+isolated profiles with copied saves; the owner's live files remain untouched.
+The original autosave advanced during investigation, so later probes retain a
+frozen `source.sav` and its digest rather than assuming the live slot is unchanged.
+
+| Evidence | State and result | Limits |
+|---|---|---|
+| `build-approved.log` | Passed: integrated native installation, 43/43 build steps | Initial sandbox build lacked writable Zig compiler cache; no duplicate broad suite |
+| `direct-old/` | Failed as expected: real hosted Escape → Load refuses the save with `SaveRequiresSinglePlayer` | Reproduces the menu routing defect, not the transient missing HUD |
+| `direct-fixed/`, `direct-e1m2b/` | Passed: actual hosted Escape → Load restores copied e1m3a/e1m2b saves, confirms `g_gametype 2`, draws the loading screen and complete HUD when gameplay resumes | OpenGL2 software. Inspected captures plus fixed POWER-label pixel checks across 20/12 subsequent samples at two-second intervals; not proof of the original transient symptom's cause |
+| `baseline-restore/`, `baseline-multiplayer/`, `baseline-bots-complete/`, `loading-baseline/`, `background-baseline/`, `loading-opengl1/` | Completed: copied-save restoration from a disconnected menu, loading/background observations in software | Pre-change investigations; both renderers represented. Initial `baseline-bots/` used an insufficient observation timeout |
+| `hardware-baseline/` | Completed on NVIDIA RTX 5090 Laptop GPU: disconnected restore retains HUD | Pre-change OpenGL2, console transition, copied settings; no desktop input injection |
+
+## Sequence 313 — native-model-shadows
+
+Build `aa5a4cb4bcf90ec1a1492b265ec393e9217b7f34c6166a500d14b149944bc1cd`;
+combined identity `b8934fe160e3976b7751d679773e3bb9d659cabfbeef6ca4ee2f57cded6a49c5`.
+Protocol 1350, renderer ABI 12 and local asset packages are unchanged.
+
+The default `cg_shadows 1` now
+selects model silhouette shadows in both backends: stencil volumes in OpenGL1,
+projected shadow maps in OpenGL2. Video settings expose an archived Model shadows
+On/Off control. Opaque actors, corpses, pickups, held weapons and ordinary model
+props participate; first-person weapons, fading models and effect overlays do not.
+OpenGL2 validates MD3 frame indices before shadow bounds reads, covers both
+animation poses and nonuniform scale, and excludes other resident worlds.
+Both backends bias low light directions upward to retain a ground silhouette.
+OpenGL2 uses a consistent orthographic depth range and compares receiver depth
+against the caster; the old occupancy-only lookup could shadow surfaces in front
+of the model. The launcher selects OpenGL2 even with an older saved renderer
+setting; an explicit trailing `+set cl_renderer opengl1` still takes precedence.
+
+| Evidence | State and verified outcome | Limits |
+|---|---|---|
+| `aggregate.log` | Passed: 52/52 steps, 415 Zig tests, 87 Python tests and existing actual C contracts | One consolidated suite after renderer/scenario repairs; no full campaign or hardware-performance claim |
+| `final-solid-opengl1/`, `final-solid-opengl2/` | Passed: default On, Off/On captures with inspected character silhouettes on floor/wall, save/load and restored rendering in both backends | Diagnostic grounded worker in e1m3b, player placement/health. Lightmap-only views separate shadow geometry from authored textures; timed lighting still advances |
+| `final-solid-opengl2/pixel-evidence.json` | Shadow floor sample attenuates to 0.339 of its Off value versus 0.734 in the unshadowed control | Fixed small image regions corroborate inspection; not a whole-image or performance claim |
+| `final-pickups-opengl2/` | Passed: authored armor/ammunition Off/On captures inspected; visible armor footprint and ammunition shadows on alcove rock | Controlled crouched viewpoints; not every pickup/prop |
+| `launcher.json` | Passed: ordinary launch selects OpenGL2, explicit OpenGL1 argument wins | Captured actual launcher arguments with a temporary synthetic installation |
+| `final-resident-opengl2/` | Passed: foreign target rendering, late model registration and Glock/Ion/Sidewinder contact through the resident aperture; view inspected | Controlled two-world setup; destination shadows remain suppressed rather than borrowing source-world maps |
+
+Foreign portal views suppress source-world shadow maps; destination-view shadow
+generation remains open. Static BSP lighting remains baked; this does not add
+dynamic brush casting or a shadow for the omitted local first-person body.
+OpenGL2 retains the bounded 16-map shadow budget. Transparent receivers and
+fading casters, all terrain/material cases and hardware performance are not
+qualified by these focused scenes.
+
+Evidence is under `zig-out/reports/runtime-zig-313/`. Initial worker setup used
+the wrong class assertion, and the first software run could not open X inside
+the sandbox. A slow-timescale comparison stalled and is not acceptance. Early
+captures retain the missing ground projection and incorrect shadow-depth lookup;
+the final renderer scenes supersede those appearances. Full campaign acceptance
+remains open.
 
 ## Sequence 312 — native-restoration-wet-ground
 

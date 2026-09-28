@@ -1079,7 +1079,7 @@ static void ProjectPshadowVBOGLSL( void ) {
 		vector[3] = 1.0f;
 		GLSL_SetUniformVec4(sp, UNIFORM_LIGHTORIGIN, vector);
 
-		VectorScale(ps->lightViewAxis[0], 1.0f / ps->viewRadius, vector);
+		VectorCopy(ps->lightViewAxis[0], vector);
 		GLSL_SetUniformVec3(sp, UNIFORM_LIGHTFORWARD, vector);
 
 		VectorScale(ps->lightViewAxis[1], 1.0f / ps->viewRadius, vector);
@@ -1816,7 +1816,7 @@ void RB_StageIteratorGeneric( void )
 	//
 	// pshadows!
 	//
-	if (glRefConfig.framebufferObject && r_shadows->integer == 4 && tess.pshadowBits
+	if (glRefConfig.framebufferObject && (r_shadows->integer == 1 || r_shadows->integer == 4) && tess.pshadowBits
 		&& tess.shader->sort <= SS_OPAQUE && !(tess.shader->surfaceFlags & (SURF_NODLIGHT | SURF_SKY) ) ) {
 		ProjectPshadowVBOGLSL();
 	}

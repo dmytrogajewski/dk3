@@ -523,7 +523,7 @@ void RE_RenderScene( const refdef_t *fd ) {
 	}
 
 	/* playing with more shadows */
-	if(glRefConfig.framebufferObject && !( fd->rdflags & RDF_NOWORLDMODEL ) && r_shadows->integer == 4)
+	if(glRefConfig.framebufferObject && !( fd->rdflags & RDF_NOWORLDMODEL ) && (r_shadows->integer == 1 || r_shadows->integer == 4))
 	{
 		R_RenderPshadowMaps(fd);
 	}

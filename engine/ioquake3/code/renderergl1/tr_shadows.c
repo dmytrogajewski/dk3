@@ -150,13 +150,26 @@ void RB_ShadowTessEnd( void ) {
 	int		i;
 	int		numTris;
 	vec3_t	lightDir;
+	vec3_t worldLight;
 	GLboolean rgba[4];
 
 	if ( glConfig.stencilBits < 4 ) {
 		return;
 	}
 
-	VectorCopy( backEnd.currentEntity->lightDir, lightDir );
+	// Lighting stores axis-dot products, including model scale. Reconstruct
+	// the world direction before biasing low lights toward the ground, then
+	// transform the extrusion back with the inverse (possibly scaled) axes.
+	VectorClear(worldLight);
+	for (i = 0; i < 3; ++i) {
+		float squared = DotProduct(backEnd.or.axis[i], backEnd.or.axis[i]);
+		if (squared < 0.000001f) return;
+		VectorMA(worldLight, backEnd.currentEntity->lightDir[i] / squared, backEnd.or.axis[i], worldLight);
+	}
+	worldLight[2] = MAX(worldLight[2], 0.5f);
+	VectorNormalize(worldLight);
+	for (i = 0; i < 3; ++i)
+		lightDir[i] = DotProduct(worldLight, backEnd.or.axis[i]) / DotProduct(backEnd.or.axis[i], backEnd.or.axis[i]);
 
 	// project vertexes away from light direction
 	for ( i = 0 ; i < tess.numVertexes ; i++ ) {
@@ -238,7 +251,7 @@ overlap and double darken.
 =================
 */
 void RB_ShadowFinish( void ) {
-	if ( r_shadows->integer != 2 ) {
+	if ( r_shadows->integer != 1 && r_shadows->integer != 2 ) {
 		return;
 	}
 	if ( glConfig.stencilBits < 4 ) {

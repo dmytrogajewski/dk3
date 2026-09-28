@@ -55,7 +55,7 @@ def stage_client_modules(prefix, home, *, installation=None):
                 raise RuntimeError(f"Staged runtime changed or differs from its installation: {source}")
 
 
-def client_settings(engine, home, renderer="opengl1", workers=4):
+def client_settings(engine, home, renderer="opengl2", workers=4):
     return {"net_enabled": "0", "fs_basepath": str(engine / "share"),
             "fs_homepath": str(home), "fs_homedatapath": str(home),
             "fs_homestatepath": str(home / "state"), "com_basegame": "dk3",

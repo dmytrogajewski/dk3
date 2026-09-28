@@ -65,6 +65,9 @@ Builds default to `zig-out/native-dev`; settings and saves remain under that pre
 Use `-Dassets-dir=/path/to/cache` for a different converted cache or `-Dheadless=true`
 for a software-rendered test on a virtual display.
 
+Normal launches use OpenGL2 with model shadows enabled. **Video → Model shadows**
+toggles shadows. To explicitly use OpenGL1, pass `-- +set cl_renderer opengl1`.
+
 Press **Escape** during a cinematic to skip it and continue its authored exit.
 Outside cinematics, Escape opens or closes the pause menu.
 

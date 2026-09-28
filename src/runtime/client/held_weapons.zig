@@ -26,7 +26,7 @@ pub fn draw(parent: *const c.refEntity_t, weapon: i32) !void {
     model.nonNormalizedAxes = parent.nonNormalizedAxes;
     model.frame = entry.spec.equipped_frame;
     model.oldframe = model.frame;
-    model.renderfx = c.RF_MINLIGHT;
+    model.renderfx = c.RF_MINLIGHT | (parent.renderfx & c.RF_NOSHADOW);
     model.shaderRGBA = parent.shaderRGBA;
     model.skinNum = if (model.shaderRGBA[3] < 255) 1 else 0;
     _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&model});

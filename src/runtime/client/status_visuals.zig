@@ -3,6 +3,7 @@ const engine = @import("../engine/client.zig");
 const c = @import("../engine/abi.zig").c;
 pub fn frost(model: c.refEntity_t, strength: f32) !void {
     var overlay = model;
+    overlay.renderfx |= c.RF_NOSHADOW;
     overlay.customShader = @intCast(engine.gateway.call(c.CG_R_REGISTERSHADER, .{@as([*:0]const u8, "dk3/fx/freeze")}));
     overlay.shaderRGBA = .{ @intFromFloat(30 * strength), @intFromFloat(60 * strength), @intFromFloat(110 * strength), 255 };
     _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&overlay});

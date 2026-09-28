@@ -555,6 +555,9 @@ fn draw(now: i32) !void {
         }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").wyndrax.render_tag) rendered.shaderRGBA[3] = @intFromFloat(std.math.clamp(entity.origin2[0], 0, 1) * 255);
         if (entity.eType == c.ET_MISSILE) try @import("client/projectiles.zig").decorate(&rendered, entity, now);
+        // Fading/energy models do not cast an opaque silhouette. Ordinary
+        // actors, bodies, pickups, props and physical projectiles do.
+        if (rendered.shaderRGBA[3] < 255) rendered.renderfx |= c.RF_NOSHADOW;
         // Converted MD3 surfaces carry ordinary/alpha/bright/alpha-bright
         // variants. Selecting alpha preserves each surface's own authored skin.
         if ((entity.eType == c.ET_GENERAL or entity.eType == c.ET_MISSILE) and rendered.shaderRGBA[3] < 255 and std.mem.endsWith(u8, try engine.config(owner.game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), ".dkm")) rendered.skinNum = if (entity.generic1 == @import("actor_catalog").medusa.stone_tag or (entity.generic1 == @import("item_catalog").chest.render_tag and entity.weapon == 2)) 3 else 1;

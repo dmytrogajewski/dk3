@@ -36,6 +36,7 @@ pub const entries = [_]Setting{
     .{ .group = .video, .label = "Fullscreen", .name = "r_fullscreen", .initial = "0", .choices = on_off },
     .{ .group = .video, .label = "Vertical sync", .name = "r_swapInterval", .initial = "0", .choices = on_off },
     .{ .group = .video, .label = "Texture detail", .name = "r_picmip", .initial = "0", .maximum = 3, .choices = &.{ "Highest", "High", "Medium", "Low" } },
+    .{ .group = .video, .label = "Model shadows", .name = "cg_shadows", .initial = "1", .choices = on_off },
     .{ .group = .mouse, .label = "Sensitivity", .name = "sensitivity", .initial = "5", .minimum = 0.5, .maximum = 10, .step = 0.25 },
     .{ .group = .mouse, .label = "Mouse smoothing", .name = "m_filter", .initial = "0", .choices = on_off },
     .{ .group = .options, .label = "HUD size", .name = "cg_hudScale", .initial = "1", .minimum = 0.75, .maximum = 1.5, .step = 0.05 },

@@ -515,7 +515,7 @@ void RB_BeginDrawingView (void) {
 	// clear relevant buffers
 	clearBits = GL_DEPTH_BUFFER_BIT;
 
-	if ( r_measureOverdraw->integer || r_shadows->integer == 2 )
+	if ( r_measureOverdraw->integer || (r_shadows->integer == 1 || r_shadows->integer == 2) )
 	{
 		clearBits |= GL_STENCIL_BUFFER_BIT;
 	}

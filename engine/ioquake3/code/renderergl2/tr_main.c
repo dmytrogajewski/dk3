@@ -1348,6 +1348,7 @@ qboolean R_MirrorViewBySurface (drawSurf_t *drawSurf, int entityNum) {
 	orientation_t	surface, camera;
 
     unsigned int residentWorld = 0, previousWorld = RE_CurrentWorld();
+    int savedPshadowCount = tr.refdef.num_pshadows;
     byte savedAreaMask[MAX_MAP_AREA_BYTES];
 
 	// don't recursively mirror
@@ -1395,6 +1396,9 @@ qboolean R_MirrorViewBySurface (drawSurf_t *drawSurf, int entityNum) {
     // Ordinary engine mirrors retain their existing path.
     if (residentWorld) {
         if (!RE_SelectWorld(residentWorld)) ri.Error(ERR_DROP, "Lost resident portal destination");
+        // These maps were rendered in the source world's coordinates. Do not
+        // project them onto an unrelated resident destination's geometry.
+        tr.refdef.num_pshadows = 0;
         Com_Memcpy(savedAreaMask, tr.refdef.areamask, sizeof(savedAreaMask));
         Com_Memset(tr.refdef.areamask, 0, sizeof(tr.refdef.areamask));
         tr.refdef.areamaskModified = qtrue;
@@ -1402,6 +1406,7 @@ qboolean R_MirrorViewBySurface (drawSurf_t *drawSurf, int entityNum) {
     R_RenderView(&newParms);
     if (residentWorld) {
         if (!RE_SelectWorld(previousWorld)) ri.Error(ERR_DROP, "Lost resident portal source");
+        tr.refdef.num_pshadows = savedPshadowCount;
         Com_Memcpy(tr.refdef.areamask, savedAreaMask, sizeof(savedAreaMask));
         tr.refdef.areamaskModified = qtrue;
     }
@@ -1924,7 +1929,10 @@ void R_RenderPshadowMaps(const refdef_t *fd)
 	{
 		trRefEntity_t *ent = &tr.refdef.entities[i];
 
-		if((ent->e.renderfx & (RF_FIRST_PERSON | RF_NOSHADOW)))
+		// Resident worlds reuse coordinates. Only the current owner may cast
+		// into this world's shadow maps; foreign entities have their own view.
+		if(ent->e.dk3World != tr.worldRegistration ||
+		   (ent->e.renderfx & (RF_FIRST_PERSON | RF_DEPTHHACK | RF_NOSHADOW)))
 			continue;
 
 		//if((ent->e.renderfx & RF_THIRD_PERSON))
@@ -1944,16 +1952,26 @@ void R_RenderPshadowMaps(const refdef_t *fd)
 
 			if (ent->e.nonNormalizedAxes)
 			{
-				scale = VectorLength( ent->e.axis[0] );
+				scale = MAX(VectorLength(ent->e.axis[0]),
+				            MAX(VectorLength(ent->e.axis[1]), VectorLength(ent->e.axis[2])));
 			}
 
 			switch (model->type)
 			{
 				case MOD_MESH:
 				{
-					mdvFrame_t *frame = &model->mdv[0]->frames[ent->e.frame];
-
-					radius = frame->radius * scale;
+					mdvModel_t *mesh = model->mdv[0];
+					int frame = ent->e.frame, oldframe = ent->e.oldframe;
+					// Shadow admission precedes R_AddMD3Surfaces' validation.
+					if (ent->e.renderfx & RF_WRAP_FRAMES) {
+						frame %= mesh->numFrames;
+						oldframe %= mesh->numFrames;
+					}
+					if (frame < 0 || frame >= mesh->numFrames || oldframe < 0 || oldframe >= mesh->numFrames)
+						frame = oldframe = 0;
+					// Include both animation poses and their local centers.
+					radius = MAX(mesh->frames[frame].radius + VectorLength(mesh->frames[frame].localOrigin),
+					             mesh->frames[oldframe].radius + VectorLength(mesh->frames[oldframe].localOrigin)) * scale;
 				}
 				break;
 
@@ -2101,6 +2119,10 @@ void R_RenderPshadowMaps(const refdef_t *fd)
 		if (DotProduct(lightDir, lightDir) < 0.9f)
 			VectorSet(lightDir, 0.0f, 0.0f, 1.0f);
 #endif
+		// Model shadows anchor objects to their surroundings. Floor-level or
+		// downward light-grid samples must not project the silhouette skyward.
+		lightDir[2] = MAX(lightDir[2], 0.5f);
+		VectorNormalize(lightDir);
 
 		if (shadow->viewRadius * 3.0f > shadow->lightRadius)
 		{
@@ -2203,8 +2225,10 @@ void R_RenderPshadowMaps(const refdef_t *fd)
 
 				dest->projectionMatrix[2] = 0;
 				dest->projectionMatrix[6] = 0;
-				dest->projectionMatrix[10] = 2 / (zfar - znear);
-				dest->projectionMatrix[14] = 0;
+				// Standard orthographic depth: near -> 0, far -> 1 after
+				// viewport mapping. The receiver compares against this depth.
+				dest->projectionMatrix[10] = -2 / (zfar - znear);
+				dest->projectionMatrix[14] = -(zfar + znear) / (zfar - znear);
 
 				dest->projectionMatrix[3] = 0;
 				dest->projectionMatrix[7] = 0;

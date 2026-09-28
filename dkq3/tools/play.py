@@ -157,7 +157,7 @@ def launch(prefix, guard, extra, headless=False):
                '+set', 'fs_homedatapath', str(prefix / 'play' / 'home'),
                '+set', 'fs_homestatepath', str(prefix / 'play' / 'state'),
                '+set', 'vm_game', '0', '+set', 'vm_cgame', '0', '+set', 'vm_ui', '0',
-               '+set', 'g_gametype', '2',
+               '+set', 'g_gametype', '2', '+set', 'cl_renderer', 'opengl2',
                *(['+set', 'r_picmip', '0'] if 'share/dk3/zz-dk3-textures-hd.pk3' in manifest['files'] else []), *extra]
     os.execv(command[0], command)
 

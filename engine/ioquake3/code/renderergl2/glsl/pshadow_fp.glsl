@@ -52,14 +52,17 @@ void main()
 
 	intensity *= fade;
 
+	// A nonempty texel alone is insufficient: it also darkens receivers in
+	// front of the caster (including walls above a character's head).
+	float receiverDepth = dot(u_LightForward, lightToPos) / u_LightRadius - 0.002;
 	float part;
 #if defined(USE_PCF)
-	part  = float(texture2D(u_ShadowMap, st + vec2(-1.0/512.0, -1.0/512.0)).r != 1.0);
-	part += float(texture2D(u_ShadowMap, st + vec2( 1.0/512.0, -1.0/512.0)).r != 1.0);
-	part += float(texture2D(u_ShadowMap, st + vec2(-1.0/512.0,  1.0/512.0)).r != 1.0);
-	part += float(texture2D(u_ShadowMap, st + vec2( 1.0/512.0,  1.0/512.0)).r != 1.0);
+	part  = float(texture2D(u_ShadowMap, st + vec2(-1.0/512.0, -1.0/512.0)).r < receiverDepth);
+	part += float(texture2D(u_ShadowMap, st + vec2( 1.0/512.0, -1.0/512.0)).r < receiverDepth);
+	part += float(texture2D(u_ShadowMap, st + vec2(-1.0/512.0,  1.0/512.0)).r < receiverDepth);
+	part += float(texture2D(u_ShadowMap, st + vec2( 1.0/512.0,  1.0/512.0)).r < receiverDepth);
 #else
-	part  = float(texture2D(u_ShadowMap, st).r != 1.0);
+	part  = float(texture2D(u_ShadowMap, st).r < receiverDepth);
 #endif
 
 	if (part <= 0.0)

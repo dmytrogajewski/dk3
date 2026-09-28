@@ -335,7 +335,12 @@ pub const Menu = struct {
                     return;
                 };
                 var command: [96]u8 = undefined;
-                const verb = if (self.page == 3) "save" else if (engine.inGame()) "load" else "dk3_loadmenu";
+                // Save slots belong to the local campaign. Leaving a hosted or
+                // remote match must tear down its client/server and renderer
+                // before starting the saved campaign; never forward its load
+                // request to a multiplayer server.
+                const local_campaign = engine.inGame() and engine.number("sv_running") != 0 and engine.number("g_gametype") == c.GT_SINGLE_PLAYER;
+                const verb = if (self.page == 3) "save" else if (local_campaign) "load" else if (engine.client().connState > c.CA_DISCONNECTED) "disconnect\ndk3_loadmenu" else "dk3_loadmenu";
                 const text = try std.fmt.bufPrintZ(&command, "{s} {s}\n", .{ verb, slot });
                 self.close();
                 engine.execute(text);
