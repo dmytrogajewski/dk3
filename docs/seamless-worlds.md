@@ -1,6 +1,6 @@
 # Seamless connected worlds
 
-Sequences 297–299 implement connected owners on `rewrite/native-zig-runtime`.
+Sequences 297–300 implement connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary exits still perform their existing map load.**
 Preparing collision, rendering and dormant entities is not acceptance of a seamless crossing.
 
@@ -101,13 +101,29 @@ active world identity and rejects cross-world snapshot delta bases. The independ
 Zig codec and compatibility manifest use the same protocol; no service was deployed.
 
 `dk3_runtime_enter_world e1m1b` and `dk3_runtime_enter_world initial` exercise this
-handoff after client admission, with single-player cheats required. These are
+handoff after client admission, through host-console native single-player diagnostic mode. These are
 controlled diagnostics, not an automatic authored seam implementation. Player
-transfer does not yet qualify cross-map attacks, entity-local effects or region saves.
+transfer does not yet qualify cross-map attacks or entity-local effects.
+
+Sequence 300 adds schema-2 region saves. One atomic file includes the active world,
+resident worlds, local ID allocation ranges, asset checksums, activation state,
+resource identities and pending actions. Decoding validates unique identities and
+references across explicit world/entity pairs. A hidden prepared context owns its
+admitted saved state; control resumes only after all required client resources are
+ready. Saved region loading currently restarts the connection, which is permitted
+for load/death but does not establish uninterrupted travel. Actor state in both A
+and B survives actual save/load and death/reload in both renderers.
+
+Schema-1 single-world saves and flat visited archives remain readable; an actual
+sequence-296 save was loaded and resaved. Converting old visited archives into
+simultaneous resident namespaces remains open. Resident allocation namespaces and
+frozen preparation clocks survive schema-2 restoration. The client now excludes
+inactive connection snapshots before applying world identity or gameplay events;
+the death/restore regression fails before this correction and passes afterward.
 
 Prepared gameplay and render contexts remain developer diagnostics. Renderer
 allocations are retained until region/renderer shutdown; fine-grained GPU eviction
-is not implemented. Region save schema/migration has not yet been admitted.
+is not implemented. Complete old-archive-to-region migration remains open.
 
 ## Remaining implementation, in dependency order
 
@@ -124,9 +140,10 @@ is not implemented. Region save schema/migration has not yet been admitted.
    movement/prediction, actor transfer and cross-portal combat with ordinary inputs.
    Replace `map`/module shutdown/hunk clearing for intra-region crossings only when
    all participating owners exist and readiness is proven.
-4. Capture resident-region state atomically, including transferred identities,
-   pending actions and activation state. Add save-schema migration without changing
-   original saves, full death/reload restoration and safe cancellation during loads.
+4. Extend the admitted region persistence through legacy visited-world migration,
+   live cross-map controllers and cancellation/failure scenarios. Preserve original
+   saves. The current controlled two-map restore is not acceptance of every map,
+   pending action or cross-map combat restoration.
 5. Connect New Game/restore admission, region residency and transition preparation;
    integrate deterministic cut holds and failure reporting. Preserve multiplayer
    match semantics and map rotation rather than connecting separate arenas.

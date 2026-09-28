@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Native schema 1. Named portable records contain typed JSON values, never memory
+//! Native schema 2, with schema-1 migration. Named portable records contain typed JSON values, never memory
 //! layouts, pointers, archetype rows or jobs. Decode into an isolated world first.
 const std = @import("std");
 const data = @import("components.zig");
 const ecs = @import("../ecs/world.zig");
 const stream = @import("save_stream.zig");
-pub const schema = 1;
+pub const schema = 2;
 pub const maximum = 64 * 1024 * 1024;
 pub const model_limit = 512;
 pub const sound_limit = 1024;
@@ -18,6 +18,9 @@ pub const Header = struct {
     next_id: u32,
     player_id: u32,
     episode: u8,
+    namespace: ?u7 = null,
+    asset_crc: u32 = 0,
+    activated: bool = true,
     resources: Resources = .{},
     pending: @import("target_actions.zig").Queue = @splat(null),
     journey: ?@import("travel.zig").Journey = null,
@@ -29,7 +32,12 @@ pub const Loaded = struct {
     map: []const u8,
     skill: u8,
     visited: []const Archive = &.{},
+    residents: []Loaded = &.{},
+    region_member: bool = false,
+    ownership_transferred: bool = false,
     pub fn deinit(self: *Loaded, allocator: std.mem.Allocator) void {
+        if (self.ownership_transferred) return;
+        for (self.residents) |*member| member.deinit(allocator);
         self.world.deinit();
         self.arena.deinit();
         allocator.destroy(self.arena);
@@ -67,6 +75,9 @@ pub fn capture(allocator: std.mem.Allocator, storage: []u8, world: *data.World, 
     return captureCampaign(allocator, storage, world, map, skill, header, &.{});
 }
 pub fn captureCampaign(allocator: std.mem.Allocator, storage: []u8, world: *data.World, map: []const u8, skill: u8, header: Header, visited: []const Archive) ![]const u8 {
+    return captureRegion(allocator, storage, world, map, skill, header, visited, &.{});
+}
+pub fn captureRegion(allocator: std.mem.Allocator, storage: []u8, world: *data.World, map: []const u8, skill: u8, header: Header, visited: []const Archive, residents: []const Archive) ![]const u8 {
     if (!validName(map) or skill < 1 or skill > 5 or world.query_depth != 0) return error.InvalidSnapshotContext;
     var writer = try stream.Writer.init(storage);
     try writer.record("campaign", 0);
@@ -93,7 +104,13 @@ pub fn captureCampaign(allocator: std.mem.Allocator, storage: []u8, world: *data
             try json(&writer, allocator, field.name, value.*);
         };
     }
-    if (visited.len > archive_limit) return error.ArchiveCapacity;
+    if (residents.len >= archive_limit or visited.len > archive_limit) return error.ArchiveCapacity;
+    for (residents, 1..) |member, id| {
+        if (!validName(member.map) or std.mem.eql(u8, member.map, map) or member.bytes.len > world_limit) return error.InvalidResident;
+        try writer.record("resident_level", @intCast(id));
+        try writer.raw(.{ .name = "map", .kind = .text, .count = member.map.len, .data = member.map });
+        try writer.raw(.{ .name = "snapshot", .kind = .bytes, .count = member.bytes.len, .data = member.bytes });
+    }
     for (visited, 1..) |archive, id| {
         if (!validName(archive.map) or std.mem.eql(u8, archive.map, map) or archive.bytes.len > world_limit) return error.InvalidArchive;
         try writer.record("visited_level", @intCast(id));
@@ -109,9 +126,9 @@ fn parse(comptime T: type, allocator: std.mem.Allocator, field: stream.Field) !T
     return result;
 }
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Loaded {
-    return decodeWorld(allocator, bytes, true);
+    return decodeWorld(allocator, bytes, true, false);
 }
-fn decodeWorld(allocator: std.mem.Allocator, bytes: []const u8, allow_visited: bool) anyerror!Loaded {
+fn decodeWorld(allocator: std.mem.Allocator, bytes: []const u8, allow_visited: bool, region_member: bool) anyerror!Loaded {
     if (bytes.len > maximum) return error.SnapshotCapacity;
     var reader = try stream.Reader.init(bytes);
     const campaign = (try reader.nextRecord()) orelse return error.MissingCampaign;
@@ -138,11 +155,31 @@ fn decodeWorld(allocator: std.mem.Allocator, bytes: []const u8, allow_visited: b
             version = try field.integer(0);
         } else if (std.mem.eql(u8, field.name, "state")) header = try parse(Header, strings, field) else return error.UnsupportedSnapshotField;
     }
-    if (version == null or version.? != schema) return error.UnsupportedSnapshotSchema;
-    var world = data.World.init(allocator, 1024);
+    if (version == null or (version.? != 1 and version.? != schema)) return error.UnsupportedSnapshotSchema;
+    var state = header orelse return error.MissingSnapshotState;
+    if (region_member and (version.? < 2 or state.namespace == null)) return error.InvalidResident;
+    if (version.? == 1 and state.namespace != null) return error.UnsupportedSnapshotSchema;
+    if (state.namespace == null) state.namespace = 0;
+    var world = data.World.initNamespaced(allocator, 1024, state.namespace.?);
     errdefer world.deinit();
     var archives: std.ArrayList(Archive) = .empty;
+    var residents: std.ArrayList(Loaded) = .empty;
+    errdefer for (residents.items) |*member| member.deinit(allocator);
     while (try reader.nextRecord()) |record| {
+        if (std.mem.eql(u8, record.name, "resident_level")) {
+            if (!allow_visited or region_member or residents.items.len >= archive_limit - 1 or record.id != residents.items.len + 1 or version.? < 2 or state.namespace == null) return error.InvalidResident;
+            const name_field = (try reader.nextField()) orelse return error.InvalidResident;
+            const content = (try reader.nextField()) orelse return error.InvalidResident;
+            if (!std.mem.eql(u8, name_field.name, "map") or name_field.kind != .text or !validName(name_field.data) or !std.mem.eql(u8, content.name, "snapshot") or content.kind != .bytes or content.data.len > world_limit or try reader.nextField() != null) return error.InvalidResident;
+            if (std.mem.eql(u8, name_field.data, map orelse return error.InvalidSaveMap)) return error.InvalidResident;
+            for (residents.items) |member| if (std.mem.eql(u8, member.map, name_field.data)) return error.DuplicateResident;
+            var nested = try decodeWorld(allocator, content.data, false, true);
+            errdefer nested.deinit(allocator);
+            if (nested.header.journey != null or nested.header.player_id != 0 or !std.mem.eql(u8, nested.map, name_field.data) or nested.header.namespace == state.namespace) return error.InvalidResident;
+            for (residents.items) |member| if (member.header.namespace == nested.header.namespace) return error.DuplicateWorldNamespace;
+            try residents.append(strings, nested);
+            continue;
+        }
         if (std.mem.eql(u8, record.name, "visited_level")) {
             if (!allow_visited or archives.items.len >= archive_limit or record.id != archives.items.len + 1) return error.InvalidArchive;
             const name_field = (try reader.nextField()) orelse return error.InvalidArchive;
@@ -150,14 +187,15 @@ fn decodeWorld(allocator: std.mem.Allocator, bytes: []const u8, allow_visited: b
             if (!std.mem.eql(u8, name_field.name, "map") or name_field.kind != .text or !validName(name_field.data) or !std.mem.eql(u8, content.name, "snapshot") or content.kind != .bytes or content.data.len > world_limit or try reader.nextField() != null) return error.InvalidArchive;
             if (std.mem.eql(u8, name_field.data, map orelse return error.InvalidSaveMap)) return error.InvalidArchive;
             for (archives.items) |prior| if (std.mem.eql(u8, prior.map, name_field.data)) return error.DuplicateArchive;
-            var nested = try decodeWorld(allocator, content.data, false);
+            var nested = try decodeWorld(allocator, content.data, false, false);
             defer nested.deinit(allocator);
             if (nested.header.journey != null or !std.mem.eql(u8, nested.map, name_field.data)) return error.InvalidArchive;
             try archives.append(strings, .{ .map = try strings.dupe(u8, name_field.data), .bytes = try strings.dupe(u8, content.data) });
             continue;
         }
-        if (archives.items.len != 0) return error.InvalidSnapshotRecord;
+        if (archives.items.len != 0 or residents.items.len != 0) return error.InvalidSnapshotRecord;
         if (!std.mem.eql(u8, record.name, "native_entity") or record.id == 0) return error.InvalidSnapshotRecord;
+        if (version.? == 1 and record.id > world.id_last) return error.InvalidLegacyIdentity;
         const entity = try world.create(record.id, .{});
         while (try reader.nextField()) |field| {
             var known = false;
@@ -169,11 +207,11 @@ fn decodeWorld(allocator: std.mem.Allocator, bytes: []const u8, allow_visited: b
             if (!known) return error.UnsupportedSnapshotComponent;
         }
     }
-    const state = header orelse return error.MissingSnapshotState;
     if (state.next_id < world.next_id or state.next_id == std.math.maxInt(u32)) return error.InvalidNextIdentity;
     world.next_id = state.next_id;
-    var result: Loaded = .{ .arena = arena, .world = world, .header = state, .map = map orelse return error.InvalidSaveMap, .skill = skill orelse return error.InvalidSaveSkill, .visited = archives.items };
-    try validate(&result);
+    if (state.namespace != null and state.next_id > world.id_last + 1) return error.InvalidNextIdentity;
+    var result: Loaded = .{ .arena = arena, .world = world, .header = state, .map = map orelse return error.InvalidSaveMap, .skill = skill orelse return error.InvalidSaveSkill, .visited = archives.items, .residents = residents.items, .region_member = region_member };
+    if (!region_member) try validateRegion(allocator, &result);
     return result;
 }
 // Reject non-finite/unbounded data before it can reach physics or renderer casts.
@@ -211,6 +249,22 @@ fn validLiquid(state: @import("environment.zig").State) !void {
     if (!std.math.isFinite(state.fraction) or state.fraction < 0 or state.fraction >= 1 or (state.nitro_ms != null and !state.initialized)) return error.InvalidSavedEnvironment;
 }
 pub fn validate(snapshot: *Loaded) !void {
+    try validateRegion(snapshot.world.allocator, snapshot);
+}
+pub fn validateRegion(allocator: std.mem.Allocator, snapshot: *Loaded) !void {
+    if (snapshot.residents.len >= archive_limit or snapshot.region_member or snapshot.header.player_id == 0) return error.InvalidRegion;
+    var owners: [archive_limit]*data.World = undefined;
+    owners[0] = &snapshot.world;
+    for (snapshot.residents, 1..) |*member, i| {
+        if (member.residents.len != 0 or member.visited.len != 0 or !member.region_member or member.header.player_id != 0 or member.skill != snapshot.skill) return error.InvalidResident;
+        owners[i] = &member.world;
+    }
+    const references: @import("world_references.zig").Worlds = .{ .entries = owners[0 .. snapshot.residents.len + 1] };
+    try references.validate(allocator);
+    try validateWorld(snapshot, references);
+    for (snapshot.residents) |*member| try validateWorld(member, references);
+}
+fn validateWorld(snapshot: *Loaded, references: @import("world_references.zig").Worlds) !void {
     const world = &snapshot.world;
     if (snapshot.header.episode < 1 or snapshot.header.episode > 4 or snapshot.header.at_ms < 0) return error.InvalidCampaignState;
     if (snapshot.header.journey) |journey| {
@@ -223,9 +277,11 @@ pub fn validate(snapshot: *Loaded) !void {
         if (name.len == 0 or name.len >= 64 or std.mem.indexOf(u8, name, "..") != null or name[0] == '/') return error.InvalidResources;
         for (names[0..i]) |prior| if (std.ascii.eqlIgnoreCase(prior, name)) return error.DuplicateSavedResource;
     };
-    const player = world.find(snapshot.header.player_id) orelse return error.MissingSavedPlayer;
-    try require(world, player, .{ data.Transform, data.Velocity, data.Player, data.Body, data.Binding, data.Health, data.Weapons, data.Character, data.Ailments, data.Keys, data.Hurt });
-    if ((try world.get(player, data.Binding)).slot != 0) return error.InvalidSavedPlayerSlot;
+    if (snapshot.header.player_id != 0) {
+        const player = world.find(snapshot.header.player_id) orelse return error.MissingSavedPlayer;
+        try require(world, player, .{ data.Transform, data.Velocity, data.Player, data.Body, data.Binding, data.Health, data.Weapons, data.Character, data.Ailments, data.Keys, data.Hurt });
+        if ((try world.get(player, data.Binding)).slot != 0) return error.InvalidSavedPlayerSlot;
+    } else if (!snapshot.region_member) return error.MissingSavedPlayer;
     var occupied: [ecs.max_entities]bool = @splat(false);
     var players: usize = 0;
     var query = world.queryAccess(0, 0, 0);
@@ -249,34 +305,34 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.Body, data.Binding, data.MapObject });
             if ((objective.team != .red and objective.team != .blue) or objective.color > 8 or ((objective.phase == .carried) != (objective.carrier != null)) or (objective.phase == .carried and objective.airborne) or (objective.phase == .home and objective.deadline != null)) return error.InvalidSavedObjective;
             if (objective.carrier) |id| {
-                const carrier = world.find(id) orelse return error.InvalidSavedObjective;
-                try require(world, carrier, .{ data.Player, data.Session, data.Binding, data.Health });
+                const carrier = references.find(id) orelse return error.InvalidSavedObjective;
+                try carrier.require(.{ data.Player, data.Session, data.Binding, data.Health });
             }
             for (objective.home ++ objective.angles ++ objective.velocity) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedObjective;
         }
         if (world.get(entity, data.Exit) catch null) |exit| {
             if (exit.ending_started != null) {
-                const viewer = world.find(exit.ending_player) orelse return error.InvalidSavedEnding;
-                if ((try world.get(viewer, data.Body)).motion_owner != try world.persistentId(entity) or (try world.get(viewer, data.Player)).mode != .frozen) return error.InvalidSavedEnding;
+                const viewer = references.find(exit.ending_player) orelse return error.InvalidSavedEnding;
+                if ((try viewer.get(data.Body)).motion_owner != try world.persistentId(entity) or (try viewer.get(data.Player)).mode != .frozen) return error.InvalidSavedEnding;
             } else if (exit.ending_player != 0) return error.InvalidSavedEnding;
         }
         if (world.get(entity, data.Body) catch null) |body| {
             if (body.mass <= 0 or body.mass > 100000) return error.InvalidSavedMass;
             for (body.mins, body.maxs) |low, high| if (low > high or @abs(low) > 8192 or @abs(high) > 8192) return error.InvalidSavedBounds;
             if (body.motion_owner) |owner_id| {
-                const owner = world.find(owner_id) orelse return error.InvalidSavedMotionOwner;
-                if (world.get(owner, data.Cinematic) catch null) |cinematic| {
+                const owner = references.find(owner_id) orelse return error.InvalidSavedMotionOwner;
+                if (owner.get(data.Cinematic) catch null) |cinematic| {
                     if (!cinematic.active or cinematic.viewer != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
-                } else if (world.get(owner, data.Exit) catch null) |exit| {
+                } else if (owner.get(data.Exit) catch null) |exit| {
                     if (exit.ending_started == null or exit.ending_player != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
-                } else if (world.get(owner, data.Monitor) catch null) |monitor| {
+                } else if (owner.get(data.Monitor) catch null) |monitor| {
                     if (monitor.viewer != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
-                } else if (world.get(owner, data.Nightmare) catch null) |ritual| {
+                } else if (owner.get(data.Nightmare) catch null) |ritual| {
                     if (ritual.victim != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
-                } else if (world.get(owner, data.ActorAttack) catch null) |attack| {
+                } else if (owner.get(data.ActorAttack) catch null) |attack| {
                     if (attack.attack != .nharre_reaper or attack.attack.nharre_reaper.released or attack.attack.nharre_reaper.target != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
                 } else {
-                    const projectile = world.get(owner, data.Projectile) catch return error.InvalidSavedMotionOwner;
+                    const projectile = owner.get(data.Projectile) catch return error.InvalidSavedMotionOwner;
                     if (projectile.flight != .ballista or projectile.flight.ballista.victim != try world.persistentId(entity)) return error.InvalidSavedMotionOwner;
                 }
             }
@@ -289,10 +345,10 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{ data.MapObject, data.Binding, data.Body });
             if (!std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "func_monitor") or monitor.duration_ms < 750 or monitor.duration_ms > 3600000 or (monitor.viewer == null) != (monitor.until_ms == null)) return error.InvalidSavedMonitor;
             if (monitor.viewer) |viewer_id| {
-                const viewer = world.find(viewer_id) orelse return error.InvalidSavedMonitor;
-                try require(world, viewer, .{ data.Player, data.Body, data.Health });
-                if ((try world.get(viewer, data.Body)).motion_owner != try world.persistentId(entity) or (try world.get(viewer, data.Player)).mode != .frozen) return error.InvalidSavedMonitor;
-                if (world.find(monitor.camera) == null or world.find(monitor.target) == null) return error.InvalidSavedMonitor;
+                const viewer = references.find(viewer_id) orelse return error.InvalidSavedMonitor;
+                try viewer.require(.{ data.Player, data.Body, data.Health });
+                if ((try viewer.get(data.Body)).motion_owner != try world.persistentId(entity) or (try viewer.get(data.Player)).mode != .frozen) return error.InvalidSavedMonitor;
+                if (references.find(monitor.camera) == null or references.find(monitor.target) == null) return error.InvalidSavedMonitor;
             }
         }
         if (world.get(entity, data.ThunderSpray) catch null) |spray| {
@@ -310,11 +366,11 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Firefly) catch null) |fly| {
             try require(world, entity, .{ data.Binding, data.Body, data.Transform, data.Velocity, data.Random });
             if (fly.source == 0 or fly.distance < 20 or fly.distance > 200 or fly.speed < 1 or fly.speed > 500 or fly.personality < 0.25 or fly.personality > 1 or fly.phase >= 12 or fly.scale <= 0 or fly.scale > 10000 or fly.maximum_alpha < 0 or fly.maximum_alpha > 1 or fly.delta_alpha < 0 or fly.delta_alpha > 1 or fly.color_fraction < 0 or fly.color_fraction > 1.25) return error.InvalidSavedFirefly;
-            if (world.find(fly.source)) |source| {
+            if (references.find(fly.source)) |source| {
                 const classname = if (fly.wisp != null) @import("actor_catalog").wisp.classname else @import("actor_catalog").firefly.classname;
-                if (!std.mem.eql(u8, (try world.get(source, data.MapObject)).classname, classname)) return error.InvalidSavedFirefly;
+                if (!std.mem.eql(u8, (try source.get(data.MapObject)).classname, classname)) return error.InvalidSavedFirefly;
                 if (fly.wisp) |wisp| {
-                    const swarm = world.get(source, data.WispSwarm) catch return error.InvalidSavedWisp;
+                    const swarm = source.get(data.WispSwarm) catch return error.InvalidSavedWisp;
                     if (swarm.count > 10 or std.mem.indexOfScalar(u32, swarm.children[0..swarm.count], try world.persistentId(entity)) == null or wisp.blend_after > 5) return error.InvalidSavedWisp;
                     for (wisp.goal ++ wisp.collected_at) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedWisp;
                 }
@@ -327,8 +383,8 @@ pub fn validate(snapshot: *Loaded) !void {
             for (swarm.goal) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedWisp;
             for (swarm.children[0..swarm.count], 0..) |id, i| {
                 if (id == 0 or std.mem.indexOfScalar(u32, swarm.children[0..i], id) != null) return error.InvalidSavedWisp;
-                const child = world.find(id) orelse return error.InvalidSavedWisp;
-                const fly = world.get(child, data.Firefly) catch return error.InvalidSavedWisp;
+                const child = references.find(id) orelse return error.InvalidSavedWisp;
+                const fly = child.get(data.Firefly) catch return error.InvalidSavedWisp;
                 if (fly.source != try world.persistentId(entity) or fly.wisp == null) return error.InvalidSavedWisp;
             }
             for (swarm.children[swarm.count..]) |id| if (id != 0) return error.InvalidSavedWisp;
@@ -364,11 +420,11 @@ pub fn validate(snapshot: *Loaded) !void {
                     for (reaper.previous_velocity ++ reaper.look_angles ++ reaper.floor ++ reaper.ceiling ++ reaper.scorch ++ reaper.normal) |axis| if (!std.math.isFinite(axis) or @abs(axis) > 1048576) return error.InvalidSavedActorAttack;
                     if (reaper.appeared_ms) |at| if (at < attack.born_ms + 500 or at > attack.stepped_ms) return error.InvalidSavedActorAttack;
                     if (!reaper.released) {
-                        const target = world.find(reaper.target) orelse return error.InvalidSavedActorAttack;
-                        try require(world, target, .{ data.Body, data.Velocity, data.Health, data.Transform, data.Binding });
-                        if ((world.get(target, data.Actor) catch null) == null and (world.get(target, data.Player) catch null) == null) return error.InvalidSavedActorAttack;
-                        if ((try world.get(target, data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedActorAttack;
-                        if (world.get(target, data.Player) catch null) |victim_player| if (victim_player.mode != .frozen and victim_player.mode != .dead) return error.InvalidSavedActorAttack;
+                        const target = references.find(reaper.target) orelse return error.InvalidSavedActorAttack;
+                        try target.require(.{ data.Body, data.Velocity, data.Health, data.Transform, data.Binding });
+                        if ((target.get(data.Actor) catch null) == null and (target.get(data.Player) catch null) == null) return error.InvalidSavedActorAttack;
+                        if ((try target.get(data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedActorAttack;
+                        if (target.get(data.Player) catch null) |victim_player| if (victim_player.mode != .frozen and victim_player.mode != .dead) return error.InvalidSavedActorAttack;
                     }
                 },
                 .summon_effect => |effect| {
@@ -397,12 +453,12 @@ pub fn validate(snapshot: *Loaded) !void {
                 },
                 .wyndrax_bolt => |bolt| {
                     if (bolt.parent == 0 or bolt.until_ms < attack.born_ms or bolt.until_ms > attack.born_ms + 750 or bolt.next_ms <= attack.stepped_ms or bolt.flare_scale <= 0 or bolt.flare_scale > 5) return error.InvalidSavedActorAttack;
-                    const parent = world.find(bolt.parent) orelse return error.InvalidSavedActorAttack;
+                    const parent = references.find(bolt.parent) orelse return error.InvalidSavedActorAttack;
                     if (bolt.kind == .charge) {
-                        try require(world, parent, .{data.Actor});
+                        try parent.require(.{data.Actor});
                         if (bolt.parent != attack.owner) return error.InvalidSavedActorAttack;
                     } else {
-                        const source = world.get(parent, data.ActorAttack) catch return error.InvalidSavedActorAttack;
+                        const source = parent.get(data.ActorAttack) catch return error.InvalidSavedActorAttack;
                         if (source.owner != attack.owner or (if (bolt.kind == .zap) source.attack != .wyndrax_zap else source.attack != .npc_wisp)) return error.InvalidSavedActorAttack;
                     }
                     if (bolt.kind != .scenery and bolt.target == 0) return error.InvalidSavedActorAttack;
@@ -524,8 +580,8 @@ pub fn validate(snapshot: *Loaded) !void {
                 if (actor.kage.invulnerable() and actor.kage.escapes == 0) return error.InvalidSavedActor;
                 if (actor.kage.phase == .charging and actor.kage.protectors != 12) return error.InvalidSavedActor;
             }
-            if (@import("actor_catalog").entries[actor.definition].kind == .ghost and actor.ghost.owner != 0) if (world.find(actor.ghost.owner)) |owner| {
-                const parent = world.get(owner, data.Actor) catch return error.InvalidSavedActor;
+            if (@import("actor_catalog").entries[actor.definition].kind == .ghost and actor.ghost.owner != 0) if (references.find(actor.ghost.owner)) |owner| {
+                const parent = owner.get(data.Actor) catch return error.InvalidSavedActor;
                 if (@import("actor_catalog").entries[parent.definition].kind != .kage) return error.InvalidSavedActor;
             };
             if (actor.mikiko.voice_pose > 2 or !std.math.isFinite(actor.mikiko.light_red) or actor.mikiko.light_red < 1 or actor.mikiko.light_red > 2 or (actor.mikiko.aura and !actor.mikiko.awakened)) return error.InvalidSavedActor;
@@ -621,15 +677,15 @@ pub fn validate(snapshot: *Loaded) !void {
                     for (state.sounds ++ [1]u16{state.loop_sound}) |sound| if (sound > snapshot.header.resources.sounds.len) return error.InvalidSavedLightning;
                     for (state.attractors[0..state.count], 0..) |id, index| {
                         if (id == 0 or std.mem.indexOfScalar(u32, state.attractors[0..index], id) != null) return error.InvalidSavedLightning;
-                        if (world.find(id)) |attractor| if ((try world.get(attractor, data.WorldControl)).action != .attractor) return error.InvalidSavedLightning;
+                        if (references.find(id)) |attractor| if ((try attractor.get(data.WorldControl)).action != .attractor) return error.InvalidSavedLightning;
                     }
                 },
                 .attractor => |state| if (state.linked and state.link_ms != null) return error.InvalidSavedAttractor,
                 .lightning_bolt => |state| {
                     try require(world, entity, .{data.Binding});
                     if (state.emitter == 0 or !std.math.isFinite(state.damage) or state.damage < 0 or state.damage > 1000000) return error.InvalidSavedLightningBolt;
-                    if (world.find(state.emitter)) |emitter| if ((try world.get(emitter, data.WorldControl)).action != .lightning) return error.InvalidSavedLightningBolt;
-                    if (world.find(state.target)) |target| try require(world, target, .{data.Transform});
+                    if (references.find(state.emitter)) |emitter| if ((try emitter.get(data.WorldControl)).action != .lightning) return error.InvalidSavedLightningBolt;
+                    if (references.find(state.target)) |target| try target.require(.{data.Transform});
                     for (state.endpoint) |value| if (!std.math.isFinite(value)) return error.InvalidSavedLightningBolt;
                 },
                 .particles => |state| {
@@ -646,8 +702,8 @@ pub fn validate(snapshot: *Loaded) !void {
                 .light_ramp => |state| {
                     if (state.from > 25 or state.to > 25 or state.from == state.to or state.duration_ms <= 0 or (state.next_ms != null and state.target == 0)) return error.InvalidSavedLightRamp;
                     if (state.target != 0) {
-                        const target = world.find(state.target) orelse return error.InvalidSavedLightRamp;
-                        const light = world.get(target, data.WorldControl) catch return error.InvalidSavedLightRamp;
+                        const target = references.find(state.target) orelse return error.InvalidSavedLightRamp;
+                        const light = target.get(data.WorldControl) catch return error.InvalidSavedLightRamp;
                         if (light.action != .light or light.action.light.kind != .light) return error.InvalidSavedLightRamp;
                     }
                 },
@@ -704,8 +760,8 @@ pub fn validate(snapshot: *Loaded) !void {
             const kind = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition];
             if (kind.kind != .companion or companion.carrying != std.mem.eql(u8, kind.classname, "mikikofly") or (companion.identity == .mikiko) != std.mem.eql(u8, kind.classname, "mikiko")) return error.InvalidSavedCompanion;
             if (companion.owner != 0) {
-                const owner = world.find(companion.owner) orelse return error.InvalidSavedCompanionOwner;
-                try require(world, owner, .{data.Player});
+                const owner = references.find(companion.owner) orelse return error.InvalidSavedCompanionOwner;
+                try owner.require(.{data.Player});
             }
             const motor = companion.motor;
             if (!std.math.isFinite(motor.view_height) or motor.view_height < -64 or motor.view_height > 128 or motor.ground_entity > 2047 or motor.timer_ms > 2147483647 or (motor.mode != .normal and motor.mode != .frozen)) return error.InvalidSavedCompanionMotor;
@@ -729,8 +785,8 @@ pub fn validate(snapshot: *Loaded) !void {
                 if (tip.next_ms < 0 or tip.steering_speed < 0 or tip.steering_speed > 100000) return error.InvalidSavedProjectile;
                 for ([_]u32{ tip.leader, tip.left, tip.right }) |id| if (id != 0) {
                     if (id == try world.persistentId(entity)) return error.InvalidSavedProjectile;
-                    if (world.find(id)) |related| {
-                        const peer = world.get(related, data.Projectile) catch return error.InvalidSavedProjectile;
+                    if (references.find(id)) |related| {
+                        const peer = related.get(data.Projectile) catch return error.InvalidSavedProjectile;
                         if (peer.flight != .trident or peer.owner != projectile.owner) return error.InvalidSavedProjectile;
                     }
                 };
@@ -739,16 +795,16 @@ pub fn validate(snapshot: *Loaded) !void {
                 const bolt = projectile.flight.ballista;
                 if (bolt.next_ms < 0 or bolt.release_ms < 0 or bolt.release_ms > 3602000) return error.InvalidSavedProjectile;
                 if (bolt.victim) |id| {
-                    const victim = world.find(id) orelse return error.InvalidSavedProjectile;
-                    try require(world, victim, .{ data.Body, data.Velocity, data.Health });
-                    if ((try world.get(victim, data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedProjectile;
+                    const victim = references.find(id) orelse return error.InvalidSavedProjectile;
+                    try victim.require(.{ data.Body, data.Velocity, data.Health });
+                    if ((try victim.get(data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedProjectile;
                 }
             }
             if (projectile.flight == .discus) {
                 const disc = projectile.flight.discus;
                 if (disc.next_ms < 0 or disc.drop_ms < 0 or disc.clear > 3 or disc.base_speed <= 0 or disc.base_speed > 100000 or disc.speed < 0 or disc.speed > 100000 or (disc.dropped and !disc.pickup_only)) return error.InvalidSavedProjectile;
                 try require(world, entity, .{data.Random});
-                if (disc.target) |id| if (world.find(id)) |target| try require(world, target, .{data.Health});
+                if (disc.target) |id| if (references.find(id)) |target| try target.require(.{data.Health});
             }
             if (projectile.flight == .sunflare) {
                 const flame = projectile.flight.sunflare;
@@ -766,10 +822,10 @@ pub fn validate(snapshot: *Loaded) !void {
                 if (wisp.next_ms < 0 or wisp.sound_ms < 0 or wisp.sine_ms < 0 or wisp.sine >= 12 or wisp.personality < 0 or wisp.personality > 1 or wisp.alpha <= 0 or wisp.alpha > 1) return error.InvalidSavedProjectile;
                 for (wisp.scale) |axis| if (axis <= 0 or axis > 4) return error.InvalidSavedProjectile;
                 try require(world, entity, .{data.Random});
-                if (wisp.enemy) |id| if (world.find(id)) |target| try require(world, target, .{ data.Health, data.Body, data.Binding });
+                if (wisp.enemy) |id| if (references.find(id)) |target| try target.require(.{ data.Health, data.Body, data.Binding });
                 for (wisp.targets, 0..) |id, index| if (id != 0) {
                     if (id == projectile.owner or std.mem.indexOfScalar(u32, wisp.targets[0..index], id) != null) return error.InvalidSavedProjectile;
-                    if (world.find(id)) |target| try require(world, target, .{ data.Health, data.Binding });
+                    if (references.find(id)) |target| try target.require(.{ data.Health, data.Binding });
                 };
             }
             if (projectile.flight == .metamaser) {
@@ -779,7 +835,7 @@ pub fn validate(snapshot: *Loaded) !void {
                 for (cube.targets, 0..) |track, i| if (track.target != 0) {
                     if (track.until_ms < 0) return error.InvalidSavedProjectile;
                     for (cube.targets[0..i]) |previous| if (previous.target == track.target) return error.InvalidSavedProjectile;
-                    if (world.find(track.target)) |target| try require(world, target, .{ data.Health, data.Binding });
+                    if (references.find(track.target)) |target| try target.require(.{ data.Health, data.Binding });
                 };
                 for (cube.acquired, 0..) |track, i| if (track.target != 0) {
                     if (track.until_ms < 0 or track.damage_ms < 0 or track.sound_ms < 0) return error.InvalidSavedProjectile;
@@ -795,16 +851,16 @@ pub fn validate(snapshot: *Loaded) !void {
         if (world.get(entity, data.Melee) catch null) |melee| {
             const plan = melee.plan() catch return error.InvalidSavedMelee;
             if (melee.next_hit >= plan.hits or melee.damage < 0 or melee.damage > 1000000 or melee.experience < 0 or melee.timing_factor < 1 or melee.timing_factor > 3) return error.InvalidSavedMelee;
-            const owner = world.find(melee.owner) orelse return error.InvalidSavedMeleeOwner;
-            try require(world, owner, .{ data.Player, data.Weapons, data.Binding, data.Health });
+            const owner = references.find(melee.owner) orelse return error.InvalidSavedMeleeOwner;
+            try owner.require(.{ data.Player, data.Weapons, data.Binding, data.Health });
             if ((world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedMelee;
         }
         if (world.get(entity, data.WeaponLaunch) catch null) |launch| {
             const class = @import("weapon_catalog").find(launch.weapon) orelse return error.InvalidSavedLaunch;
             const policy = @import("weapon_catalog").combatFor(launch.weapon, launch.sequence);
             if ((policy != .projectile and policy != .shockwave and policy != .ballista and policy != .discus and policy != .sunflare and policy != .wyndrax and policy != .metamaser) or class.spec.projectile.action_delay_ms == 0 or (world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedLaunch;
-            const owner = world.find(launch.owner) orelse return error.InvalidSavedLaunch;
-            try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+            const owner = references.find(launch.owner) orelse return error.InvalidSavedLaunch;
+            try owner.require(.{ data.Player, data.Weapons, data.Health, data.Binding });
         }
         if (world.get(entity, data.Charge) catch null) |charge| {
             const lifetime = std.math.sub(i64, charge.expires_ms, charge.born_ms) catch return error.InvalidSavedCharge;
@@ -817,8 +873,8 @@ pub fn validate(snapshot: *Loaded) !void {
             try require(world, entity, .{data.Random});
             if (hammer.quake_until_ms == null) {
                 if ((world.get(entity, data.Binding) catch null) != null) return error.InvalidSavedHammer;
-                const owner = world.find(hammer.owner) orelse return error.InvalidSavedHammer;
-                try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+                const owner = references.find(hammer.owner) orelse return error.InvalidSavedHammer;
+                try owner.require(.{ data.Player, data.Weapons, data.Health, data.Binding });
             } else if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedHammer;
         }
         if (world.get(entity, data.Shockwave) catch null) |wave| {
@@ -831,32 +887,32 @@ pub fn validate(snapshot: *Loaded) !void {
             if (beam.lifetime_ms <= 0 or beam.lifetime_ms > 3600000 or beam.remaining_damage < 0 or beam.remaining_damage > 1000000 or beam.boost > 5 or beam.ammo_cost < 1 or beam.ammo_cost > 32767 or beam.alpha < 0 or beam.alpha > 1) return error.InvalidSavedNova;
             const duration = std.math.sub(i64, beam.expires_ms, beam.born_ms) catch return error.InvalidSavedNova;
             if (duration != @as(i64, beam.lifetime_ms) + 200 or beam.next_ms < beam.born_ms or ((beam.phase == .closing or beam.phase == .finished) != (beam.end_ms != null))) return error.InvalidSavedNova;
-            const owner = world.find(beam.owner) orelse return error.InvalidSavedNova;
-            try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+            const owner = references.find(beam.owner) orelse return error.InvalidSavedNova;
+            try owner.require(.{ data.Player, data.Weapons, data.Health, data.Binding });
             if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedNova;
         }
         if (world.get(entity, data.Flashlight) catch null) |light| {
             if (light.strength < 0 or light.strength > 1 or (try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedLight;
-            const owner = world.find(light.owner) orelse return error.InvalidSavedLight;
-            try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+            const owner = references.find(light.owner) orelse return error.InvalidSavedLight;
+            try owner.require(.{ data.Player, data.Weapons, data.Health, data.Binding });
         }
         if (world.get(entity, data.Nightmare) catch null) |ritual| {
             if (ritual.count > @import("weapon_catalog").nightmare.maximum_targets or ritual.cursor > ritual.count or ritual.damage < 0 or ritual.damage > 1000000 or ritual.range <= 0 or ritual.range > 8192 or ritual.previous_view_height < -24 or ritual.previous_view_height > 64 or ritual.next_ms < ritual.phase_ms) return error.InvalidSavedNightmare;
             try require(world, entity, .{data.Binding});
             if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedNightmare;
-            const owner = world.find(ritual.owner) orelse return error.InvalidSavedNightmare;
-            try require(world, owner, .{ data.Player, data.Weapons, data.Binding, data.Health });
+            const owner = references.find(ritual.owner) orelse return error.InvalidSavedNightmare;
+            try owner.require(.{ data.Player, data.Weapons, data.Binding, data.Health });
             for (ritual.targets[0..ritual.count], 0..) |id, index| {
                 if (id == 0 or std.mem.indexOfScalar(u32, ritual.targets[0..index], id) != null) return error.InvalidSavedNightmare;
-                if (world.find(id)) |target| try require(world, target, .{ data.Health, data.Body, data.Binding });
+                if (references.find(id)) |target| try target.require(.{ data.Health, data.Body, data.Binding });
             }
             if ((ritual.phase == .appearing or ritual.phase == .reaping) != (ritual.victim != null)) return error.InvalidSavedNightmare;
             if (ritual.victim) |id| {
                 if (ritual.cursor == 0 or ritual.targets[ritual.cursor - 1] != id) return error.InvalidSavedNightmare;
-                const target = world.find(id) orelse return error.InvalidSavedNightmare;
-                try require(world, target, .{ data.Body, data.Velocity, data.Health, data.Binding });
-                if ((try world.get(target, data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedNightmare;
-                if (world.get(target, data.Player) catch null) |victim_player| if (victim_player.mode != .frozen and victim_player.mode != .dead) return error.InvalidSavedNightmare;
+                const target = references.find(id) orelse return error.InvalidSavedNightmare;
+                try target.require(.{ data.Body, data.Velocity, data.Health, data.Binding });
+                if ((try target.get(data.Body)).motion_owner != try world.persistentId(entity)) return error.InvalidSavedNightmare;
+                if (target.get(data.Player) catch null) |victim_player| if (victim_player.mode != .frozen and victim_player.mode != .dead) return error.InvalidSavedNightmare;
             }
         }
         inline for (.{ data.MetaRing, data.MetaLaser }) |T| if (world.get(entity, T) catch null) |effect| {
@@ -870,8 +926,8 @@ pub fn validate(snapshot: *Loaded) !void {
                 // Final burst lasers may expire before their staggered first shot.
                 if (effect.next_ms -| effect.expires_ms > 400) return error.InvalidSavedMetaEffect;
             }
-            if (world.find(effect.cube)) |cube| {
-                const projectile = world.get(cube, data.Projectile) catch return error.InvalidSavedMetaEffect;
+            if (references.find(effect.cube)) |cube| {
+                const projectile = cube.get(data.Projectile) catch return error.InvalidSavedMetaEffect;
                 if (projectile.flight != .metamaser or projectile.owner != effect.owner) return error.InvalidSavedMetaEffect;
             }
         };
@@ -882,20 +938,20 @@ pub fn validate(snapshot: *Loaded) !void {
                 if (id == 0 or id == chain.owner) return error.InvalidSavedZeus;
                 for (chain.targets[0..i]) |previous| if (previous == id) return error.InvalidSavedZeus;
             }
-            const owner = world.find(chain.owner) orelse return error.InvalidSavedZeus;
-            try require(world, owner, .{ data.Player, data.Weapons, data.Health, data.Binding });
+            const owner = references.find(chain.owner) orelse return error.InvalidSavedZeus;
+            try owner.require(.{ data.Player, data.Weapons, data.Health, data.Binding });
             try require(world, entity, .{ data.Random, data.Binding });
             if ((try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedZeus;
         }
         if (world.get(entity, data.ZeusBolt) catch null) |bolt| {
-            const parent = world.find(bolt.chain) orelse return error.InvalidSavedZeusBolt;
-            const chain = world.get(parent, data.Zeus) catch return error.InvalidSavedZeusBolt;
+            const parent = references.find(bolt.chain) orelse return error.InvalidSavedZeusBolt;
+            const chain = parent.get(data.Zeus) catch return error.InvalidSavedZeusBolt;
             // Check bounds before invoking the class's bounded target-set operations.
             if (chain.count > @import("weapon_catalog").zeus.maximum_targets or chain.owner != bolt.owner or !chain.contains(bolt.target)) return error.InvalidSavedZeusBolt;
-            const source = world.find(bolt.source) orelse return error.InvalidSavedZeusBolt;
-            const target = world.find(bolt.target) orelse return error.InvalidSavedZeusBolt;
-            try require(world, source, .{ data.Health, data.Binding });
-            try require(world, target, .{ data.Health, data.Binding });
+            const source = references.find(bolt.source) orelse return error.InvalidSavedZeusBolt;
+            const target = references.find(bolt.target) orelse return error.InvalidSavedZeusBolt;
+            try source.require(.{ data.Health, data.Binding });
+            try target.require(.{ data.Health, data.Binding });
             try require(world, entity, .{data.Binding});
             if (bolt.next_ms < bolt.born_ms or (try world.get(entity, data.Binding)).model != 0) return error.InvalidSavedZeusBolt;
         }
@@ -937,7 +993,7 @@ pub fn validate(snapshot: *Loaded) !void {
             if (ailments.poison) |poison| if (poison.damage <= 0 or poison.damage > 1000000 or poison.interval_ms < 100 or poison.interval_ms > 3600000 or poison.weapon > 28 or poison.next_ms > poison.until_ms + poison.interval_ms) return error.InvalidSavedAilment;
         }
     };
-    if (players != 1) return error.InvalidSavedPlayer;
+    if (players != @intFromBool(snapshot.header.player_id != 0)) return error.InvalidSavedPlayer;
 }
 
 test "campaign saves own flat archives and validate nested worlds before admission" {
@@ -1260,4 +1316,68 @@ test "non-solid world effects save without Body while physical entities still re
     try t.expectError(error.MissingComponent, loaded.world.get(loaded.world.find(3).?, data.Body));
     _ = try loaded.world.create(null, .{ data.Transform{}, data.Binding{ .slot = 67 }, data.MapObject{ .classname = "unclassified_physical_entity" } });
     try t.expectError(error.MissingComponent, validate(&loaded));
+}
+
+test "region snapshots own all maps, validate foreign references and reject duplicate identities" {
+    const t = std.testing;
+    var first = data.World.initNamespaced(t.allocator, 16, 0);
+    defer first.deinit();
+    var second = data.World.initNamespaced(t.allocator, 16, 1);
+    defer second.deinit();
+    _ = try second.create(7, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{ .current = 41 }, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    const lamp = try first.create(8, .{ data.Transform{}, data.Binding{ .slot = 64 }, data.Flashlight{ .owner = 7, .expires_ms = 1200, .strength = 0.75 } });
+    const primary: Header = .{ .at_ms = 1000, .episode = 1, .player_id = 7, .next_id = second.next_id, .namespace = 1, .asset_crc = 123 };
+    const member: Header = .{ .at_ms = 900, .episode = 1, .player_id = 0, .next_id = first.next_id, .namespace = 0, .asset_crc = 456, .activated = false };
+    var child_buffer: [32768]u8 = undefined;
+    var region_buffer: [65536]u8 = undefined;
+    var child = try capture(t.allocator, &child_buffer, &first, "e1m1a", 3, member);
+    var bytes = try captureRegion(t.allocator, &region_buffer, &second, "e1m1b", 3, primary, &.{}, &.{.{ .map = "e1m1a", .bytes = child }});
+    var loaded = try decode(t.allocator, bytes);
+    defer loaded.deinit(t.allocator);
+    try t.expectEqual(@as(usize, 1), loaded.residents.len);
+    try t.expectEqual(@as(i32, 41), (try loaded.world.get(loaded.world.find(7).?, data.Health)).current);
+    try t.expectEqual(@as(u32, 0x1000001), loaded.world.next_id);
+    try t.expectEqual(@as(u32, 9), loaded.residents[0].world.next_id);
+    try t.expect(!loaded.residents[0].header.activated);
+    try loaded.residents[0].rebase(2000);
+    const restored = &loaded.residents[0].world;
+    try t.expectEqual(@as(i64, 2300), (try restored.get(restored.find(8).?, data.Flashlight)).expires_ms);
+    _ = try first.create(7, .{data.Transform{}});
+    child = try capture(t.allocator, &child_buffer, &first, "e1m1a", 3, member);
+    bytes = try captureRegion(t.allocator, &region_buffer, &second, "e1m1b", 3, primary, &.{}, &.{.{ .map = "e1m1a", .bytes = child }});
+    try t.expectError(error.DuplicateRegionIdentity, decode(t.allocator, bytes));
+    try first.destroy(first.find(7).?);
+    (try first.get(lamp, data.Flashlight)).owner = 999;
+    child = try capture(t.allocator, &child_buffer, &first, "e1m1a", 3, member);
+    bytes = try captureRegion(t.allocator, &region_buffer, &second, "e1m1b", 3, primary, &.{}, &.{.{ .map = "e1m1a", .bytes = child }});
+    try t.expectError(error.InvalidSavedLight, decode(t.allocator, bytes));
+    try t.expectEqual(@as(u32, 7), (try restored.get(restored.find(8).?, data.Flashlight)).owner);
+}
+
+test "schema one migrates to an owned initial namespace without modifying saved player state" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 16);
+    defer world.deinit();
+    _ = try world.create(7, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{ .current = 63 }, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    var buffer: [32768]u8 = undefined;
+    const current = try capture(t.allocator, &buffer, &world, "e1m1a", 3, .{ .at_ms = 1000, .episode = 1, .player_id = 7, .next_id = 8 });
+    var old_buffer: [32768]u8 = undefined;
+    var writer = try stream.Writer.init(&old_buffer);
+    var reader = try stream.Reader.init(current);
+    while (try reader.nextRecord()) |record| {
+        try writer.record(record.name, record.id);
+        while (try reader.nextField()) |field| {
+            if (std.mem.eql(u8, field.name, "native_schema")) {
+                try writer.integers("native_schema", &.{1});
+            } else if (std.mem.eql(u8, field.name, "state")) {
+                try json(&writer, t.allocator, "state", .{ .at_ms = @as(i64, 1000), .episode = @as(u8, 1), .player_id = @as(u32, 7), .next_id = @as(u32, 8) });
+            } else try writer.raw(field);
+        }
+    }
+    var loaded = try decode(t.allocator, try writer.finish());
+    defer loaded.deinit(t.allocator);
+    try t.expectEqual(@as(?u7, 0), loaded.header.namespace);
+    try t.expectEqual(@as(u32, 0xffffff), loaded.world.id_last);
+    try t.expectEqual(@as(u32, 8), loaded.world.next_id);
+    try t.expectEqual(@as(i32, 63), (try loaded.world.get(loaded.world.find(7).?, data.Health)).current);
 }

@@ -526,6 +526,11 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 		case CA_ACTIVE:
 			// always supply STEREO_CENTER as vieworg offset is now done by the engine.
 			CL_CGameRendering(stereoFrame);
+			if (Cvar_VariableIntegerValue("dk3_region_loading")) {
+				VM_Call(uivm, UI_REFRESH, cls.realtime);
+				VM_Call(uivm, UI_DRAW_CONNECT_SCREEN, qfalse);
+				break;
+			}
 			SCR_DrawDemoRecording();
 #ifdef USE_VOIP
 			SCR_DrawVoipMeter();

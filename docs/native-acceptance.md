@@ -14,15 +14,39 @@ is inferred from class counts or test volume.
 
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
-| Seamless connected regions | Sequence 299 connects acknowledged client admission and player ownership transfer to resident contexts; automatic seamless traversal remains incomplete | Admission corruption/order/completion and identity-transfer contracts; 381 Zig tests pass | Controlled A→B→A→B preserves player identity, health, weapon/ammo and command time in both renderers, with ordinary movement afterward | Qualified seams/portal views, cross-boundary combat, remaining admission stalls and atomic region persistence remain open. [Exact evidence and limitations](#sequence-299--resident-client-admission-and-player-transfer). |
+| Seamless connected regions | Sequence 300 adds atomic resident-region saves and asynchronous region restoration to 299's player transfer; automatic seamless traversal remains incomplete | Region uniqueness/foreign-reference/schema-1 contracts; 383 Zig tests pass | Both renderers restore independently changed A/B actor state and player 341 after manual load and actual death in the other map | Qualified seams/portal views, connected combat, admission stalls and migration of old visited archives into resident namespaces remain open. [Exact evidence and limitations](#sequence-300--resident-region-save-and-death-restoration). |
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at 296; full interactions unverified | 296 verifies rendered Ion flight/light; earlier narrow controller fixtures do not establish full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
 | Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 296; connected coverage needs revalidation | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
-| Saves and visited worlds | Typed controller snapshots, rebased clocks, visited archives, validation/recovery | Snapshot/deadline/checkpoint contracts pass at 296 | Sequence 287 authored death/reload; 288 actual C→B→C after disk load retains bridge progress | 296 verifies entry/manual checkpoint death recovery and fragment restoration; fresh campaign/visited-world replay remains |
+| Saves and visited worlds | Schema-2 region members, typed controllers, rebased clocks, visited archives and recovery | Snapshot/region/reference/schema-1 contracts pass at 300 | 300 verifies two-map save/load and death/reload in both renderers; an actual schema-1 save loads and resaves | Complete old-archive conversion, cross-map controller restoration and fresh campaign coverage remain open |
 | Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 240 native contracts pass at 296; wire contracts remain green | 296 `lan-regression/` replays two real UDP clients through movement/fire/death/respawn/spectator/rejoin/reconnect/restart. Earlier 294 CTF verifies four bots and one contested capture; full modes remain open | Natural deathtag reaches carriers but cannot complete capture. Water-jump routing now passes the explicit slime-escape query; stationary lift waiting is repaired; the physical exit is an authored teleporter, but the new local passage recovery still fails to select it. Client-driver inputs are automated. Public admission, browser, authenticated reconnect/rooms and complete modes remain open |
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. Earlier factory arrival replay needs revalidation after shared changes | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 300 — resident region save and death restoration
+
+Verified installation `c8b457464b3fdf7d48dd3de77248314667a744a39872e5c8c970da7fbcc4d118`,
+combined identity `9d91f01c0fc2fbdd98c24261c3c465c4ab3a38900416aba4f941c246718727fe`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD SHA `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+Evidence is under `zig-out/reports/runtime-zig-300/`.
+
+| Evidence | Verified outcome | Limits |
+|---|---|---|
+| `region-save-active-snapshot/`, `region-save-opengl2/` | A actor 9 and B actor 16777312 have saved health 37/53. After changing both to 9/7, actual load restores both. Player 341 saves in B with health 73, dies in A, and recovers in B with health 73; returning to A retains its saved actor state. Native input resumes after client readiness. Captures inspected. | Controlled placement, health and transfer commands. Saving/reloading a region restarts the connection and asynchronously prepares its member maps before control; this is not seamless travel or continuous campaign acceptance. |
+| `legacy-schema-one/` | Actual sequence-296 single-world save restores health 73 in A and can be resaved by schema 2. Original fixture remains unchanged; source hash and driver recorded. | Old flat visited archives remain readable, but their conversion into simultaneous region namespaces is still open. |
+| `lan-regression/` | Two UDP clients pass movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart after the snapshot admission correction. | Other modes and full campaigns remain open. |
+| `aggregate.log` | 44/44 steps, 383 Zig tests, 79 Python tests and actual-engine collision contracts pass with assertions enabled. | Contract evidence supports these narrow scenarios. |
+
+The regression detects `SnapshotWorldMismatch` on build `b26e55…` in
+`region-save-opengl1/`. Native cgame previously ingested `SNAPFLAG_NOT_ACTIVE`
+loading frames before ClientBegin. The fix follows the bundled engine's existing
+connection contract, retains active-world validation, and the repaired runs observe
+the actual inactive frames before both successful restorations.
+`region-save-initial/` is invalid setup: a sloping placement enters the return trigger.
+`region-save-safe-setup/` stops at the diagnostic's old `sv_cheats` restriction after
+load. These results do not count as region restoration passes.
 
 ## Sequence 299 — resident client admission and player transfer
 

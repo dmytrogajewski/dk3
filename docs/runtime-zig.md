@@ -638,3 +638,15 @@ Assertions are required, failures invalidate the scenario, and reports hash the
 actual executable/modules/assets. The current outcome matrix is
 [native-acceptance.md](native-acceptance.md). Connected opening progression now takes
 priority: full intro, arrival, opening hostiles, bridge scripts and authored exits.
+
+## runtime-zig-300 — resident region persistence
+
+Schema 2 retains the active world and resident member records in one atomic save.
+It preserves allocation namespaces, checksums, activation state, resource identities
+and pending actions, and validates references across explicit world/entity pairs.
+Schema 1 remains readable. Hidden restored contexts and actual client readiness
+precede input admission. Controlled two-map save/death restoration passes in both
+renderers, together with a real schema-1 fixture and the inactive-snapshot regression.
+See [current acceptance](native-acceptance.md) for exact identities, evidence and
+limits; authored seamless traversal and complete legacy visited-region conversion
+remain open.

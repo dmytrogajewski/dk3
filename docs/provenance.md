@@ -321,3 +321,12 @@ message codecs. This is original integration code over the admitted engine, with
 no additional private implementation consultation or import. Controlled A↔B transfer
 in both renderers is distinct from authored seam, cross-map combat and region-save
 acceptance; see `native-acceptance.md` for the exact build and local evidence.
+
+Sequence 300 extends the project's portable snapshot format to explicit resident
+members and world-qualified reference validation, with schema-1 reading preserved.
+Actual A/B save/death restoration and a sequence-296 schema-1 fixture are replayed
+on the exact build recorded in `native-acceptance.md`. The inactive-snapshot repair
+uses the public `SNAPFLAG_NOT_ACTIVE` contract and the existing bundled GPL
+`code/cgame/cg_snapshot.c` initialization behavior; no private implementation was
+consulted or imported. Generated save/geometry evidence remains local. Old visited
+archive conversion and fully connected traversal/combat remain separate open work.

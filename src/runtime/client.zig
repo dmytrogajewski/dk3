@@ -161,6 +161,13 @@ fn draw(now: i32) !void {
     if (latest > snapshot_number) {
         if (engine.gateway.call(c.CG_GETSNAPSHOT, .{ @as(isize, latest), &snapshot }) == 0) return;
         snapshot_number = latest;
+        // A primed connection can carry a ring-buffer frame from before the
+        // map restart. Its player/entity payload has no active-world ownership
+        // until ClientBegin; do not ingest events, poses or reliable commands.
+        if (snapshot.snapFlags & c.SNAPFLAG_NOT_ACTIVE != 0) {
+            engine.print("dk3 zig client: waiting for active snapshot\n");
+            return;
+        }
         if (!have_snapshot) engine.print("dk3 zig client: first snapshot applied\n");
         have_snapshot = true;
         const sequence_number: u32 = @bitCast(snapshot.ps.eventSequence);
@@ -208,7 +215,7 @@ fn draw(now: i32) !void {
         if (snapshot.numEntities < 0 or snapshot.numEntities > snapshot.entities.len) return error.InvalidSnapshot;
         @import("client/interpolation.zig").ingest(&snapshot, @import("client/cinematics.zig").boundary);
     }
-    if (!have_snapshot or snapshot_number < 0 or snapshot.ps.clientNum != client_number) return;
+    if (resident_worlds.waiting or !have_snapshot or snapshot_number < 0 or snapshot.ps.clientNum != client_number) return;
     if (snapshot.numEntities < 0 or snapshot.numEntities > snapshot.entities.len) return error.InvalidSnapshot;
     try @import("client/music.zig").update(&game);
     try @import("client/events.zig").environment(snapshot.ps.dk3SoundEnvironment);

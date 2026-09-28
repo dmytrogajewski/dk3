@@ -14,6 +14,7 @@ pub const State = struct {
     preview: ?struct { handle: u32, origin: [3]f32, angles: [3]f32 } = null,
     initial: ?*Initial = null,
     active_id: u32 = 0,
+    waiting: bool = false,
     const Initial = struct {
         render: u32,
         collision: u32,
@@ -63,6 +64,7 @@ pub const State = struct {
         return true;
     }
     pub fn deinit(self: *State) void {
+        _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_region_loading"), @as([*:0]const u8, "0") });
         for (self.entries) |maybe| if (maybe) |entry| if (entry.admission) |admission| admission.destroy();
         if (self.initial) |initial| std.heap.c_allocator.destroy(initial);
         self.* = .{};
@@ -70,6 +72,14 @@ pub const State = struct {
     pub fn serverCommand(self: *State) !void {
         var buffer: [96]u8 = undefined;
         const command_name = arg(0, &buffer);
+        if (std.mem.eql(u8, command_name, "dk3_region_wait")) {
+            const value = arg(1, &buffer);
+            if (!std.mem.eql(u8, value, "0") and !std.mem.eql(u8, value, "1")) return error.InvalidRegionWait;
+            self.waiting = value[0] == '1';
+            _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_region_loading"), @as([*:0]const u8, if (self.waiting) "1" else "0") });
+            _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_loading_progress"), @as([*:0]const u8, if (self.waiting) "0" else "1") });
+            return;
+        }
         if (std.mem.eql(u8, command_name, "dk3_world_begin")) {
             if (try std.fmt.parseInt(u32, arg(1, &buffer), 10) != wire.version) return error.WorldAdmissionVersion;
             const server_id = try std.fmt.parseInt(u32, arg(2, &buffer), 10);

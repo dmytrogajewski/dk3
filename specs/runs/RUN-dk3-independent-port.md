@@ -6047,3 +6047,43 @@ still load maps. Previously passing shared-system scenarios require applicable r
 No new private reference implementation was consulted or copied for this sequence.
 Main, preserved installation, user saves and live service remain unchanged.
 Continue implementation past this checkpoint.
+
+## Sequence 300 — resident-region-save-and-death-restoration
+
+**Implemented:** schema-2 atomic region files retain active/resident worlds, allocation
+namespaces, checksums, activation state, resource IDs and pending actions. Explicit
+world/entity references validate foreign owners without aliasing ECS handles. Hidden
+contexts own admitted restored state before client readiness releases control. Time
+spent preparing is rebased; unexposed encounters remain unstarted. Schema 1 migrates
+its initial allocation range, and old flat visited archives remain readable. Full
+conversion of those archives into simultaneous resident namespaces remains open.
+
+**Verified build:** installation `c8b457464b3fdf7d48dd3de77248314667a744a39872e5c8c970da7fbcc4d118`;
+combined identity `9d91f01c0fc2fbdd98c24261c3c465c4ab3a38900416aba4f941c246718727fe`;
+base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD SHA `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+Evidence is under `zig-out/reports/runtime-zig-300/`.
+
+| Scenario | State and exact scope |
+|---|---|
+| `region-save-active-snapshot/`, `region-save-opengl2/` | Passed actual region save/load and death/reload in both renderers. A actor 9 and B actor 16777312 restore health 37/53 after post-save changes to 9/7. Player 341 saves in B with health 73, dies in A and restores in B with health 73; returning to A retains its saved state and processed input. Captures inspected. Explicit placement, health and transfer setup; not continuous campaign acceptance. |
+| `legacy-schema-one/` | Passed actual sequence-296 schema-1 save load and new save, health 73 in A. Source SHA `cfce1b357a444263f6226e7ff8d8f8b248bda5ba5400fbc5f9076f3dd0cd7cf2`, source/driver recorded locally. Original file unmodified. Not full legacy visited-region migration. |
+| `lan-regression/` | Passed two UDP clients through movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart. |
+| `aggregate.log` | Passed 44/44 steps: 383 Zig tests, 79 Python tests and actual-engine collision contracts. Assertions enabled, intended roots executed. |
+
+The death/restore scenario detects `SnapshotWorldMismatch` on `b26e55…` in
+`region-save-opengl1/`. Native cgame accepted a loading snapshot marked
+`SNAPFLAG_NOT_ACTIVE` before ClientBegin. The correction follows the existing
+bundled-engine connection contract; active-world validation stays strict. Repaired
+runs log actual inactive snapshots before successful manual and death restoration.
+`region-save-initial/` is invalid setup (slope enters the authored return trigger).
+`region-save-safe-setup/` stops at the diagnostic's old sv_cheats restriction after
+load. The host-console diagnostic now uses the existing explicit native mode; no
+puzzle, geometry, damage or enemy rule was changed to help the driver.
+
+Region load/death currently restarts the connection and then asynchronously restores
+members before input. That is not seamless travel acceptance. Automatic region/seam
+qualification, portal views/collision, cross-map actors/projectiles/hitscan/sound,
+remaining admission stalls and complete campaign/multiplayer acceptance remain open.
+Main, installed game, user saves and live service are unchanged. Continue past this
+checkpoint toward authored traversal; the complete independent-port scope remains.

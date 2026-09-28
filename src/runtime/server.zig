@@ -70,6 +70,8 @@ fn init(now: i64, restart: bool) !void {
     active.handle = @import("engine/worlds.zig").current();
     active.network_id = 0;
     active.activated = true;
+    active.stepped_at = now;
+    _ = engine.mapName(&active.map_name);
     pool = try Pool.create(std.heap.c_allocator, @intCast(jobs));
     @memset(std.mem.asBytes(&active.projection), 0);
     @memset(std.mem.asBytes(&active.players), 0);
@@ -124,6 +126,8 @@ fn init(now: i64, restart: bool) !void {
             errdefer loaded.deinit(std.heap.c_allocator);
             var name: [64]u8 = undefined;
             if (!std.mem.eql(u8, loaded.map, persistence.mapName(&name))) return error.SaveMapMismatch;
+            const checksum: u32 = @truncate(@as(usize, @bitCast(engine.gateway.call(c.G_DK3_WORLD_CHECKSUM_V1, .{}))));
+            if (loaded.header.asset_crc != 0 and loaded.header.asset_crc != checksum) return error.SaveAssetMismatch;
             try persistence.admit(&loaded, &active.systems);
             active.restore_pending = loaded;
         } else if (engine.integer("dk3_travel_pending") == 1) {
@@ -160,6 +164,7 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
     try loaded.rebase(clock.now_ms);
     var staged_campaign = if (!visit) try campaign_module.State.fromArchives(loaded.visited) else null;
     errdefer if (staged_campaign) |*state| state.deinit();
+    try resident_worlds.restoreMembers(loaded, clock.now_ms);
     for (&active.projection) |*entity| if (entity.shared.linked != 0) engine.unlink(entity);
     active.world.?.deinit();
     if (active.restored_arena) |strings| {
@@ -167,6 +172,7 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
         std.heap.c_allocator.destroy(strings);
     }
     active.world = loaded.world;
+    active.stepped_at = clock.now_ms;
     active.restored_arena = loaded.arena;
     const header = loaded.header;
     loaded.* = undefined;
@@ -180,7 +186,7 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
         campaign = state;
     }
     if (!visit) {
-        if (persistence.save(&active.world.?, &active.clients, &active.targets, &active.systems, checkpoint_rules.slot, clock.now_ms, campaign.visited)) |_| {
+        if (saveRegion(checkpoint_rules.slot)) |_| {
             checkpoint.saved();
             engine.print("dk3 checkpoint: ready\n");
         } else |err| {
@@ -205,7 +211,7 @@ fn saveCommand(command: []const u8) !bool {
     const slot = engine.argv(1, &argument);
     if (!@import("domain/snapshot.zig").validName(slot) or std.mem.startsWith(u8, slot, "dk3-")) return error.InvalidSaveSlot;
     if (saving) {
-        try persistence.save(&active.world.?, &active.clients, &active.targets, &active.systems, slot, clock.now_ms, campaign.visited);
+        try saveRegion(slot);
         rememberCheckpoint(slot, false) catch |err| saveFeedback(err);
         engine.print("dk3 zig: world saved\n");
     } else {
@@ -216,12 +222,18 @@ fn saveCommand(command: []const u8) !bool {
     }
     return true;
 }
+fn saveRegion(slot: []const u8) !void {
+    var scratch = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+    defer scratch.deinit();
+    const members = try resident_worlds.captureOthers(scratch.allocator(), &initial_context, active);
+    try persistence.save(&active.world.?, &active.clients, &active.targets, &active.systems, slot, clock.now_ms, campaign.visited, members);
+}
 fn loadSlot(slot: []const u8, previous: bool) !void {
     var loaded = try persistence.prepare(slot, previous);
     var owned = true;
     defer if (owned) loaded.deinit(std.heap.c_allocator);
     var name: [64]u8 = undefined;
-    if (std.mem.eql(u8, loaded.map, persistence.mapName(&name)) and @import("server/resources.zig").canRestoreInPlace(loaded.header.resources)) {
+    if (loaded.residents.len == 0 and !resident_worlds.hasGameplay() and std.mem.eql(u8, loaded.map, persistence.mapName(&name)) and @import("server/resources.zig").canRestoreInPlace(loaded.header.resources)) {
         try restore(&loaded, false);
         owned = false;
     } else {
@@ -260,7 +272,7 @@ fn recovery() !void {
     const alive = (try active.world.?.get(entity, component.Health)).current > 0;
     if (checkpoint.pending and alive and player.mode == .normal and player.command_ms > 0 and !@import("server/cinematics.zig").active(&active.world.?)) {
         // A fresh playable arrival becomes a checkpoint; user save slots are untouched.
-        try persistence.save(&active.world.?, &active.clients, &active.targets, &active.systems, checkpoint_rules.slot, clock.now_ms, campaign.visited);
+        try saveRegion(checkpoint_rules.slot);
         try rememberCheckpoint(checkpoint_rules.slot, false);
     }
     var input: c.usercmd_t = undefined;
@@ -506,8 +518,10 @@ fn consoleCommand() isize {
     return 1;
 }
 fn enterWorld(name: []const u8) !void {
-    if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER or engine.integer("sv_cheats") == 0) return error.DiagnosticRequiresSinglePlayerCheats;
-    const destination = if (std.mem.eql(u8, name, "initial")) &initial_context else try resident_worlds.destination(name);
+    // Host-console instrumentation uses the same explicit native diagnostic
+    // mode as placement/equipment probes. Normal save reloads clear sv_cheats.
+    if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER or engine.integer("dk3_runtime_probe") != 2) return error.DiagnosticRequiresNativeSinglePlayer;
+    const destination = if (std.mem.eql(u8, name, "initial") or std.mem.eql(u8, name, std.mem.sliceTo(&initial_context.map_name, 0))) &initial_context else try resident_worlds.destination(name);
     try @import("server/world_transfer.zig").player(active, destination, clock.now_ms);
     active = destination;
     try @import("engine/worlds.zig").select(active.handle.?);
@@ -540,12 +554,16 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             active.clients.begin(&active.world.?, &active.slots, &active.projection, &active.players, @intCast(arg0), clock.now_ms, if (arg0 == 0 and campaign.arrival != null) campaign.arrival.?.journey else null) catch |err| runtimeFailure(err);
             if (arg0 == 0 and active.restore_pending == null) @import("server/companions.zig").start(&active.systems.actors, &active.world.?, &active.slots, &active.projection, active.clients.entities[0].?, if (campaign.arrival) |arrival| arrival.journey.spawn else "", if (campaign.arrival) |arrival| if (arrival.journey.kind == .submap) arrival.journey.companions else null else null, clock.now_ms) catch |err| runtimeFailure(err);
             if (arg0 == 0) if (active.restore_pending) |value| {
-                var saved = value;
-                active.restore_pending = null;
-                restore(&saved, restoring_visit) catch |err| {
-                    saved.deinit(std.heap.c_allocator);
-                    runtimeFailure(err);
-                };
+                if (value.residents.len != 0) {
+                    engine.send(0, "dk3_region_wait 1");
+                } else {
+                    var saved = value;
+                    active.restore_pending = null;
+                    restore(&saved, restoring_visit) catch |err| {
+                        saved.deinit(std.heap.c_allocator);
+                        runtimeFailure(err);
+                    };
+                }
             };
             if (arg0 == 0) if (campaign.arrival) |arrival| {
                 active.clients.arrive(&active.world.?, &active.slots, &active.projection, &active.players, arrival, &active.systems.actors, clock.now_ms) catch |err| runtimeFailure(err);
@@ -554,7 +572,9 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             };
         },
         c.GAME_CLIENT_USERINFO_CHANGED => active.clients.userinfo(&active.world.?, @intCast(arg0)) catch |err| runtimeFailure(err),
-        c.GAME_CLIENT_THINK => active.clients.think(&active.world.?, &active.slots, &active.projection, &active.players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err),
+        c.GAME_CLIENT_THINK => if (active.restore_pending == null) {
+            active.clients.think(&active.world.?, &active.slots, &active.projection, &active.players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err);
+        },
         c.GAME_CLIENT_DISCONNECT => {
             rooms.disconnect(&active.world.?, &active.clients, @intCast(arg0)) catch |err| runtimeFailure(err);
             active.clients.disconnect(&active.world.?, &active.slots, &active.projection, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err);
@@ -569,8 +589,16 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 engine.fatal("Native runtime: invalid engine frame time");
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
-                if (campaign.departing or active.restore_pending != null) return 0;
+                if (campaign.departing) return 0;
                 resident_worlds.step(clock.now_ms, &active.clients.weapon_table) catch |err| runtimeFailure(err);
+                if (active.restore_pending) |*pending| {
+                    if (active.clients.entities[0] == null or !(resident_worlds.restorationReady(pending) catch |err| runtimeFailure(err))) return 0;
+                    var saved = pending.*;
+                    active.restore_pending = null;
+                    restore(&saved, restoring_visit) catch |err| runtimeFailure(err);
+                    engine.send(0, "dk3_region_wait 0");
+                    engine.print("dk3 region: restoration committed\n");
+                }
                 rooms.tick(&active.world.?, &active.clients, clock.now_ms) catch |err| runtimeFailure(err);
                 active.systems.multiplayer.warmup = rooms.warmup_ms != 0;
                 campaign_module.endings(&active.world.?, &active.targets, clock.now_ms) catch |err| runtimeFailure(err);
@@ -585,6 +613,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     @import("server/companions.zig").camera(&active.world.?, entity.?, &active.players[index]) catch |err| runtimeFailure(err);
                     campaign_module.camera(&active.world.?, entity.?, &active.players[index]) catch |err| runtimeFailure(err);
                 };
+                active.stepped_at = clock.now_ms;
                 recovery() catch |err| saveFeedback(err);
                 if (active.targets.travel) |request| {
                     active.targets.travel = null;

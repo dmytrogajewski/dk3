@@ -15,10 +15,64 @@ const Entry = struct {
     ready: bool = false,
     publication: ?@import("world_publication.zig").State = null,
     client_failed: bool = false,
+    namespace: u7 = 1,
+    saved: ?*@import("../domain/snapshot.zig").Loaded = null,
 };
 pub const State = struct {
     entries: [127]?Entry = @splat(null),
     cursor: usize = 0,
+    initial_namespace: u7 = 0,
+    pub fn hasGameplay(self: *const State) bool {
+        for (self.entries) |maybe| if (maybe) |entry| if (entry.gameplay) return true;
+        return false;
+    }
+    pub fn captureOthers(self: *State, allocator: std.mem.Allocator, initial: *Context, active: *Context) ![]const @import("../domain/snapshot.zig").Archive {
+        var result: std.ArrayList(@import("../domain/snapshot.zig").Archive) = .empty;
+        if (initial != active) try result.append(allocator, try initial.capture(allocator));
+        for (self.entries) |maybe| if (maybe) |entry| if (entry.ready) if (entry.context) |context| {
+            if (context != active) try result.append(allocator, try context.capture(allocator));
+        };
+        return result.items;
+    }
+    pub fn restorationReady(self: *State, saved: *@import("../domain/snapshot.zig").Loaded) !bool {
+        self.initial_namespace = saved.header.namespace orelse 0;
+        var ready = true;
+        for (saved.residents) |*member| {
+            var found = false;
+            for (self.entries) |maybe| if (maybe) |entry| {
+                if (!std.mem.eql(u8, member.map, std.mem.sliceTo(&entry.name, 0))) continue;
+                found = true;
+                if (entry.status == .failed or entry.client_failed) return error.RegionRestorePreparationFailed;
+                if (!entry.ready or entry.publication == null or !entry.publication.?.ready) ready = false;
+                break;
+            };
+            if (!found) {
+                self.requestSaved(member.map, true, member) catch |err| switch (err) {
+                    error.WorldReaderLimit => return false,
+                    else => return err,
+                };
+                ready = false;
+            }
+        }
+        return ready;
+    }
+    pub fn restoreMembers(self: *State, saved: *@import("../domain/snapshot.zig").Loaded, now: i64) !void {
+        // Each hidden context already owns its admitted saved state. Retain the
+        // saved activation state while rebasing the time spent preparing media.
+        for (saved.residents) |*member| {
+            const context = try self.destination(member.map);
+            if (!member.ownership_transferred) return error.ResidentRestoreNotStaged;
+            const exposed = context.activated;
+            try context.awaken(now);
+            context.activated = exposed;
+        }
+        for (saved.residents) |*member| {
+            const context = try self.destination(member.map);
+            for (&self.entries) |*maybe| if (maybe.*) |*entry| if (entry.context == context) {
+                entry.saved = null;
+            };
+        }
+    }
     pub fn destination(self: *State, name: []const u8) !*Context {
         for (&self.entries) |*maybe| if (maybe.*) |*entry| {
             if (!std.mem.eql(u8, name, std.mem.sliceTo(&entry.name, 0))) continue;
@@ -36,6 +90,9 @@ pub const State = struct {
         self.* = .{};
     }
     pub fn request(self: *State, name: []const u8, gameplay: bool) !void {
+        try self.requestSaved(name, gameplay, null);
+    }
+    fn requestSaved(self: *State, name: []const u8, gameplay: bool, saved: ?*@import("../domain/snapshot.zig").Loaded) !void {
         if (gameplay and engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return error.CampaignPreparationRequiresSinglePlayer;
         if (!@import("../domain/snapshot.zig").validName(name) or name.len >= 64) return error.InvalidWorldName;
         var active: usize = 0;
@@ -45,7 +102,17 @@ pub const State = struct {
         };
         if (active >= 4) return error.WorldReaderLimit;
         for (&self.entries) |*slot| if (slot.* == null) {
-            var entry: Entry = .{ .handle = try worlds.request(name), .gameplay = gameplay };
+            var occupied: [128]bool = @splat(false);
+            occupied[self.initial_namespace] = true;
+            for (self.entries) |maybe| if (maybe) |entry| {
+                occupied[entry.namespace] = true;
+            };
+            const namespace = if (saved) |value| value.header.namespace orelse return error.MissingWorldNamespace else blk: {
+                for (occupied, 0..) |used, i| if (!used) break :blk @as(u7, @intCast(i));
+                return error.WorldNamespaceCapacity;
+            };
+            if (occupied[namespace]) return error.DuplicateWorldNamespace;
+            var entry: Entry = .{ .handle = try worlds.request(name), .gameplay = gameplay, .namespace = namespace, .saved = saved };
             @memcpy(entry.name[0..name.len], name);
             slot.* = entry;
             return;
@@ -68,7 +135,7 @@ pub const State = struct {
                 const before = engine.gateway.call(c.G_MILLISECONDS, .{});
                 if (entry.context == null) {
                     try worlds.attach(entry.handle);
-                    entry.context = Context.prepare(entry.handle, @intCast(index + 1), now, table) catch |err| {
+                    entry.context = Context.prepare(entry.handle, entry.namespace, now, table, entry.saved) catch |err| {
                         entry.status = .failed;
                         _ = worlds.release(entry.handle);
                         var failure: [192]u8 = undefined;
