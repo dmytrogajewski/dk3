@@ -213,9 +213,8 @@ dk3/fx/weapon-shine
 {
  { map gfx/dk3/particle.tga
    tcGen environment
-   blendFunc GL_SRC_ALPHA GL_ONE
+   blendFunc GL_DST_COLOR GL_ONE
    rgbGen entity
-   alphaGen entity
  }
 }
 

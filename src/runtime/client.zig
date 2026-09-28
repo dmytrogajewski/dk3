@@ -27,6 +27,10 @@ var gamestate_sequence: i32 = 0;
 var client_number: i32 = 0;
 var view_angles: v.Vec3 = @splat(0);
 var weapon_view: @import("client/weapon_view.zig").View = .{};
+var view_motion: @import("domain/view_motion.zig").State = .{};
+var camera_height: f32 = 22;
+var camera_offset: f32 = 0;
+var camera_position: v.Vec3 = @splat(0);
 var hud: @import("client/hud.zig").Hud = .{};
 var foreign_presented: [c.MAX_GENTITIES]u32 = @splat(0);
 var foreign_count: usize = 0;
@@ -41,6 +45,7 @@ export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
 }
 fn shutdown() void {
+    view_motion = .{};
     resident_worlds.deinit();
     @import("client/interpolation.zig").reset();
     @import("client/scoreboard.zig").reset();
@@ -207,6 +212,7 @@ fn draw(now: i32) !void {
                 @import("client/scoreboard.zig").command();
                 @import("client/quake_kick.zig").command();
                 if (@import("client/commands.zig").restored()) |restored| {
+                    view_motion = .{};
                     @import("client/interpolation.zig").reset();
                     @import("client/messages.zig").reset();
                     @import("client/models.zig").reset();
@@ -221,6 +227,7 @@ fn draw(now: i32) !void {
                     @import("client/blood_clouds.zig").reset();
                     @import("client/chests.zig").reset();
                     weapon_view.init();
+                    weapon_view.state.synchronize(@truncate(@as(u32, @bitCast(snapshot.ps.persistant[c.PERS_SPAWN_COUNT]))));
                     if (restored.fire) |fire| weapon_view.fire(fire.weapon, fire.serial, fire.started_ms);
                     selected_weapon = snapshot.ps.weapon;
                     engine.print("dk3 zig client: restoration applied\n");
@@ -260,6 +267,7 @@ fn draw(now: i32) !void {
     transform.* = .{ .position = snapshot.ps.origin, .angles = snapshot.ps.viewangles };
     velocity.linear = snapshot.ps.velocity;
     player.* = bridge.read(&snapshot.ps);
+    view_motion.synchronize(.{ .world = snapshot.ps.dk3World, .incarnation = snapshot.ps.persistant[c.PERS_SPAWN_COUNT], .teleport = player.teleport_bit, .camera = snapshot.ps.dk3CameraActive, .mode = snapshot.ps.pm_type }, player.command_ms, now);
     const loadout = try w.get(player_entity, data.Weapons);
     loadout.* = bridge.readWeapons(&snapshot.ps);
     const character = try w.get(player_entity, data.Character);
@@ -277,7 +285,13 @@ fn draw(now: i32) !void {
         if (ailments.mask & 128 != 0) motion.velocity = @splat(0);
         var events: weapons.Events = .{};
         var weapon_context: weapons.Context = .{ .ps = loadout, .healthy = snapshot.ps.stats[c.STAT_HEALTH] > 0, .single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER, .table = &weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(client_number), .shot_mask = c.MASK_SHOT, .attack_boost = character.attribute(.attack, command.time_ms) };
-        _ = try move.runWithHook(player, &motion, command, bridge.characterParameters(@intCast(client_number), character.*, ailments.*, command.time_ms), engine.collisionService(), weapon_context.hook());
+        const movement = try move.runWithHook(player, &motion, command, bridge.characterParameters(@intCast(client_number), character.*, ailments.*, command.time_ms), engine.collisionService(), weapon_context.hook());
+        var step: f32 = 0;
+        for (movement.events[0..movement.event_count]) |event| switch (event) {
+            .step => |height| step += height,
+            else => {},
+        };
+        view_motion.command(command.time_ms, if (player.mode == .normal and snapshot.ps.dk3CameraActive == 0) step else 0, now);
         for (events.values[0..events.count], 0..) |event, i| switch (event) {
             .fired => |shot| weapon_view.fire(shot.weapon, loadout.event_sequence -% @as(u32, @intCast(events.count - i)), shot.command_ms),
             .no_ammo => {},
@@ -297,6 +311,9 @@ fn draw(now: i32) !void {
     ref.fov_y = std.math.atan(@tan(ref.fov_x * std.math.pi / 360) * @as(f32, @floatFromInt(ref.height)) / @as(f32, @floatFromInt(ref.width))) * 360 / std.math.pi;
     ref.vieworg = transform.position;
     ref.vieworg[2] += player.view_height;
+    camera_height = player.view_height;
+    camera_offset = if (player.mode == .normal and snapshot.ps.dk3CameraActive == 0) view_motion.offset(player.view_height, now) else 0;
+    ref.vieworg[2] += camera_offset;
     if (snapshot.ps.dk3CameraActive != 0) {
         const camera = @import("client/interpolation.zig").camera(now);
         ref.vieworg = camera.position;
@@ -308,6 +325,7 @@ fn draw(now: i32) !void {
     ref.viewaxis[1] = v.scale(basis.right, -1);
     ref.viewaxis[2] = v.cross(ref.viewaxis[0], ref.viewaxis[1]);
     ref.areamask = snapshot.areamask;
+    camera_position = ref.vieworg;
     const lightstyles = try engine.config(&game, c.CS_DK3_LIGHTSTYLES);
     try @import("client/sky.zig").update(&game);
     ref.dk3Lightstyles = if (lightstyles.len > 0) try @import("domain/lightstyles.zig").decode(lightstyles) else @splat(1);
@@ -505,6 +523,10 @@ fn draw(now: i32) !void {
             rendered.nonNormalizedAxes = c.qtrue;
         }
         rendered.shaderRGBA = @splat(255);
+        if (entity.eType == c.ET_DK3_ITEM) {
+            rendered.renderfx |= c.RF_MINLIGHT | c.RF_LIGHTING_ORIGIN;
+            rendered.lightingOrigin = v.add(rendered.origin, .{ 0, 0, 16 });
+        }
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("item_catalog").drugbox.render_tag) rendered.shaderRGBA[3] = @intCast(std.math.clamp(entity.time2, 0, 255));
         if (entity.generic1 == @import("actor_catalog").medusa.stone_tag) {
             rendered.shaderRGBA[3] = 179;
@@ -590,6 +612,7 @@ fn console() isize {
     }
     if (std.mem.eql(u8, name, "dk3_runtime_presentation")) {
         var message: [512]u8 = undefined;
+        engine.print(std.fmt.bufPrintZ(&message, "dk3 view motion: now={d} height={d:.3} offset={d:.3} steps={d} pos={d:.3},{d:.3},{d:.3}\n", .{ presentation.now, camera_height, camera_offset, view_motion.steps, camera_position[0], camera_position[1], camera_position[2] }) catch unreachable);
         engine.print(std.fmt.bufPrintZ(&message, "dk3 weapon presentation: now={d} incarnation={d} weapon={d} phase={s} serial={d} frame={d} oldframe={d} backlerp={d:.4} started={d}\n", .{ weapon_view.presented_ms, weapon_view.state.incarnation orelse 0, weapon_view.state.weapon, @tagName(weapon_view.state.phase), weapon_view.state.fire_serial orelse 0, weapon_view.presented.frame, weapon_view.presented.oldframe, weapon_view.presented.backlerp, weapon_view.started_ms }) catch unreachable);
         for (foreign_presented[0..foreign_count]) |identity| engine.print(std.fmt.bufPrintZ(&message, "dk3 foreign presentation: identity={d} at={d}\n", .{ identity, presentation.now }) catch unreachable);
         engine.print(std.fmt.bufPrintZ(&message, "dk3 presentation: now={d} camera={d} models={d} blended={d} entity={d} frame={d} oldframe={d} backlerp={d:.4} snapshot={d} ions={d} lamps={d} gibs={d} chunks={d} motion_blended={d}\n", .{ presentation.now, snapshot.ps.dk3CameraActive, presentation.models, presentation.blended, presentation.entity, presentation.frame, presentation.oldframe, presentation.backlerp, snapshot.serverTime, presentation.ions, presentation.lamps, presentation.gibs, presentation.chunks, @import("client/interpolation.zig").blendedMotion(presentation.now) }) catch unreachable);

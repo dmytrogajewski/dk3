@@ -6493,3 +6493,43 @@ failures are retained; the approved replays above completed outside that sandbox
 using dkguard and temporary profiles. No private reference source/assets, preserved
 installation/saves or live service were changed. Earlier gameplay evidence keeps
 its recorded build identity; complete-port acceptance remains open.
+
+## Sequence 311 — native-pickup-view-feedback
+
+Build `e1e3c7fd4ac9f463c5e75d8368463f1d9038b5a68a75ae87830ac0a608f6b78a`;
+combined identity `f626e617c965cccbdf342c9e92cd395c2ff6148be5d09d7a18354ea39b6ac446`.
+Base, HD and region manifest remain at sequence 306 identities; protocol 1350
+and renderer ABI 12 are unchanged. Evidence: `zig-out/reports/runtime-zig-311/`.
+
+Weapon acquisition now enters its class-owned raise transition, preventing queued
+old-selection input from starting another draw. Ammunition pickups preserve the
+current transition. Restoration initializes the presentation incarnation once.
+First-person stairs and crouch follow main's admitted 200/100 ms presentation
+contract; predicted command replay cannot accumulate the same step twice.
+Collision, damage and player speed are unchanged.
+
+Armor and the reviewed rotating pickup classes use the existing angular trajectory;
+ammunition and single-player world weapons retain placed orientation. Pickups sample
+light above their base and request minimum light, now honored by both renderers.
+Neutral texture-modulated shine replaces the blue additive veil. These lighting
+changes are documented enhancements, not complete original-material equivalence.
+
+| Evidence | State and verified outcome | Limits |
+|---|---|---|
+| `aggregate.log`, `runtime-approved.log` | Passed: aggregate 50/50 steps, 413 Zig and 87 Python tests plus actual C roots; affected runtime 273/273 | Assertions enabled, new roots execute. Controller fixtures explicitly begin already equipped; acquisition has its own regression |
+| `pickup-defect/` | Reproduced defect on prior native `e2df24…`: ordinary contact produces two Ion ready animations | Expected-defect run, not product acceptance; combined identity `0c2bbf287f59879aa0cb4be92856e979b7e669258bcba3d6617559c922fac8b9` |
+| `view-final-opengl1/`, `view-admitted-opengl2/` | Passed on final build: actual pickup contact produces one ready animation, crouch/stand include intermediate eye heights, save/load does not duplicate the ready animation. Fixed-camera armor rotation, readable alcove armor/ammo and Off/Original/Enhanced shine captures inspected | Diagnostic positioning/health, ordinary pickup contact, isolated profiles. Actual crouch and grounded alcove setup asserted. Not a fresh playthrough or every pickup class |
+| `stairs-final-opengl1/` | Passed: ordinary walking climbs three authored e1m1c step rises, with negative camera offsets that decay to zero | Diagnostic placement, no jump or geometry changes; not full traversal or frame-time qualification |
+| `network-final/` | Passed on final build: two real UDP clients move/fire with advancing weapon frames, respawn, spectate/rejoin, reconnect and restart | Ordinary DM inventory; commanded death. Affected shared-presentation regression, not complete multiplayer or every weapon interaction |
+
+Failed setup runs remain invalid: early input observations preceded the final region
+admission event; initial item viewpoints intersected rock, and the first stair
+route was a ramp. The driver now waits for final admission and asserts walkable
+placement. The first renderer correction was excluded by build flags; final
+lighting captures supersede it. Existing `d1_swp3` out-of-range frame warnings are
+still visible with developer diagnostics and remain a separate presentation issue.
+Earlier local report directories disappeared during this session; sequence-311
+evidence above was recreated. Historical journal outcomes retain their identities,
+but missing artifacts are not treated as fresh native acceptance. No preserved
+installation, saves, main branch or service was changed. Full-port and connected
+campaign acceptance remain open.

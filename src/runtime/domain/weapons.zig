@@ -37,7 +37,19 @@ pub const State = struct {
     pub fn acquire(self: *State, table: *const Table, id: u5, rounds: i32) bool {
         const entry = catalog.find(id) orelse return false;
         var owned: u32 = @bitCast(self.dk3Inventory);
+        const previous = self.weapon;
         if (!@import("inventory_rules").acquire(&owned, &self.ammo, &self.weapon, id, rounds, .{ .maximum = table.entries[id].ammoMax, .auto_select = entry.spec.auto_select })) return false;
+        if (self.weapon != previous) {
+            // A server-forced pickup still enters the shared raise transition.
+            // Its timer covers queued commands that carry the previous selection.
+            self.weaponstate = catalog.transitions.state.raising;
+            self.weaponTime = catalog.transitions.switchTime(self.weapon, true);
+            self.dk3Burst = 0;
+            self.dk3Charge = 0;
+            self.dk3NovaSpent = 0;
+            self.dk3WeaponSequence = 0;
+            self.dk3AttackHeld = 0;
+        }
         if (id == 23) @import("inventory_rules").grantPair(&owned, &self.ammo, 27, table.entries[27].ammoMax, table.entries[27].initialAmmo);
         self.dk3Inventory = @bitCast(owned);
         return true;
@@ -186,3 +198,19 @@ pub const Context = struct {
         return hit.fraction < 1 and hit.entity < 2046;
     }
 };
+
+test "pickup raise protects selection from queued input and ammo does not restart it" {
+    var table: Table = .{};
+    table.entries[2].ammoMax = 100;
+    var loadout: State = .{ .weapon = 1, .dk3Inventory = 1 << 1 };
+    try std.testing.expect(loadout.acquire(&table, 2, 50));
+    try std.testing.expectEqual(@as(i32, 2), loadout.weapon);
+    try std.testing.expectEqual(catalog.transitions.state.raising, loadout.weaponstate);
+    try std.testing.expectEqual(catalog.transitions.switchTime(2, true), loadout.weaponTime);
+    const context = struct { ps: *State }{ .ps = &loadout };
+    try std.testing.expect(!catalog.transitions.switchWeapon(context, 1));
+    try std.testing.expectEqual(@as(i32, 2), loadout.weapon);
+    loadout.weaponTime = 25;
+    try std.testing.expect(loadout.acquire(&table, 2, 10));
+    try std.testing.expectEqual(@as(i32, 25), loadout.weaponTime);
+}

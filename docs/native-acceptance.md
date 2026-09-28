@@ -15,7 +15,9 @@ is inferred from class counts or test volume.
 Sequence 309 repairs the shared actor ground-departure check, camera mode
 transport and multiplayer weapon presentation lifetime, and adds worker fear,
 party-health autosaves and softer Cambot lights. Sequence 310 adds the installed-map
-picker for Internet Create and LAN hosting. Latest coherent build: `e2df24…`,
+picker for Internet Create and LAN hosting. Sequence 311 repairs pickup raises,
+first-person stair/duck smoothing, pickup rotation/lighting and weapon shine.
+Latest coherent build: `e1e3c7…`,
 protocol 1350; earlier gameplay evidence retains its recorded identity below.
 **Seamless campaign acceptance remains incomplete.** Fresh opening development
 reaches the bridge boss but has not completed the milestone. Ground-controller
@@ -34,7 +36,48 @@ remaining admission stalls stay open. Supporting checks do not measure completio
 | Multiplayer and bots | Native sessions/modes/bots; spawn-aware shared weapon presentation; protocol 1350 | Wire, counter-wrap and respawn contracts pass at 309 | Final 309: two actual UDP clients show advancing attack frames before/after respawn and pass spectate/rejoin/reconnect/restart | Every weapon interaction, full CTF/deathtag, public admission/authenticated rooms and full modes remain open. No service deployment |
 | World/effects | Authored controls, hazards, debris, lighting and sky connected; softer Cambot lamp/beam/contact pools | Applicable contracts pass; final build checks at 309 | Final 309: Cambot acquisition and rendered lamp captures inspected in both backends. 296 fragment/sky evidence retained with its original identity | Broader authored effects/audio/PHS parity remains open; enhancement is not a shadow-mapped spotlight |
 | Presentation and cinematic input | Menus/loading art, interpolation, cinematic input and all camera modes connected | Three-bit camera modes survive actual message encoding at 309 | Final 309: ordinary e1m1c button use, remote door view, release and finished-scene save/load. Earlier intro/menu evidence retains its recorded identity | Full fresh intro, all authored scenes, menu equivalence and audiovisual comparison remain unverified |
+| Pickup and first-person feedback | Shared class-owned raise transition, stair/duck offsets, selected rotating pickups, minimum model light and neutral shine | Acquisition/queued-input, rotation exclusions and camera replay/boundary contracts execute at 311 | Final 311: one actual Ion pickup draw, smooth crouch/stand and ready-weapon restore in both renderers; three actual e1m1c step rises; armor/ammo/shine captures inspected | Main camera timing and private pickup behavior inspected. Controlled setup; broader weapon interactions, custom rotation overrides and exact glow/material parity remain open |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 311 — native-pickup-view-feedback
+
+Build `e1e3c7fd4ac9f463c5e75d8368463f1d9038b5a68a75ae87830ac0a608f6b78a`;
+combined identity `f626e617c965cccbdf342c9e92cd395c2ff6148be5d09d7a18354ea39b6ac446`.
+Base, HD and region manifest remain at sequence 306 identities; protocol 1350
+and renderer ABI 12 are unchanged. Evidence: `zig-out/reports/runtime-zig-311/`.
+
+Weapon acquisition now enters its class-owned raise transition, preventing queued
+old-selection input from starting another draw. Ammunition pickups preserve the
+current transition. Restoration initializes the presentation incarnation once.
+First-person stairs and crouch follow main's admitted 200/100 ms presentation
+contract; predicted command replay cannot accumulate the same step twice.
+Collision, damage and player speed are unchanged.
+
+Armor and the reviewed rotating pickup classes use the existing angular trajectory;
+ammunition and single-player world weapons retain placed orientation. Pickups sample
+light above their base and request minimum light, now honored by both renderers.
+Neutral texture-modulated shine replaces the blue additive veil. These lighting
+changes are documented enhancements, not complete original-material equivalence.
+
+| Evidence | State and verified outcome | Limits |
+|---|---|---|
+| `aggregate.log`, `runtime-approved.log` | Passed: aggregate 50/50 steps, 413 Zig and 87 Python tests plus actual C roots; affected runtime 273/273 | Assertions enabled, new roots execute. Controller fixtures explicitly begin already equipped; acquisition has its own regression |
+| `pickup-defect/` | Reproduced defect on prior native `e2df24…`: ordinary contact produces two Ion ready animations | Expected-defect run, not product acceptance; combined identity `0c2bbf287f59879aa0cb4be92856e979b7e669258bcba3d6617559c922fac8b9` |
+| `view-final-opengl1/`, `view-admitted-opengl2/` | Passed on final build: actual pickup contact produces one ready animation, crouch/stand include intermediate eye heights, save/load does not duplicate the ready animation. Fixed-camera armor rotation, readable alcove armor/ammo and Off/Original/Enhanced shine captures inspected | Diagnostic positioning/health, ordinary pickup contact, isolated profiles. Actual crouch and grounded alcove setup asserted. Not a fresh playthrough or every pickup class |
+| `stairs-final-opengl1/` | Passed: ordinary walking climbs three authored e1m1c step rises, with negative camera offsets that decay to zero | Diagnostic placement, no jump or geometry changes; not full traversal or frame-time qualification |
+| `network-final/` | Passed on final build: two real UDP clients move/fire with advancing weapon frames, respawn, spectate/rejoin, reconnect and restart | Ordinary DM inventory; commanded death. Affected shared-presentation regression, not complete multiplayer or every weapon interaction |
+
+Failed setup runs remain invalid: early input observations preceded the final region
+admission event; initial item viewpoints intersected rock, and the first stair
+route was a ramp. The driver now waits for final admission and asserts walkable
+placement. The first renderer correction was excluded by build flags; final
+lighting captures supersede it. Existing `d1_swp3` out-of-range frame warnings are
+still visible with developer diagnostics and remain a separate presentation issue.
+Earlier local report directories disappeared during this session; sequence-311
+evidence above was recreated. Historical journal outcomes retain their identities,
+but missing artifacts are not treated as fresh native acceptance. No preserved
+installation, saves, main branch or service was changed. Full-port and connected
+campaign acceptance remain open.
 
 ## Sequence 310 — native-multiplayer-map-picker
 

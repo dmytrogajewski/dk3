@@ -155,7 +155,10 @@ pub const View = struct {
         if (shine > 0 and rendered.customShader == 0 and self.shine != 0) {
             var overlay = rendered;
             overlay.customShader = self.shine;
-            overlay.shaderRGBA = .{ 200, 215, 255, if (shine >= 2) 110 else 45 };
+            // A neutral, texture-modulated reflection preserves the skin and
+            // its lighting instead of laying a blue additive veil over them.
+            const gain: u8 = if (shine >= 2) 64 else 28;
+            overlay.shaderRGBA = .{ gain, gain, gain, 255 };
             _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&overlay});
         }
         if (media.hum != 0) {

@@ -382,3 +382,22 @@ a jump. The new regression exercises the native actor motor with a captured
 temporary source copy makes that regression fail. Camera modes and player event
 ordering use the project's own native transport. Autosave health rules and softer
 Cambot surface pools are owner-requested additions, not claims of reference parity.
+
+Sequence 311 uses the preserved main branch and admitted ioquake3 camera contract
+for first-person stair/duck presentation: 200/100 ms decay, accumulated steps
+bounded to 32 units, and no duplicate steps during prediction replay. The native
+implementation is independent Zig code; collision and movement rules are unchanged.
+Private reference inspection supplied only pickup behavior facts: ordinary armor,
+souls, save gems, wraith orbs and the bottle rotate; ammunition and health packs
+retain their placed angles; world weapons rotate in multiplayer. Default rotation
+is 100 degrees per second. Custom boost assemblies and authored rotation overrides
+are not claimed as covered by this correction.
+
+The reference's pickup glow and minimum model light informed the readability fix.
+Native pickups use a raised light sample and the existing RF_MINLIGHT flag; both
+bundled renderers now honor that flag with a 30-percent per-channel ambient floor.
+This is an intentional readability correction, not reproduction of the original
+pulsing glow. Enhanced weapon shine is a project-owned, neutral modulation of the
+lit skin rather than the former blue additive overlay; exact reference material
+equivalence is not claimed. No private implementation, texture or other asset was
+imported. Engine file hashes are recorded in `engine/DEVELOPMENT.json`.

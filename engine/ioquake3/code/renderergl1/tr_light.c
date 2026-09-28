@@ -331,6 +331,12 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 		ent->ambientLight[1] += tr.identityLight * 32;
 		ent->ambientLight[2] += tr.identityLight * 32;
 	}
+	/* Keep flagged pickups and view weapons readable without flattening the
+	 * map's directed lighting. Unflagged scenery retains its existing light. */
+	if (ent->e.renderfx & RF_MINLIGHT) {
+		for (i = 0; i < 3; ++i)
+			ent->ambientLight[i] = MAX(ent->ambientLight[i], tr.identityLight * 76.5f);
+	}
 
 	//
 	// modify the light by dynamic lights

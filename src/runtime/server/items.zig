@@ -88,6 +88,8 @@ fn spawnOne(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
 
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection) !void {
     const projection = try updateProjection(world, entity, projections);
+    const pickup = (try world.get(entity, data.Pickup)).*;
+    if (rules.rotates(pickup.kind, (try world.get(entity, data.MapObject)).classname, engine.integer("g_gametype") == c.GT_SINGLE_PLAYER)) projection.state.apos = @import("../engine/trajectory.zig").linear(.{ 0, 0, 0 }, .{ 0, 100, 0 }, 0);
     if (projection.shared.contents != 0) engine.link(projection) else engine.unlink(projection);
 }
 

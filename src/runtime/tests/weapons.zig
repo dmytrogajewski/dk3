@@ -19,6 +19,10 @@ const Fixture = struct {
         var self: Fixture = .{};
         self.table.entries[id] = .{ .ammoMax = 100, .initialAmmo = 100, .ammoCost = 1, .lifetime = 5 };
         _ = self.state.acquire(&self.table, id, 100);
+        // These controller scenarios start with an already equipped weapon.
+        // Acquisition/queued-selection behavior has its own transition regression.
+        self.state.weaponstate = catalog.transitions.state.ready;
+        self.state.weaponTime = 0;
         if (id == 7) self.state.gas_until_ms = 5000;
         return self;
     }

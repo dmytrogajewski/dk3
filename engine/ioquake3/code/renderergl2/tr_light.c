@@ -362,6 +362,11 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 		ent->ambientLight[1] += tr.identityLight * 32;
 		ent->ambientLight[2] += tr.identityLight * 32;
 	}
+	/* Same minimum illumination contract as the OpenGL1 backend. */
+	if (ent->e.renderfx & RF_MINLIGHT) {
+		for (i = 0; i < 3; ++i)
+			ent->ambientLight[i] = MAX(ent->ambientLight[i], tr.identityLight * 76.5f);
+	}
 
 	//
 	// modify the light by dynamic lights

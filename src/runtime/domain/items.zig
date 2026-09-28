@@ -2,6 +2,17 @@
 //! Acquisition policies own inventory changes; world visibility/targets stay outside.
 const std = @import("std");
 const catalog = @import("item_catalog");
+/// Default authored pickup rotation. Ammunition, health packs and quest parts
+/// retain their placed orientation; world weapons rotate only in multiplayer.
+pub fn rotates(kind: Kind, classname: []const u8, single_player: bool) bool {
+    return switch (kind) {
+        .weapon => !single_player,
+        .armor => std.mem.endsWith(u8, classname, "_armor"),
+        .soul, .save_gem, .invisibility => true,
+        .key => std.mem.eql(u8, classname, "item_bottle"),
+        else => false,
+    };
+}
 const weapons = @import("weapons.zig");
 const weapon_catalog = @import("weapon_catalog");
 const character = @import("character.zig");
@@ -228,4 +239,11 @@ test "staying weapons exclude consumed classes and death drops preserve ammuniti
     try t.expect(give(.{ .kind = .{ .weapon = ion }, .amount = 7, .dropped = true }, receiver, &table, 0, false));
     try t.expectEqual(@as(i32, 7), loadout.ammo[ion]);
     try t.expectEqual(@as(i32, 1) << ion, loadout.dk3Inventory);
+}
+
+test "authored armor rotation does not turn floor ammunition or campaign weapons" {
+    try std.testing.expect(rotates(classify("item_plasteel_armor").?, "item_plasteel_armor", true));
+    try std.testing.expect(!rotates(classify("ammo_ionpack").?, "ammo_ionpack", true));
+    try std.testing.expect(!rotates(classify("weapon_ionblaster").?, "weapon_ionblaster", true));
+    try std.testing.expect(rotates(classify("weapon_ionblaster").?, "weapon_ionblaster", false));
 }
