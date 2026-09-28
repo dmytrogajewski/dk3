@@ -12,7 +12,7 @@ pub fn orient(world: *data.World, entity: ecs.Entity, pose: *data.Transform, pit
     var points: [3]v.Vec3 = undefined;
     for (directions, &points) |direction, *point| {
         const start = v.add(pose.position, .{ direction[0] * 8, direction[1] * 8, 32 });
-        const hit = try engine.collisionService().trace(.{ .start = start, .end = v.add(start, .{ 0, 0, -64 }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID });
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = start, .end = v.add(start, .{ 0, 0, -64 }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID });
         point.* = hit.end;
     }
     const slope = v.subtract(points[1], points[2]);

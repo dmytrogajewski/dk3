@@ -38,7 +38,7 @@ const Backend = struct {
             const hit = try worlds.trace(context.handle.?, v.subtract(request.start, position), v.subtract(request.end, position), request.mins, request.maxs, binding.model, -1);
             const fraction: f32 = if (hit.startsolid != 0) 0 else hit.fraction;
             if (fraction >= 1 or (nearest != null and nearest.?.fraction <= fraction)) continue;
-            nearest = .{ .fraction = fraction, .world = @intFromEnum(destination.handle.?), .edge = @intCast(index) };
+            nearest = .{ .fraction = fraction, .world = @intFromEnum(destination.handle.?), .edge = @intCast(index), .source_entity = binding.slot };
         }
         return nearest;
     }
@@ -57,6 +57,10 @@ pub fn trace(request: collision.Request) !collision.Trace {
 pub fn from(owner: u32, request: collision.Request, skip: u32) !collision.Trace {
     if (owner == 0) return trace(request);
     return walk.trace(Backend{ .skip = skip }, owner, request);
+}
+pub fn owned(world: *data.World, request: collision.Request, skip: u32) !collision.Trace {
+    const owner = access.contextFor(world) orelse return engine.collisionService().trace(request);
+    return from(@intFromEnum(owner.handle.?), request, skip);
 }
 pub fn contents(owner: u32, point: v.Vec3, skip: u32) !u32 {
     if (owner == 0) return engine.collisionService().contents(point, c.ENTITYNUM_NONE);

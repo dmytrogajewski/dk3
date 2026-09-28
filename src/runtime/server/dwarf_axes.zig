@@ -2,6 +2,7 @@
 //! Dwarf axes fly, embed in the world or fall after hitting an entity, then fade.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -10,13 +11,13 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const policy = @import("actor_catalog").dwarf;
 const lifecycle = @import("weapon_entities.zig");
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: policy.Tuning, now: i64) !bool {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: policy.Tuning, now: i64) !bool {
     const random = try world.get(owner, data.Random);
     const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
     const owner_slot = (try world.get(owner, data.Binding)).slot;
-    const target_position = (try world.get(target, data.Transform)).position;
-    const clear = try engine.collisionService().trace(.{ .start = aim.origin, .end = target_position, .mins = @splat(0), .maxs = @splat(0), .slot = owner_slot, .mask = c.MASK_SHOT });
-    if (clear.fraction < 1 and clear.entity != (try world.get(target, data.Binding)).slot) return false;
+    const target_position = (try target.get(data.Transform)).position;
+    const clear = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = target_position, .mins = @splat(0), .maxs = @splat(0), .slot = owner_slot, .mask = c.MASK_SHOT });
+    if (!@import("region_collision.zig").reaches(world, clear, target)) return false;
     const amount = tuning.damage + random.next() * tuning.random_damage;
     const entity = try world.create(null, .{
         data.Transform{ .position = aim.origin, .angles = .{ -std.math.atan2(aim.direction[2], @sqrt(aim.direction[0] * aim.direction[0] + aim.direction[1] * aim.direction[1])) * 180 / std.math.pi, std.math.atan2(aim.direction[1], aim.direction[0]) * 180 / std.math.pi, 0 } },
@@ -56,6 +57,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = maybe orelse continue;
         if (!world.alive(entity)) continue;
         var state = (world.get(entity, data.DwarfAxe) catch continue).*;
+        if (now <= state.stepped_ms) continue;
+        var motion = @import("region_motion.zig").Cursor.init(world, state.owner);
         if (now >= (state.contact_ms orelse state.born_ms) + 5000) {
             try lifecycle.remove(world, slots, projections, entity);
             continue;
@@ -67,7 +70,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (state.phase == .falling) velocity[2] -= 800 * dt;
         if (state.phase != .resting) {
             const skip = if (world.find(state.owner)) |source| (try world.get(source, data.Binding)).slot else c.ENTITYNUM_NONE;
-            const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, dt)), .mins = @splat(0), .maxs = @splat(0), .slot = @intCast(skip), .mask = if (state.phase == .flying) c.MASK_SHOT else c.MASK_SOLID });
+            const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, dt)), .mins = @splat(0), .maxs = @splat(0), .slot = @intCast(skip), .mask = if (state.phase == .flying) c.MASK_SHOT else c.MASK_SOLID });
             pose.position = hit.end;
             if (hit.sky) {
                 try lifecycle.remove(world, slots, projections, entity);
@@ -82,13 +85,13 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                         pose.position = v.add(pose.position, v.scale(v.basis(pose.angles).forward, -12));
                         pose.angles[0] = 300;
                     } else {
-                        if (hit.entity < occupants.len) if (occupants[hit.entity]) |target| {
-                            _ = try @import("damage.zig").apply(world, target, @intFromFloat(@ceil(state.damage)), now, .{ .source = state.owner, .attacker_class = "monster_dwarf" });
-                            try @import("weapon_damage.zig").shove(world, target, state.owner, velocity, state.damage, now);
-                        };
+                        if (@import("region_access.zig").victim(world, slots, hit)) |target| {
+                            _ = try @import("damage.zig").apply(target.world, target.entity, @intFromFloat(@ceil(state.damage)), now, .{ .source = state.owner, .attacker_class = "monster_dwarf" });
+                            try @import("weapon_damage.zig").shove(target.world, target.entity, state.owner, velocity, state.damage, now);
+                        }
                         pose.angles = .{ 0, 90, 0 };
                     }
-                    try @import("events.zig").sound(world, slots, projections, if (state.phase == .resting) policy.wall_sound else policy.flesh_sound, pose.position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
+                    try @import("events.zig").soundOwned(world, slots, projections, motion.owner, if (state.phase == .resting) policy.wall_sound else policy.flesh_sound, pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
                     velocity = @splat(0);
                 } else {
                     velocity = v.subtract(velocity, v.scale(hit.normal, 1.5 * v.dot(velocity, hit.normal)));
@@ -105,5 +108,6 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         (try world.get(entity, data.Transform)).* = pose;
         (try world.get(entity, data.Velocity)).linear = velocity;
         try publish(world, entity, projections, now);
+        try motion.finish(world, entity, now);
     }
 }

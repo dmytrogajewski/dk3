@@ -1,6 +1,6 @@
 # Seamless connected worlds
 
-Sequences 297–303 implement connected owners on `rewrite/native-zig-runtime`.
+Sequences 297–304 implement connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary campaign exits now use resident ownership.**
 Automatic handoff is not acceptance of portal views or cross-world combat.
 
@@ -192,6 +192,26 @@ then rebinds the arrived incarnation to its continuing birth ID and retires the
 source copy. These paths and natural companion seam pursuit need running coverage.
 Restore diagnostics can report actual actor identities/health at the installation
 boundary, before ordinary corpse retirement or encounter simulation resumes.
+
+Sequence 304 connects actor perception, class-owned attacks and radius recipients
+through explicit world/entity references. Ground, flight and swimming queries
+retain ownership across accepted movement while rejected slide/step probes do not
+commit transfers. A saved per-actor step clock prevents a crossing from simulating
+the actor twice in one region frame. Body-attached actions move with their owner;
+free missiles retain the owner reached by their accepted sweeps.
+
+Moved actors retain their authored map separately from physical ownership. Named
+outputs, script programs and delayed references use that scope; restored script
+cursors are admitted against their actual program. Continuing party lookup/capture
+and ordinary use/order targets resolve actual owners without borrowing local slot
+numbers. Class damage, attack timings, door/key rules and party distance rules are
+unchanged. Cross-seam pursuit intentionally extends the reference's map boundary.
+
+Controlled native evidence now includes real Rockgat/Froginator contact across
+A/B, Slaughterskeet pursuit and Superfly following into A, and save/load of both
+crossed actors. The aggregate and affected player/render/save/LAN scenarios replay
+on build `0262fb…`; see native acceptance for exact identities and limitations.
+This does not qualify every actor/controller, party script or campaign route.
 
 ## Remaining implementation, in dependency order
 

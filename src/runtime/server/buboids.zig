@@ -56,7 +56,7 @@ fn combat(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
         actor.melee.active = false;
         return;
     };
-    const enemy = (try world.get(target, data.Transform)).position;
+    const enemy = (try target.get(data.Transform)).position;
     const delta = v.subtract(enemy, pose.position);
     const yaw = std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi;
     pose.angles[1] += std.math.clamp(@mod(yaw - pose.angles[1] + 180, 360) - 180, -definition.yaw_speed, definition.yaw_speed);
@@ -78,7 +78,7 @@ fn combat(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
             actor.changed_ms = now;
         } else {
             const point = v.add(pose.position, v.scale(v.basis(pose.angles).forward, 36));
-            const ground = try engine.collisionService().trace(.{ .start = point, .end = v.add(point, .{ 0, 0, -200 }), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
+            const ground = try @import("actor_collision.zig").service().trace(.{ .start = point, .end = v.add(point, .{ 0, 0, -200 }), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
             if ((!sensed.visible and sensed.distance > 300) or (ground.fraction < 1 and ground.holy)) {
                 melt(actor, body, now);
                 return;
@@ -153,18 +153,18 @@ fn finish(actor: *data.Actor, body: *data.Body, now: i64) void {
     body.contents = c.CONTENTS_BODY;
 }
 fn emerge(actors: *@import("actors.zig").Actors, world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, definition: Definition, now: i64) !bool {
-    const target = world.find(actor.threat) orelse {
+    const target = @import("region_access.zig").find(world, actor.threat) orelse {
         actor.think_ms = now + 1000;
         return false;
     };
-    const enemy = (try world.get(target, data.Transform)).position;
-    const enemy_body = (try world.get(target, data.Body)).*;
-    const grounded = if (world.get(target, data.Player) catch null) |player| player.ground_entity != c.ENTITYNUM_NONE else if (world.get(target, data.Actor) catch null) |other| other.ground_entity != c.ENTITYNUM_NONE else enemy_body.grounded;
+    const enemy = (try target.get(data.Transform)).position;
+    const enemy_body = (try target.get(data.Body)).*;
+    const grounded = if (target.get(data.Player) catch null) |player| player.ground_entity != c.ENTITYNUM_NONE else if (target.get(data.Actor) catch null) |other| other.ground_entity != c.ENTITYNUM_NONE else enemy_body.grounded;
     if (!grounded) {
         actor.think_ms = now + 1000;
         return false;
     }
-    const ground = try engine.collisionService().trace(.{ .start = enemy, .end = v.add(enemy, .{ 0, 0, -0.5 }), .mins = enemy_body.mins, .maxs = enemy_body.maxs, .slot = (try world.get(target, data.Binding)).slot, .mask = c.MASK_SOLID });
+    const ground = try @import("actor_collision.zig").service().trace(.{ .start = enemy, .end = v.add(enemy, .{ 0, 0, -0.5 }), .mins = enemy_body.mins, .maxs = enemy_body.maxs, .slot = (try target.get(data.Binding)).slot, .mask = c.MASK_SOLID });
     if (ground.fraction == 1 or ground.start_solid) {
         actor.think_ms = now + 1000;
         return false;
@@ -178,16 +178,16 @@ fn emerge(actors: *@import("actors.zig").Actors, world: *data.World, entity: ecs
     const maxs = v.scale(definition.maxs, 1.35);
     for (0..8) |i| {
         const direction = v.basis(.{ 0, @as(f32, @floatFromInt(i)) * 45, 0 }).forward;
-        const ray = try engine.collisionService().trace(.{ .start = v.add(enemy, v.scale(direction, 32)), .end = v.add(enemy, v.scale(direction, 64)), .mins = mins, .maxs = maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+        const ray = try @import("actor_collision.zig").service().trace(.{ .start = v.add(enemy, v.scale(direction, 32)), .end = v.add(enemy, v.scale(direction, 64)), .mins = mins, .maxs = maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
         if (ray.fraction < 1 or ray.start_solid) continue;
         const node = actors.water_routes.nearest(ray.end) orelse continue;
         const above = v.add(node, .{ 0, 0, 32 });
-        const clear = try engine.collisionService().trace(.{ .start = above, .end = above, .mins = mins, .maxs = maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+        const clear = try @import("actor_collision.zig").service().trace(.{ .start = above, .end = above, .mins = mins, .maxs = maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
         if (clear.start_solid or clear.all_solid or clear.fraction < 1) continue;
         const destination = v.add(node, .{ 0, 0, 16 });
         // Qualify the final standing hull too; the source probes sixteen units
         // higher than its placement, which can emerge inside a mover/player.
-        const placement = try engine.collisionService().trace(.{ .start = destination, .end = destination, .mins = definition.mins, .maxs = definition.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+        const placement = try @import("actor_collision.zig").service().trace(.{ .start = destination, .end = destination, .mins = definition.mins, .maxs = definition.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
         if (placement.start_solid or placement.all_solid or placement.fraction < 1) continue;
         pose.position = destination;
         return true;

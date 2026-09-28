@@ -6,6 +6,7 @@ const animation = @import("animation.zig");
 pub const Mode = enum { idle, flee, chase, attack, reload, dead };
 pub const State = struct {
     definition: u8,
+    stepped_ms: ?i64 = null,
     audio: @import("actor_audio.zig").State = .{},
     idle_pose: ?animation.Sequence = null,
     idle_started_ms: ?i64 = null,

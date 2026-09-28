@@ -2,6 +2,8 @@
 //! Nharre's reaper owns one victim until its strike or interrupted removal.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
+const access = @import("region_access.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -12,21 +14,21 @@ const policy = @import("actor_catalog").nharre;
 const lifetime = @import("weapon_entities.zig");
 pub fn frozen(world: *data.World, target: ecs.Entity) bool {
     const owner = (world.get(target, data.Body) catch return false).motion_owner orelse return false;
-    const controller = world.find(owner) orelse return false;
-    const attack = world.get(controller, data.ActorAttack) catch return false;
+    const controller = access.find(world, owner) orelse return false;
+    const attack = controller.get(data.ActorAttack) catch return false;
     return attack.attack == .nharre_reaper and !attack.attack.nharre_reaper.released and attack.attack.nharre_reaper.target == (world.persistentId(target) catch return false);
 }
 pub fn release(world: *data.World, entity: ecs.Entity, state: *policy.Reaper) !void {
     if (state.released) return;
-    if (world.find(state.target)) |target| {
-        const body = try world.get(target, data.Body);
+    if (access.find(world, state.target)) |target| {
+        const body = try target.get(data.Body);
         if (body.motion_owner == try world.persistentId(entity)) {
             body.motion_owner = null;
             body.collision_mask = state.previous_mask;
-            (try world.get(target, data.Velocity)).linear = state.previous_velocity;
-            if (world.get(target, data.Player) catch null) |player| {
+            (try target.get(data.Velocity)).linear = state.previous_velocity;
+            if (target.get(data.Player) catch null) |player| {
                 player.view_height = state.previous_view_height;
-                if (player.mode == .frozen) player.mode = if ((try world.get(target, data.Health)).current > 0) .normal else .dead;
+                if (player.mode == .frozen) player.mode = if ((try target.get(data.Health)).current > 0) .normal else .dead;
             }
         }
     }
@@ -36,30 +38,41 @@ fn remove(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
     try release(world, entity, state);
     try lifetime.remove(world, slots, projections, entity);
 }
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, now: i64) !void {
-    if ((try world.get(target, data.Health)).current <= 0 or (try world.get(target, data.Body)).motion_owner != null) return;
-    if (world.get(target, data.Player) catch null) |player| if (player.mode != .normal) return;
-    if (world.get(target, data.Ailments) catch null) |status| if (status.warp != null) return;
-    const direction = try @import("clear_direction.zig").choose(world, target, c.MASK_SOLID);
-    const point = v.add((try world.get(target, data.Transform)).position, v.scale(direction, 100));
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, now: i64) !void {
+    const identity = try world.persistentId(owner);
+    if (target.world != world) {
+        const context = access.contextFor(target.world) orelse return error.ReaperWorldUnavailable;
+        const scope = try context.select();
+        defer scope.deinit();
+        try context.expose(now);
+        return launchOwned(target.world, &context.slots, &context.projection, identity, target, now);
+    }
+    return launchOwned(world, slots, projections, identity, target, now);
+}
+fn launchOwned(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner_id: u32, target: Ref, now: i64) !void {
+    if ((try target.get(data.Health)).current <= 0 or (try target.get(data.Body)).motion_owner != null) return;
+    if (target.get(data.Player) catch null) |player| if (player.mode != .normal) return;
+    if (target.get(data.Ailments) catch null) |status| if (status.warp != null) return;
+    const direction = try @import("clear_direction.zig").choose(target.world, target.entity, c.MASK_SOLID);
+    const point = v.add((try target.get(data.Transform)).position, v.scale(direction, 100));
     const yaw = std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi;
-    const is_player = (world.get(target, data.Player) catch null) != null;
-    var state: policy.Reaper = .{ .target = try world.persistentId(target), .next_ms = now + 500, .previous_velocity = if (is_player) @splat(0) else (try world.get(target, data.Velocity)).linear, .previous_mask = (try world.get(target, data.Body)).collision_mask, .look_angles = .{ -25, yaw, 0 } };
-    if (is_player) state.previous_view_height = (try world.get(target, data.Player)).view_height;
-    const entity = try world.create(null, .{ data.Transform{ .position = point, .angles = .{ 0, yaw + 180, 0 } }, data.Velocity{}, data.Body{}, data.Random{ .state = try world.persistentId(owner) ^ @as(u32, @truncate(@as(u64, @bitCast(now)))) }, data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .nharre_reaper = state } } });
+    const is_player = (target.get(data.Player) catch null) != null;
+    var state: policy.Reaper = .{ .target = try target.id(), .next_ms = now + 500, .previous_velocity = if (is_player) @splat(0) else (try target.get(data.Velocity)).linear, .previous_mask = (try target.get(data.Body)).collision_mask, .look_angles = .{ -25, yaw, 0 } };
+    if (is_player) state.previous_view_height = (try target.get(data.Player)).view_height;
+    const entity = try world.create(null, .{ data.Transform{ .position = point, .angles = .{ 0, yaw + 180, 0 } }, data.Velocity{}, data.Body{}, data.Random{ .state = owner_id ^ @as(u32, @truncate(@as(u64, @bitCast(now)))) }, data.ActorAttack{ .owner = owner_id, .born_ms = now, .stepped_ms = now, .attack = .{ .nharre_reaper = state } } });
     errdefer world.destroy(entity) catch unreachable;
     try lifetime.bind(world, slots, projections, entity, policy.reaper_model);
-    (try world.get(target, data.Body)).motion_owner = try world.persistentId(entity);
-    (try world.get(target, data.Velocity)).linear = @splat(0);
+    (try target.get(data.Body)).motion_owner = try world.persistentId(entity);
+    (try target.get(data.Velocity)).linear = @splat(0);
     if (is_player) {
-        const player = try world.get(target, data.Player);
+        const player = try target.get(data.Player);
         player.mode = .frozen;
         player.view_height = 22;
         var appearance: []const u8 = "hiro";
-        if (world.get(target, data.Session) catch null) |session| appearance = @import("appearance_catalog").entries[session.appearance].model;
+        if (target.get(data.Session) catch null) |session| appearance = @import("appearance_catalog").entries[session.appearance].model;
         const voice = if (std.mem.indexOf(u8, appearance, "mikiko") != null) "mikiko/death8.wav" else if (std.mem.indexOf(u8, appearance, "superfly") != null) "superfly/death4.wav" else "hiro/death8.wav";
-        try @import("events.zig").sound(world, slots, projections, voice, (try world.get(target, data.Transform)).position, (try world.get(target, data.Binding)).slot, c.CHAN_BODY, now);
-    } else (try world.get(target, data.Body)).collision_mask = c.MASK_SOLID;
+        try @import("events.zig").sound(world, slots, projections, voice, (try target.get(data.Transform)).position, (try target.get(data.Binding)).slot, c.CHAN_BODY, now);
+    } else (try target.get(data.Body)).collision_mask = c.MASK_SOLID;
     try sound(world, slots, projections, entity, "e3/we_reaperappear2.wav", now);
     try sound(world, slots, projections, entity, "e3/we_nharrewind.wav", now);
     try publish(world, entity, projections, now);
@@ -94,17 +107,17 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     var attack = (try world.get(entity, data.ActorAttack)).*;
     const state = &attack.attack.nharre_reaper;
-    const owner = world.find(attack.owner);
-    const target = world.find(state.target);
-    if (owner == null or target == null or (try world.get(owner.?, data.Health)).current <= 0 or (try world.get(target.?, data.Health)).current <= 0) return remove(world, slots, projections, entity, state);
+    const owner = access.find(world, attack.owner);
+    const target = access.find(world, state.target);
+    if (owner == null or target == null or (try owner.?.get(data.Health)).current <= 0 or (try target.?.get(data.Health)).current <= 0) return remove(world, slots, projections, entity, state);
     if (!state.released) {
-        if ((try world.get(target.?, data.Body)).motion_owner != try world.persistentId(entity)) return remove(world, slots, projections, entity, state);
-        if ((world.get(target.?, data.Player) catch null) != null) {
-            const pose = try world.get(target.?, data.Transform);
+        if ((try target.?.get(data.Body)).motion_owner != try world.persistentId(entity)) return remove(world, slots, projections, entity, state);
+        if ((target.?.get(data.Player) catch null) != null) {
+            const pose = try target.?.get(data.Transform);
             const turn = @as(f32, @floatFromInt(@max(0, now - attack.stepped_ms))) * 0.2;
             for (&pose.angles, state.look_angles) |*current, wanted| current.* += std.math.clamp(@mod(wanted - current.* + 180, 360) - 180, -turn, turn);
         }
-        (try world.get(target.?, data.Velocity)).linear = @splat(0);
+        (try target.?.get(data.Velocity)).linear = @splat(0);
     }
     if (now >= state.next_ms) {
         if (state.appeared_ms == null) {
@@ -124,15 +137,15 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             if (age >= 4200 and !state.struck) {
                 const point = (try world.get(entity, data.Transform)).position;
                 const victim = target.?;
-                const direction = v.normalize(v.subtract((try world.get(victim, data.Transform)).position, point));
+                const direction = v.normalize(v.subtract((try victim.get(data.Transform)).position, point));
                 try release(world, entity, state);
-                if ((world.get(victim, data.Player) catch null) != null) {
-                    (try world.get(victim, data.Velocity)).linear = v.scale(direction, 1500);
-                    (try world.get(victim, data.Body)).grounded = false;
-                    (try world.get(victim, data.Player)).ground_entity = c.ENTITYNUM_NONE;
+                if ((victim.get(data.Player) catch null) != null) {
+                    (try victim.get(data.Velocity)).linear = v.scale(direction, 1500);
+                    (try victim.get(data.Body)).grounded = false;
+                    (try victim.get(data.Player)).ground_entity = c.ENTITYNUM_NONE;
                 }
                 try sound(world, slots, projections, entity, "e3/we_reaperattack2.wav", now);
-                _ = try @import("damage.zig").apply(world, victim, 50, now, .{ .source = try world.persistentId(entity), .attacker_class = "reaper" });
+                _ = try @import("damage.zig").apply(victim.world, victim.entity, 50, now, .{ .source = try world.persistentId(entity), .attacker_class = "reaper" });
                 state.struck = true;
             } else if (age >= 4300) return remove(world, slots, projections, entity, state);
             if (age < 1900 and now >= state.flame_next_ms) {

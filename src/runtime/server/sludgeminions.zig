@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -84,7 +85,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
 fn scoopSound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, pose: data.Transform, now: i64) !void {
     try @import("events.zig").sound(world, slots, projections, "e1/m_sludgegetmud.wav", pose.position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, facing: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, facing: bool, now: i64) !void {
     try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);
     if (!facing) return;
     const index = actor.melee.pose;

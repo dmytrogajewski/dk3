@@ -12,23 +12,68 @@ is inferred from class counts or test volume.
 
 ## Current outcome matrix
 
-Sequence 303 connects reviewed opening views, qualified attacks and neighboring
-presentation. The coherent build is `f9ba99…`, detailed below. It supports the
-controlled A↔B crossing and foreign-target scenarios; **seamless campaign acceptance
-remains incomplete**. Actor/companion pursuit, specialized weapon interactions,
-multiple simultaneous portal views and the full fresh route remain open.
+Sequence 304 connects actor perception/attacks, physical pursuit, continuing party
+ownership and authored script ownership across the reviewed seams. Build
+`0262fb…`, detailed below, verifies controlled turret/projectile contact, enemy and
+Superfly crossing, and restoration. **Seamless campaign acceptance remains
+incomplete.** Specialized player weapons, navigation beyond the tested corridor,
+remaining authored party interactions, multiple portal views and the fresh route
+remain open. Counts below describe supporting checks, not port completion.
 
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
-| Seamless connected regions | Region admission/ordinary exits, 303 qualified traces, selected projectile transfers, portal views and map-owned snapshots/resources | 398 Zig, 81 Python and actual C owner/collision/inline-handle contracts pass | Both renderers show and damage a controlled target in B from A; a late model definition is delivered. Controlled automatic A→B→A and region restoration replay on the same build | One aperture and three weapon paths; actor/companion pursuit, specialized weapons, multiple/recursive views, remaining seam qualification, eviction and admission stalls remain open. [Evidence](#sequence-303--connected-views-and-qualified-combat). |
+| Seamless connected regions | Region admission/ordinary exits, qualified collision, 304 actor targets/projectiles/physical transfer, party ownership and authored script scope | 400 Zig, 81 Python and actual C owner/collision/inline-handle contracts pass | On `0262fb…`: controlled turret and frog projectile hit across the seam; Slaughterskeet and Superfly cross and restore. Both renderer combat paths, A↔B movement and region save/death restoration replay | One reviewed corridor and selected classes/weapon paths. Specialized weapons, broader navigation/party interactions, multiple views, seam qualification, eviction/admission stalls and fresh route remain open. [Evidence](#sequence-304--actor-and-party-ownership). |
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at 296; full interactions unverified | 296 verifies rendered Ion flight/light; earlier narrow controller fixtures do not establish full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Travel/admission/restore changes through 302 require full fresh replay | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Travel/admission/restore changes through 304 require full fresh replay | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
-| Saves and visited worlds | Schema-2 residents, typed references/time, flat native archive migration and recovery | Snapshot/migration and qualified ownership roots execute at 303 | Actual restore boundary contains all 53 archived A/B actors with exact health. Subsequent gib retirement is observed separately; schema-2 reload and six-world cinematic restoration pass | Party/controller combinations and fresh campaign save/death restoration remain unverified after shared changes |
-| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected; protocol 1349 | Native wire and runtime roots pass at 303 | Two actual UDP clients replay movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart on the current build | Complete CTF/deathtag, natural bot traversal, public admission/browser/authenticated rooms and full modes remain open. No online service deployment. |
+| Saves and visited worlds | Schema-2 residents, typed references/time, flat native archive migration, moved actor authored scope and recovery | Snapshot/migration/ownership roots execute at 304 | Crossed enemy and companion actually save/reload; independently altered A/B actor health restores after save/load and death; six-world factory cinematic restores | Full party/controller combinations and fresh campaign restoration remain unverified. Unmodified legacy archive migration also replays at 304 with actual restoration-boundary auditing. |
+| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected; protocol 1349 | Native wire and runtime roots pass at 304 | Two actual UDP clients replay movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart on `0262fb…` | Complete CTF/deathtag, natural bot traversal, public admission/browser/authenticated rooms and full modes remain open. No online service deployment. |
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
-| Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. Earlier factory arrival replay needs revalidation after shared changes | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
+| Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. 304 replays six-world factory arrival restoration; the full fresh intro still needs replay | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 304 — actor and party ownership
+
+Immutable build `0262fb30b698ef5ff862e23df2f37ae32fcb4adf210c3250477a99a9ac4dedef`;
+combined identity `d2bb6e1d893f014c64c65bfd4f69cec75b95d97d24dade5c4186b8ba118ee710`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`;
+region manifest `f0cb127dcc3fa705a51cc5d9fd597960396e7bfdc3ca2cc55e709998e6a1368d`.
+Evidence: `zig-out/reports/runtime-zig-304/`. Protocol 1349 and renderer ABI 12
+are unchanged. Original saves and the installed game were not modified.
+
+| Evidence | Verified outcome | Setup and limits |
+|---|---|---|
+| `sentry-final/`, `spit-final/` | A real B-owned Rockgat acquires and hits Hiro in A. A real Froginator launches an identified spit controller which contacts Hiro and deals damage across the seam. | Controlled placement, real class spawns and player health. Frog additionally uses explicit seed 1 and checked dry grounded setup. Class decisions, damage, geometry and puzzle rules unchanged; no authored encounter claim. |
+| `pursuit-final/`, `companion-final/` | Slaughterskeet pursuit and normal Superfly follow input physically cross B→A, preserving identity, health, threat/party ownership and authored home. Both actually save/load with those properties retained. No connection restart during crossing. | Controlled starting positions/spawns. One corridor; not broad ground/air/swim navigation, rescue/cut scripts or full saved-controller acceptance. Initial rendered enemy/companion frames were inspected. |
+| `foreign-final-opengl1/`, `foreign-final-opengl2/` | Existing confirmed foreign-target ray, ordinary Glock/Ion/Sidewinder input, damage, owning renderer and late resource definition replay. | Synthetic target/equipment, one aperture; not all specialized weapons or reference presentation. |
+| `crossing-final/` | Ordinary movement through the actual A→B→A brushes retains identity, input, health and connection; save succeeds. | Controlled initial approach. |
+| `region-save-synchronized/` | Modified authored actor health in both A/B worlds, hero inventory/health and identity restore after actual save/load and death/reload. | Diagnostic placements, health edits and ownership commands; not continuous campaign traversal. |
+| `legacy-visited-final/` | Unmodified sequence-294 flat archives restore all 53 A/B actor identities/health before simulation; later class-owned retirement, controlled visits, schema-2 reload and obsolete-handoff rejection replay. | Original fixture untouched; not fresh traversal. |
+| `cinematic-restore-final/` | Unmodified six-world fixture restores, factory cinematic completes, ordinary movement resumes and saving succeeds during preparation. | Same sequence-301 controlled fixture as 303; no fresh intro/factory progression. |
+| `lan-final/` | Two real UDP clients replay movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart. | Existing LAN lifecycle scope; full modes and public service remain unverified. |
+| `aggregate-final.log`, `trigger-regression/` | 44/44 steps, 400 Zig and 81 Python tests pass. Runtime/catalog roots execute with ReleaseSafe assertions; other roots use Debug. Actual C contracts also execute. A temporary defective trigger comparison fails the new owner assertion. | The first aggregate had one undersized test fixture (`Capacity`); its repair and focused runtime replay are in `checks/`. Production capacity was unchanged. |
+
+Implementation also connects class-owned ranged/melee effects, qualified radius
+recipients, accepted-motion ownership through alternate step probes, attached
+bursts/personal actions, typed clock restoration, cross-world use/order targets,
+party exit capture and map-owned named/script/death outputs. These are
+implemented/contract-tested where covered above, **not blanket engine acceptance
+of every class or authored action**. Script programs remain local converted
+assets, loaded by authored home; no private reference implementation is imported.
+
+Earlier failures are retained. `spit-initial/` used a fixture that jumped and bit,
+so it cannot establish spit behavior; `spit-final/` checks grounded/dry setup and
+actual launch/contact. `region-save-final/` used a pre-region driver timeout before
+initial admission completed. Its synchronized replay waits for the real admission
+event and removes the redundant preload request; no game loading behavior was
+changed for that driver. The initial three narrow passing actor cases used build
+`22c438…`; final cases above replay them on `0262fb…`.
+
+Remaining work includes specialized player weapon interactions and muzzle-origin
+ownership, authored party pickup/teleport/cut coverage, broader navigation and
+witness/hearing behavior, multiple/recursive views, remaining seam qualification,
+resource eviction/admission stalls, fresh campaign and complete multiplayer modes.
 
 ## Sequence 303 — connected views and qualified combat
 

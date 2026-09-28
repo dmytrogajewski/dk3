@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const v = @import("../domain/vector.zig");
@@ -53,7 +54,7 @@ pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World
     actor.mode = if (actor.melee.active) .attack else if (in_range and sensed.visible) .idle else .chase;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing, now);
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, facing: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, facing: bool, now: i64) !void {
     try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);
     if (!facing) return;
     // The reference refreshes this deadline throughout the facing attack sequence.

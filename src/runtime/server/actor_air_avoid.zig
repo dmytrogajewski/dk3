@@ -14,7 +14,7 @@ pub fn choose(actors: *@import("actors.zig").Actors, pose: data.Transform, slot:
         for ([_]f32{ -90, 0, 90, 180 }) |turn| {
             yaw += turn;
             const point = v.add(pose.position, v.scale(v.basis(.{ pose.angles[0], yaw, pose.angles[2] }).forward, distance));
-            const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = point, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+            const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = point, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
             if (hit.fraction == 1) {
                 choice = turn;
                 break :search;

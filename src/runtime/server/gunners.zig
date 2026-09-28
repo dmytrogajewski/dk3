@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const v = @import("../domain/vector.zig");
@@ -82,7 +83,7 @@ fn sidestep(world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: da
         actor.mode = .chase;
     }
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, target: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, kind: policy.Kind, facing: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, target: Ref, actor: *data.Actor, pose: data.Transform, definition: Definition, kind: policy.Kind, facing: bool, now: i64) !void {
     if (now < actor.gunner.emit_ms) return;
     actor.gunner.emit_ms = now + 100;
     try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);

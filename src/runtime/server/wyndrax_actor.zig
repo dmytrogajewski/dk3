@@ -2,6 +2,7 @@
 //! Wyndrax's combat, power station and authored Wisp collection goals.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -99,7 +100,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
                 actor.melee.active = false;
                 return;
             };
-            const enemy = (try world.get(target, data.Transform)).position;
+            const enemy = (try target.get(data.Transform)).position;
             const facing = face(pose, enemy, definition.yaw_speed);
             if (!actor.melee.active) {
                 if (!sensed.visible or sensed.distance >= definition.range) {
@@ -124,7 +125,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
                         state.phase = .retreat;
                         state.destination = point;
                         state.until_ms = now + 2000;
-                        state.running = v.length((try world.get(target, data.Velocity)).linear) > 75;
+                        state.running = v.length((try target.get(data.Velocity)).linear) > 75;
                         actor.mode = .chase;
                         actor.threat_position = point;
                     } else actor.mode = .idle;
@@ -258,9 +259,9 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
         },
     }
 }
-fn retreat(actors: *@import("actors.zig").Actors, world: *data.World, entity: ecs.Entity, pose: data.Transform, body: data.Body, target: ecs.Entity) !?v.Vec3 {
-    const direction = v.normalize(v.subtract(pose.position, (try world.get(target, data.Transform)).position));
-    const fast = v.length((try world.get(target, data.Velocity)).linear) > 75;
+fn retreat(actors: *@import("actors.zig").Actors, world: *data.World, entity: ecs.Entity, pose: data.Transform, body: data.Body, target: Ref) !?v.Vec3 {
+    const direction = v.normalize(v.subtract(pose.position, (try target.get(data.Transform)).position));
+    const fast = v.length((try target.get(data.Velocity)).linear) > 75;
     const first = v.add(pose.position, v.scale(direction, if (fast) @as(f32, 96) else 48));
     const goal = v.add(pose.position, v.scale(direction, if (fast) @as(f32, 128) else 96));
     var nearest: usize = 0;

@@ -7,6 +7,7 @@ const engine = @import("../engine/server.zig");
 const c = @import("../engine/abi.zig").c;
 const v = @import("../domain/vector.zig");
 pub const Blast = struct {
+    world: u32 = 0,
     owner: u32,
     weapon: u5,
     origin: v.Vec3,
@@ -28,17 +29,22 @@ pub fn visible(origin: v.Vec3, destination: v.Vec3, skip: u16, target_slot: u16)
     return hit.fraction == 1 or hit.entity == target_slot;
 }
 pub fn apply(world: *data.World, slots: *const Slots, blast: Blast, now: i64) !void {
-    for (slots.occupants, 0..) |occupant, slot| {
-        const target = occupant orelse continue;
-        if (slot == blast.skip_slot) continue;
-        const health = world.get(target, data.Health) catch continue;
+    const skip = if (blast.skip_slot < slots.occupants.len) (if (slots.occupants[blast.skip_slot]) |entity| try world.persistentId(entity) else 0) else 0;
+    var candidates = @import("region_access.zig").Damageables.init(world, slots);
+    while (candidates.next()) |target| {
+        if (try target.id() == skip) continue;
+        const health = target.get(data.Health) catch continue;
         if (health.current <= 0) continue;
-        const point = try center(world, target);
+        const point = try center(target.world, target.entity);
         const distance = v.length(v.subtract(point, blast.origin));
         if (distance >= blast.radius) continue;
-        const owner = try world.persistentId(target) == blast.owner;
+        const owner = try target.id() == blast.owner;
         const amount = (if (blast.diminishing) @import("../domain/combat.zig").radiusDamage(blast.damage, distance, blast.radius, false, false) else blast.damage) * (if (owner) blast.self_scale else 1);
-        if (amount <= 0 or (blast.occlusion and !try visible(blast.origin, point, blast.skip_slot, @intCast(slot)))) continue;
-        if (try @import("weapon_damage.zig").hurt(world, target, blast.owner, blast.weapon, amount, now, false)) if (blast.inertial) try @import("weapon_damage.zig").shove(world, target, blast.owner, v.subtract(point, blast.origin), amount, now);
+        if (amount <= 0) continue;
+        if (blast.occlusion) {
+            const hit = try @import("region_collision.zig").from(blast.world, .{ .start = blast.origin, .end = point, .mins = @splat(0), .maxs = @splat(0), .slot = blast.skip_slot, .mask = c.MASK_SOLID }, skip);
+            if (!@import("region_collision.zig").reaches(world, hit, target)) continue;
+        }
+        if (try @import("weapon_damage.zig").hurt(target.world, target.entity, blast.owner, blast.weapon, amount, now, false)) if (blast.inertial) try @import("weapon_damage.zig").shove(target.world, target.entity, blast.owner, v.subtract(point, blast.origin), amount, now);
     }
 }

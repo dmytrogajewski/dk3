@@ -20,7 +20,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
         };
         if (injured) _ = try @import("actor_pain.zig").generic(world, entity, actor, definition, hurt.amount, policy.pain_chance, policy.pain_limit, now);
         if (actor.reaction_until_ms != null) actor.mode = .idle else if (sensed.enemy) |target| {
-            const delta = v.subtract((try world.get(target, data.Transform)).position, pose.position);
+            const delta = v.subtract((try target.get(data.Transform)).position, pose.position);
             const yaw = std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi;
             const pitch = -std.math.atan2(delta[2], @sqrt(delta[0] * delta[0] + delta[1] * delta[1])) * 180 / std.math.pi;
             pose.angles[1] += std.math.clamp(@mod(yaw - pose.angles[1] + 180, 360) - 180, -definition.yaw_speed, definition.yaw_speed);

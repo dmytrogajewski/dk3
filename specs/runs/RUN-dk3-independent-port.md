@@ -6209,3 +6209,47 @@ Actor/companion pursuit, specialized cross-world weapons, multiple/recursive vie
 remaining seam classification, eviction/admission stalls and fresh campaign/full
 multiplayer acceptance remain open. Continue implementation beyond this checkpoint.
 Main, preserved installation, user saves and live service remain unchanged.
+
+## runtime-zig-304 — actor and party ownership
+
+Immutable build `0262fb30b698ef5ff862e23df2f37ae32fcb4adf210c3250477a99a9ac4dedef`;
+combined identity `d2bb6e1d893f014c64c65bfd4f69cec75b95d97d24dade5c4186b8ba118ee710`.
+All eleven final engine scenarios below record this identity. Base assets
+`e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`;
+region manifest `f0cb127dcc3fa705a51cc5d9fd597960396e7bfdc3ca2cc55e709998e6a1368d`.
+Evidence: `zig-out/reports/runtime-zig-304/`. No protocol/renderer ABI change.
+
+Connected explicit actor targets, class-owned attacks and radius recipients;
+accepted ground/flight/swim ownership with a saved per-frame actor clock;
+body-attached actions; moved actor authored script/name scope; continuing party
+exit/capture and qualified interaction rays. Damage, timing, geometry, puzzle and
+companion distance rules were not adjusted for the driver. Source implementation
+remains independent; local converted script programs are loaded by authored home.
+
+| Evidence | Result | Limits |
+|---|---|---|
+| `sentry-final/`, `spit-final/` | Actual Rockgat acquisition/fire and identified Froginator spit contact damage Hiro across B→A while Hiro stays in A. | Controlled class spawns/positions/health; frog seed 1 and checked grounded dry setup. |
+| `pursuit-final/`, `companion-final/` | Real Slaughterskeet pursuit and normal Superfly follow order physically cross; persistent ID, health, party/threat ownership and authored home survive save/load. | One corridor; no broad navigation, authored rescue/cut or all-controller acceptance. Initial crossing frames inspected. |
+| `foreign-final-opengl1/`, `foreign-final-opengl2/` | Qualified target contact and ordinary Glock/Ion/Sidewinder fire, owning rendering and late resource update replay. | Synthetic target/equipment and one aperture. |
+| `crossing-final/` | Normal A→B→A movement after controlled approach retains identity/input/health/connection; save succeeds. | Not fresh route. |
+| `region-save-synchronized/` | Independently changed A/B actors and hero state restore after actual save/load and death/reload. | Controlled transfers, placements and health. |
+| `legacy-visited-final/` | Unmodified 294 archive fixture restores all 53 A/B actors at the actual boundary; later retirement is observed separately; schema-2 reload and obsolete-handoff race pass. | No fresh progression; original fixture unchanged. |
+| `cinematic-restore-final/` | Six-world saved factory arrival restores/completes, movement resumes and saving succeeds during preparation. | Controlled 301 fixture; no fresh full intro. |
+| `lan-final/` | Two real UDP clients pass existing movement/fire/death/respawn/spectate/rejoin/reconnect/restart lifecycle. | Full modes/public service remain open. |
+| `aggregate-final.log`, `trigger-regression/` | 44/44 steps, 400 Zig and 81 Python tests; actual C contracts; temporary defective trigger comparison fails the new assertion. | Runtime/catalog tests run ReleaseSafe, other roots Debug; assertions enabled. First aggregate's new fixture needed more archetype capacity; production limits unchanged. |
+
+Failed/superseded evidence remains. `spit-initial/` selected jumping/bites and
+cannot establish a projectile result. The final grounded/dry deterministic setup
+requires actual launch/contact. `region-save-final/` timed out before initial
+admission; its older driver now waits for the actual event and avoids redundant
+preparation and unintended automatic crossing. No engine loading semantics changed.
+The first three narrow passing actor fixtures used `22c438…`; final engine cases
+above replay on the consolidated `0262fb…` build.
+
+Specialized player weapons/muzzle-origin ownership, broader navigation, remaining
+party pickups/teleports/cuts and witness/hearing behavior, multiple/recursive views,
+unreviewed seams, residency/admission stalls and fresh campaign/full multiplayer
+acceptance remain. Script/action implementation is not blanket authored acceptance.
+Continue the accepted seamless/full-port work beyond this checkpoint. Main remains
+`e3966c4d40678dbf91619034b5dcb33b763dcbed`; installed game, saves and service unchanged.

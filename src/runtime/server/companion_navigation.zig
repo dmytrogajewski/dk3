@@ -17,10 +17,10 @@ pub fn prepare(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         actor.threat_position = companion.yield_position;
         return;
     }
-    var yielding_to: ?ecs.Entity = null;
-    if (world.find(companion.owner)) |owner| {
-        const leader = (try world.get(owner, data.Transform)).*;
-        const motion = (try world.get(owner, data.Velocity)).linear;
+    var yielding_to: ?@import("../domain/world_references.zig").Ref = null;
+    if (@import("region_access.zig").find(world, companion.owner)) |owner| {
+        const leader = (try owner.get(data.Transform)).*;
+        const motion = (try owner.get(data.Velocity)).linear;
         const delta = v.subtract(pose.position, leader.position);
         // Yield only when occupying the leader's movement lane, even on Stay.
         if (v.length(delta) < 96 and v.length(motion) > 20 and v.dot(v.normalize(motion), v.normalize(delta)) > 0.5) yielding_to = owner;
@@ -28,28 +28,33 @@ pub fn prepare(world: *data.World, slots: *Slots, projections: []abi.EntityProje
     if (actor.mode == .chase) {
         const toward = if (actor.route.waypoint) |point| point.point else actor.threat_position;
         const direction = v.normalize(.{ toward[0] - pose.position[0], toward[1] - pose.position[1], 0 });
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, 64)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
-        if (hit.fraction < 1 and hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |obstacle| {
-            if (world.get(obstacle, data.Mover) catch null) |mover| {
-                const object = (try world.get(obstacle, data.MapObject)).*;
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, 64)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        if (hit.fraction < 1) if (@import("region_access.zig").victim(world, slots, hit)) |obstacle| {
+            if (obstacle.get(data.Mover) catch null) |mover| {
+                const object = (try obstacle.get(data.MapObject)).*;
                 if ((std.mem.eql(u8, object.classname, "func_door") or std.mem.eql(u8, object.classname, "func_door_rotating")) and object.targetname.len == 0 and !mover.toggle and !mover.moving() and mover.state == .closed and try @import("properties.zig").number(object, "health", 0) <= 0) {
                     // Companion-owned keys are checked by mover use, just as for
                     // any other activator. Never borrow the player's inventory.
-                    try @import("movers.zig").use(world, slots, projections, obstacle, try world.persistentId(entity), now);
+                    if (obstacle.world == world) try @import("movers.zig").use(world, slots, projections, obstacle.entity, try world.persistentId(entity), now) else {
+                        const context = @import("region_access.zig").contextFor(obstacle.world) orelse return error.PartyWorldUnavailable;
+                        const scope = try context.select();
+                        defer scope.deinit();
+                        try @import("movers.zig").use(obstacle.world, &context.slots, &context.projection, obstacle.entity, try world.persistentId(entity), now);
+                    }
                     return; // Mover sounds may relocate ECS component columns.
                 }
-            } else if ((world.get(obstacle, data.Player) catch null) != null or ((world.get(obstacle, data.Companion) catch null) != null and hit.entity < slot)) {
+            } else if ((obstacle.get(data.Player) catch null) != null or ((obstacle.get(data.Companion) catch null) != null and (if (obstacle.world == world) hit.entity < slot else try obstacle.id() < try world.persistentId(entity)))) {
                 yielding_to = obstacle;
             }
         };
     }
     if (yielding_to) |other| {
-        const other_pose = (try world.get(other, data.Transform)).*;
+        const other_pose = (try other.get(data.Transform)).*;
         var heading = pose;
         heading.angles[1] = other_pose.angles[1];
         const roll: f32 = if (companion.identity == .mikiko) 0 else 1;
         if (try @import("actor_motion.zig").sidestepDistance(heading, body, slot, roll, 64)) |point| {
-            if (try engine.collisionService().contents(v.add(point, .{ 0, 0, body.mins[2] + 1 }), slot) & (c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO) != 0) return;
+            if (try @import("actor_collision.zig").service().contents(v.add(point, .{ 0, 0, body.mins[2] + 1 }), slot) & (c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO) != 0) return;
             companion.yield_position = point;
             companion.yielding_until_ms = now + 1000;
             actor.route = .{};
@@ -80,8 +85,8 @@ pub fn move(world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: *d
         goal = try actor.route.update(service, .{ .position = pose.position, .destination = destination, .slot = slot, .player = true }, now);
         if (try ground.direct(pose.position, destination, body.*, slot)) goal = .{ .point = destination };
         // A visible submerged destination has no ground-floor requirement.
-        if (companion.motor.water_level > 1 and try engine.collisionService().contents(destination, slot) & c.MASK_WATER != 0) {
-            const clear = try engine.collisionService().trace(.{ .start = pose.position, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        if (companion.motor.water_level > 1 and try @import("actor_collision.zig").service().contents(destination, slot) & c.MASK_WATER != 0) {
+            const clear = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
             if (!clear.start_solid and clear.fraction == 1) goal = .{ .point = destination };
         }
     }
@@ -103,7 +108,7 @@ pub fn move(world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: *d
             } else if (@abs(delta[2]) > 4) command.up = if (delta[2] > 0) 127 else -127;
         } else if (point.ladder and @abs(delta[2]) > 4) {
             command.up = if (delta[2] > 0) 127 else -127;
-        } else if (point.crouch or try @import("../domain/navigation_input.zig").crouch(engine.collisionService(), pose.position, point.point, definition.mins, definition.maxs, slot, body.collision_mask)) {
+        } else if (point.crouch or try @import("../domain/navigation_input.zig").crouch(@import("actor_collision.zig").service(), pose.position, point.point, definition.mins, definition.maxs, slot, body.collision_mask)) {
             command.up = -127;
         } else if (point.jump and body.grounded and now >= actor.jump_ready_ms and !companion.motor.jump_held) {
             command.up = 127;
@@ -114,7 +119,7 @@ pub fn move(world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: *d
     companion.motor.command_ms = @max(companion.motor.command_ms, now - elapsed);
     companion.motor.mode = if (body.motion_owner != null) .frozen else .normal;
     var motion: @import("../domain/slide.zig").State = .{ .position = pose.position, .velocity = velocity.linear };
-    const result = try movement.run(&companion.motor, &motion, command, .{ .speed = desired_speed, .jump_speed = definition.upward_speed, .slot = slot, .mask = body.collision_mask, .water_mask = c.MASK_WATER, .solid_mask = c.CONTENTS_SOLID, .mins = definition.mins, .maxs = definition.maxs, .snap_velocity = false }, engine.collisionService());
+    const result = try movement.run(&companion.motor, &motion, command, .{ .speed = desired_speed, .jump_speed = definition.upward_speed, .slot = slot, .mask = body.collision_mask, .water_mask = c.MASK_WATER, .solid_mask = c.CONTENTS_SOLID, .mins = definition.mins, .maxs = definition.maxs, .snap_velocity = false }, @import("actor_collision.zig").service());
     for (result.events[0..result.event_count]) |event| switch (event) {
         .jump => companion.jump_started_ms = now,
         else => {},

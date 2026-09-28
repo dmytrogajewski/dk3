@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -9,7 +10,7 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").laser;
 const lifecycle = @import("weapon_entities.zig");
-pub fn deathbolt(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+pub fn deathbolt(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const aim = try @import("actor_aim.zig").direct(world, target, pose, tuning, random);
     const amount = tuning.damage + random.next() * tuning.random_damage;
@@ -24,17 +25,17 @@ pub fn deathbolt(world: *data.World, slots: *Slots, projections: []abi.EntityPro
     try publish(world, entity, projections, now);
 }
 pub const origin = @import("actor_aim.zig").muzzle;
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: policy.Tuning, turret: bool, now: i64) !void {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: policy.Tuning, turret: bool, now: i64) !void {
     const start = origin(pose, tuning.offset);
     const basis = v.basis(pose.angles);
     var direction = basis.forward;
     const random = try world.get(owner, data.Random);
     if (!turret) {
-        var point = (try world.get(target, data.Transform)).position;
+        var point = (try target.get(data.Transform)).position;
         point = v.add(point, v.scale(basis.right, (random.next() * 2 - 1) * tuning.spread[0]));
         point = v.add(point, v.scale(v.cross(basis.right, basis.forward), (random.next() * 2 - 1) * tuning.spread[1]));
-        if (world.get(target, data.Player) catch null) |player| if (player.ducked) {
-            const body = (try world.get(target, data.Body)).*;
+        if (target.get(data.Player) catch null) |player| if (player.ducked) {
+            const body = (try target.get(data.Body)).*;
             point[2] -= (body.maxs[2] - body.mins[2]) * 0.65;
         };
         direction = v.normalize(v.subtract(point, start));
@@ -74,6 +75,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = occupant orelse continue;
         if (!world.alive(entity)) continue;
         var laser = (world.get(entity, data.ActorLaser) catch continue).*;
+        if (now <= laser.stepped_ms) continue;
+        var motion = @import("region_motion.zig").Cursor.init(world, laser.owner);
         if (laser.contact_ms) |at| {
             if (now - at >= 800) try lifecycle.remove(world, slots, projections, entity);
             continue;
@@ -83,37 +86,39 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const pose = (try world.get(entity, data.Transform)).*;
         const velocity = (try world.get(entity, data.Velocity)).linear;
         const slot: u16 = if (world.find(laser.owner)) |owner| (try world.get(owner, data.Binding)).slot else c.ENTITYNUM_NONE;
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, @as(f32, @floatFromInt(@max(0, end_ms - laser.stepped_ms))) * 0.001)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+        const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, @as(f32, @floatFromInt(@max(0, end_ms - laser.stepped_ms))) * 0.001)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
         (try world.get(entity, data.Transform)).position = hit.end;
         laser.stepped_ms = end_ms;
         if (hit.fraction < 1 or hit.start_solid) {
             if (laser.kind == .death) {
-                if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| if ((world.get(victim, data.Health) catch null) != null) {
-                    try @import("area_damage.zig").apply(world, slots, .{ .owner = laser.owner, .weapon = 0, .origin = hit.end, .damage = laser.damage, .radius = 96, .skip_slot = slot, .self_scale = 0, .inertial = true }, now);
+                if (@import("region_access.zig").victim(world, slots, hit)) |victim| if ((victim.get(data.Health) catch null) != null) {
+                    try @import("area_damage.zig").apply(world, slots, .{ .world = motion.owner, .owner = laser.owner, .weapon = 0, .origin = hit.end, .damage = laser.damage, .radius = 96, .skip_slot = slot, .self_scale = 0, .inertial = true }, now);
                 };
                 laser.contact_ms = now;
                 laser.normal = if (v.length(hit.normal) > 0) hit.normal else v.scale(v.normalize(velocity), -1);
                 (try world.get(entity, data.Transform)).position[2] += 15;
                 var random: data.Random = .{ .state = laser.seed };
-                try @import("events.zig").sound(world, slots, projections, if (random.next() > 0.8) "global/we_zapa.wav" else "global/we_zapb.wav", hit.end, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
+                try @import("events.zig").soundOwned(world, slots, projections, motion.owner, if (random.next() > 0.8) "global/we_zapa.wav" else "global/we_zapb.wav", hit.end, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
                 laser.seed = random.state;
                 (try world.get(entity, data.ActorLaser)).* = laser;
                 try publish(world, entity, projections, now);
+                try motion.finish(world, entity, now);
                 continue;
             }
-            if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| if ((world.get(victim, data.Health) catch null) != null) {
-                _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(laser.damage)), now, .{ .source = laser.owner });
+            if (@import("region_access.zig").victim(world, slots, hit)) |victim| if ((victim.get(data.Health) catch null) != null) {
+                _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(laser.damage)), now, .{ .source = laser.owner });
                 try lifecycle.remove(world, slots, projections, entity);
                 continue;
             };
             laser.contact_ms = now;
             laser.normal = if (v.length(hit.normal) > 0) hit.normal else v.scale(v.normalize(velocity), -1);
-            try @import("events.zig").sound(world, slots, projections, "global/we_zapb.wav", hit.end, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
+            try @import("events.zig").soundOwned(world, slots, projections, motion.owner, "global/we_zapb.wav", hit.end, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
         } else if (now >= laser.born_ms + lifetime) {
             try lifecycle.remove(world, slots, projections, entity);
             continue;
         }
         (try world.get(entity, data.ActorLaser)).* = laser;
         try publish(world, entity, projections, now);
+        try motion.finish(world, entity, now);
     }
 }

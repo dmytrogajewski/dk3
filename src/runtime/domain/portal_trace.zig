@@ -2,7 +2,7 @@
 //! Split a sweep at admitted, authored apertures. Each segment retains the
 //! destination's collision owner; a nearer solid always wins over a crossing.
 const collision = @import("collision.zig");
-pub const Crossing = struct { fraction: f32, world: u32, edge: u8 };
+pub const Crossing = struct { fraction: f32, world: u32, edge: u8, source_entity: ?u16 = null };
 
 pub fn trace(backend: anytype, origin: u32, request: collision.Request) !collision.Trace {
     var owner = origin;
@@ -12,7 +12,11 @@ pub fn trace(backend: anytype, origin: u32, request: collision.Request) !collisi
     while (true) {
         var hit = try backend.local(owner, remaining);
         if (try backend.crossing(owner, remaining, &traversed)) |next| {
-            if (next.fraction < hit.fraction and !hit.all_solid) {
+            // Interaction rays include triggers. The admitted exit itself is
+            // an ownership boundary, not an obstruction; coincident unrelated
+            // solids and all-solid starts still block the sweep.
+            const exit_contact = next.source_entity != null and hit.entity == next.source_entity.? and next.fraction == hit.fraction;
+            if ((next.fraction < hit.fraction or exit_contact) and !hit.all_solid) {
                 traversed[next.edge] = true;
                 consumed += (1 - consumed) * next.fraction;
                 const v = @import("vector.zig");
@@ -25,6 +29,24 @@ pub fn trace(backend: anytype, origin: u32, request: collision.Request) !collisi
         hit.world = owner;
         return hit;
     }
+}
+
+test "trigger-inclusive sweeps cross only their actual admitted exit" {
+    const t = @import("std").testing;
+    const Backend = struct {
+        blocker: u16 = 25,
+        all_solid: bool = false,
+        pub fn local(self: @This(), owner: u32, request: collision.Request) !collision.Trace {
+            return .{ .fraction = if (owner == 1) 0.4 else 1, .end = if (owner == 1) .{ 4, 0, 0 } else request.end, .normal = @splat(0), .entity = self.blocker, .all_solid = self.all_solid };
+        }
+        pub fn crossing(_: @This(), owner: u32, _: collision.Request, _: *const [256]bool) !?Crossing {
+            return if (owner == 1) .{ .fraction = 0.4, .world = 2, .edge = 0, .source_entity = 25 } else null;
+        }
+    };
+    const request: collision.Request = .{ .start = @splat(0), .end = .{ 10, 0, 0 }, .mins = @splat(0), .maxs = @splat(0), .slot = 0, .mask = 1 };
+    try t.expectEqual(@as(u32, 2), (try trace(Backend{}, 1, request)).world);
+    try t.expectEqual(@as(u32, 1), (try trace(Backend{ .blocker = 26 }, 1, request)).world);
+    try t.expectEqual(@as(u32, 1), (try trace(Backend{ .all_solid = true }, 1, request)).world);
 }
 
 test "portal sweeps preserve total fraction, owner and earlier blockers" {

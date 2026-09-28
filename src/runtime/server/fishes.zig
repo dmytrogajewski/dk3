@@ -18,13 +18,13 @@ pub fn think(actors: *Actors, world: *data.World, slots: *Slots, projections: []
     const tick = now >= actor.think_ms;
     if (tick) actor.think_ms = now + 100;
     if (catalog.entries[actor.definition].kind == .dopefish) {
-        if (world.find(state.owner)) |owner| {
-            if ((world.get(owner, data.Health) catch return error.MissingFishTargetHealth).current <= 0) {
+        if (@import("region_access.zig").find(world, state.owner)) |owner| {
+            if ((owner.get(data.Health) catch return error.MissingFishTargetHealth).current <= 0) {
                 state.owner = 0;
                 state.aggressive = false;
                 actor.ignore_player = false;
             } else if (tick) {
-                const distance = v.length(v.subtract((try world.get(owner, data.Transform)).position, pose.position));
+                const distance = v.length(v.subtract((try owner.get(data.Transform)).position, pose.position));
                 state.aggressive = catalog.fish.aggression(state.aggressive, distance, (try world.get(entity, data.Random)).next());
                 actor.ignore_player = !state.aggressive;
                 if (state.aggressive) actor.threat = state.owner else actor.threat = 0;
@@ -36,7 +36,7 @@ pub fn think(actors: *Actors, world: *data.World, slots: *Slots, projections: []
         }
         const sensed = try @import("actor_perception.zig").perceive(world, slots, entity, actor, pose.*, definition, now);
         if (state.owner == 0) {
-            if (sensed.enemy) |target| state.owner = try world.persistentId(target);
+            if (sensed.enemy) |target| state.owner = try target.id();
         }
         if (injured and sensed.enemy != null) state.aggressive = true;
         if (actor.reaction_until_ms) |until| {
@@ -85,7 +85,7 @@ pub fn move(actors: *Actors, actor: *data.Actor, pose: *data.Transform, body: *d
     if (actor.mode != .chase) velocity.linear = @splat(0) else if (now >= (actor.fish.motion_ms orelse now)) {
         actor.fish.motion_ms = now + 100;
         var goal = actor.threat_position;
-        if (try engine.collisionService().contents(goal, slot) & c.MASK_WATER == 0) goal[2] = pose.position[2];
+        if (try @import("actor_collision.zig").service().contents(goal, slot) & c.MASK_WATER == 0) goal[2] = pose.position[2];
         if (try actors.water_routes.nextWater(pose.position, goal, body.*, slot)) |destination| {
             const speed = (if (actor.fish.aggressive) definition.speed else definition.walk_speed * 2) * slow;
             @import("actor_flight.zig").steer(pose, velocity, destination, speed, catalog.fish.turn(v.length(velocity.linear)));

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -46,7 +47,7 @@ fn teleport(world: *data.World, entity: ecs.Entity, actor: *data.Actor, now: i64
     actor.mode = .attack;
     return true;
 }
-fn choose(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, entity: ecs.Entity, target: ecs.Entity, actor: *data.Actor, pose: data.Transform, body: data.Body, navigation: @import("../domain/navigation.zig").Service, now: i64) !void {
+fn choose(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, entity: ecs.Entity, target: Ref, actor: *data.Actor, pose: data.Transform, body: data.Body, navigation: @import("../domain/navigation.zig").Service, now: i64) !void {
     const random = try world.get(entity, data.Random);
     if (try @import("actor_evasion.zig").targeted(world, entity, target, pose) and random.next() < 0.25 and now > actor.nharre.teleport_ready_ms) if (try teleport(world, entity, actor, now)) return;
     for (slots.occupants) |maybe| if (maybe) |other| if (world.get(other, data.Actor) catch null) |value| if (catalog.entries[value.definition].kind == .nharre) {
@@ -63,8 +64,8 @@ fn choose(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slo
         actor.mode = .attack;
         actor.changed_ms = now;
     } else {
-        const enemy = (try world.get(target, data.Transform)).position;
-        actor.nharre.destination = try @import("nharre_retreat.zig").find(&actors.water_routes, pose, body, enemy, (try world.get(entity, data.Binding)).slot, (try world.get(target, data.Binding)).slot, navigation, random);
+        const enemy = (try target.get(data.Transform)).position;
+        actor.nharre.destination = try @import("nharre_retreat.zig").find(&actors.water_routes, pose, body, enemy, (try world.get(entity, data.Binding)).slot, (try target.get(data.Binding)).slot, navigation, random);
         actor.nharre.phase = .retreat;
         actor.nharre.retreat_until_ms = now + 3000 + @as(i64, @intFromFloat(v.length(v.subtract(actor.nharre.destination, pose.position)) / actors.table.definitions[actor.definition].speed * 1000));
         actor.melee.active = false;
@@ -105,7 +106,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
             .finished => {
                 actor.melee.active = false;
                 actor.mode = .idle;
-                if (world.find(actor.threat)) |target| if ((try world.get(target, data.Health)).current > 0) try choose(actors, world, slots, entity, target, actor, pose.*, body.*, navigation, now);
+                if (@import("region_access.zig").find(world, actor.threat)) |target| if ((try target.get(data.Health)).current > 0) try choose(actors, world, slots, entity, target, actor, pose.*, body.*, navigation, now);
             },
         }
         return;
@@ -136,7 +137,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
         if (close or now >= state.retreat_until_ms) try choose(actors, world, slots, entity, target, actor, pose.*, body.*, navigation, now) else actor.mode = .chase;
         return;
     }
-    const offset = v.subtract((try world.get(target, data.Transform)).position, pose.position);
+    const offset = v.subtract((try target.get(data.Transform)).position, pose.position);
     const yaw = std.math.atan2(offset[1], offset[0]) * 180 / std.math.pi;
     pose.angles[1] += std.math.clamp(@mod(yaw - pose.angles[1] + 180, 360) - 180, -definition.yaw_speed, definition.yaw_speed);
     if (!actor.melee.active) {
@@ -157,7 +158,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
     }
     if (now - actor.melee.started_ms >= sequence.duration()) try choose(actors, world, slots, entity, target, actor, pose.*, body.*, navigation, now);
 }
-fn summon(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, target: ecs.Entity, pose: data.Transform, body: data.Body, definition: Definition, now: i64) !void {
+fn summon(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, target: Ref, pose: data.Transform, body: data.Body, definition: Definition, now: i64) !void {
     const slot = (try world.get(entity, data.Binding)).slot;
     var yaw = pose.angles[1];
     var point: ?v.Vec3 = null;
@@ -177,11 +178,11 @@ fn summon(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slo
     const shape = actors.table.definitions[catalog.find(classname).?];
     const hit = try engine.collisionService().trace(.{ .start = position, .end = position, .mins = shape.mins, .maxs = shape.maxs, .slot = c.ENTITYNUM_NONE, .mask = c.MASK_PLAYERSOLID });
     if (hit.start_solid or hit.all_solid) return;
-    const direction = v.subtract((try world.get(target, data.Transform)).position, position);
+    const direction = v.subtract((try target.get(data.Transform)).position, position);
     const spawned = try actors.spawnAuthored(world, slots, projections, .{ .classname = classname, .properties = if (selected == 0) &.{.{ .key = "aistate", .value = "buboidcoffin" }} else &.{} }, .{ .position = position, .angles = .{ 0, std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi, 0 } }, now);
     const child = try world.get(spawned, data.Actor);
-    child.threat = try world.persistentId(target);
-    child.threat_position = (try world.get(target, data.Transform)).position;
+    child.threat = try target.id();
+    child.threat_position = (try target.get(data.Transform)).position;
     if (selected == 1) child.mode = .chase;
     try actors.publish(world, spawned, projections, now);
     const fx = @import("summon_effects.zig");

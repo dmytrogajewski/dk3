@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -68,20 +69,20 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     actor.mode = if (actor.melee.active) .attack else if (reachable) .idle else .chase;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing <= 5, now);
 }
-fn clearSweep(world: *data.World, slots: *Slots, entity: ecs.Entity, target: ecs.Entity, pose: data.Transform) !bool {
-    const point = (try world.get(target, data.Transform)).position;
+fn clearSweep(world: *data.World, slots: *Slots, entity: ecs.Entity, target: Ref, pose: data.Transform) !bool {
+    const point = (try target.get(data.Transform)).position;
     const slot = (try world.get(entity, data.Binding)).slot;
     for (policy.sweep) |event| {
         const start = @import("actor_lasers.zig").origin(pose, event.offset);
-        const hit = try engine.collisionService().trace(.{ .start = start, .end = point, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-        if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |other| {
-            if (other.index == target.index or (world.get(other, data.Companion) catch null) != null) continue;
-            if ((world.get(other, data.Actor) catch null) != null and (try world.get(other, data.Health)).current > 0) return false;
-        };
+        const hit = try @import("region_collision.zig").trace(.{ .start = start, .end = point, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+        if (@import("region_access.zig").victim(world, slots, hit)) |other| {
+            if (other.same(target) or (other.get(data.Companion) catch null) != null) continue;
+            if ((other.get(data.Actor) catch null) != null and (try other.get(data.Health)).current > 0) return false;
+        }
     }
     return true;
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, facing: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, facing: bool, now: i64) !void {
     const index = actor.melee.pose;
     const sequence = definition.attacks[index];
     const slot = (try world.get(entity, data.Binding)).slot;
@@ -107,19 +108,19 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
         return;
     }
     if (!actor.melee.event(1, @divTrunc(@as(i64, definition.strikes[index]) * 1000, sequence.fps), now, false) or !facing) return;
-    const crouched = if (world.get(target, data.Player) catch null) |player| player.ducked else false;
+    const crouched = if (target.get(data.Player) catch null) |player| player.ducked else false;
     if (index == 0 and !crouched) return @import("actor_lasers.zig").launch(world, slots, projections, entity, target, pose, definition.laser, false, now);
-    var victim: ?ecs.Entity = if (crouched) target else null;
+    var victim: ?Ref = if (crouched) target else null;
     if (!crouched) {
         const start = @import("actor_lasers.zig").origin(pose, definition.offset);
-        const body = (try world.get(target, data.Body)).*;
-        const point = v.add((try world.get(target, data.Transform)).position, v.scale(v.add(body.mins, body.maxs), 0.5));
-        const hit = try engine.collisionService().trace(.{ .start = start, .end = v.add(start, v.scale(v.normalize(v.subtract(point, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-        if (hit.entity < slots.occupants.len) victim = slots.occupants[hit.entity];
+        const body = (try target.get(data.Body)).*;
+        const point = v.add((try target.get(data.Transform)).position, v.scale(v.add(body.mins, body.maxs), 0.5));
+        const hit = try @import("region_collision.zig").trace(.{ .start = start, .end = v.add(start, v.scale(v.normalize(v.subtract(point, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+        victim = @import("region_access.zig").victim(world, slots, hit);
     }
     if (victim) |other| {
         const damage = if (index == 1) definition.damage else definition.laser.damage;
         const random_damage = if (index == 1) definition.random_damage else definition.laser.random_damage;
-        _ = try @import("damage.zig").apply(world, other, @intFromFloat(@ceil(damage + (try world.get(entity, data.Random)).next() * random_damage)), now, .{ .source = try world.persistentId(entity) });
+        _ = try @import("damage.zig").apply(other.world, other.entity, @intFromFloat(@ceil(damage + (try world.get(entity, data.Random)).next() * random_damage)), now, .{ .source = try world.persistentId(entity) });
     }
 }

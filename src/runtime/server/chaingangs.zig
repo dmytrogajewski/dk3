@@ -2,6 +2,7 @@
 //! Chaingang combat and terrain-mode transitions, driven by supplied sequences.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -43,7 +44,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
             velocity.linear = @splat(0);
             actor.mode = .idle;
         } else if (sensed.enemy) |target| {
-            const enemy = (try world.get(target, data.Transform)).position;
+            const enemy = (try target.get(data.Transform)).position;
             const previous = state.phase;
             switch (state.phase) {
                 .chase => {
@@ -53,13 +54,13 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
                         state.phase = .attack;
                         actor.melee.begin(if (state.flying) 3 else 2, now);
                         velocity.linear = @splat(0);
-                    } else if (state.flying and (try wet(pose.position, body.*, slot) or try wet(enemy, (try world.get(target, data.Body)).*, (try world.get(target, data.Binding)).slot))) {
+                    } else if (state.flying and (try wet(pose.position, body.*, slot) or try wet(enemy, (try target.get(data.Body)).*, (try target.get(data.Binding)).slot))) {
                         try wander(actors, world, entity, actor, pose.*, definition, now);
                     } else if (state.flying) try moveAir(actors, pose, body.*, velocity, enemy, slot, definition.speed * slow);
                 },
                 .attack => {
                     face(pose, enemy, definition, state.flying);
-                    if (state.flying and (try wet(pose.position, body.*, slot) or try wet(enemy, (try world.get(target, data.Body)).*, (try world.get(target, data.Binding)).slot))) {
+                    if (state.flying and (try wet(pose.position, body.*, slot) or try wet(enemy, (try target.get(data.Body)).*, (try target.get(data.Binding)).slot))) {
                         try wander(actors, world, entity, actor, pose.*, definition, now);
                     } else {
                         if (state.flying) try strafe(actors, world, entity, actor, pose.*, body.*, velocity, enemy, definition, slow, now) else velocity.linear = @splat(0);
@@ -99,7 +100,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
                             state.phase = .landing;
                             actor.melee.begin(5, now);
                             try sound(world, slots, projections, entity, pose.position, "e4/m_chgangjetland.wav", now);
-                        } else if (state.phase == .wander and close and (try wet(pose.position, body.*, slot) or try wet(enemy, (try world.get(target, data.Body)).*, (try world.get(target, data.Binding)).slot))) {
+                        } else if (state.phase == .wander and close and (try wet(pose.position, body.*, slot) or try wet(enemy, (try target.get(data.Body)).*, (try target.get(data.Binding)).slot))) {
                             try wander(actors, world, entity, actor, pose.*, definition, now);
                         } else state.phase = .chase;
                         velocity.linear = @splat(0);
@@ -158,14 +159,14 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
     }
 }
 fn floorTrace(point: v.Vec3, slot: u16) !@import("../domain/collision.zig").Trace {
-    return engine.collisionService().trace(.{ .start = point, .end = v.add(point, .{ 0, 0, -500 }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+    return @import("actor_collision.zig").service().trace(.{ .start = point, .end = v.add(point, .{ 0, 0, -500 }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
 }
 fn wet(point: v.Vec3, body: data.Body, slot: u16) !bool {
-    return try engine.collisionService().contents(v.add(point, .{ 0, 0, body.mins[2] + 1 }), slot) & c.MASK_WATER != 0;
+    return try @import("actor_collision.zig").service().contents(v.add(point, .{ 0, 0, body.mins[2] + 1 }), slot) & c.MASK_WATER != 0;
 }
-fn terrain(actors: *@import("actors.zig").Actors, world: *data.World, target: ecs.Entity, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, slot: u16, definition: Definition, now: i64) !bool {
+fn terrain(actors: *@import("actors.zig").Actors, world: *data.World, target: Ref, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, slot: u16, definition: Definition, now: i64) !bool {
     const state = &actor.chaingang;
-    const target_room = try flight.roomHeight((try world.get(target, data.Transform)).position, (try world.get(target, data.Binding)).slot, 500);
+    const target_room = try flight.roomHeight((try target.get(data.Transform)).position, (try target.get(data.Binding)).slot, 500);
     const own_room = try flight.roomHeight(pose.position, slot, 500);
     const random = try world.get(entity, data.Random);
     if (state.flying and target_room < 250 and random.next() > 0.45) {
@@ -211,8 +212,8 @@ fn dodge(actors: *@import("actors.zig").Actors, world: *data.World, entity: ecs.
     }
 }
 fn obstructed(world: *data.World, slots: *Slots, pose: data.Transform, body: data.Body, enemy: v.Vec3, slot: u16) !bool {
-    const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(enemy, .{ 0, 0, -24 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |other| return (world.get(other, data.Actor) catch null) != null and (world.get(other, data.Health) catch return false).current > 0;
+    const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(enemy, .{ 0, 0, -24 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+    if (@import("region_access.zig").victim(world, slots, hit)) |other| return (other.get(data.Actor) catch null) != null and (other.get(data.Health) catch return false).current > 0;
     return false;
 }
 fn sound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, point: v.Vec3, name: []const u8, now: i64) !void {

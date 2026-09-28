@@ -9,6 +9,31 @@ const engine = @import("../engine/server.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const prop = @import("properties.zig");
 const v = @import("../domain/vector.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
+const access = @import("region_access.zig");
+fn lookup(world: *data.World, scope_name: []const u8, name: []const u8, unique_id: bool) ?Ref {
+    if (name.len == 0) return null;
+    const home = if (access.byName(scope_name)) |context| &context.world.? else world;
+    var query = home.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
+    {
+        defer query.deinit();
+        while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| {
+            if (object.authoring_map.len > 0 and !std.mem.eql(u8, object.authoring_map, scope_name)) continue;
+            const id = if (!unique_id) object.targetname else if (home.get(entity, data.Actor) catch null) |actor| actor.unique else prop.text(object, "uniqueid") orelse "";
+            if (std.ascii.eqlIgnoreCase(id, name)) return .{ .world = home, .entity = entity };
+        };
+    }
+    const context = access.contextFor(home) orelse return null;
+    var candidates = access.Damageables.init(home, &context.slots);
+    while (candidates.next()) |ref| {
+        if (ref.world == home) continue;
+        const object = ref.get(data.MapObject) catch continue;
+        if (!std.mem.eql(u8, object.authoring_map, scope_name)) continue;
+        const id = if (!unique_id) object.targetname else if (ref.get(data.Actor) catch null) |actor| actor.unique else prop.text(object.*, "uniqueid") orelse "";
+        if (std.ascii.eqlIgnoreCase(id, name)) return ref;
+    }
+    return null;
+}
 pub fn unique(world: *data.World, name: []const u8) ?ecs.Entity {
     if (name.len == 0) return null;
     var query = world.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
@@ -25,10 +50,25 @@ pub fn named(world: *data.World, name: []const u8) ?ecs.Entity {
     while (query.next()) |view| for (view.entities(), view.read(data.MapObject)) |entity, object| if (std.ascii.eqlIgnoreCase(object.targetname, name)) return entity;
     return null;
 }
+fn spawnOwned(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, actors: *@import("actors.zig").Actors, scope_name: []const u8, classname: []const u8, position: data.Vec3, angles: data.Vec3, now: i64) !Ref {
+    if (access.byName(scope_name)) |context| if (&context.world.? != world) {
+        const scope = try context.select();
+        defer scope.deinit();
+        try context.expose(now);
+        return spawnOwned(&context.world.?, &context.slots, &context.projection, &context.systems.actors, scope_name, classname, position, angles, now);
+    };
+    const name = try world.allocator.dupe(u8, classname);
+    return .{ .world = world, .entity = try actors.spawnDynamic(world, slots, projections, name, position, angles, now) };
+}
 pub const State = struct {
     program: rules.Program = .{},
+    allocator: std.mem.Allocator = undefined,
+    map_name: []const u8 = "",
+    foreign: std.StringHashMapUnmanaged(rules.Program) = .empty,
     pub fn init(self: *State, allocator: std.mem.Allocator, world: *data.World) !void {
+        self.allocator = allocator;
         var map: [64]u8 = undefined;
+        self.map_name = try allocator.dupe(u8, @import("persistence.zig").mapName(&map));
         var program_path: [100]u8 = undefined;
         const filename = try std.fmt.bufPrintZ(&program_path, "dk3/actions/{s}.cfg", .{@import("persistence.zig").mapName(&map)});
         var handle: abi.c.fileHandle_t = 0;
@@ -52,21 +92,48 @@ pub const State = struct {
         }
         if (root) |entity| if (self.program.find("$level_start")) |script| if (script.actions.len > 0) try self.start(world, entity, "$level_start", 0, true);
     }
-    pub fn admit(self: *const State, world: *data.World) !void {
+    pub fn ensureForeign(self: *State, map_name: []const u8) !void {
+        if (map_name.len == 0 or std.mem.eql(u8, map_name, self.map_name) or self.foreign.contains(map_name)) return;
+        if (!@import("../domain/snapshot.zig").validName(map_name)) return error.InvalidScriptWorld;
+        var program_path: [100]u8 = undefined;
+        const filename = try std.fmt.bufPrintZ(&program_path, "dk3/actions/{s}.cfg", .{map_name});
+        var handle: abi.c.fileHandle_t = 0;
+        const size = engine.gateway.call(abi.c.G_FS_FOPEN_FILE, .{ filename.ptr, &handle, @as(isize, abi.c.FS_READ) });
+        if (handle != 0) _ = engine.gateway.call(abi.c.G_FS_FCLOSE_FILE, .{@as(isize, handle)});
+        const program: rules.Program = if (size < 0) .{} else try rules.Program.parse(self.allocator, try @import("../engine/files.zig").read(.server, &engine.gateway, self.allocator, filename, 4 * 1024 * 1024));
+        try self.foreign.put(self.allocator, try self.allocator.dupe(u8, map_name), program);
+    }
+    fn scopeName(self: *const State, world: *data.World, entity: ecs.Entity) []const u8 {
+        const object = world.get(entity, data.MapObject) catch return self.map_name;
+        return if (object.authoring_map.len > 0) object.authoring_map else if (access.contextFor(world)) |context| std.mem.sliceTo(&context.map_name, 0) else self.map_name;
+    }
+    fn programFor(self: *const State, world: *data.World, entity: ecs.Entity) !*const rules.Program {
+        const name = self.scopeName(world, entity);
+        if (std.mem.eql(u8, name, self.map_name)) return &self.program;
+        return self.foreign.getPtr(name) orelse return error.UnavailableAuthoringProgram;
+    }
+    pub fn admit(self: *State, world: *data.World) !void {
+        {
+            var objects = world.queryAccess(data.World.mask(.{ data.Actor, data.MapObject }), 0, 0);
+            defer objects.deinit();
+            while (objects.next()) |view| for (view.read(data.MapObject)) |object| try self.ensureForeign(object.authoring_map);
+        }
         var query = world.queryAccess(data.World.mask(.{data.Script}), 0, 0);
         defer query.deinit();
-        while (query.next()) |view| for (view.read(data.Script)) |execution| {
-            const script = self.program.find(execution.name) orelse return error.UnavailableSavedScript;
+        while (query.next()) |view| for (view.entities(), view.read(data.Script)) |entity, execution| {
+            try self.ensureForeign(self.scopeName(world, entity));
+            const program = try self.programFor(world, entity);
+            const script = program.find(execution.name) orelse return error.UnavailableSavedScript;
             if (execution.index > script.actions.len or execution.depth > execution.stack.len) return error.InvalidSavedScriptCursor;
             for (execution.stack[0..execution.depth]) |frame| {
-                const parent = self.program.find(frame.name) orelse return error.UnavailableSavedScript;
+                const parent = program.find(frame.name) orelse return error.UnavailableSavedScript;
                 if (frame.index > parent.actions.len or frame.remaining < -1 or frame.remaining > 10000) return error.InvalidSavedScriptCursor;
             }
         };
     }
     pub fn use(self: *const State, world: *data.World, entity: ecs.Entity, activator: u32, now: i64) !bool {
         const actor = world.get(entity, data.Actor) catch return false;
-        const program = self.program.onUse(actor.unique) orelse return false;
+        const program = (try self.programFor(world, entity)).onUse(actor.unique) orelse return false;
         if (now < actor.use_ready_ms) return true;
         actor.uses += 1;
         actor.use_ready_ms = now + program.loops;
@@ -90,14 +157,18 @@ pub const State = struct {
         return self.launch(world, caller, name, activator, use_owner, false);
     }
     fn launch(self: *const State, world: *data.World, caller: ecs.Entity, name: []const u8, activator: u32, use_owner: bool, when_used: bool) !void {
-        const script = self.program.find(name) orelse {
+        const scope_name = self.scopeName(world, caller);
+        const script = (try self.programFor(world, caller)).find(name) orelse {
             var text: [128]u8 = undefined;
             engine.print(try std.fmt.bufPrintZ(&text, "dk3 script: unavailable authored request {s}\n", .{name}));
             return; // Reference absent script lookup is a no-op, not a fabricated action.
         };
-        const entity = if (use_owner and script.owner.len > 0) unique(world, script.owner) orelse return else caller;
+        const target: Ref = if (use_owner and script.owner.len > 0) lookup(world, scope_name, script.owner, true) orelse return else .{ .world = world, .entity = caller };
+        try install(target.world, target.entity, script, activator, when_used);
+    }
+    fn install(world: *data.World, entity: ecs.Entity, script: rules.Script, activator: u32, when_used: bool) !void {
         if (world.get(entity, data.Health) catch null) |health| if (health.current <= 0) return;
-        var next: data.Script = .{ .name = script.name, .remaining = script.loops, .active = true, .activator = activator, .revision = 1, .when_used = when_used };
+        var next: data.Script = .{ .name = try world.allocator.dupe(u8, script.name), .remaining = script.loops, .active = true, .activator = activator, .revision = 1, .when_used = when_used };
         if (world.get(entity, data.Script) catch null) |prior| {
             next.revision = prior.revision +% 1;
             // Ordinary script goals replace ordinary script goals. A player-use
@@ -142,10 +213,12 @@ pub const State = struct {
                     actor.script_paused_ms = null;
                 }
             }
+            const program = try self.programFor(world, entity);
+            const scope_name = self.scopeName(world, entity);
             for (0..1024) |_| {
                 var execution = (try world.get(entity, data.Script)).*;
                 if (!execution.active or now < execution.next_ms) break;
-                const script = self.program.find(execution.name) orelse return error.MissingRunningScript;
+                const script = program.find(execution.name) orelse return error.MissingRunningScript;
                 if (execution.index >= script.actions.len) {
                     if (execution.remaining > 1 or execution.remaining == -1) {
                         if (execution.remaining > 1) execution.remaining -= 1;
@@ -169,23 +242,23 @@ pub const State = struct {
                 const args = action.args;
                 if (std.mem.eql(u8, action.name, "spawn")) {
                     if (args.len < 7 or args.len > 9 or (!std.ascii.eqlIgnoreCase(args[6], "false") and !std.ascii.eqlIgnoreCase(args[6], "true"))) return error.InvalidScriptSpawnOptions;
-                    if (unique(world, args[1]) != null) return error.DuplicateScriptActor;
-                    const child = try actors.spawnDynamic(world, slots, projections, args[0], .{ try rules.number(args[2]), try rules.number(args[3]), try rules.number(args[4]) }, .{ 0, try rules.number(args[5]), 0 }, now);
-                    (try world.get(child, data.Actor)).unique = args[1];
-                    (try world.get(child, data.Actor)).ignore_player = std.ascii.eqlIgnoreCase(args[6], "false");
-                    if (args.len > 7) (try world.get(child, data.MapObject)).targetname = args[7];
+                    if (lookup(world, scope_name, args[1], true) != null) return error.DuplicateScriptActor;
+                    const child = try spawnOwned(world, slots, projections, actors, scope_name, args[0], .{ try rules.number(args[2]), try rules.number(args[3]), try rules.number(args[4]) }, .{ 0, try rules.number(args[5]), 0 }, now);
+                    (try child.get(data.Actor)).unique = try child.world.allocator.dupe(u8, args[1]);
+                    (try child.get(data.Actor)).ignore_player = std.ascii.eqlIgnoreCase(args[6], "false");
+                    if (args.len > 7) (try child.get(data.MapObject)).targetname = try child.world.allocator.dupe(u8, args[7]);
                     if (args.len > 8) {
-                        const object = try world.get(child, data.MapObject);
-                        const properties = try actors.allocator.alloc(data.Property, object.properties.len + 1);
+                        const object = try child.get(data.MapObject);
+                        const properties = try child.world.allocator.alloc(data.Property, object.properties.len + 1);
                         @memcpy(properties[0..object.properties.len], object.properties);
-                        properties[object.properties.len] = .{ .key = "deathtarget", .value = args[8] };
+                        properties[object.properties.len] = .{ .key = "deathtarget", .value = try child.world.allocator.dupe(u8, args[8]) };
                         object.properties = properties;
                     }
                     var text: [140]u8 = undefined;
-                    engine.print(try std.fmt.bufPrintZ(&text, "dk3 script: spawned {s} id={d} class={s}\n", .{ args[1], try world.persistentId(child), args[0] }));
+                    engine.print(try std.fmt.bufPrintZ(&text, "dk3 script: spawned {s} id={d} class={s}\n", .{ args[1], try child.id(), args[0] }));
                 } else if (std.mem.eql(u8, action.name, "set_state")) {
                     if (args.len < 2 or args.len > 3) return error.InvalidSetState;
-                    if (unique(world, args[0])) |target| if (world.get(target, data.Actor) catch null) |actor| {
+                    if (lookup(world, scope_name, args[0], true)) |target| if (target.get(data.Actor) catch null) |actor| {
                         if (std.ascii.eqlIgnoreCase(args[1], "ignore_player")) {
                             actor.ignore_player = true;
                             actor.threat = 0;
@@ -194,14 +267,14 @@ pub const State = struct {
                             actor.ignore_player = false;
                         } else if (std.ascii.eqlIgnoreCase(args[1], "pathfollow")) {
                             if (args.len != 3) return error.MissingScriptPath;
-                            const point = named(world, args[2]) orelse return error.MissingScriptPath;
-                            actor.path = try world.persistentId(point);
+                            const point = lookup(world, scope_name, args[2], false) orelse return error.MissingScriptPath;
+                            actor.path = try point.id();
                             actor.route = .{};
                         } else return error.UnsupportedActorScriptState;
                     };
                 } else if ((std.mem.eql(u8, action.name, "send_message") or std.mem.eql(u8, action.name, "send_urgent_message"))) {
                     if (args.len != 2) return error.InvalidScriptMessage;
-                    if (unique(world, args[0])) |target| try self.start(world, target, args[1], execution.activator, true);
+                    if (lookup(world, scope_name, args[0], true)) |target| try self.start(target.world, target.entity, args[1], execution.activator, true);
                 } else if (std.mem.eql(u8, action.name, "call") or std.mem.eql(u8, action.name, "random_script")) {
                     if (args.len == 0 or (std.mem.eql(u8, action.name, "call") and args.len != 1)) return error.InvalidScriptCall;
                     const random = (try world.get(entity, data.Random)).next();
@@ -235,32 +308,39 @@ pub const State = struct {
                     execution.moving = false;
                 } else if (std.mem.eql(u8, action.name, "attack")) {
                     if (args.len != 1) return error.InvalidScriptAttack;
-                    const victim = unique(world, args[0]) orelse return error.MissingScriptVictim;
+                    const victim = lookup(world, scope_name, args[0], true) orelse return error.MissingScriptVictim;
                     const actor = try world.get(entity, data.Actor);
-                    actor.threat = try world.persistentId(victim);
-                    actor.threat_position = (try world.get(victim, data.Transform)).position;
+                    actor.threat = try victim.id();
+                    actor.threat_position = (try victim.get(data.Transform)).position;
                     actor.ignore_player = false;
                 } else if (std.mem.eql(u8, action.name, "sound") or std.mem.eql(u8, action.name, "stream_sound")) {
                     if (args.len < 1 or args.len > 2) return error.InvalidScriptSound;
-                    const speaker = if (args.len == 2) unique(world, args[1]) orelse return error.MissingScriptSpeaker else entity;
+                    const speaker: Ref = if (args.len == 2) lookup(world, scope_name, args[1], true) orelse return error.MissingScriptSpeaker else .{ .world = world, .entity = entity };
                     if (std.mem.eql(u8, action.name, "stream_sound")) {
                         for (args[0]) |ch| if (ch < 32 or ch == '"' or ch == '\\') return error.InvalidScriptSound;
                         var command: [320]u8 = undefined;
                         const text = try std.fmt.bufPrintZ(&command, "dk3_cine_sound 0 2 \"{s}\"", .{args[0]});
                         _ = engine.gateway.call(abi.c.G_SEND_SERVER_COMMAND, .{ @as(isize, -1), text.ptr });
                     } else {
-                        const pose = (try world.get(speaker, data.Transform)).*;
-                        const slot: u16 = if (world.get(speaker, data.Binding) catch null) |binding| binding.slot else abi.c.ENTITYNUM_NONE;
-                        try @import("events.zig").sound(world, slots, projections, args[0], pose.position, slot, abi.c.CHAN_VOICE, now);
+                        const pose = (try speaker.get(data.Transform)).*;
+                        const slot: u16 = if (speaker.get(data.Binding) catch null) |binding| binding.slot else abi.c.ENTITYNUM_NONE;
+                        try @import("events.zig").soundOwned(world, slots, projections, if (access.contextFor(speaker.world)) |context| @intFromEnum(context.handle.?) else 0, args[0], pose.position, slot, abi.c.CHAN_VOICE, now);
                     }
                 } else if (std.mem.eql(u8, action.name, "remove")) {
                     if (args.len != 1) return error.InvalidScriptRemoval;
-                    if (unique(world, args[0])) |target| {
-                        if (slots.find(target)) |slot| {
-                            engine.unlink(&projections[slot]);
-                            try slots.release(slot, target);
+                    if (lookup(world, scope_name, args[0], true)) |target| {
+                        if (target.world != world) {
+                            const context = access.contextFor(target.world) orelse return error.ScriptWorldUnavailable;
+                            const scope = try context.select();
+                            defer scope.deinit();
+                            try @import("weapon_entities.zig").remove(target.world, &context.slots, &context.projection, target.entity);
+                        } else {
+                            if (slots.find(target.entity)) |slot| {
+                                engine.unlink(&projections[slot]);
+                                try slots.release(slot, target.entity);
+                            }
+                            try world.destroy(target.entity);
                         }
-                        try world.destroy(target);
                     }
                 } else if (std.mem.eql(u8, action.name, "print")) {
                     if (args.len != 1) return error.InvalidScriptPrint;
@@ -268,7 +348,7 @@ pub const State = struct {
                     engine.print(try std.fmt.bufPrintZ(&text, "dk3 script: {s}\n", .{args[0]}));
                 } else if (std.mem.eql(u8, action.name, "use")) {
                     if (args.len != 1) return error.InvalidScriptUse;
-                    if (unique(world, args[0]) orelse named(world, args[0])) |target| try router.activate(world, slots, projections, target, execution.activator, now);
+                    if (lookup(world, scope_name, args[0], true) orelse lookup(world, scope_name, args[0], false)) |target| try router.activateReference(world, slots, projections, target, .{ .world = world, .entity = entity }, execution.activator, now);
                 } else if (std.mem.eql(u8, action.name, "face_angle")) {
                     if (args.len != 3) return error.InvalidScriptAngle;
                     const actor = try world.get(entity, data.Actor);
@@ -321,15 +401,15 @@ pub const State = struct {
 };
 
 pub fn path(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *@import("targets.zig").Router, actor_entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, speed: f32, now: i64) !?v.Vec3 {
-    const corner = world.find(actor.path) orelse {
+    const corner = access.find(world, actor.path) orelse {
         actor.path = 0;
         return null;
     };
-    const point = (try world.get(corner, data.Transform)).position;
+    const point = (try corner.get(data.Transform)).position;
     const distance = @import("../domain/navigation.zig").horizontalDistance(pose.position, point);
     const tolerance = @max(20, speed * (if (speed > 175) @as(f32, 0.1) else 0.2));
     if (distance >= tolerance or @abs(pose.position[2] - point[2]) >= 32) return point;
-    const object = (try world.get(corner, data.MapObject)).*;
+    const object = (try corner.get(data.MapObject)).*;
     var choices: [4][]const u8 = undefined;
     var count: usize = 0;
     for ([_][]const u8{ prop.text(object, "target1") orelse object.target, prop.text(object, "target2") orelse "", prop.text(object, "target3") orelse "", prop.text(object, "target4") orelse "" }) |name| {
@@ -341,13 +421,14 @@ pub fn path(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     if (count > 0) {
         const random = try world.get(actor_entity, data.Random);
         const index = @min(count - 1, @as(usize, @intFromFloat(random.next() * @as(f32, @floatFromInt(count)))));
-        if (named(world, choices[index])) |next| actor.path = try world.persistentId(next);
+        const scope_name = if (try access.authored(corner.world, corner.entity)) |context| std.mem.sliceTo(&context.map_name, 0) else "";
+        if (lookup(corner.world, scope_name, choices[index], false)) |next| actor.path = try next.id();
     }
     if (prop.text(object, "aiscript")) |name| if (router.scripts) |scripts| try scripts.start(world, actor_entity, name, try world.persistentId(actor_entity), true);
     if (prop.text(object, "pathtarget")) |name| {
-        const trigger = world.get(corner, data.Trigger) catch null;
+        const trigger = corner.get(data.Trigger) catch null;
         if (trigger == null or trigger.?.uses == 0) {
-            try world.put(corner, data.Trigger{ .uses = 1, .limit = 1 });
+            try corner.world.put(corner.entity, data.Trigger{ .uses = 1, .limit = 1 });
             try router.fireNamed(world, slots, projections, name, actor_entity, try world.persistentId(actor_entity), now);
         }
     }

@@ -3,6 +3,7 @@ const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const rules = @import("../domain/damage.zig");
 pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, options: rules.Options) !rules.Result {
+    try @import("region_access.zig").expose(world, now);
     return applyResolved(world, try @import("wall_breakage.zig").recipient(world, entity, amount), amount, now, options);
 }
 fn applyResolved(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, options: rules.Options) !rules.Result {
@@ -83,7 +84,7 @@ fn applyResolved(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, 
             actor.mode = .idle;
             actor.changed_ms = now;
             actor.think_ms = now;
-            if (world.find(options.source)) |source| if ((world.get(source, data.Player) catch null) != null or (world.get(source, data.Companion) catch null) != null) {
+            if (@import("region_access.zig").find(world, options.source)) |source| if ((source.get(data.Player) catch null) != null or (source.get(data.Companion) catch null) != null) {
                 actor.threat = options.source;
                 actor.ignore_player = false;
             };

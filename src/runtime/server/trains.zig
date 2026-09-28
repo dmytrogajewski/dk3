@@ -123,12 +123,12 @@ fn leave(world: *data.World, projections: []abi.EntityProjection, entity: ecs.En
         train.action = try @import("../domain/time.zig").Deadline.after(now, 1);
     }
 }
-pub fn use(world: *data.World, projections: []abi.EntityProjection, entity: ecs.Entity, source: ?ecs.Entity, activator: u32, now: i64) !void {
+pub fn use(world: *data.World, projections: []abi.EntityProjection, entity: ecs.Entity, source: ?@import("../domain/world_references.zig").Ref, activator: u32, now: i64) !void {
     const train = try world.get(entity, data.Train);
     train.owner = activator;
     if (train.phase == .initializing) _ = try initialize(world, projections, entity, now);
-    if (source) |other| if (world.alive(other)) {
-        const object = (world.get(other, data.MapObject) catch null);
+    if (source) |other| if (other.world.alive(other.entity)) {
+        const object = (other.get(data.MapObject) catch null);
         if (object) |value| {
             const redirected = prop.text(value.*, "path_target") orelse prop.text(value.*, "pathtarget");
             if (redirected) |name| if (name.len > 0) {

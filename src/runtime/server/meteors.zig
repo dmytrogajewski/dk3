@@ -2,6 +2,7 @@
 //! Stave growth/acceleration and independently bouncing meteor fragments.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -24,10 +25,10 @@ fn create(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
     try life.bind(world, slots, projections, entity, if (state.phase == .flare) "models/e3/we_blackhole.sp2" else policy.model);
     try publish(world, entity, projections, now);
 }
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     var random = (try world.get(owner, data.Random)).*;
     const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, &random);
-    const turn = v.add(angles(v.subtract((try world.get(target, data.Transform)).position, pose.position)), .{ -45, 35, 0 });
+    const turn = v.add(angles(v.subtract((try target.get(data.Transform)).position, pose.position)), .{ -45, 35, 0 });
     const point = v.add(v.add(pose.position, v.scale(v.basis(turn).forward, 25)), .{ 0, 0, 25 });
     const state: policy.State = .{ .next_ms = now + 100, .spin = .{ (random.next() * 2 - 1) * 40, (random.next() * 2 - 1) * 40, (random.next() * 2 - 1) * 40 }, .damage = tuning.damage, .radius = tuning.damage, .speed = tuning.speed };
     const id = try world.persistentId(owner);
@@ -64,7 +65,18 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.shared.ownerNum = if (world.find(attack.owner)) |owner| (try world.get(owner, data.Binding)).slot else c.ENTITYNUM_NONE;
     engine.link(projection);
 }
-fn impact(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, attack: data.ActorAttack, state: policy.State, pose: data.Transform, velocity: v.Vec3, normal: v.Vec3, world_contact: bool, now: i64) !void {
+fn impact(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, attack: data.ActorAttack, state: policy.State, pose: data.Transform, velocity: v.Vec3, normal: v.Vec3, world_contact: bool, owner_world: u32, now: i64) !void {
+    const access = @import("region_access.zig");
+    if (owner_world != 0) {
+        const destination = access.byHandle(@enumFromInt(owner_world)) orelse return error.MeteorWorldUnavailable;
+        if (&destination.world.? != world) {
+            const id = try world.persistentId(entity);
+            try @import("world_transfer.zig").relocate(access.contextFor(world) orelse return error.MeteorWorldUnavailable, destination, entity, now);
+            const scope = try destination.select();
+            defer scope.deinit();
+            return impact(&destination.world.?, &destination.slots, &destination.projection, destination.world.?.find(id).?, attack, state, pose, velocity, normal, world_contact, owner_world, now);
+        }
+    }
     var random = (try world.get(entity, data.Random)).*;
     if (state.phase == .stave) {
         const count: usize = 4 + @as(usize, @intFromFloat(random.next() * 3));
@@ -97,6 +109,8 @@ fn impact(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     var attack = (try world.get(entity, data.ActorAttack)).*;
+    if (now <= attack.stepped_ms) return;
+    var motion = @import("region_motion.zig").Cursor.init(world, attack.owner);
     const state = &attack.attack.meteor;
     var pose = (try world.get(entity, data.Transform)).*;
     var velocity = (try world.get(entity, data.Velocity)).*;
@@ -112,11 +126,11 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         attack.stepped_ms = at;
         if (state.phase != .flare) {
             if (state.phase == .fragment) velocity.linear[2] -= 400 * seconds;
-            const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = skip, .mask = body.collision_mask });
+            const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = skip, .mask = body.collision_mask });
             pose.position = hit.end;
             if (state.phase == .fragment) velocity.linear[2] -= 400 * seconds;
             if (hit.fraction < 1 or hit.start_solid) {
-                if (state.phase == .stave or @as(f32, @floatFromInt(state.bounces)) >= state.bounce_max) return impact(world, slots, projections, entity, attack, state.*, pose, velocity.linear, hit.normal, hit.entity == c.ENTITYNUM_WORLD, at);
+                if (state.phase == .stave or @as(f32, @floatFromInt(state.bounces)) >= state.bounce_max) return impact(world, slots, projections, entity, attack, state.*, pose, velocity.linear, hit.normal, hit.entity == c.ENTITYNUM_WORLD, motion.owner, at);
                 state.bounces +|= 1;
                 velocity.linear = v.subtract(velocity.linear, v.scale(hit.normal, 1.5 * v.dot(velocity.linear, hit.normal)));
                 for (&velocity.linear) |*axis| if (@abs(axis.*) < 0.1) {
@@ -145,4 +159,5 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     (try world.get(entity, data.Transform)).* = pose;
     (try world.get(entity, data.Velocity)).* = velocity;
     try publish(world, entity, projections, now);
+    try motion.finish(world, entity, now);
 }

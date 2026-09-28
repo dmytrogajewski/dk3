@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -46,7 +47,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         }
         actor.spider.sidestep_until = null;
     }
-    const delta = v.subtract((try world.get(enemy, data.Transform)).position, pose.position);
+    const delta = v.subtract((try enemy.get(data.Transform)).position, pose.position);
     const yaw = std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi;
     const tick = now >= actor.think_ms;
     if (tick) {
@@ -77,7 +78,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     }
     actor.mode = if (actor.melee.active) .attack else .chase;
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, enemy: ecs.Entity, small: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, enemy: Ref, small: bool, now: i64) !void {
     const index = actor.melee.pose;
     const slot = (try world.get(entity, data.Binding)).slot;
     const jump = index == 1;
@@ -94,10 +95,10 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
     if (!actor.melee.event(1, strike_ms, now, false)) return;
     const axes = v.basis(pose.angles);
     const start = v.add(pose.position, v.add(v.scale(axes.right, definition.offset[0]), v.add(v.scale(axes.forward, definition.offset[1]), .{ 0, 0, definition.offset[2] })));
-    const target_body = (try world.get(enemy, data.Body)).*;
-    const aim = v.add((try world.get(enemy, data.Transform)).position, v.scale(v.add(target_body.mins, target_body.maxs), 0.5));
-    const hit = try engine.collisionService().trace(.{ .start = start, .end = v.add(start, v.scale(v.normalize(v.subtract(aim, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-        _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage)), now, .{ .source = try world.persistentId(entity), .attacker_class = catalog.entries[actor.definition].classname });
-    };
+    const target_body = (try enemy.get(data.Body)).*;
+    const aim = v.add((try enemy.get(data.Transform)).position, v.scale(v.add(target_body.mins, target_body.maxs), 0.5));
+    const hit = try @import("region_collision.zig").trace(.{ .start = start, .end = v.add(start, v.scale(v.normalize(v.subtract(aim, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+    if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+        _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage)), now, .{ .source = try world.persistentId(entity), .attacker_class = catalog.entries[actor.definition].classname });
+    }
 }

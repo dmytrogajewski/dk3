@@ -34,7 +34,7 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
             velocity.linear = @splat(0);
             actor.mode = .idle;
         } else if (sensed.enemy) |target| {
-            const enemy = (try world.get(target, data.Transform)).position;
+            const enemy = (try target.get(data.Transform)).position;
             const previous = state.phase;
             const health: f32 = @floatFromInt((try world.get(entity, data.Health)).current);
             const base: f32 = @floatFromInt(definition.health);
@@ -128,9 +128,9 @@ fn avoid(world: *data.World, slots: *Slots, pose: data.Transform, body: data.Bod
     const width = (extent[0] + extent[1] + extent[2]) / 3.25;
     for ([_][2]f32{ .{ 45, 45 }, .{ 45, -45 }, .{ -45, -45 }, .{ -45, 45 } }) |corner| {
         const direction = v.basis(v.add(angles, .{ corner[0], corner[1], 0 })).forward;
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, width)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, width)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
         if (hit.fraction == 1) continue;
-        if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |other| if (world.get(other, data.MapObject) catch null) |object| {
+        if (@import("region_access.zig").victim(world, slots, hit)) |other| if (other.get(data.MapObject) catch null) |object| {
             if (std.mem.indexOf(u8, object.classname, "door") != null or std.mem.indexOf(u8, object.classname, "train") != null) continue;
         };
         velocity.linear = v.scale(direction, -speed * 0.5);
@@ -144,7 +144,7 @@ pub fn motion(pose: *data.Transform, body: data.Body, velocity: *data.Velocity, 
         const slice = @min(remaining, 50);
         remaining -= slice;
         const seconds = @as(f32, @floatFromInt(slice)) * 0.001;
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         pose.position = hit.end;
         if (hit.fraction < 1 or hit.start_solid) {
             velocity.linear = v.add(v.clip(velocity.linear, hit.normal), v.scale(hit.normal, speed * 0.6));

@@ -10,6 +10,7 @@ from runtime_bugfix_probe import run
 from runtime_opening_route import actors
 from runtime_input import engine_failure
 from runtime_probe import wait
+from runtime_region_progression_probe import event
 
 
 def enter(driver, name, parks):
@@ -41,16 +42,15 @@ def restored(driver, offset):
 
 
 def region_save(driver, report, capture):
+    event(driver, 'dk3 region: initial admission committed')
+    assert 'map=e1m1b stage=client_ready' in driver.text()
     initial = driver.until(lambda s: s["map"] == "e1m1a" and s["mode"] == "normal")
     parks = dict(e1m1a=initial["pos"], e1m1b=(-600, -1392, 533))
     driver.ready()
     a = next(i for i, row in actors(driver).items() if row["health"] > 0)
     health(driver, a, 37)
-    offset = len(driver.text())
-    driver.diagnostics("dk3_runtime_resident prepare-game e1m1b", "dk3 resident: requested")
-    wait(driver.process, driver.log, lambda text: "map=e1m1b stage=client_ready" in text[offset:], 90)
-    driver.issue("dk3_runtime_place -640 -1392 530")
-    placed = driver.until(lambda s: math.dist(s["pos"], (-640, -1392, 530)) < 35,
+    driver.issue("dk3_runtime_place -752 -1392 525")
+    placed = driver.until(lambda s: math.dist(s["pos"], (-752, -1392, 525)) < 40,
                           description="controlled shared corridor")
     entered = enter(driver, "e1m1b", parks)
     assert entered["player_id"] == placed["player_id"]

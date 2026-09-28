@@ -2,6 +2,7 @@
 //! Froginator-owned missile. Player weapon identities and tuning are not involved.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -10,7 +11,7 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const policy = @import("actor_catalog").froginator;
 const lifecycle = @import("weapon_entities.zig");
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: policy.Tuning, now: i64) !void {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: policy.Tuning, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
     const origin = aim.origin;
@@ -53,6 +54,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = occupant orelse continue;
         if (!world.alive(entity)) continue;
         var spit = (world.get(entity, data.FrogSpit) catch continue).*;
+        if (now <= spit.stepped_ms) continue;
+        var motion = @import("region_motion.zig").Cursor.init(world, spit.owner);
         if (now >= (try world.get(entity, data.Lifetime)).expires_ms) {
             try lifecycle.remove(world, slots, projections, entity);
             continue;
@@ -60,14 +63,14 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const pose = (try world.get(entity, data.Transform)).*;
         const velocity = (try world.get(entity, data.Velocity)).linear;
         const owner_slot = if (world.find(spit.owner)) |source| (try world.get(source, data.Binding)).slot else c.ENTITYNUM_NONE;
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, @as(f32, @floatFromInt(@max(0, now - spit.stepped_ms))) * 0.001)), .mins = @splat(-3), .maxs = @splat(3), .slot = @intCast(owner_slot), .mask = c.MASK_SHOT });
+        const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, @as(f32, @floatFromInt(@max(0, now - spit.stepped_ms))) * 0.001)), .mins = @splat(-3), .maxs = @splat(3), .slot = @intCast(owner_slot), .mask = c.MASK_SHOT });
         if (hit.fraction < 1 or hit.start_solid) {
-            if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |target| if ((world.get(target, data.Health) catch null) != null) {
-                _ = try @import("weapon_damage.zig").hurt(world, target, spit.owner, 0, spit.damage, now, false);
-                try @import("weapon_damage.zig").shove(world, target, spit.owner, velocity, spit.damage, now);
-                if ((world.get(target, data.Player) catch null) != null) try @import("ailments.zig").apply(world, target, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, spit.owner, 0, now);
+            if (@import("region_access.zig").victim(world, slots, hit)) |target| if ((target.get(data.Health) catch null) != null) {
+                _ = try @import("weapon_damage.zig").hurt(target.world, target.entity, spit.owner, 0, spit.damage, now, false);
+                try @import("weapon_damage.zig").shove(target.world, target.entity, spit.owner, velocity, spit.damage, now);
+                if ((target.get(data.Player) catch null) != null) try @import("ailments.zig").apply(target.world, target.entity, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, spit.owner, 0, now);
                 var text: [100]u8 = undefined;
-                engine.print(try std.fmt.bufPrintZ(&text, "dk3 frog: spit={d} contact={d}\n", .{ try world.persistentId(entity), try world.persistentId(target) }));
+                engine.print(try std.fmt.bufPrintZ(&text, "dk3 frog: spit={d} contact={d}\n", .{ try world.persistentId(entity), try target.id() }));
             };
             try lifecycle.remove(world, slots, projections, entity);
             continue;
@@ -76,5 +79,6 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         spit.stepped_ms = now;
         (try world.get(entity, data.FrogSpit)).* = spit;
         try publish(world, entity, projections, now);
+        try motion.finish(world, entity, now);
     }
 }

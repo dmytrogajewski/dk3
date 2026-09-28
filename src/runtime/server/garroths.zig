@@ -2,6 +2,7 @@
 //! Garroth selects his authored punch, stave, NPC Wisp and Buboid summon.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -56,7 +57,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
         actor.melee.active = false;
         return;
     };
-    const delta = v.subtract((try world.get(target, data.Transform)).position, pose.position);
+    const delta = v.subtract((try target.get(data.Transform)).position, pose.position);
     const yaw = std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi;
     pose.angles[1] += std.math.clamp(@mod(yaw - pose.angles[1] + 180, 360) - 180, -definition.yaw_speed, definition.yaw_speed);
     const facing = @abs(@mod(yaw - pose.angles[1] + 180, 360) - 180) < 5;
@@ -89,9 +90,17 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
         } else try select(world, entity, actor, definition, sensed.distance, facing, now);
     }
 }
-fn summon(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, target: ecs.Entity, now: i64) !void {
-    const direction = try @import("clear_direction.zig").choose(world, target, c.MASK_SOLID);
-    const enemy = (try world.get(target, data.Transform)).*;
+fn summon(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, target: Ref, now: i64) !void {
+    if (target.world != world) {
+        const context = @import("region_access.zig").contextFor(target.world) orelse return error.SummonWorldUnavailable;
+        const scope = try context.select();
+        defer scope.deinit();
+        try context.expose(now);
+        try context.systems.actors.ensure(@import("actor_catalog").find("monster_buboid").?);
+        return summon(&context.systems.actors, target.world, &context.slots, &context.projection, target, now);
+    }
+    const direction = try @import("clear_direction.zig").choose(target.world, target.entity, c.MASK_SOLID);
+    const enemy = (try target.get(data.Transform)).*;
     const point = v.add(enemy.position, v.scale(direction, 100));
     const definition = actors.table.definitions[@import("actor_catalog").find("monster_buboid").?];
     // Retain the authored location, but reject a full-hull obstruction instead
@@ -100,7 +109,7 @@ fn summon(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slo
     if (hit.start_solid or hit.all_solid) return;
     const spawned = try actors.spawnDynamic(world, slots, projections, "monster_buboid", point, @splat(0), now);
     const actor = try world.get(spawned, data.Actor);
-    actor.threat = try world.persistentId(target);
+    actor.threat = try target.id();
     actor.threat_position = enemy.position;
     actor.ignore_player = false;
     // Dynamic authoring starts empty, so the summoner's death outputs are never inherited.

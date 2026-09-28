@@ -37,6 +37,10 @@ pub const Follower = struct {
     character: data.Character,
     keys: data.Keys,
     ailments: data.Ailments,
+    pub fn capture(world: *data.World, entity: @import("../ecs/world.zig").Entity, origin: data.Vec3) !Follower {
+        const pose = (try world.get(entity, data.Transform)).*;
+        return .{ .persistent_id = try world.persistentId(entity), .offset = @import("vector.zig").subtract(pose.position, origin), .angles = pose.angles, .classname = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition].classname, .state = (try world.get(entity, data.Companion)).*, .health = (try world.get(entity, data.Health)).*, .weapons = (try world.get(entity, data.Weapons)).*, .character = (try world.get(entity, data.Character)).*, .keys = (try world.get(entity, data.Keys)).*, .ailments = (try world.get(entity, data.Ailments)).* };
+    }
 };
 pub const Traveler = struct {
     companions: [2]?Follower = @splat(null),
@@ -53,8 +57,7 @@ pub const Traveler = struct {
         defer query.deinit();
         while (query.next()) |view| for (view.entities(), view.read(data.Companion)) |entity, state| {
             if (state.owner != try world.persistentId(player)) continue;
-            const pose = (try world.get(entity, data.Transform)).*;
-            result.companions[@intFromEnum(state.identity)] = .{ .persistent_id = try world.persistentId(entity), .offset = @import("vector.zig").subtract(pose.position, (try world.get(player, data.Transform)).position), .angles = pose.angles, .classname = @import("actor_catalog").entries[(try world.get(entity, data.Actor)).definition].classname, .state = state, .health = (try world.get(entity, data.Health)).*, .weapons = (try world.get(entity, data.Weapons)).*, .character = (try world.get(entity, data.Character)).*, .keys = (try world.get(entity, data.Keys)).*, .ailments = (try world.get(entity, data.Ailments)).* };
+            result.companions[@intFromEnum(state.identity)] = try Follower.capture(world, entity, (try world.get(player, data.Transform)).position);
         };
         return result;
     }

@@ -252,6 +252,13 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
 pub fn explosion(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, origin: data.Vec3, scale: f32, now: i64) !void {
     try explosionVariant(world, slots, projections, origin, scale, false, now);
 }
+pub fn explosionOwned(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: u32, origin: data.Vec3, scale: f32, now: i64) !void {
+    if (owner == 0) return explosion(world, slots, projections, origin, scale, now);
+    const context = @import("region_access.zig").byHandle(@enumFromInt(owner)) orelse return error.ExplosionWorldUnavailable;
+    const scope = try context.select();
+    defer scope.deinit();
+    try explosion(&context.world.?, &context.slots, &context.projection, origin, scale, now);
+}
 pub fn explosionVariant(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, origin: data.Vec3, scale: f32, alternate: bool, now: i64) !void {
     const model = if (alternate) "models/global/we_expla.sp2" else "models/global/we_expl.sp2";
     const effect = try world.create(null, .{ data.Transform{ .position = origin }, data.Velocity{}, data.Body{ .mins = @splat(0), .maxs = @splat(0) }, data.Scenery{ .model = model, .started_ms = now, .scale = @splat(scale), .explosion = true, .sequence = .{ .last = if (alternate) 7 else 6 }, .expires_ms = now + @as(i64, if (alternate) 800 else 700) } });

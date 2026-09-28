@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -55,7 +56,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     actor.mode = if (actor.melee.active) .attack else if (clear) .idle else .chase;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, now);
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, now: i64) !void {
     const sequence = definition.attacks[0];
     while (actor.cryotech.next(now - actor.melee.started_ms, sequence.fps)) |event| try @import("cryo_spray.zig").launch(world, slots, projections, entity, target, pose, event.offset, definition, now);
     try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);

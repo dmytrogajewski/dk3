@@ -7,16 +7,24 @@ const engine = @import("../engine/server.zig");
 const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("../domain/blood_cloud.zig");
-pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, victim: ecs.Entity, attacker: ecs.Entity, now: i64) !void {
+pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, victim: @import("../domain/world_references.zig").Ref, attacker: ecs.Entity, now: i64) !void {
     if (engine.integer("sv_violence") != 0) return;
     const body = (try world.get(attacker, data.Body)).*;
     const attack_pose = (try world.get(attacker, data.Transform)).*;
-    const pose = (try world.get(victim, data.Transform)).*;
-    const mass = (try world.get(victim, data.Body)).mass;
+    const pose = (try victim.get(data.Transform)).*;
+    const mass = (try victim.get(data.Body)).mass;
     var extent = v.scale(v.subtract(body.maxs, body.mins), 1.15);
     // Reference cloud height uses the attacker's absolute upper Z, even below zero.
     extent[2] = (attack_pose.position[2] + body.maxs[2]) * 0.5;
-    const entity = try world.create(null, .{ data.Transform{ .position = pose.position }, data.MapObject{ .classname = "effect_blood_cloud" }, data.Random{ .state = try world.persistentId(victim) ^ @as(u32, @truncate(@as(u64, @bitCast(now)))) }, data.WorldControl{ .action = .{ .blood_cloud = .{ .next_ms = now + 200, .extent = extent, .mass = mass } } } });
+    if (@import("region_access.zig").contextFor(victim.world)) |context| {
+        const scope = try context.select();
+        defer scope.deinit();
+        return create(victim.world, &context.slots, &context.projection, pose.position, extent, mass, try victim.id(), now);
+    }
+    return create(world, slots, projections, pose.position, extent, mass, try victim.id(), now);
+}
+fn create(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, position: data.Vec3, extent: data.Vec3, mass: f32, identity: u32, now: i64) !void {
+    const entity = try world.create(null, .{ data.Transform{ .position = position }, data.MapObject{ .classname = "effect_blood_cloud" }, data.Random{ .state = identity ^ @as(u32, @truncate(@as(u64, @bitCast(now)))) }, data.WorldControl{ .action = .{ .blood_cloud = .{ .next_ms = now + 200, .extent = extent, .mass = mass } } } });
     try @import("weapon_entities.zig").bind(world, slots, projections, entity, "");
     try publish(world, entity, projections);
 }

@@ -29,7 +29,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
         } else {
             const sensed = try @import("actor_perception.zig").perceive(world, slots, entity, actor, pose.*, definition, now);
             if (sensed.enemy) |target| {
-                const point = (try world.get(target, data.Transform)).position;
+                const point = (try target.get(data.Transform)).position;
                 switch (state.phase) {
                     .dormant => {
                         state.phase = .waking;
@@ -74,7 +74,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
                         const sequence = definition.attacks[0];
                         if (actor.melee.event(1, @divTrunc(@as(i64, definition.strikes[0]) * 1000, sequence.fps), now, false)) {
                             try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);
-                            _ = try @import("weapon_damage.zig").hurt(world, target, try world.persistentId(entity), 0, 1 + 3 * (try world.get(entity, data.Random)).next(), now, false);
+                            _ = try @import("weapon_damage.zig").hurt(target.world, target.entity, try world.persistentId(entity), 0, 1 + 3 * (try world.get(entity, data.Random)).next(), now, false);
                         }
                         if (now - actor.melee.started_ms >= sequence.duration()) {
                             state.fade(now);

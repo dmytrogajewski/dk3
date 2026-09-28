@@ -68,7 +68,7 @@ pub const Random = struct {
 };
 pub const Binding = struct { slot: u16, model: u16 = 0 };
 pub const Property = struct { key: []const u8, value: []const u8 };
-pub const MapObject = struct { properties: []const Property = &.{}, classname: []const u8, targetname: []const u8 = "", target: []const u8 = "", model: []const u8 = "", flags: u32 = 0 };
+pub const MapObject = struct { properties: []const Property = &.{}, classname: []const u8, targetname: []const u8 = "", target: []const u8 = "", model: []const u8 = "", flags: u32 = 0, authoring_map: []const u8 = "" };
 pub const Gravity = struct { acceleration: f32 = 800 };
 pub const Motion = struct { destination: Vec3 = @splat(0), velocity: Vec3 = @splat(0) };
 pub const Lifetime = struct { expires_ms: i64 };

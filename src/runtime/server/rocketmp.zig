@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -78,12 +79,12 @@ fn evade(world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: data.
     const angle: f32 = (if ((try world.get(entity, data.Random)).next() > 0.5) @as(f32, -25) else 25) * std.math.pi / 180;
     const forward = v.normalize(.{ direction[0] * @cos(angle) - direction[1] * @sin(angle), direction[0] * @sin(angle) + direction[1] * @cos(angle), 0 });
     const distance = speed * 0.5;
-    const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(forward, distance)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
+    const hit = try @import("region_collision.zig").trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(forward, distance)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
     actor.rocketmp.destination = if (hit.fraction < 1) v.add(pose.position, v.scale(forward, distance * hit.fraction - 16)) else hit.end;
     actor.rocketmp.evade_until = now + 1100;
     actor.melee.active = false;
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, facing: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, facing: bool, now: i64) !void {
     try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);
     if (!facing) return;
     const index = actor.melee.pose;
@@ -93,13 +94,13 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
         if (!actor.melee.event(@as(u2, 1) << @intCast(hand), @divTrunc(@as(i64, at) * 1000, definition.attacks[index].fps), now, false)) continue;
         if (index == 1) {
             const aim = try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random));
-            const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
-            if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-                if ((world.get(victim, data.Health) catch null) == null) continue;
+            const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
+            if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+                if ((victim.get(data.Health) catch null) == null) continue;
                 const amount = definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;
-                _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = try world.persistentId(entity), .attacker_class = "monster_rocketmp" });
+                _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(amount)), now, .{ .source = try world.persistentId(entity), .attacker_class = "monster_rocketmp" });
                 if (definition.second_attack_sounds[index].len > 0) try @import("events.zig").sound(world, slots, projections, definition.second_attack_sounds[index], pose.position, (try world.get(entity, data.Binding)).slot, c.CHAN_WEAPON, now);
-            };
+            }
             continue;
         }
         if (index == 0 and hand == 1 and !try @import("actor_aim.zig").clearProjectile(world, slots, entity, target, pose, definition.mp_rockets[1], 10)) {

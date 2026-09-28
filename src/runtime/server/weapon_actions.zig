@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Personal actions cannot follow a disconnected player or a new campaign arrival.
+//! Actions tied to their owner's body follow a seamless ownership transfer and
+//! end on disconnection. Free projectiles retain their own spatial owner.
 const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
@@ -7,6 +8,11 @@ const Slots = @import("../engine/slots.zig").Slots;
 pub fn owner(world: *data.World, entity: ecs.Entity) ?u32 {
     inline for (.{ data.Melee, data.WeaponLaunch, data.Nova, data.Flashlight, data.Zeus, data.ZeusBolt }) |T| if (world.get(entity, T) catch null) |action| return action.owner;
     if (world.get(entity, data.Hammer) catch null) |hammer| if (hammer.quake_until_ms == null) return hammer.owner;
+    if (world.get(entity, data.ActorAttack) catch null) |attack| switch (attack.attack) {
+        .gunner_burst => return attack.owner,
+        .wyndrax_bolt => |bolt| if (bolt.kind == .wisp or bolt.kind == .scenery) return bolt.parent,
+        else => {},
+    };
     return null;
 }
 pub fn cancel(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ecs.Entity) !void {

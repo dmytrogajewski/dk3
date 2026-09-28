@@ -10,7 +10,7 @@ pub fn bounce(pose: *data.Transform, body: data.Body, velocity: *data.Velocity, 
         remaining -= slice;
         const delta = @as(f32, @floatFromInt(slice)) * 0.001;
         velocity.linear[2] -= gravity * 0.5 * delta;
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, delta)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, delta)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         pose.position = hit.end;
         velocity.linear[2] -= gravity * 0.5 * delta;
         if (hit.fraction < 1 or hit.start_solid) {
@@ -25,7 +25,7 @@ pub fn roomHeight(point: data.Vec3, slot: u16, distance: f32) !f32 {
     const v = @import("../domain/vector.zig");
     var height: f32 = 0;
     for ([_]f32{ distance, -distance }) |offset| {
-        const hit = try engine.collisionService().trace(.{ .start = point, .end = v.add(point, .{ 0, 0, offset }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = if (offset > 0) c.MASK_SOLID else c.MASK_SOLID | c.CONTENTS_BODY });
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = point, .end = v.add(point, .{ 0, 0, offset }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = if (offset > 0) c.MASK_SOLID else c.MASK_SOLID | c.CONTENTS_BODY });
         height += hit.fraction * distance;
     }
     return height;
@@ -35,9 +35,9 @@ pub fn liquidBelow(point: data.Vec3, slot: u16, resolution: u8) !bool {
     const v = @import("../domain/vector.zig");
     for (1..resolution) |i| {
         const end = v.add(point, .{ 0, 0, -100 * @as(f32, @floatFromInt(i)) });
-        const liquid = try engine.collisionService().trace(.{ .start = point, .end = end, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_WATER });
+        const liquid = try @import("actor_collision.zig").service().trace(.{ .start = point, .end = end, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_WATER });
         if (liquid.fraction < 1 or liquid.start_solid) return true;
-        const floor = try engine.collisionService().trace(.{ .start = point, .end = end, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+        const floor = try @import("actor_collision.zig").service().trace(.{ .start = point, .end = end, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
         if (floor.fraction < 1) return false;
     }
     return true;
@@ -48,7 +48,7 @@ pub fn move(pose: *data.Transform, body: data.Body, velocity: *data.Velocity, sl
     while (remaining > 0) {
         const slice = @min(remaining, 50);
         remaining -= slice;
-        var context: @import("../domain/slide.zig").Context = .{ .service = engine.collisionService(), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask, .delta = @as(f32, @floatFromInt(slice)) * 0.001, .gravity = 0 };
+        var context: @import("../domain/slide.zig").Context = .{ .service = @import("actor_collision.zig").service(), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask, .delta = @as(f32, @floatFromInt(slice)) * 0.001, .gravity = 0 };
         _ = try context.move(&motion);
     }
     pose.position = motion.position;

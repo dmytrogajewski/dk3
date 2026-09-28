@@ -9,7 +9,7 @@ const v = @import("../domain/vector.zig");
 const slide = @import("../domain/slide.zig");
 
 fn floor(position: v.Vec3, body: data.Body, slot: u16) !?v.Vec3 {
-    const hit = try engine.collisionService().trace(.{ .start = v.add(position, .{ 0, 0, 18 }), .end = v.add(position, .{ 0, 0, -32 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+    const hit = try @import("actor_collision.zig").service().trace(.{ .start = v.add(position, .{ 0, 0, 18 }), .end = v.add(position, .{ 0, 0, -32 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
     if (hit.start_solid or hit.fraction == 1 or hit.normal[2] < 0.7 or hit.contents & (c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO) != 0) return null;
     return hit.end;
 }
@@ -22,7 +22,7 @@ pub fn direct(position: v.Vec3, destination: v.Vec3, body: data.Body, slot: u16)
         const fraction = @as(f32, @floatFromInt(i + 1)) / @as(f32, @floatFromInt(@max(count, 1)));
         const point = v.add(position, v.scale(v.subtract(destination, position), fraction));
         const supported = try floor(point, body, slot) orelse return false;
-        const hit = try engine.collisionService().trace(.{ .start = v.add(previous, .{ 0, 0, 18 }), .end = v.add(supported, .{ 0, 0, 18 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = v.add(previous, .{ 0, 0, 18 }), .end = v.add(supported, .{ 0, 0, 18 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         if (hit.start_solid or hit.fraction < 1) return false;
         previous = supported;
     }
@@ -70,7 +70,7 @@ pub fn step(actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocit
         const milliseconds = @min(remaining, 50);
         remaining -= milliseconds;
         const delta = @as(f32, @floatFromInt(milliseconds)) * 0.001;
-        const ground = try engine.collisionService().trace(.{ .start = motion.position, .end = v.add(motion.position, .{ 0, 0, -0.25 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        const ground = try @import("actor_collision.zig").service().trace(.{ .start = motion.position, .end = v.add(motion.position, .{ 0, 0, -0.25 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         var grounded = motion.velocity[2] <= 0 and !ground.start_solid and ground.fraction < 1 and ground.normal[2] >= 0.7;
         actor.ground_entity = if (grounded) ground.entity else c.ENTITYNUM_NONE;
         body.grounded = grounded;
@@ -95,7 +95,7 @@ pub fn step(actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocit
                 }
             }
         }
-        var movement: slide.Context = .{ .service = engine.collisionService(), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask, .delta = delta, .gravity = 800, .ground = if (grounded) ground.normal else null };
+        var movement: slide.Context = .{ .service = @import("actor_collision.zig").service(), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask, .delta = delta, .gravity = 800, .ground = if (grounded) ground.normal else null };
         if (actor.mode == .dead) _ = try movement.move(&motion) else try movement.step(&motion);
     }
     pose.position = motion.position;
@@ -111,9 +111,9 @@ pub fn sidestepDistance(pose: data.Transform, body: data.Body, slot: u16, roll: 
     const side: f32 = if (roll < 0.5) -1 else 1;
     for ([_]f32{ side, -side }) |sign| {
         const destination = v.add(pose.position, v.scale(right, sign * distance));
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         if (hit.start_solid or hit.fraction < 1) continue;
-        const ground = try engine.collisionService().trace(.{ .start = destination, .end = v.add(destination, .{ 0, 0, -32 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        const ground = try @import("actor_collision.zig").service().trace(.{ .start = destination, .end = v.add(destination, .{ 0, 0, -32 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         if (ground.start_solid or ground.fraction == 1 or ground.normal[2] < 0.7 or !try direct(pose.position, ground.end, body, slot)) continue;
         return ground.end;
     }

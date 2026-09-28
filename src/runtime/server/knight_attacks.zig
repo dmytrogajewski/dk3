@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
+const access = @import("region_access.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -9,10 +11,10 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").knights;
 const lifecycle = @import("weapon_entities.zig");
-pub fn zap(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, now: i64) !void {
+pub fn zap(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, now: i64) !void {
     const entity = try world.create(null, .{
-        data.Transform{ .position = v.add(pose.position, .{ 0, 0, 24 }) },                                                                                                                                                                          data.Velocity{}, data.Body{ .mins = @splat(0), .maxs = @splat(0) },
-        data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .knight_zap = .{ .target = try world.persistentId(target), .destination = (try world.get(target, data.Transform)).position } } },
+        data.Transform{ .position = v.add(pose.position, .{ 0, 0, 24 }) },                                                                                                                                                    data.Velocity{}, data.Body{ .mins = @splat(0), .maxs = @splat(0) },
+        data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .knight_zap = .{ .target = try target.id(), .destination = (try target.get(data.Transform)).position } } },
     });
     errdefer world.destroy(entity) catch unreachable;
     try lifecycle.bind(world, slots, projections, entity, "");
@@ -77,8 +79,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 state.stepped_ms += 100;
                 const at = state.stepped_ms;
                 if (value.emitted < 2) {
-                    if (world.find(value.target)) |target| {
-                        const point = (try world.get(target, data.Transform)).position;
+                    if (access.find(world, value.target)) |target| {
+                        const point = (try target.get(data.Transform)).position;
                         const delta = v.subtract(point, pose.position);
                         const horizontal = @sqrt(delta[0] * delta[0] + delta[1] * delta[1]);
                         const angles: v.Vec3 = .{ -std.math.atan2(delta[2], horizontal) * 180 / std.math.pi, std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi - 5, 0 };
@@ -89,9 +91,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 for (&value.bolts) |*maybe| if (maybe.*) |*bolt| {
                     if (!bolt.active or bolt.next_ms > at) continue;
                     // Each child applies its final tick before its expiry/visibility test.
-                    try @import("area_damage.zig").apply(world, slots, .{ .owner = state.owner, .weapon = 0, .origin = bolt.contact, .damage = 5, .radius = 90, .skip_slot = skip, .self_scale = 0, .inertial = true }, at);
+                    const contact = try @import("region_collision.zig").owned(world, .{ .start = pose.position, .end = bolt.contact, .mins = @splat(0), .maxs = @splat(0), .slot = c.ENTITYNUM_NONE, .mask = 0 }, state.owner);
+                    try @import("area_damage.zig").apply(world, slots, .{ .world = contact.world, .owner = state.owner, .weapon = 0, .origin = bolt.contact, .damage = 5, .radius = 90, .skip_slot = skip, .self_scale = 0, .inertial = true }, at);
                     bolt.next_ms += 100;
-                    const clear = try engine.collisionService().trace(.{ .start = pose.position, .end = bolt.contact, .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
+                    const clear = try @import("region_collision.zig").trace(.{ .start = pose.position, .end = bolt.contact, .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
                     if (at >= bolt.born_ms + 250 or clear.fraction < 1) bolt.active = false;
                 };
             }

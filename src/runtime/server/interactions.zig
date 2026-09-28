@@ -15,13 +15,12 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     const v = @import("../domain/vector.zig");
     var start = transform.position;
     start[2] += player.view_height;
-    const trace = try engine.collisionService().trace(.{ .start = start, .end = v.add(start, v.scale(v.basis(transform.angles).forward, 96)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(player_entity, data.Binding)).slot, .mask = c.MASK_SHOT });
-    if (trace.entity >= slots.occupants.len) return;
-    const target = slots.occupants[trace.entity] orelse return;
-    const object = (world.get(target, data.MapObject) catch return).*;
+    const trace = try @import("region_collision.zig").trace(.{ .start = start, .end = v.add(start, v.scale(v.basis(transform.angles).forward, 96)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(player_entity, data.Binding)).slot, .mask = c.MASK_SHOT });
+    const target = @import("region_access.zig").victim(world, slots, trace) orelse return;
+    const object = (target.get(data.MapObject) catch return).*;
     if (std.mem.startsWith(u8, object.classname, "trigger_")) return;
     if (object.targetname.len != 0 and !std.mem.eql(u8, object.classname, "func_button") and !@import("healers.zig").owns(object.classname)) return;
-    try router.activate(world, slots, projections, target, try world.persistentId(player_entity), now);
+    try router.activateReference(world, slots, projections, target, null, try world.persistentId(player_entity), now);
 }
 pub fn overlap(a: *const abi.EntityProjection, b: *const abi.EntityProjection, padding: f32) bool {
     for (0..3) |axis| if (a.shared.absmax[axis] + padding < b.shared.absmin[axis] or a.shared.absmin[axis] - padding > b.shared.absmax[axis]) return false;

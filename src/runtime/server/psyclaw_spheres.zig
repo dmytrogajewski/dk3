@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -9,7 +10,7 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").psyclaw;
 const lifecycle = @import("weapon_entities.zig");
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     for (0..2) |i| {
         const random = try world.get(owner, data.Random);
         const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
@@ -53,12 +54,14 @@ fn spin(small: bool) v.Vec3 {
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     var attack = (try world.get(entity, data.ActorAttack)).*;
+    if (now <= attack.stepped_ms) return;
+    var motion = @import("region_motion.zig").Cursor.init(world, attack.owner);
     var sphere = attack.attack.psyclaw_sphere;
     var pose = (try world.get(entity, data.Transform)).*;
     const velocity = (try world.get(entity, data.Velocity)).linear;
     const body = (try world.get(entity, data.Body)).*;
-    const owner = world.find(attack.owner);
-    const skip: u16 = if (owner) |actor| (try world.get(actor, data.Binding)).slot else c.ENTITYNUM_NONE;
+    const owner = @import("region_access.zig").find(world, attack.owner);
+    const skip: u16 = if (world.find(attack.owner)) |actor| (try world.get(actor, data.Binding)).slot else c.ENTITYNUM_NONE;
     // The reference writes an eight-second hook lifetime but never checks it for
     // flying spheres. Native ownership bounds that omitted cleanup explicitly.
     const expiry = attack.born_ms + 8000;
@@ -66,18 +69,18 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const at = @min(@min(now, expiry), attack.stepped_ms + 50);
         const seconds = @as(f32, @floatFromInt(at - attack.stepped_ms)) * 0.001;
         pose.angles = v.add(pose.angles, v.scale(spin(sphere.small), seconds));
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = skip, .mask = c.MASK_SHOT });
+        const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = skip, .mask = c.MASK_SHOT });
         pose.position = hit.end;
         attack.stepped_ms = at;
         if (hit.fraction < 1 or hit.start_solid) {
-            if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-                if ((world.get(victim, data.Health) catch null) != null) {
+            if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+                if ((victim.get(data.Health) catch null) != null) {
                     var source = attack.owner;
                     var applied_warp = false;
-                    if (owner != null and (world.get(victim, data.Player) catch null) != null) {
-                        const ailments = try world.get(victim, data.Ailments);
+                    if (owner != null and (victim.get(data.Player) catch null) != null) {
+                        const ailments = try victim.get(data.Ailments);
                         if (ailments.warp == null or ailments.warp.?.until_ms <= at) {
-                            const id = try world.persistentId(victim);
+                            const id = try victim.id();
                             ailments.warp = .{ .source = attack.owner, .until_ms = at + 8000, .next_ms = at + 100, .random = (attack.owner *% 2654435761) ^ id };
                             // Contact changes the reference sphere's owner to the
                             // player before damage: retain that first-hit attribution.
@@ -85,10 +88,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                             applied_warp = true;
                         }
                     }
-                    _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(sphere.damage)), at, .{ .source = source, .attacker_class = "monster_psyclaw" });
-                    if (!applied_warp) try @import("weapon_damage.zig").shove(world, victim, source, velocity, sphere.damage, at);
+                    _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(sphere.damage)), at, .{ .source = source, .attacker_class = "monster_psyclaw" });
+                    if (!applied_warp) try @import("weapon_damage.zig").shove(victim.world, victim.entity, source, velocity, sphere.damage, at);
                 }
-            };
+            }
             return lifecycle.remove(world, slots, projections, entity);
         }
         while (sphere.next_ms <= at) {
@@ -101,4 +104,5 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     (try world.get(entity, data.ActorAttack)).* = attack;
     (try world.get(entity, data.Transform)).* = pose;
     try publish(world, entity, projections, now);
+    try motion.finish(world, entity, now);
 }

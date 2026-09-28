@@ -42,15 +42,15 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
             actor.mode = .idle;
             velocity.linear = @splat(0);
         } else if (sensed.enemy) |target| {
-            const enemy = (try world.get(target, data.Transform)).position;
+            const enemy = (try target.get(data.Transform)).position;
             const previous = state.phase;
             if (std.mem.eql(f32, &state.previous, &pose.position)) state.blocked +|= 1;
             state.previous = pose.position;
             switch (state.phase) {
                 .chase => {
                     if (!state.flying and (@abs(enemy[2] - pose.position[2]) > 150 or !sensed.visible)) state.flying = true;
-                    const target_slot = (try world.get(target, data.Binding)).slot;
-                    const wet = try @import("actor_water.zig").level(pose.position, body.*, slot) > 0 or try @import("actor_water.zig").level(enemy, (try world.get(target, data.Body)).*, target_slot) > 0;
+                    const target_slot = (try target.get(data.Binding)).slot;
+                    const wet = try @import("actor_water.zig").level(pose.position, body.*, slot) > 0 or try @import("actor_water.zig").level(enemy, (try target.get(data.Body)).*, target_slot) > 0;
                     if (state.flying and wet) {
                         try retreat(actors, world, entity, actor, pose.*, body.*, enemy, definition, now);
                         if ((try world.get(entity, data.Random)).next() > 0.5) try sound(world, slots, projections, pose.position, slot, "e2/m_griffonsight.wav", now);
@@ -68,7 +68,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
                         velocity.linear[2] = definition.upward_speed * 1.1;
                         pose.angles[1] = std.math.atan2(velocity.linear[1], velocity.linear[0]) * 180 / std.math.pi;
                         // Preserve the launch lift, but trace it to avoid moving through a ceiling.
-                        const lift = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, 10 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+                        const lift = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, 10 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
                         pose.position = lift.end;
                         actor.melee.begin(4, now);
                     } else if (state.flying and state.blocked > 2) {
@@ -106,7 +106,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
                     if (sensed.distance <= 150) {
                         try sound(world, slots, projections, pose.position, slot, "e2/m_griffonataka.wav", now);
                         const source = try world.persistentId(entity);
-                        if (try @import("weapon_damage.zig").hurt(world, target, source, 0, 15, now, false)) try @import("weapon_damage.zig").shove(world, target, source, v.normalize(v.subtract(enemy, pose.position)), 15, now);
+                        if (try @import("weapon_damage.zig").hurt(target.world, target.entity, source, 0, 15, now, false)) try @import("weapon_damage.zig").shove(target.world, target.entity, source, v.normalize(v.subtract(enemy, pose.position)), 15, now);
                     } else if ((try world.get(entity, data.Random)).next() > 0.3) try sound(world, slots, projections, pose.position, slot, "e2/m_griffonsight.wav", now);
                 },
                 .attack => {

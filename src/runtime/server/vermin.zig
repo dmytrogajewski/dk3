@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -66,7 +67,7 @@ pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World
     actor.mode = if (actor.melee.active) .attack else if (sensed.visible) .idle else .chase;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing, now);
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, facing: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, facing: bool, now: i64) !void {
     const index = actor.melee.pose;
     const sequence = definition.attacks[index];
     const slot = (try world.get(entity, data.Binding)).slot;
@@ -91,13 +92,13 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
         return;
     }
     const aim = try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random));
-    const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-        if ((world.get(victim, data.Health) catch null) == null) return;
+    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+    if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+        if ((victim.get(data.Health) catch null) == null) return;
         const amount = definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;
         const source = try world.persistentId(entity);
-        _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = source, .attacker_class = "monster_venomvermin" });
-        try @import("ailments.zig").apply(world, victim, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, source, 0, now);
+        _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(amount)), now, .{ .source = source, .attacker_class = "monster_venomvermin" });
+        try @import("ailments.zig").apply(victim.world, victim.entity, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, source, 0, now);
         if (definition.second_attack_sounds[index].len > 0) try @import("events.zig").sound(world, slots, projections, definition.second_attack_sounds[index], pose.position, slot, c.CHAN_WEAPON, now);
-    };
+    }
 }

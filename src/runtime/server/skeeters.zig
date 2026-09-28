@@ -16,7 +16,7 @@ pub fn pod(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
     const definition = actors.table.definitions[actor.definition];
     const enemy = try perceive(world, slots, entity, actor, pose, definition, now);
     const random = try world.get(entity, data.Random);
-    const xy = if (enemy.enemy) |target| @import("../domain/navigation.zig").horizontalDistance(pose.position, (try world.get(target, data.Transform)).position) else std.math.inf(f32);
+    const xy = if (enemy.enemy) |target| @import("../domain/navigation.zig").horizontalDistance(pose.position, (try target.get(data.Transform)).position) else std.math.inf(f32);
     actor.pod.notice(now, enemy.visible, xy, random.next(), random.next());
     const previous = actor.pod.phase;
     if (actor.pod.tick(now, definition.hatch.duration())) {
@@ -43,7 +43,7 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
     if (now >= actor.think_ms) {
         actor.think_ms = now + 100;
         var enemy = try perceive(world, slots, entity, actor, pose.*, definition, now);
-        if (enemy.enemy) |target| if ((try world.get(target, data.Player)).water_level == 3) {
+        if (enemy.enemy) |target| if ((try target.get(data.Player)).water_level == 3) {
             actor.threat = 0;
             enemy.enemy = null;
         };
@@ -56,14 +56,14 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
         }
         if (hit and enemy.enemy != null) {
             const target = enemy.enemy.?;
-            const point = v.add((try world.get(target, data.Transform)).position, .{ 0, 0, 8 });
+            const point = v.add((try target.get(data.Transform)).position, .{ 0, 0, 8 });
             const direction = v.normalize(v.subtract(point, pose.position));
-            const contact = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-            if (contact.entity < slots.occupants.len) if (slots.occupants[contact.entity]) |victim| if ((world.get(victim, data.Player) catch null) != null) {
+            const contact = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+            if (@import("region_access.zig").victim(world, slots, contact)) |victim| if ((victim.get(data.Player) catch null) != null) {
                 const amount = definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;
-                _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = try world.persistentId(entity) });
+                _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(amount)), now, .{ .source = try world.persistentId(entity) });
                 var buffer: [120]u8 = undefined;
-                engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 skeeter: id={d} melee={d} damage={d:.2}\n", .{ try world.persistentId(entity), try world.persistentId(victim), amount }));
+                engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 skeeter: id={d} melee={d} damage={d:.2}\n", .{ try world.persistentId(entity), try victim.id(), amount }));
             };
         }
         if (actor.skeeter.phase == .attack) try @import("actor_attack_sounds.zig").at(world, slots, projections, entity, actor, definition, 0, actor.skeeter.started_ms, now, 3);
@@ -71,7 +71,7 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
         if (actor.skeeter.phase == .hatching) {
             // Supplied hatch animation lifts the emerging skeeter four units per think.
             const destination = v.add(pose.position, .{ 0, 0, 4 });
-            const trace = try engine.collisionService().trace(.{ .start = pose.position, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
+            const trace = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
             pose.position = trace.end;
         } else if (enemy.enemy != null and actor.skeeter.phase != .attack) {
             const destination = if (actor.skeeter.phase == .retreat) actor.skeeter.retreat else v.add(actor.threat_position, .{ 0, 0, 24 });

@@ -2,6 +2,8 @@
 //! Authored stationary turret activation, six-shot chains and target admission.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
+const access = @import("region_access.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -27,22 +29,23 @@ pub fn configure(object: data.MapObject, now: i64, last_frame: u16) !policy.Stat
     state.hit_sound = prop.text(object, "hit_sound") orelse state.hit_sound;
     return state;
 }
-fn player(world: *data.World, entity: ecs.Entity) bool {
-    const state = world.get(entity, data.Player) catch return false;
-    return state.mode == .normal and (world.get(entity, data.Health) catch return false).current > 0;
+fn player(entity: Ref) bool {
+    const state = entity.get(data.Player) catch return false;
+    return state.mode == .normal and (entity.get(data.Health) catch return false).current > 0;
 }
-fn target(world: *data.World, slots: *Slots, actor: *data.Actor, pose: data.Transform) !?ecs.Entity {
-    if (world.find(actor.threat)) |enemy| if (player(world, enemy) and v.length(v.subtract((try world.get(enemy, data.Transform)).position, pose.position)) <= actor.rockgat.range) return enemy;
+fn target(world: *data.World, slots: *Slots, actor: *data.Actor, pose: data.Transform) !?Ref {
+    if (access.find(world, actor.threat)) |enemy| if (player(enemy) and v.length(v.subtract((try enemy.get(data.Transform)).position, pose.position)) <= actor.rockgat.range) return enemy;
     actor.threat = 0;
     // The reference enumerates clients in slot order, despite its nearest-client comment.
-    for (slots.occupants[0..Slots.clients]) |occupant| if (occupant) |enemy| {
-        if (!player(world, enemy) or v.length(v.subtract((try world.get(enemy, data.Transform)).position, pose.position)) >= actor.rockgat.range) continue;
-        actor.threat = try world.persistentId(enemy);
+    var candidates = access.Damageables.init(world, slots);
+    while (candidates.next()) |enemy| {
+        if (!player(enemy) or v.length(v.subtract((try enemy.get(data.Transform)).position, pose.position)) >= actor.rockgat.range) continue;
+        actor.threat = try enemy.id();
         return enemy;
-    };
+    }
     return null;
 }
-fn shot(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, enemy: ecs.Entity, pose: data.Transform, state: *policy.State, now: i64) !void {
+fn shot(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, enemy: Ref, pose: data.Transform, state: *policy.State, now: i64) !void {
     const contact = try @import("actor_bullets.zig").fire(world, slots, projections, entity, enemy, pose, .{ .range = state.range, .damage = state.damage, .random_damage = state.random_damage }, now);
     state.shots +%= 1;
     var text: [128]u8 = undefined;
@@ -53,8 +56,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     // Each chain has its own scheduled callback. A late frame runs one callback,
     // then schedules the next; it does not collapse all five shots into one tick.
     for (&state.bursts) |*entry| if (entry.*) |*burst| {
-        const enemy = world.find(actor.threat);
-        if (enemy == null or !player(world, enemy.?)) {
+        const enemy = access.find(world, actor.threat);
+        if (enemy == null or !player(enemy.?)) {
             entry.* = null;
             continue;
         }
@@ -86,15 +89,15 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             const enemy = try target(world, slots, actor, pose.*);
             var retained = false;
             if (enemy) |target_entity| {
-                const target_pose = (try world.get(target_entity, data.Transform)).*;
+                const target_pose = (try target_entity.get(data.Transform)).*;
                 actor.threat_position = target_pose.position;
-                const body = (try world.get(target_entity, data.Body)).*;
+                const body = (try target_entity.get(data.Body)).*;
                 const center = v.add(target_pose.position, v.scale(v.add(body.mins, body.maxs), 0.5));
                 const delta = v.normalize(v.subtract(center, pose.position));
                 pose.angles = .{ 0, std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi, 0 };
                 retained = now < state.next_attack_ms;
                 if (!retained) {
-                    const sight = try engine.collisionService().trace(.{ .start = pose.position, .end = target_pose.position, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID });
+                    const sight = try @import("region_collision.zig").trace(.{ .start = pose.position, .end = target_pose.position, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID });
                     retained = !sight.start_solid and sight.fraction == 1 and policy.pitchAllowed(delta[2]);
                     if (retained) {
                         if (now > state.next_sound_ms) {

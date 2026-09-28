@@ -2,19 +2,20 @@
 //! Class-requested evasion through supplied hide nodes and ordinary locomotion.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const engine = @import("../engine/server.zig");
 const c = @import("../engine/abi.zig").c;
 const v = @import("../domain/vector.zig");
 const Routes = @import("air_routes.zig").Routes;
 const policy = @import("actor_catalog").evasion;
-pub fn targeted(world: *data.World, entity: ecs.Entity, target: ecs.Entity, pose: data.Transform) !bool {
-    const other = (try world.get(target, data.Transform)).*;
-    if (world.get(target, data.Player) catch null) |player| {
+pub fn targeted(world: *data.World, entity: ecs.Entity, target: Ref, pose: data.Transform) !bool {
+    const other = (try target.get(data.Transform)).*;
+    if (target.get(data.Player) catch null) |player| {
         // Native targeting currently uses actual crosshair contact, as Cambot does.
         const eye = v.add(other.position, .{ 0, 0, player.view_height });
-        const hit = try engine.collisionService().trace(.{ .start = eye, .end = v.add(eye, v.scale(v.basis(other.angles).forward, 8192)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(target, data.Binding)).slot, .mask = c.MASK_SHOT });
-        return hit.entity == (try world.get(entity, data.Binding)).slot;
+        const hit = try @import("region_collision.zig").owned(target.world, .{ .start = eye, .end = v.add(eye, v.scale(v.basis(other.angles).forward, 8192)), .mins = @splat(0), .maxs = @splat(0), .slot = (try target.get(data.Binding)).slot, .mask = c.MASK_SHOT }, try target.id());
+        return hit.fraction < 1 and @import("region_collision.zig").reaches(target.world, hit, .{ .world = world, .entity = entity });
     }
     const direction = v.subtract(other.position, pose.position);
     const yaw = std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi;
@@ -31,17 +32,17 @@ pub fn update(actor: *data.Actor, pose: data.Transform, now: i64) bool {
     actor.mode = .chase;
     return true;
 }
-pub fn start(routes: *const Routes, world: *data.World, entity: ecs.Entity, target: ecs.Entity, actor: *data.Actor, pose: data.Transform, ranged: bool, now: i64) !bool {
+pub fn start(routes: *const Routes, world: *data.World, entity: ecs.Entity, target: Ref, actor: *data.Actor, pose: data.Transform, ranged: bool, now: i64) !bool {
     const flags = (try world.get(entity, data.MapObject)).flags;
     if (flags & 0x80 != 0) return false;
     const random = try world.get(entity, data.Random);
     const kind = policy.choose(ranged, flags & 0x20 != 0, random.next(), random.next());
     return startKind(routes, world, entity, target, actor, pose, kind, now);
 }
-pub fn dodge(routes: *const Routes, world: *data.World, entity: ecs.Entity, target: ecs.Entity, actor: *data.Actor, pose: data.Transform, now: i64) !bool {
+pub fn dodge(routes: *const Routes, world: *data.World, entity: ecs.Entity, target: Ref, actor: *data.Actor, pose: data.Transform, now: i64) !bool {
     return startKind(routes, world, entity, target, actor, pose, .dodge, now);
 }
-fn startKind(routes: *const Routes, world: *data.World, entity: ecs.Entity, target: ecs.Entity, actor: *data.Actor, pose: data.Transform, kind: policy.Kind, now: i64) !bool {
+fn startKind(routes: *const Routes, world: *data.World, entity: ecs.Entity, target: Ref, actor: *data.Actor, pose: data.Transform, kind: policy.Kind, now: i64) !bool {
     const random = try world.get(entity, data.Random);
     const body = (try world.get(entity, data.Body)).*;
     const slot = (try world.get(entity, data.Binding)).slot;
@@ -49,8 +50,8 @@ fn startKind(routes: *const Routes, world: *data.World, entity: ecs.Entity, targ
     var duration: i64 = if (kind == .strafe) 1100 else 2000;
     if (kind == .dodge and routes.nodes.len > 0 and random.next() > 0.5) {
         const visible = random.next() < 0.2;
-        const enemy = (try world.get(target, data.Transform)).position;
-        const enemy_slot = (try world.get(target, data.Binding)).slot;
+        const enemy = (try target.get(data.Transform)).position;
+        const enemy_slot = (try target.get(data.Binding)).slot;
         var choices: [4]u16 = undefined;
         var count: usize = 0;
         var nearest: f32 = 768;
@@ -58,7 +59,7 @@ fn startKind(routes: *const Routes, world: *data.World, entity: ecs.Entity, targ
             if (!visible and node.flags & 0x1000 == 0) continue;
             const distance = v.length(v.subtract(node.position, pose.position));
             if (distance >= nearest) continue;
-            const hit = try engine.collisionService().trace(.{ .start = enemy, .end = node.position, .mins = @splat(0), .maxs = @splat(0), .slot = enemy_slot, .mask = c.MASK_SOLID });
+            const hit = try @import("region_collision.zig").owned(target.world, .{ .start = enemy, .end = node.position, .mins = @splat(0), .maxs = @splat(0), .slot = enemy_slot, .mask = c.MASK_SOLID }, try target.id());
             if ((hit.fraction == 1) != visible) continue;
             if (visible) {
                 choices[0] = @intCast(i);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -71,7 +72,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     actor.mode = if (actor.melee.active) .attack else .chase;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing, now);
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, facing: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, facing: bool, now: i64) !void {
     const index = actor.melee.pose;
     const sequence = definition.attacks[index];
     const slot = (try world.get(entity, data.Binding)).slot;
@@ -91,22 +92,22 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
         return;
     }
     const aim = try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random));
-    const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-        if ((world.get(victim, data.Health) catch null) == null) return;
+    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+    if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+        if ((victim.get(data.Health) catch null) == null) return;
         const amount = definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;
-        _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = try world.persistentId(entity), .attacker_class = catalog.entries[actor.definition].classname });
+        _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(amount)), now, .{ .source = try world.persistentId(entity), .attacker_class = catalog.entries[actor.definition].classname });
         if (lightning) {
             try @import("knight_attacks.zig").punch(world, slots, projections, entity, pose, now);
-            if ((world.get(victim, data.Actor) catch null) != null or (world.get(victim, data.Player) catch null) != null) {
+            if ((victim.get(data.Actor) catch null) != null or (victim.get(data.Player) catch null) != null) {
                 var impulse = v.scale(v.basis(pose.angles).forward, amount * 30);
                 impulse[2] = 40 + amount;
-                const velocity = try world.get(victim, data.Velocity);
+                const velocity = try victim.get(data.Velocity);
                 velocity.linear = v.add(velocity.linear, impulse);
-                (try world.get(victim, data.Body)).grounded = false;
-                if (world.get(victim, data.Actor) catch null) |other| other.ground_entity = c.ENTITYNUM_NONE;
-                if (world.get(victim, data.Player) catch null) |other| other.ground_entity = c.ENTITYNUM_NONE;
+                (try victim.get(data.Body)).grounded = false;
+                if (victim.get(data.Actor) catch null) |other| other.ground_entity = c.ENTITYNUM_NONE;
+                if (victim.get(data.Player) catch null) |other| other.ground_entity = c.ENTITYNUM_NONE;
             }
         }
-    };
+    }
 }

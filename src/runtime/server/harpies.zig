@@ -3,6 +3,7 @@
 //! the reference's hover-only strafing callback is not selected by this class.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -32,7 +33,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
             velocity.linear = @splat(0);
             actor.mode = .idle;
         } else if (sensed.enemy) |target| {
-            const enemy = (try world.get(target, data.Transform)).position;
+            const enemy = (try target.get(data.Transform)).position;
             const previous = state.phase;
             switch (state.phase) {
                 .chase => {
@@ -146,13 +147,13 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
         try @import("actor_motion.zig").step(actor, pose, body, velocity, navigation, actor.threat_position, definition.speed * slow, slot, now, elapsed);
     }
 }
-fn terrain(actors: *@import("actors.zig").Actors, world: *data.World, target: ecs.Entity, actor: *data.Actor, pose: data.Transform, slot: u16, definition: Definition, now: i64) !bool {
-    const target_room = try flight.roomHeight((try world.get(target, data.Transform)).position, (try world.get(target, data.Binding)).slot, 500);
+fn terrain(actors: *@import("actors.zig").Actors, _: *data.World, target: Ref, actor: *data.Actor, pose: data.Transform, slot: u16, definition: Definition, now: i64) !bool {
+    const target_room = try flight.roomHeight((try target.get(data.Transform)).position, (try target.get(data.Binding)).slot, 500);
     const own_room = try flight.roomHeight(pose.position, slot, 500);
     const state = &actor.harpy;
     switch (policy.transition(state.flying, target_room, own_room)) {
         .land => {
-            const floor = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, -500 }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+            const floor = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, -500 }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
             const node = actors.water_routes.nearest(v.add(floor.end, .{ 0, 0, 50 })) orelse return false;
             state.destination = v.add(node, .{ 0, 0, 85 });
             state.until_ms = now + 2000 + @as(i64, @intFromFloat(v.length(v.subtract(state.destination, pose.position)) / definition.speed * 1000));
@@ -181,10 +182,10 @@ fn moveAir(actors: *@import("actors.zig").Actors, pose: *data.Transform, body: d
     } else velocity.linear = @splat(0);
 }
 fn monsterInPath(world: *data.World, slots: *Slots, pose: data.Transform, body: data.Body, enemy: v.Vec3, slot: u16) !bool {
-    const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(enemy, .{ 0, 0, -24 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |other| {
-        return (world.get(other, data.Actor) catch null) != null and (world.get(other, data.Health) catch return false).current > 0;
-    };
+    const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(enemy, .{ 0, 0, -24 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+    if (@import("region_access.zig").victim(world, slots, hit)) |other| {
+        return (other.get(data.Actor) catch null) != null and (other.get(data.Health) catch return false).current > 0;
+    }
     return false;
 }
 fn dodge(actors: *@import("actors.zig").Actors, world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, body: data.Body, now: i64) !void {

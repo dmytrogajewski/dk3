@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -87,7 +88,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     actor.mode = if (actor.melee.active) .attack else .chase;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing, now);
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, facing: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, facing: bool, now: i64) !void {
     const index = actor.melee.pose;
     const sequence = definition.attacks[index];
     const slot = (try world.get(entity, data.Binding)).slot;
@@ -107,15 +108,15 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
     if (!actor.melee.event(1, at, now, false) or (!jump and !facing)) return;
     const weapon: catalog.weapon.Tuning = if (actor.rat.poison) definition.rat_poison else .{ .damage = definition.damage, .random_damage = definition.random_damage, .range = definition.range, .offset = definition.offset, .spread = definition.spread };
     const aim = try @import("actor_aim.zig").lead(world, target, pose, weapon.offset, try world.get(entity, data.Random));
-    const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, weapon.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-        if ((world.get(victim, data.Health) catch null) == null) return;
+    const hit = try @import("actor_collision.zig").service().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, weapon.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+    if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+        if ((victim.get(data.Health) catch null) == null) return;
         const source = try world.persistentId(entity);
         const amount = weapon.damage + (try world.get(entity, data.Random)).next() * weapon.random_damage;
-        _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = source, .attacker_class = catalog.entries[actor.definition].classname });
+        _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(amount)), now, .{ .source = source, .attacker_class = catalog.entries[actor.definition].classname });
         if (actor.rat.poison) {
-            try @import("ailments.zig").apply(world, victim, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, source, 0, now);
+            try @import("ailments.zig").apply(victim.world, victim.entity, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, source, 0, now);
             if (definition.second_attack_sounds[index].len > 0) try @import("events.zig").sound(world, slots, projections, definition.second_attack_sounds[index], pose.position, slot, c.CHAN_WEAPON, now);
         }
-    };
+    }
 }

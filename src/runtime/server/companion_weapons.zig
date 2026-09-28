@@ -2,6 +2,7 @@
 //! Companion selection consults weapon-owned eligibility and enemy-owned choices.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const catalog = @import("weapon_catalog");
 const v = @import("../domain/vector.zig");
@@ -32,19 +33,19 @@ pub fn select(loadout: data.Weapons, table: *const weapons.Table, situation: Sit
     };
     return result;
 }
-pub fn choose(world: *data.World, entity: ecs.Entity, enemy: ?ecs.Entity, table: *const weapons.Table, episode: u8) !u5 {
+pub fn choose(world: *data.World, entity: ecs.Entity, enemy: ?Ref, table: *const weapons.Table, episode: u8) !u5 {
     const companion = (try world.get(entity, data.Companion)).*;
     if (companion.carrying) return 0;
     const pose = (try world.get(entity, data.Transform)).position;
     var situation: Situation = .{ .episode = episode };
-    if (world.find(companion.owner)) |owner| {
-        const point = (try world.get(owner, data.Transform)).position;
+    if (@import("region_access.zig").find(world, companion.owner)) |owner| {
+        const point = (try owner.get(data.Transform)).position;
         situation.owner_distance = v.length(v.subtract(pose, point));
-        if (enemy) |target| situation.owner_enemy_distance = v.length(v.subtract((try world.get(target, data.Transform)).position, point));
+        if (enemy) |target| situation.owner_enemy_distance = v.length(v.subtract((try target.get(data.Transform)).position, point));
     }
     if (enemy) |target| {
-        situation.enemy_distance = v.length(v.subtract((try world.get(target, data.Transform)).position, pose));
-        if (world.get(target, data.Actor) catch null) |actor| situation.choices = @import("actor_catalog").entries[actor.definition].companion_choices;
+        situation.enemy_distance = v.length(v.subtract((try target.get(data.Transform)).position, pose));
+        if (target.get(data.Actor) catch null) |actor| situation.choices = @import("actor_catalog").entries[actor.definition].companion_choices;
     }
     return select((try world.get(entity, data.Weapons)).*, table, situation);
 }
@@ -54,19 +55,18 @@ pub fn range(loadout: data.Weapons, id: u5, table: *const weapons.Table) f32 {
     if (policy.empty_melee and loadout.ammo[id] < table.entries[id].ammoCost) return @min(table.entries[id].range, 128);
     return table.entries[id].range;
 }
-pub fn clear(world: *data.World, entity: ecs.Entity, target: ecs.Entity, id: u5, table: *const weapons.Table) !bool {
+pub fn clear(world: *data.World, entity: ecs.Entity, target: Ref, id: u5, table: *const weapons.Table) !bool {
     const entry = catalog.find(id) orelse return false;
     const policy = entry.spec.companion orelse return false;
     const origin = (try world.get(entity, data.Transform)).position;
-    const destination = (try world.get(target, data.Transform)).position;
+    const destination = (try target.get(data.Transform)).position;
     if (@import("../domain/navigation.zig").horizontalDistance(origin, destination) > range((try world.get(entity, data.Weapons)).*, id, table)) return false;
     const slot = (try world.get(entity, data.Binding)).slot;
-    const other = (try world.get(target, data.Binding)).slot;
     const width = policy.clearance;
     const offsets = [_]v.Vec3{ .{ width, 0, width }, .{ 0, 0, width * 2 }, .{ width, 0, width }, .{ 0, 0, 0 } };
     for (offsets[0..if (width == 0) @as(usize, 1) else offsets.len]) |offset| {
-        const trace = try engine.collisionService().trace(.{ .start = v.add(origin, offset), .end = destination, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = if (width == 0) c.MASK_SHOT else c.MASK_PLAYERSOLID });
-        if (trace.start_solid or trace.all_solid or (trace.fraction < 1 and trace.entity != other)) return false;
+        const trace = try @import("region_collision.zig").trace(.{ .start = v.add(origin, offset), .end = destination, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = if (width == 0) c.MASK_SHOT else c.MASK_PLAYERSOLID });
+        if (!@import("region_collision.zig").reaches(world, trace, target)) return false;
     }
     return true;
 }

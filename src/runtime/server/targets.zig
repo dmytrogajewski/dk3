@@ -21,7 +21,7 @@ pub const Router = struct {
     pub fn activate(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {
         return self.activateFrom(world, slots, projections, entity, null, activator, now);
     }
-    pub fn activateFrom(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, source: ?ecs.Entity, activator: u32, now: i64) anyerror!void {
+    pub fn activateFrom(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, source: ?@import("../domain/world_references.zig").Ref, activator: u32, now: i64) anyerror!void {
         if (self.depth >= 64) return error.TargetCycle;
         self.depth += 1;
         defer self.depth -= 1;
@@ -78,8 +78,8 @@ pub const Router = struct {
         if (std.mem.eql(u8, object.classname, "trigger_changetarget")) {
             const next = prop.text(object, "newtarget") orelse return error.MissingNewTarget;
             const matches = try named(world, object.target);
-            for (matches.ids[0..matches.count]) |id| if (world.find(id)) |target| {
-                (try world.get(target, data.MapObject)).target = next;
+            for (matches.ids[0..matches.count]) |id| if (@import("region_access.zig").find(world, id)) |target| {
+                (try target.get(data.MapObject)).target = next;
             };
             return;
         }
@@ -128,37 +128,63 @@ pub const Router = struct {
     fn dispatch(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, activator: u32, now: i64) anyerror!void {
         const object = (try world.get(entity, data.MapObject)).*;
         const own_id = try world.persistentId(entity);
+        const home = try @import("region_access.zig").authored(world, entity);
+        const lookup_world = if (home) |context| &context.world.? else world;
         const killed = prop.text(object, "killtarget") orelse "";
         if (killed.len > 0) {
-            const victims = try named(world, killed);
+            const victims = try named(lookup_world, killed);
             for (victims.ids[0..victims.count]) |id| {
                 if (id == own_id) continue;
-                const victim = world.find(id) orelse continue;
-                try @import("monitors.zig").stop(world, victim);
-                if (slots.find(victim)) |slot| {
-                    engine.unlink(&projections[slot]);
-                    try slots.release(slot, victim);
+                const victim = @import("region_access.zig").find(lookup_world, id) orelse continue;
+                if (victim.world != world) {
+                    const context = @import("region_access.zig").contextFor(victim.world) orelse return error.TargetWorldUnavailable;
+                    const scope = try context.select();
+                    defer scope.deinit();
+                    try @import("monitors.zig").stop(victim.world, victim.entity);
+                    if (context.slots.find(victim.entity)) |slot| {
+                        engine.unlink(&context.projection[slot]);
+                        try context.slots.release(slot, victim.entity);
+                    }
+                    try victim.world.destroy(victim.entity);
+                } else {
+                    try @import("monitors.zig").stop(world, victim.entity);
+                    if (slots.find(victim.entity)) |slot| {
+                        engine.unlink(&projections[slot]);
+                        try slots.release(slot, victim.entity);
+                    }
+                    try world.destroy(victim.entity);
                 }
-                try world.destroy(victim);
             }
         }
         for ([_][]const u8{ object.target, prop.text(object, "target2") orelse "", prop.text(object, "target3") orelse "", prop.text(object, "target4") orelse "" }) |name| {
             if (name.len == 0) continue;
-            const matches = try named(world, name);
+            const matches = try named(lookup_world, name);
             for (matches.ids[0..matches.count]) |id| {
                 if (!world.alive(entity)) return;
                 if (id == own_id) continue;
-                if (world.find(id)) |target| try self.activateFrom(world, slots, projections, target, entity, activator, now);
+                if (@import("region_access.zig").find(lookup_world, id)) |target| try self.activateReference(world, slots, projections, target, .{ .world = world, .entity = entity }, activator, now);
             }
         }
     }
     pub fn fireNamed(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, name: []const u8, source: ecs.Entity, activator: u32, now: i64) anyerror!void {
         if (name.len == 0) return;
-        const matches = try named(world, name);
+        const access = @import("region_access.zig");
+        const home = try access.authored(world, source);
+        const lookup_world = if (home) |context| &context.world.? else world;
+        const matches = try named(lookup_world, name);
         for (matches.ids[0..matches.count]) |id| {
             if (!world.alive(source)) return;
-            if (world.find(id)) |entity| try self.activateFrom(world, slots, projections, entity, source, activator, now);
+            const target = access.find(lookup_world, id) orelse continue;
+            try self.activateReference(world, slots, projections, target, .{ .world = world, .entity = source }, activator, now);
         }
+    }
+    pub fn activateReference(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, target: @import("../domain/world_references.zig").Ref, source: ?@import("../domain/world_references.zig").Ref, activator: u32, now: i64) anyerror!void {
+        if (target.world == world) return self.activateFrom(world, slots, projections, target.entity, source, activator, now);
+        const context = @import("region_access.zig").contextFor(target.world) orelse return error.TargetWorldUnavailable;
+        const scope = try context.select();
+        defer scope.deinit();
+        try context.expose(now);
+        try context.targets.activateFrom(target.world, &context.slots, &context.projection, target.entity, source, activator, now);
     }
     pub fn step(self: *Router, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
         // Newly scheduled work waits until the next frame, preserving a bounded barrier.
@@ -166,7 +192,14 @@ pub const Router = struct {
         for (current, 0..) |entry, index| if (entry) |action| {
             if (action.due_ms > now) continue;
             self.pending[index] = null;
-            if (world.find(action.source)) |entity| try self.dispatch(world, slots, projections, entity, action.activator, now);
+            if (@import("region_access.zig").find(world, action.source)) |source| {
+                if (source.world == world) try self.dispatch(world, slots, projections, source.entity, action.activator, now) else {
+                    const context = @import("region_access.zig").contextFor(source.world) orelse return error.TargetWorldUnavailable;
+                    const scope = try context.select();
+                    defer scope.deinit();
+                    try context.targets.dispatch(source.world, &context.slots, &context.projection, source.entity, action.activator, now);
+                }
+            }
         };
     }
 };

@@ -2,6 +2,7 @@
 //! Crox sensing, supplied melee events and amphibious movement.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const rules = @import("../domain/actors.zig");
 const abi = @import("../engine/abi.zig");
@@ -14,9 +15,9 @@ const Routes = @import("air_routes.zig").Routes;
 
 pub const waterLevel = @import("actor_water.zig").level;
 
-fn strike(world: *data.World, slots: *Slots, entity: ecs.Entity, enemy: ecs.Entity, pose: data.Transform, definition: rules.Definition, now: i64) !void {
-    const direction = v.normalize(v.subtract((try world.get(enemy, data.Transform)).position, pose.position));
-    const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
+fn strike(world: *data.World, slots: *Slots, entity: ecs.Entity, enemy: Ref, pose: data.Transform, definition: rules.Definition, now: i64) !void {
+    const direction = v.normalize(v.subtract((try enemy.get(data.Transform)).position, pose.position));
+    const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
     if (hit.entity >= slots.occupants.len) return;
     const target = slots.occupants[hit.entity] orelse return;
     if ((world.get(target, data.Health) catch null) == null) return;
@@ -36,7 +37,7 @@ pub fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *
     state.water = try waterLevel(pose.position, body, slot);
     const enemy = try @import("actor_perception.zig").perceive(world, slots, entity, actor, pose.*, definition, now);
     var point: ?v.Vec3 = null;
-    if (enemy.enemy) |target| point = (try world.get(target, data.Transform)).position;
+    if (enemy.enemy) |target| point = (try target.get(data.Transform)).position;
     state.wandering = point == null or policy.beyondHeight(point.?[2] - pose.position[2]);
     if (!state.attacking and now >= state.cycle_ms) {
         state.swimming = state.water >= 2;

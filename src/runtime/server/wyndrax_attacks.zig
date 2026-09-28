@@ -2,6 +2,8 @@
 //! NPC Wyndrax/Garroth wisps and Wyndrax's fixed-point lightning discharge.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
+const access = @import("region_access.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -11,6 +13,16 @@ const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").wyndrax;
 const life = @import("weapon_entities.zig");
 pub fn active(world: *data.World, owner: u32) u16 {
+    var count = countActive(world, owner);
+    if (access.contextFor(world)) |context| {
+        var neighbors = access.Neighbors.init(context);
+        while (neighbors.next()) |neighbor| if (&neighbor.world.? != world) {
+            count += countActive(&neighbor.world.?, owner);
+        };
+    }
+    return count;
+}
+fn countActive(world: *data.World, owner: u32) u16 {
     var count: u16 = 0;
     var query = world.queryAccess(data.World.mask(.{data.ActorAttack}), 0, 0);
     defer query.deinit();
@@ -19,15 +31,16 @@ pub fn active(world: *data.World, owner: u32) u16 {
     };
     return count;
 }
-pub fn wisp(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, now: i64) !void {
+
+pub fn wisp(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, now: i64) !void {
     var random = (try world.get(owner, data.Random)).*;
     const speed = 500 + random.next() * 500;
     var personality = random.next();
     if (random.next() > 0.5) personality = -personality;
-    const state: policy.Wisp = .{ .target = try world.persistentId(target), .next_ms = now + 100, .personality = personality, .forward = v.basis(pose.angles).forward, .sprite_scale = 1 + random.next() * 0.5 };
+    const state: policy.Wisp = .{ .target = try target.id(), .next_ms = now + 100, .personality = personality, .forward = v.basis(pose.angles).forward, .sprite_scale = 1 + random.next() * 0.5 };
     (try world.get(owner, data.Random)).* = random;
     const entity = try world.create(null, .{
-        data.Transform{ .position = v.add(pose.position, .{ -10, 10, 22 }), .angles = pose.angles },                                     data.Velocity{ .linear = v.scale(v.normalize(v.subtract((try world.get(target, data.Transform)).position, pose.position)), speed) },
+        data.Transform{ .position = v.add(pose.position, .{ -10, 10, 22 }), .angles = pose.angles },                                     data.Velocity{ .linear = v.scale(v.normalize(v.subtract((try target.get(data.Transform)).position, pose.position)), speed) },
         data.Body{ .mins = @splat(-1), .maxs = @splat(1), .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_SOLID },                 data.Health{ .current = 10, .maximum = 10 },
         data.Hurt{},                                                                                                                     random,
         data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .npc_wisp = state } },
@@ -37,8 +50,8 @@ pub fn wisp(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     try publish(world, entity, projections, now);
     try @import("events.zig").sound(world, slots, projections, "e3/we_wwispshoota.wav", pose.position, (try world.get(owner, data.Binding)).slot, c.CHAN_AUTO, now);
 }
-pub fn zap(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, now: i64) !void {
-    const entity = try world.create(null, .{ data.Transform{ .position = v.add(pose.position, .{ 0, 0, 24 }) }, data.Velocity{}, data.Body{}, data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .wyndrax_zap = .{ .target = try world.persistentId(target), .destination = (try world.get(target, data.Transform)).position } } } });
+pub fn zap(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, now: i64) !void {
+    const entity = try world.create(null, .{ data.Transform{ .position = v.add(pose.position, .{ 0, 0, 24 }) }, data.Velocity{}, data.Body{}, data.ActorAttack{ .owner = try world.persistentId(owner), .born_ms = now, .stepped_ms = now, .attack = .{ .wyndrax_zap = .{ .target = try target.id(), .destination = (try target.get(data.Transform)).position } } } });
     errdefer world.destroy(entity) catch unreachable;
     try life.bind(world, slots, projections, entity, "");
     try publish(world, entity, projections, now);
@@ -66,16 +79,17 @@ pub fn charge(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     for (0..2) |i| try bolt(world, slots, projections, id, origin, .{ .parent = id, .target = id, .destination = destination, .contact = (try world.get(owner, data.Transform)).position, .next_ms = now + 100, .until_ms = now + 750, .kind = .charge, .color = .{ 0.25, 0.45, 0.85 }, .flare = if (i == 0) origin else null, .flare_until_ms = now + 1350, .flare_scale = 5 }, now);
 }
 fn alive(world: *data.World, id: u32) bool {
-    const entity = world.find(id) orelse return false;
-    return (world.get(entity, data.Health) catch return false).current > 0;
+    const entity = access.find(world, id) orelse return false;
+    return (entity.get(data.Health) catch return false).current > 0;
 }
 fn angles(direction: v.Vec3) v.Vec3 {
     return .{ -std.math.atan2(direction[2], @sqrt(direction[0] * direction[0] + direction[1] * direction[1])) * 180 / std.math.pi, std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi, 0 };
 }
-fn visible(start: v.Vec3, end: v.Vec3, slot: u16, target: u16) !bool {
-    const hit = try engine.collisionService().trace(.{ .start = start, .end = end, .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SOLID });
-    return !hit.start_solid and (hit.fraction == 1 or hit.entity == target);
+fn visible(world: *data.World, owner: u32, start: v.Vec3, end: v.Vec3, skip: u32, target: ?Ref) !bool {
+    const hit = try @import("region_collision.zig").from(owner, .{ .start = start, .end = end, .mins = @splat(0), .maxs = @splat(0), .slot = c.ENTITYNUM_NONE, .mask = c.MASK_SOLID }, skip);
+    return if (target) |other| @import("region_collision.zig").reaches(world, hit, other) else !hit.start_solid and !hit.all_solid and hit.fraction == 1;
 }
+
 fn sine(state: *policy.Wisp, pose: data.Transform, velocity: *data.Velocity, enemy: v.Vec3, random: *data.Random) void {
     var delta = v.subtract(enemy, pose.position);
     const distance = v.length(delta);
@@ -150,6 +164,8 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     var attack = (try world.get(entity, data.ActorAttack)).*;
+    if (now <= attack.stepped_ms) return;
+    var motion = @import("region_motion.zig").Cursor.init(world, try world.persistentId(entity));
     var pose = (try world.get(entity, data.Transform)).*;
     var velocity = (try world.get(entity, data.Velocity)).*;
     const slot = (try world.get(entity, data.Binding)).slot;
@@ -157,14 +173,14 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     switch (attack.attack) {
         .npc_wisp => |*state| {
             var random = (try world.get(entity, data.Random)).*;
-            const target = world.find(state.target);
+            const target = access.find(world, state.target);
             // A missing/dead target begins the existing fade, avoiding the
             // source's dangling enemy pointer during departures and reloads.
             if (!alive(world, state.target)) fade(state, now);
             while (attack.stepped_ms < now) {
                 const at = @min(now, @min(attack.stepped_ms + 50, state.next_ms));
                 const body = (try world.get(entity, data.Body)).*;
-                const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, @as(f32, @floatFromInt(at - attack.stepped_ms)) * 0.001)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+                const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, @as(f32, @floatFromInt(at - attack.stepped_ms)) * 0.001)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
                 pose.position = hit.end;
                 if (hit.fraction < 1 or hit.start_solid) {
                     const speed = v.length(velocity.linear);
@@ -182,7 +198,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 attack.stepped_ms = at;
                 if (at < state.next_ms) continue;
                 state.next_ms = at + 100;
-                const enemy = if (target) |other| (try world.get(other, data.Transform)).position else pose.position;
+                const enemy = if (target) |other| (try other.get(data.Transform)).position else pose.position;
                 if (state.fading) {
                     state.alpha -= 0.05;
                     state.scale[0] -= 0.1;
@@ -190,7 +206,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                     state.scale[2] += if (state.alpha < 0.5) @as(f32, -0.2) else 0.1;
                     sine(state, pose, &velocity, enemy, &random);
                     if (state.alpha < 0.001) {
-                        try @import("events.zig").sound(world, slots, projections, "e3/we_wwispaway.wav", pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, at);
+                        try @import("events.zig").soundOwned(world, slots, projections, motion.owner, "e3/we_wwispaway.wav", pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, at);
                         return remove(world, slots, projections, entity);
                     }
                     continue;
@@ -201,13 +217,13 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                     continue;
                 }
                 if (at >= state.sine_ms) sine(state, pose, &velocity, enemy, &random);
-                if (random.next() > 0.55 and v.length(v.subtract(enemy, pose.position)) < 200 and target != null and try visible(pose.position, enemy, slot, (try world.get(target.?, data.Binding)).slot)) {
+                if (random.next() > 0.55 and v.length(v.subtract(enemy, pose.position)) < 200 and target != null and try visible(world, motion.owner, pose.position, enemy, id, target)) {
                     // sinofs/12 is integer division in the authored callback.
                     try bolt(world, slots, projections, attack.owner, pose.position, .{ .parent = id, .target = state.target, .destination = enemy, .contact = enemy, .next_ms = at + 100, .until_ms = at + 200, .kind = .wisp }, at);
                 }
                 if (countBolts(world, id, true) < 10) {
                     const direction = v.normalize(.{ random.next() * 2 - 1, random.next() * 2 - 1, random.next() * 2 - 1 });
-                    const ray = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, 1000)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+                    const ray = try @import("region_collision.zig").from(motion.owner, .{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, 1000)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT }, id);
                     if (ray.entity == c.ENTITYNUM_WORLD and ray.fraction < 1) try bolt(world, slots, projections, attack.owner, pose.position, .{ .parent = id, .destination = ray.end, .contact = ray.end, .next_ms = at + 100, .until_ms = at + 200, .kind = .scenery }, at);
                 }
             }
@@ -218,8 +234,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 attack.stepped_ms += 100;
                 const at = attack.stepped_ms;
                 if (state.emitted >= 4) continue;
-                const target = world.find(state.target) orelse break;
-                const point = (try world.get(target, data.Transform)).position;
+                const target = access.find(world, state.target) orelse break;
+                const point = (try target.get(data.Transform)).position;
                 const aim = angles(v.subtract(point, pose.position));
                 for (0..2) |i| {
                     const forward = v.basis(v.add(aim, .{ 0, if (i == 0) @as(f32, -35) else 45, 0 })).forward;
@@ -232,13 +248,13 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             if (now >= attack.born_ms + 550) return remove(world, slots, projections, entity);
         },
         .wyndrax_bolt => |*state| {
-            const parent = world.find(state.parent) orelse return life.remove(world, slots, projections, entity);
-            const parent_pose = (try world.get(parent, data.Transform)).position;
-            const target = world.find(state.target);
+            const parent = access.find(world, state.parent) orelse return life.remove(world, slots, projections, entity);
+            const parent_pose = (try parent.get(data.Transform)).position;
+            const target = access.find(world, state.target);
             if (state.kind == .wisp or state.kind == .scenery) {
                 pose.position = parent_pose;
                 if (target) |other| {
-                    state.destination = (try world.get(other, data.Transform)).position;
+                    state.destination = (try other.get(data.Transform)).position;
                     state.contact = state.destination;
                 }
             }
@@ -246,21 +262,22 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 const at = state.next_ms;
                 state.next_ms += 100;
                 if (state.kind == .wisp and target != null and state.target != attack.owner) {
-                    _ = try @import("weapon_damage.zig").hurt(world, target.?, attack.owner, 0, 2, at, false);
+                    _ = try @import("weapon_damage.zig").hurt(target.?.world, target.?.entity, attack.owner, 0, 2, at, false);
                 } else if (state.kind == .zap) {
                     const skip: u16 = if (world.find(attack.owner)) |owner| (try world.get(owner, data.Binding)).slot else c.ENTITYNUM_NONE;
-                    try @import("area_damage.zig").apply(world, slots, .{ .owner = attack.owner, .weapon = 0, .origin = state.contact, .damage = 5, .radius = 90, .skip_slot = skip, .self_scale = 0, .inertial = true }, at);
+                    const contact = try @import("region_collision.zig").owned(parent.world, .{ .start = parent_pose, .end = state.contact, .mins = @splat(0), .maxs = @splat(0), .slot = c.ENTITYNUM_NONE, .mask = 0 }, state.parent);
+                    try @import("area_damage.zig").apply(world, slots, .{ .world = contact.world, .owner = attack.owner, .weapon = 0, .origin = state.contact, .damage = 5, .radius = 90, .skip_slot = skip, .self_scale = 0, .inertial = true }, at);
                 }
                 if (state.kind == .wisp or state.kind == .scenery) {
-                    var random = (try world.get(parent, data.Random)).*;
+                    var random = (try parent.get(data.Random)).*;
                     const variant: u8 = 'a' + @as(u8, @intFromFloat(random.next() * 3));
-                    (try world.get(parent, data.Random)).* = random;
+                    (try parent.get(data.Random)).* = random;
                     var buffer: [40]u8 = undefined;
                     try @import("events.zig").sound(world, slots, projections, try std.fmt.bufPrint(&buffer, "e3/we_wwispcordite{c}.wav", .{variant}), pose.position, slot, c.CHAN_AUTO, at);
                 }
                 const source_dead = if (state.kind == .wisp or state.kind == .scenery) !alive(world, state.parent) else false;
                 const target_dead = state.kind == .wisp and !alive(world, state.target);
-                if (at >= state.until_ms or source_dead or target_dead or !try visible(parent_pose, state.contact, (try world.get(parent, data.Binding)).slot, if (target) |other| (try world.get(other, data.Binding)).slot else c.ENTITYNUM_NONE)) {
+                if (at >= state.until_ms or source_dead or target_dead or !try visible(parent.world, @import("region_motion.zig").Cursor.init(parent.world, state.parent).owner, parent_pose, state.contact, state.parent, target)) {
                     // A charge flare outlives the arc that created it.
                     state.until_ms = @min(state.until_ms, at);
                     if (state.flare_until_ms <= now) return life.remove(world, slots, projections, entity);
@@ -277,6 +294,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     (try world.get(entity, data.Transform)).* = pose;
     (try world.get(entity, data.Velocity)).* = velocity;
     try publish(world, entity, projections, now);
+    try motion.finish(world, entity, now);
 }
 fn remove(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, parent: ecs.Entity) !void {
     const id = try world.persistentId(parent);

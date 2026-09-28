@@ -2,6 +2,7 @@
 //! Thunderskeet spray: authored oscillation, world contact and radial damage.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -10,7 +11,7 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const policy = @import("actor_catalog").thunderskeet;
 const lifecycle = @import("weapon_entities.zig");
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, alternate: bool, offset: v.Vec3, now: i64) !void {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, alternate: bool, offset: v.Vec3, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const speed = 128 + random.next() * 64;
     const aim = try @import("actor_aim.zig").lead(world, target, pose, offset, random);
@@ -47,25 +48,24 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.shared.ownerNum = if (world.find(spray.owner)) |owner| (try world.get(owner, data.Binding)).slot else c.ENTITYNUM_NONE;
     engine.link(projection);
 }
-fn explode(world: *data.World, slots: *Slots, entity: ecs.Entity, point: v.Vec3, now: i64) !void {
+fn explode(world: *data.World, slots: *Slots, entity: ecs.Entity, owner_world: u32, point: v.Vec3, now: i64) !void {
     const spray = (try world.get(entity, data.ThunderSpray)).*;
-    for (slots.occupants) |occupant| {
-        const target = occupant orelse continue;
-        if ((world.get(target, data.Health) catch null) == null) continue;
-        const target_pose = (try world.get(target, data.Transform)).*;
-        const body = (try world.get(target, data.Body)).*;
+    var candidates = @import("region_access.zig").Damageables.init(world, slots);
+    while (candidates.next()) |target| {
+        if ((target.get(data.Health) catch null) == null) continue;
+        const target_pose = (try target.get(data.Transform)).*;
+        const body = (try target.get(data.Body)).*;
         var center = target_pose.position;
-        if (world.get(target, data.MapObject) catch null) |object| if (object.model.len > 0 and object.model[0] == '*') {
+        if (target.get(data.MapObject) catch null) |object| if (object.model.len > 0 and object.model[0] == '*') {
             center = v.add(center, v.scale(v.add(body.mins, body.maxs), 0.5));
         };
         const delta = v.subtract(center, point);
-        const amount = policy.blast(v.length(delta), try world.persistentId(target) == spray.owner);
+        const amount = policy.blast(v.length(delta), try target.id() == spray.owner);
         if (amount <= 0) continue;
-        const target_slot = (try world.get(target, data.Binding)).slot;
-        const trace = try engine.collisionService().trace(.{ .start = point, .end = center, .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
-        if (trace.fraction < 1 and trace.entity != target_slot) continue;
-        _ = try @import("weapon_damage.zig").hurt(world, target, spray.owner, 0, amount, now, false);
-        try @import("weapon_damage.zig").shove(world, target, spray.owner, delta, amount, now);
+        const trace = try @import("region_collision.zig").from(owner_world, .{ .start = point, .end = center, .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID }, try world.persistentId(entity));
+        if (!@import("region_collision.zig").reaches(world, trace, target)) continue;
+        _ = try @import("weapon_damage.zig").hurt(target.world, target.entity, spray.owner, 0, amount, now, false);
+        try @import("weapon_damage.zig").shove(target.world, target.entity, spray.owner, delta, amount, now);
     }
     var text: [100]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 thunder: spray={d} world-contact blast=40 radius=256\n", .{try world.persistentId(entity)}));
@@ -76,6 +76,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = occupant orelse continue;
         if (!world.alive(entity)) continue;
         var spray = (world.get(entity, data.ThunderSpray) catch continue).*;
+        if (now <= spray.stepped_ms) continue;
+        var motion = @import("region_motion.zig").Cursor.init(world, try world.persistentId(entity));
         if (now >= (try world.get(entity, data.Lifetime)).expires_ms) {
             try lifecycle.remove(world, slots, projections, entity);
             continue;
@@ -87,7 +89,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         while (spray.stepped_ms < now) {
             const until = @min(now, spray.next_ms);
             const delta = @as(f32, @floatFromInt(until - spray.stepped_ms)) * 0.001;
-            const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, delta)), .mins = @splat(-1), .maxs = @splat(1), .slot = slot, .mask = c.CONTENTS_SOLID | c.CONTENTS_PLAYERCLIP });
+            const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, delta)), .mins = @splat(-1), .maxs = @splat(1), .slot = slot, .mask = c.CONTENTS_SOLID | c.CONTENTS_PLAYERCLIP });
             pose.position = hit.end;
             spray.stepped_ms = until;
             if (hit.fraction < 1 or hit.start_solid) {
@@ -95,18 +97,19 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 break;
             }
             if (until == spray.next_ms) {
-                if (spray.tick(&velocity)) try @import("events.zig").sound(world, slots, projections, policy.spray_sound, pose.position, slot, c.CHAN_AUTO, now);
+                if (spray.tick(&velocity)) try @import("events.zig").soundOwned(world, slots, projections, motion.owner, policy.spray_sound, pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
                 spray.next_ms += 100;
             }
         }
         if (contact) {
-            try explode(world, slots, entity, pose.position, now);
+            try explode(world, slots, entity, motion.owner, pose.position, now);
             try lifecycle.remove(world, slots, projections, entity);
         } else {
             (try world.get(entity, data.ThunderSpray)).* = spray;
             (try world.get(entity, data.Transform)).* = pose;
             (try world.get(entity, data.Velocity)).linear = velocity;
             try publish(world, entity, projections, now);
+            try motion.finish(world, entity, now);
         }
     }
 }

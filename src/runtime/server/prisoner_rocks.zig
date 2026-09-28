@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -9,10 +10,10 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").prisoners;
 const lifecycle = @import("weapon_entities.zig");
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
-    const point = (try world.get(target, data.Transform)).position;
+    const point = (try target.get(data.Transform)).position;
     const delta = v.subtract(point, pose.position);
     const flight = @sqrt(delta[0] * delta[0] + delta[1] * delta[1]) / tuning.speed;
     // A target can move directly above the thrower during the windup. The
@@ -51,6 +52,8 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     var attack = (try world.get(entity, data.ActorAttack)).*;
+    if (now <= attack.stepped_ms) return;
+    var motion = @import("region_motion.zig").Cursor.init(world, attack.owner);
     const rock = attack.attack.prisoner_rock;
     var pose = (try world.get(entity, data.Transform)).*;
     var velocity = (try world.get(entity, data.Velocity)).linear;
@@ -60,17 +63,17 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const at = @min(@min(now, expiry), attack.stepped_ms + 50);
         const seconds = @as(f32, @floatFromInt(at - attack.stepped_ms)) * 0.001;
         velocity[2] -= 400 * seconds;
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, seconds)), .mins = @splat(0), .maxs = @splat(0), .slot = skip, .mask = c.MASK_SHOT });
+        const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, seconds)), .mins = @splat(0), .maxs = @splat(0), .slot = skip, .mask = c.MASK_SHOT });
         pose.position = hit.end;
         attack.stepped_ms = at;
         velocity[2] -= 400 * seconds;
         if (hit.fraction < 1 or hit.start_solid) {
-            if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-                if ((world.get(victim, data.Health) catch null) != null) {
-                    _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(rock.damage)), now, .{ .source = attack.owner });
-                    try @import("weapon_damage.zig").shove(world, victim, attack.owner, velocity, rock.damage, now);
+            if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+                if ((victim.get(data.Health) catch null) != null) {
+                    _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(rock.damage)), now, .{ .source = attack.owner });
+                    try @import("weapon_damage.zig").shove(victim.world, victim.entity, attack.owner, velocity, rock.damage, now);
                 }
-            };
+            }
             return lifecycle.remove(world, slots, projections, entity);
         }
     }
@@ -79,4 +82,5 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     (try world.get(entity, data.Transform)).* = pose;
     (try world.get(entity, data.Velocity)).linear = velocity;
     try publish(world, entity, projections, now);
+    try motion.finish(world, entity, now);
 }

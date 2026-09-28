@@ -34,7 +34,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (actor.reaction_until_ms != null) {
             actor.mode = .idle;
         } else if (sensed.enemy) |target| {
-            const enemy = (try world.get(target, data.Transform)).position;
+            const enemy = (try target.get(data.Transform)).position;
             const delta = v.subtract(enemy, pose.position);
             const angles: [2]f32 = .{ -std.math.atan2(delta[2], @sqrt(delta[0] * delta[0] + delta[1] * delta[1])) * 180 / std.math.pi, std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi };
             for (angles, [_]f32{ definition.pitch_speed, definition.yaw_speed }, 0..) |angle, speed, i| pose.angles[i] += std.math.clamp(@mod(angle - pose.angles[i] + 180, 360) - 180, -speed, speed);

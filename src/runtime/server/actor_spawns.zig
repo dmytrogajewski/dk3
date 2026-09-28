@@ -18,15 +18,15 @@ fn monsterObject(allocator: std.mem.Allocator, source: data.MapObject, classname
     }
     return .{ .classname = classname, .targetname = source.targetname, .target = source.target, .flags = flags, .properties = try pairs.toOwnedSlice(allocator) };
 }
-pub fn use(actors: *Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, source: ?ecs.Entity, now: i64) !void {
+pub fn use(actors: *Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, source: ?@import("../domain/world_references.zig").Ref, now: i64) !void {
     const object = (try world.get(entity, data.MapObject)).*;
     const classname = prop.text(object, "monsterclass") orelse return error.MissingSpawnClass;
     var pose = (try world.get(entity, data.Transform)).*;
     pose.position[2] += 0.03125; // Reference dynamic-spawn collision epsilon.
     if (@import("actor_catalog").find(classname) != null) {
         var flags = object.flags;
-        if (source) |other| if ((world.get(other, data.Actor) catch null) != null) {
-            flags = (try world.get(other, data.MapObject)).flags;
+        if (source) |other| if ((other.get(data.Actor) catch null) != null) {
+            flags = (try other.get(data.MapObject)).flags;
         };
         _ = try actors.spawnAuthored(world, slots, projections, try monsterObject(actors.allocator, object, classname, flags), pose, now);
     } else {

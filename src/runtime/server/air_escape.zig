@@ -22,7 +22,7 @@ pub fn choose(world: *data.World, entity: ecs.Entity, pose: data.Transform, body
                 const direction = v.basis(.{ -20, pose.angles[1] + degrees, 0 }).forward;
                 var point = v.add(pose.position, .{ direction[0] * distance * axis[0], direction[1] * distance * axis[1], direction[2] * distance * axis[2] });
                 if (random.next() > 0.5 and pose.position[2] > enemy[2] + distance * axis[2] / 2) point[2] = pose.position[2] - direction[2] * distance * axis[2];
-                const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = point, .mins = v.scale(body.mins, 1.25), .maxs = v.scale(body.maxs, 1.25), .slot = slot, .mask = c.MASK_SHOT });
+                const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = point, .mins = v.scale(body.mins, 1.25), .maxs = v.scale(body.maxs, 1.25), .slot = slot, .mask = c.MASK_SHOT });
                 if (!hit.start_solid and hit.fraction == 1) {
                     selected = point;
                     break :outer;

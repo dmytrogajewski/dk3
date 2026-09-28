@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -63,15 +64,15 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     actor.mode = if (actor.melee.active) .attack else .chase;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing, clear, now);
 }
-fn clearShot(world: *data.World, entity: ecs.Entity, target: ecs.Entity, pose: data.Transform) !bool {
-    var end = v.add((try world.get(target, data.Transform)).position, .{ 0, 0, 12 });
-    if (world.get(target, data.Player) catch null) |player| if (player.ducked) {
+fn clearShot(world: *data.World, entity: ecs.Entity, target: Ref, pose: data.Transform) !bool {
+    var end = v.add((try target.get(data.Transform)).position, .{ 0, 0, 12 });
+    if (target.get(data.Player) catch null) |player| if (player.ducked) {
         end[2] -= 32;
     };
     const hit = try engine.collisionService().trace(.{ .start = v.add(pose.position, .{ 0, 0, 15 }), .end = end, .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
-    return hit.entity == (try world.get(target, data.Binding)).slot and (try world.get(target, data.Health)).current > 0;
+    return hit.entity == (try target.get(data.Binding)).slot and (try target.get(data.Health)).current > 0;
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, facing: bool, clear: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, facing: bool, clear: bool, now: i64) !void {
     try @import("actor_attack_sounds.zig").emit(world, slots, projections, entity, actor, pose.position, definition, now);
     const index = actor.melee.pose;
     // The second authored strike is unused by the active Battleboar callback.

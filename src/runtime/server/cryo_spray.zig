@@ -10,14 +10,14 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").cryotech;
 const lifecycle = @import("weapon_entities.zig");
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ?ecs.Entity, pose: data.Transform, offset: v.Vec3, definition: @import("../domain/actors.zig").Definition, now: i64) !void {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ?@import("../domain/world_references.zig").Ref, pose: data.Transform, offset: v.Vec3, definition: @import("../domain/actors.zig").Definition, now: i64) !void {
     const axes = v.basis(pose.angles);
     const origin = v.add(pose.position, v.add(v.scale(axes.right, offset[0]), v.add(v.scale(axes.forward, offset[1]), v.scale(v.cross(axes.right, axes.forward), offset[2]))));
     var direction = axes.forward;
     if (target) |enemy| {
-        direction = v.subtract((try world.get(enemy, data.Transform)).position, origin);
-        if (world.get(enemy, data.Player) catch null) |player| if (player.ducked) {
-            const body = (try world.get(enemy, data.Body)).*;
+        direction = v.subtract((try enemy.get(data.Transform)).position, origin);
+        if (enemy.get(data.Player) catch null) |player| if (player.ducked) {
+            const body = (try enemy.get(data.Body)).*;
             direction[2] -= (body.maxs[2] - body.mins[2]) * 0.65;
         };
         direction = v.normalize(direction);
@@ -54,19 +54,21 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = occupant orelse continue;
         if (!world.alive(entity)) continue;
         var spray = (world.get(entity, data.CryoSpray) catch continue).*;
+        if (now <= spray.stepped_ms) continue;
+        var motion = @import("region_motion.zig").Cursor.init(world, spray.owner);
         if (!spray.contacted) {
             const until = @min(now, spray.born_ms + policy.spray_lifetime_ms);
             const pose = (try world.get(entity, data.Transform)).*;
             const velocity = (try world.get(entity, data.Velocity)).linear;
             const slot: u16 = if (world.find(spray.owner)) |owner| (try world.get(owner, data.Binding)).slot else c.ENTITYNUM_NONE;
-            const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, @as(f32, @floatFromInt(@max(0, until - spray.stepped_ms))) * 0.001)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+            const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, @as(f32, @floatFromInt(@max(0, until - spray.stepped_ms))) * 0.001)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
             (try world.get(entity, data.Transform)).position = hit.end;
             spray.stepped_ms = until;
             if (hit.fraction < 1 or hit.start_solid) {
                 spray.contacted = true;
-                if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-                    _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(spray.damage)), now, .{ .source = spray.owner });
-                };
+                if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+                    _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(spray.damage)), now, .{ .source = spray.owner });
+                }
             }
             if (until >= spray.born_ms + policy.spray_lifetime_ms) spray.contacted = true;
         }
@@ -76,5 +78,6 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         }
         (try world.get(entity, data.CryoSpray)).* = spray;
         try publish(world, entity, projections, now);
+        try motion.finish(world, entity, now);
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const c = abi.c;
@@ -55,9 +56,9 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
     const health = (try world.get(entity, data.Health)).current;
     const hurt = (try world.get(entity, data.Hurt)).*;
     const injured = hurt.revision != actor.receipt;
-    const target = world.find(actor.threat);
+    const target = @import("region_access.zig").find(world, actor.threat);
     if (target) |enemy| {
-        const visible = try @import("actors.zig").Actors.visible(pose.position, (try world.get(enemy, data.Transform)).position, (try world.get(entity, data.Binding)).slot, (try world.get(enemy, data.Binding)).slot);
+        const visible = try @import("actors.zig").Actors.visible(pose.position, (try enemy.get(data.Transform)).position, (try world.get(entity, data.Binding)).slot, (try enemy.get(data.Binding)).slot);
         if (visible and !state.awakened) {
             state.aura = true;
             state.awakened = true;
@@ -72,7 +73,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
         state.feedback = false;
         if (now > state.feedback_ready_ms) {
             state.feedback_ready_ms = now + 1000;
-            const direction = if (target) |enemy| v.normalize(v.subtract((try world.get(enemy, data.Transform)).position, pose.position)) else @as(v.Vec3, @splat(0));
+            const direction = if (target) |enemy| v.normalize(v.subtract((try enemy.get(data.Transform)).position, pose.position)) else @as(v.Vec3, @splat(0));
             const point = v.add(v.add(pose.position, v.scale(direction, 32)), .{ 0, 0, 18 });
             try fx.flare(world, slots, projections, entity, point, .{ 5, 10, 7.5 }, .{ 60, 5, 10 }, 700, true, false, now);
             try fx.flare(world, slots, projections, entity, point, .{ 7.5, 5, 10 }, .{ 5, 60, 10 }, 500, true, false, now);
@@ -98,7 +99,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
                 }
             },
             .hidden => if (now > state.next_ms) {
-                const point = if (target) |enemy| try returnPoint(actors, world, entity, pose.*, body.*, (try world.get(enemy, data.Transform)).position) else null;
+                const point = if (target) |enemy| try returnPoint(actors, world, entity, pose.*, body.*, (try enemy.get(data.Transform)).position) else null;
                 if (point) |destination| {
                     pose.position = destination;
                     body.contents = c.CONTENTS_BODY;
@@ -160,7 +161,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
     };
     if (injured) _ = try @import("actor_pain.zig").direct(world, entity, actor, definition, hurt.amount, 2, now);
     if (actor.reaction_until_ms != null) actor.mode = .idle else if (sensed.enemy) |enemy| {
-        const delta = v.subtract((try world.get(enemy, data.Transform)).position, pose.position);
+        const delta = v.subtract((try enemy.get(data.Transform)).position, pose.position);
         const yaw = std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi;
         pose.angles[1] += std.math.clamp(@mod(yaw - pose.angles[1] + 180, 360) - 180, -definition.yaw_speed, definition.yaw_speed);
         const facing = @abs(@mod(yaw - pose.angles[1] + 180, 360) - 180) < 5;
@@ -190,12 +191,12 @@ fn select(world: *data.World, entity: ecs.Entity, actor: *data.Actor, now: i64) 
     actor.melee.begin(actor.kage.voice_pose, now);
     actor.changed_ms = now;
 }
-fn slice(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, target: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: @import("../domain/actors.zig").Definition, now: i64) !void {
+fn slice(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, target: Ref, actor: *data.Actor, pose: data.Transform, definition: @import("../domain/actors.zig").Definition, now: i64) !void {
     const aim = try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random));
-    const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| if (world.get(victim, data.Health) catch null) |health| {
+    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
+    if (@import("region_access.zig").victim(world, slots, hit)) |victim| if (victim.get(data.Health) catch null) |health| {
         const amount: f32 = if (health.current > 1) @floatFromInt(health.current - 1) else definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;
-        _ = try @import("weapon_damage.zig").hurt(world, victim, try world.persistentId(entity), 0, amount, now, false);
+        _ = try @import("weapon_damage.zig").hurt(victim.world, victim.entity, try world.persistentId(entity), 0, amount, now, false);
         const name = definition.second_attack_sounds[actor.melee.pose];
         if (name.len > 0) try sound(world, slots, projections, entity, pose.position, name, now);
     };
@@ -203,12 +204,12 @@ fn slice(world: *data.World, slots: *Slots, projections: []abi.EntityProjection,
 fn protector(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, now: i64) !void {
     const point = v.add(v.add(pose.position, v.scale(v.basis(.{ -5, @as(f32, @floatFromInt(actor.kage.protectors)) * 30, pose.angles[2] }).forward, 64)), .{ 0, 0, 16 });
     const definition = actors.table.definitions[catalog.find("monster_ghost").?];
-    const hit = try engine.collisionService().trace(.{ .start = point, .end = point, .mins = definition.mins, .maxs = definition.maxs, .slot = c.ENTITYNUM_NONE, .mask = c.MASK_PLAYERSOLID });
+    const hit = try @import("region_collision.zig").trace(.{ .start = point, .end = point, .mins = definition.mins, .maxs = definition.maxs, .slot = c.ENTITYNUM_NONE, .mask = c.MASK_PLAYERSOLID });
     _ = (try world.get(entity, data.Random)).next(); // The reference consumes an otherwise unused three-way type roll.
     if (hit.start_solid or hit.all_solid) return;
     var angles: v.Vec3 = @splat(0);
-    if (world.find(actor.threat)) |target| {
-        const direction = v.subtract((try world.get(target, data.Transform)).position, point);
+    if (@import("region_access.zig").find(world, actor.threat)) |target| {
+        const direction = v.subtract((try target.get(data.Transform)).position, point);
         angles[1] = std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi;
     }
     const ghost = try actors.spawnDynamic(world, slots, projections, "monster_ghost", point, angles, now);
@@ -230,7 +231,7 @@ fn returnPoint(actors: *@import("actors.zig").Actors, world: *data.World, entity
     if (@abs(pose.position[2] - enemy[2]) >= 64) return null;
     const slot = (try world.get(entity, data.Binding)).slot;
     var point: ?v.Vec3 = null;
-    const initial = try engine.collisionService().trace(.{ .start = enemy, .end = enemy, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+    const initial = try @import("region_collision.zig").trace(.{ .start = enemy, .end = enemy, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
     if (!initial.start_solid and !initial.all_solid and initial.fraction == 1) point = v.add(enemy, .{ 0, 0, 6 });
     var yaw = pose.angles[1];
     for (0..8) |i| {
@@ -240,7 +241,7 @@ fn returnPoint(actors: *@import("actors.zig").Actors, world: *data.World, entity
         while (distance > 32) : (distance -= 8) {
             const end = v.add(v.add(enemy, v.scale(v.basis(.{ -5, yaw, pose.angles[2] }).forward, distance)), .{ 0, 0, 8 });
             const mid = v.add(enemy, v.scale(v.normalize(v.subtract(end, enemy)), distance * 0.75));
-            const hit = try engine.collisionService().trace(.{ .start = mid, .end = end, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+            const hit = try @import("region_collision.zig").trace(.{ .start = mid, .end = end, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
             if (!hit.start_solid and !hit.all_solid and hit.fraction == 1) {
                 point = end;
                 break;
@@ -251,7 +252,7 @@ fn returnPoint(actors: *@import("actors.zig").Actors, world: *data.World, entity
     const destination = v.add(nearest, .{ 0, 0, 4 });
     // The authored search snaps to a node after testing a different point.
     // Reject a newly obstructed destination instead of embedding the boss.
-    const hit = try engine.collisionService().trace(.{ .start = destination, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+    const hit = try @import("region_collision.zig").trace(.{ .start = destination, .end = destination, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
     return if (hit.start_solid or hit.all_solid) null else destination;
 }
 pub fn death(world: *data.World, slots: *Slots) !void {

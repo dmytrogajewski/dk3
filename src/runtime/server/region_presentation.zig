@@ -47,6 +47,21 @@ pub const State = struct {
         }
         out.groundEntityNum = self.lookup(owner, out.groundEntityNum);
     }
+    fn identitySlot(self: *const State, active: *Context, identity: u32) i32 {
+        if (identity == 0) return c.ENTITYNUM_NONE;
+        if (active.world.?.find(identity)) |entity| if (active.slots.find(entity)) |slot| return slot;
+        for (self.aliases, 0..) |maybe, slot| if (maybe) |alias| if (alias.identity == identity) return @intCast(slot);
+        return c.ENTITYNUM_NONE;
+    }
+    fn actorReferences(self: *const State, active: *Context, out: *c.entityState_t) void {
+        const ref = access.find(&active.world.?, @bitCast(out.dk3Identity)) orelse return;
+        if (ref.get(data.Actor) catch null) |actor| if (out.time2 == @import("actor_catalog").medusa.gaze_tag) {
+            out.otherEntityNum = self.identitySlot(active, actor.medusa.target);
+        };
+        if (ref.get(data.ActorAttack) catch null) |attack| if (attack.attack == .gunner_burst) {
+            out.otherEntityNum = self.identitySlot(active, attack.owner);
+        };
+    }
     pub fn tag(active: *Context) !void {
         // Tag local states even outside campaign mode. Identity guards client
         // interpolation and transient caches when a transport number is reused.
@@ -151,6 +166,9 @@ pub const State = struct {
             engine.link(output);
             output.state.solid = candidate.context.projection[candidate.slot].state.solid;
         }
+        for (active.slots.occupants, 0..) |maybe, slot| if (maybe != null or self.aliases[slot] != null) {
+            self.actorReferences(active, &active.projection[slot].state);
+        };
     }
 };
 

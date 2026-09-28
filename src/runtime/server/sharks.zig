@@ -13,11 +13,11 @@ pub fn think(actors: *Actors, world: *data.World, slots: *Slots, projections: []
     const definition = actors.table.definitions[actor.definition];
     const state = &actor.shark;
     if (state.suspended_target != 0) {
-        if (world.find(state.suspended_target)) |target| {
-            if ((try world.get(target, data.Health)).current <= 0) {
+        if (@import("region_access.zig").find(world, state.suspended_target)) |target| {
+            if ((try target.get(data.Health)).current <= 0) {
                 state.suspended_target = 0;
                 actor.ignore_player = false;
-            } else if (policy.resumes(try @import("actor_water.zig").level((try world.get(target, data.Transform)).position, (try world.get(target, data.Body)).*, (try world.get(target, data.Binding)).slot))) {
+            } else if (policy.resumes(try @import("actor_water.zig").levelOwned(target))) {
                 actor.threat = state.suspended_target;
                 actor.ignore_player = false;
                 state.suspended_target = 0;
@@ -30,8 +30,8 @@ pub fn think(actors: *Actors, world: *data.World, slots: *Slots, projections: []
     const hurt = (try world.get(entity, data.Hurt)).*;
     const injured = hurt.revision != actor.receipt;
     var sensed = try @import("actor_perception.zig").perceive(world, slots, entity, actor, pose.*, definition, now);
-    if (sensed.enemy) |target| if (policy.abandons(try @import("actor_water.zig").level((try world.get(target, data.Transform)).position, (try world.get(target, data.Body)).*, (try world.get(target, data.Binding)).slot))) {
-        state.suspended_target = try world.persistentId(target);
+    if (sensed.enemy) |target| if (policy.abandons(try @import("actor_water.zig").levelOwned(target))) {
+        state.suspended_target = try target.id();
         actor.ignore_player = true;
         actor.threat = 0;
         sensed.enemy = null;
@@ -88,7 +88,7 @@ pub fn swim(actors: *Actors, actor: *data.Actor, pose: *data.Transform, body: *d
         var destination = actor.threat_position;
         // A target with only its feet in water must be approached horizontally;
         // the shark's own route and hull stay in the water.
-        if (try engine.collisionService().contents(destination, slot) & c.MASK_WATER == 0) destination[2] = pose.position[2];
+        if (try @import("actor_collision.zig").service().contents(destination, slot) & c.MASK_WATER == 0) destination[2] = pose.position[2];
         if (try actors.water_routes.nextWater(pose.position, destination, body.*, slot)) |next| {
             const speed = (if (actor.shark.wandering) definition.walk_speed else definition.speed) * slow;
             var direction = v.normalize(v.subtract(next, pose.position));
@@ -102,7 +102,7 @@ pub fn swim(actors: *Actors, actor: *data.Actor, pose: *data.Transform, body: *d
         const slice = @min(50, remaining);
         remaining -= slice;
         const endpoint = v.add(pose.position, v.scale(velocity.linear, @as(f32, @floatFromInt(slice)) * 0.001));
-        if (try engine.collisionService().contents(endpoint, slot) & c.MASK_WATER == 0) {
+        if (try @import("actor_collision.zig").service().contents(endpoint, slot) & c.MASK_WATER == 0) {
             velocity.linear = @splat(0);
             break;
         }

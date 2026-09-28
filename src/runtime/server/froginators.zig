@@ -28,21 +28,21 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         }
     } else if (previous == .spit or previous == .bite) {
         const index = actor.frog.pose();
-        const ground = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, -20 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        const ground = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, -20 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         if (ground.fraction == 1) actor.frog.enter(.decide, now) else {
             const fps: i64 = definition.attacks[index].fps;
             const second: ?i64 = if (definition.second_strikes[index]) |frame| @divTrunc(@as(i64, frame) * 1000, fps) else null;
             const count = actor.frog.strikes(now, @divTrunc(@as(i64, definition.strikes[index]) * 1000, fps), second);
             for (0..count) |_| {
                 if (previous == .spit) try @import("frog_spit.zig").launch(world, slots, projections, entity, target, pose.*, definition.frog, now) else {
-                    const direction = v.normalize(v.subtract((try world.get(target, data.Transform)).position, pose.position));
-                    const contact = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-                    if (contact.entity < slots.occupants.len) if (slots.occupants[contact.entity]) |victim| if ((world.get(victim, data.Health) catch null) != null) {
+                    const direction = v.normalize(v.subtract((try target.get(data.Transform)).position, pose.position));
+                    const contact = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+                    if (@import("region_access.zig").victim(world, slots, contact)) |victim| if ((victim.get(data.Health) catch null) != null) {
                         const amount = definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;
-                        _ = try @import("weapon_damage.zig").hurt(world, victim, try world.persistentId(entity), 0, amount, now, false);
-                        try @import("weapon_damage.zig").shove(world, victim, try world.persistentId(entity), direction, amount, now);
+                        _ = try @import("weapon_damage.zig").hurt(victim.world, victim.entity, try world.persistentId(entity), 0, amount, now, false);
+                        try @import("weapon_damage.zig").shove(victim.world, victim.entity, try world.persistentId(entity), direction, amount, now);
                         var text: [128]u8 = undefined;
-                        engine.print(try std.fmt.bufPrintZ(&text, "dk3 frog: id={d} bite={d} damage={d:.2}\n", .{ try world.persistentId(entity), try world.persistentId(victim), amount }));
+                        engine.print(try std.fmt.bufPrintZ(&text, "dk3 frog: id={d} bite={d} damage={d:.2}\n", .{ try world.persistentId(entity), try victim.id(), amount }));
                     };
                 }
             }
@@ -51,12 +51,12 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         }
     } else {
         const feet = v.add(pose.position, .{ 0, 0, body.mins[2] + 1 });
-        const dry = try engine.collisionService().contents(feet, slot) & c.MASK_WATER == 0;
+        const dry = try @import("actor_collision.zig").service().contents(feet, slot) & c.MASK_WATER == 0;
         actor.frog.choose(now, enemy.distance, definition.range, dry, engine.integer("g_spSkill") > 2, (try world.get(entity, data.Random)).next());
         if (actor.frog.phase == .jump) {
             velocity.linear = v.scale(v.normalize(v.subtract(actor.threat_position, pose.position)), definition.speed * (enemy.distance / 425 * 2.35));
             velocity.linear[2] = definition.frog.upward;
-            const lift = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, 10 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+            const lift = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, 10 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
             pose.position = lift.end;
             for (policy.jump_sounds) |sound| try @import("events.zig").sound(world, slots, projections, sound, pose.position, slot, c.CHAN_AUTO, now);
         }
@@ -79,7 +79,7 @@ pub fn jump(actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocit
         const milliseconds = @min(remaining, 50);
         remaining -= milliseconds;
         const seconds = @as(f32, @floatFromInt(milliseconds)) * 0.001;
-        const floor = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, -0.5 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        const floor = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, -0.5 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         body.grounded = policy.acceptsFloor(velocity.linear[2], floor.normal[2]) and !floor.start_solid and !floor.all_solid and floor.fraction < 1;
         actor.ground_entity = if (body.grounded) floor.entity else c.ENTITYNUM_NONE;
         if (body.grounded) {
@@ -88,7 +88,7 @@ pub fn jump(actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocit
             return;
         }
         velocity.linear[2] -= 800 * seconds;
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity.linear, seconds)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         if (hit.start_solid) {
             velocity.linear = @splat(0);
             return;

@@ -9,6 +9,13 @@ const c = abi.c;
 pub fn sound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, name: []const u8, position: data.Vec3, subject: u16, channel: u8, now: i64) !void {
     try configuredSound(world, slots, projections, name, position, subject, channel, now, null);
 }
+pub fn soundOwned(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: u32, name: []const u8, position: data.Vec3, subject: u16, channel: u8, now: i64) !void {
+    if (owner == 0) return sound(world, slots, projections, name, position, subject, channel, now);
+    const context = @import("region_access.zig").byHandle(@enumFromInt(owner)) orelse return error.SoundWorldUnavailable;
+    const scope = try context.select();
+    defer scope.deinit();
+    try sound(&context.world.?, &context.slots, &context.projection, name, position, subject, channel, now);
+}
 pub fn configuredSound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, name: []const u8, position: data.Vec3, subject: u16, channel: u8, now: i64, parameters: ?@import("../domain/audio.zig").Parameters) !void {
     if (parameters) |value| if (!value.valid()) return error.InvalidSoundParameters;
     const index = try @import("resources.zig").sound(name);

@@ -2,6 +2,7 @@
 //! Persistent gunfire callbacks; cadence follows the reference server tick.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -10,7 +11,7 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").gunners;
 const lifecycle = @import("weapon_entities.zig");
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, kind: policy.BurstKind, two_hands: bool, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, kind: policy.BurstKind, two_hands: bool, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     if (kind == .shotgun) try shotgun(world, slots, owner, target, pose, tuning, now);
     // The reference's temporary chaingun entity shoots once before its think
     // callbacks. Use the owner's muzzle; its unplaced temporary origin is not a
@@ -21,19 +22,19 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try lifecycle.bind(world, slots, projections, entity, "");
     try publish(world, entity, projections, now);
 }
-fn shotgun(world: *data.World, slots: *Slots, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+fn shotgun(world: *data.World, slots: *Slots, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
-    const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, tuning.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(owner, data.Binding)).slot, .mask = c.MASK_SHOT });
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-        if ((world.get(victim, data.Health) catch null) == null) return;
-        const distance = v.length(v.subtract((try world.get(target, data.Transform)).position, pose.position));
+    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, tuning.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(owner, data.Binding)).slot, .mask = c.MASK_SHOT });
+    if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+        if ((victim.get(data.Health) catch null) == null) return;
+        const distance = v.length(v.subtract((try target.get(data.Transform)).position, pose.position));
         const damage = policy.shotgunDamage(tuning.damage, tuning.random_damage, random.next(), distance, tuning.range);
         if (damage <= 0) return;
         const source = try world.persistentId(owner);
-        _ = try @import("weapon_damage.zig").hurt(world, victim, source, 0, damage, now, false);
-        try @import("weapon_damage.zig").shove(world, victim, source, aim.direction, damage, now);
-    };
+        _ = try @import("weapon_damage.zig").hurt(victim.world, victim.entity, source, 0, damage, now, false);
+        try @import("weapon_damage.zig").shove(victim.world, victim.entity, source, aim.direction, damage, now);
+    }
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     _ = now;
@@ -62,7 +63,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     var burst = attack.attack.gunner_burst;
     const owner = world.find(attack.owner) orelse return lifecycle.remove(world, slots, projections, entity);
     const actor = (world.get(owner, data.Actor) catch return lifecycle.remove(world, slots, projections, entity)).*;
-    const target = world.find(actor.threat) orelse return lifecycle.remove(world, slots, projections, entity);
+    const target = @import("region_access.zig").find(world, actor.threat) orelse return lifecycle.remove(world, slots, projections, entity);
     while (burst.next_ms <= now) {
         if (burst.kind == .shotgun) return lifecycle.remove(world, slots, projections, entity);
         _ = try @import("actor_bullets.zig").fire(world, slots, projections, owner, target, (try world.get(owner, data.Transform)).*, burst.tuning, burst.next_ms);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -9,7 +10,7 @@ const v = @import("../domain/vector.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const policy = @import("actor_catalog").shafts;
 const lifecycle = @import("weapon_entities.zig");
-pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: ecs.Entity, pose: data.Transform, kind: policy.Kind, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
+pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, kind: policy.Kind, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
     const amount = tuning.damage + random.next() * tuning.random_damage;
@@ -50,6 +51,8 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     var attack = (try world.get(entity, data.ActorAttack)).*;
+    if (now <= attack.stepped_ms) return;
+    var motion = @import("region_motion.zig").Cursor.init(world, attack.owner);
     var shaft = attack.attack.shaft;
     var pose = (try world.get(entity, data.Transform)).*;
     var velocity = (try world.get(entity, data.Velocity)).linear;
@@ -60,25 +63,25 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const seconds = @as(f32, @floatFromInt(at - attack.stepped_ms)) * 0.001;
         if (shaft.kind == .thief and shaft.phase == .flying) pose.angles[0] = @mod(pose.angles[0] + 300 * seconds, 360);
         if (shaft.phase == .falling) velocity[2] -= 800 * seconds;
-        const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, seconds)), .mins = @splat(0), .maxs = @splat(0), .slot = skip, .mask = if (shaft.phase == .flying) c.MASK_SHOT else c.MASK_SOLID });
+        const hit = try motion.trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(velocity, seconds)), .mins = @splat(0), .maxs = @splat(0), .slot = skip, .mask = if (shaft.phase == .flying) c.MASK_SHOT else c.MASK_SOLID });
         pose.position = hit.end;
         attack.stepped_ms = at;
         if (hit.fraction < 1 or hit.start_solid) {
             if (hit.sky and shaft.kind == .thief) return lifecycle.remove(world, slots, projections, entity);
             if (shaft.phase == .flying) {
-                if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-                    if ((world.get(victim, data.Health) catch null) != null) {
-                        _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(shaft.damage)), now, .{ .source = attack.owner, .attacker_class = switch (shaft.kind) {
+                if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+                    if ((victim.get(data.Health) catch null) != null) {
+                        _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(shaft.damage)), now, .{ .source = attack.owner, .attacker_class = switch (shaft.kind) {
                             .centurion => "monster_centurion",
                             .fletcher => "monster_fletcher",
                             .thief => "monster_thief",
                             .harpy => "monster_harpy",
                         } });
-                        try @import("weapon_damage.zig").shove(world, victim, attack.owner, velocity, shaft.damage, now);
+                        try @import("weapon_damage.zig").shove(victim.world, victim.entity, attack.owner, velocity, shaft.damage, now);
                     }
-                };
+                }
                 if (policy.magic(shaft.kind)) {
-                    if (hit.entity == c.ENTITYNUM_WORLD) try @import("events.zig").sound(world, slots, projections, "global/e_arrowimp.wav", pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
+                    if (hit.entity == c.ENTITYNUM_WORLD) try @import("events.zig").soundOwned(world, slots, projections, motion.owner, "global/e_arrowimp.wav", pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
                     return lifecycle.remove(world, slots, projections, entity);
                 }
                 shaft.contact_ms = at;
@@ -91,7 +94,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                     pose.angles[0] = 300;
                 }
                 velocity = @splat(0);
-                try @import("events.zig").sound(world, slots, projections, if (shaft.phase == .resting) (if (shaft.kind == .thief) @as([]const u8, "global/m_bodyhitc.wav") else "global/m_armorhite.wav") else "global/e_bulfleshc.wav", pose.position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
+                try @import("events.zig").soundOwned(world, slots, projections, motion.owner, if (shaft.phase == .resting) (if (shaft.kind == .thief) @as([]const u8, "global/m_bodyhitc.wav") else "global/m_armorhite.wav") else "global/e_bulfleshc.wav", pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
             } else {
                 velocity = v.subtract(velocity, v.scale(hit.normal, 1.5 * v.dot(velocity, hit.normal)));
                 if (hit.normal[2] > 0.7 and @abs(velocity[2]) < 60) {
@@ -108,4 +111,5 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     (try world.get(entity, data.Transform)).* = pose;
     (try world.get(entity, data.Velocity)).linear = velocity;
     try publish(world, entity, projections, now);
+    try motion.finish(world, entity, now);
 }

@@ -21,7 +21,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         actor.melee.active = false;
         return;
     }
-    const delta = v.subtract((try world.get(target, data.Transform)).position, pose.position);
+    const delta = v.subtract((try target.get(data.Transform)).position, pose.position);
     const desired: [2]f32 = .{ std.math.clamp(-std.math.atan2(delta[2], @sqrt(delta[0] * delta[0] + delta[1] * delta[1])) * 180 / std.math.pi, -60, 60), std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi };
     const tick = now >= actor.think_ms;
     if (tick) {

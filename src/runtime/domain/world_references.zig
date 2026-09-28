@@ -16,6 +16,9 @@ pub const Ref = struct {
     pub fn id(self: Ref) !u32 {
         return self.world.persistentId(self.entity);
     }
+    pub fn same(self: Ref, other: Ref) bool {
+        return self.world == other.world and self.entity.index == other.entity.index and self.entity.generation == other.entity.generation;
+    }
 };
 pub const Worlds = struct {
     entries: []const *data.World,

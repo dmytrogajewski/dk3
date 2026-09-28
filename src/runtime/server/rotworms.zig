@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -14,7 +15,7 @@ pub fn initialize(world: *data.World, entity: ecs.Entity, now: i64) !void {
     if (object.flags & 0x800 == 0) return;
     const pose = try world.get(entity, data.Transform);
     const body = (try world.get(entity, data.Body)).*;
-    const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, 10000 }), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
+    const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, 10000 }), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
     if (hit.fraction == 1 or hit.start_solid) return error.InvalidRotwormCeiling;
     const distance = hit.end[2] - pose.position[2];
     const height = body.maxs[2] - body.mins[2];
@@ -49,7 +50,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         try emit(world, slots, projections, entity, actor, pose.*, definition, target, false, now);
         const elapsed = now - state.started_ms;
         if (policy.landed(elapsed, v.length(v.subtract(state.destination, pose.position)), actor.ground_entity != c.ENTITYNUM_NONE)) {
-            if (actor.ground_entity == (try world.get(target, data.Binding)).slot) {
+            if (actor.ground_entity == (try target.get(data.Binding)).slot) {
                 state.phase = .jump_bite;
                 state.started_ms = now;
                 actor.melee.begin(0, now);
@@ -87,7 +88,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     if (policy.jump(sensed.distance, sensed.visible, random.next())) {
         state.phase = .flight;
         state.started_ms = now;
-        state.destination = (try world.get(target, data.Transform)).position;
+        state.destination = (try target.get(data.Transform)).position;
         const direction = v.normalize(v.subtract(state.destination, pose.position));
         pose.angles[1] = std.math.atan2(direction[1], direction[0]) * 180 / std.math.pi;
         const velocity = try world.get(entity, data.Velocity);
@@ -104,7 +105,7 @@ pub fn think(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     }
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, state.phase != .flight, now);
 }
-fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: ecs.Entity, attacks: bool, now: i64) !void {
+fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: Definition, target: Ref, attacks: bool, now: i64) !void {
     const index = actor.melee.pose;
     const sequence = definition.attacks[index];
     const slot = (try world.get(entity, data.Binding)).slot;
@@ -112,12 +113,12 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
     if (!attacks or !actor.melee.event(1, @divTrunc(@as(i64, definition.strikes[index]) * 1000, sequence.fps), now, false)) return;
     if (index == 1) return @import("venom_spit.zig").launch(world, slots, projections, entity, target, pose, definition.rotworm_spit, now);
     const aim = try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random));
-    const hit = try engine.collisionService().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-    if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
-        if ((world.get(victim, data.Health) catch null) == null) return;
+    const hit = try @import("actor_collision.zig").service().trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+    if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
+        if ((victim.get(data.Health) catch null) == null) return;
         const amount = definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;
         const source = try world.persistentId(entity);
-        _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(amount)), now, .{ .source = source, .attacker_class = "monster_rotworm" });
-        try @import("ailments.zig").apply(world, victim, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, source, 0, now);
-    };
+        _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(amount)), now, .{ .source = source, .attacker_class = "monster_rotworm" });
+        try @import("ailments.zig").apply(victim.world, victim.entity, .{ .poison = .{ .damage = 1, .duration_ms = 15000, .interval_ms = 3000 } }, source, 0, now);
+    }
 }

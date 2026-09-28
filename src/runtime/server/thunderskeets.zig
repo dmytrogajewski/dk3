@@ -18,7 +18,7 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
         const hover_rise = velocity.linear[2];
         velocity.linear = @splat(0);
         if (enemy.enemy) |target| {
-            const target_position = (try world.get(target, data.Transform)).position;
+            const target_position = (try target.get(data.Transform)).position;
             const delta = v.subtract(target_position, pose.position);
             pose.angles = .{ 0, std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi, 0 };
             switch (actor.thunder.phase) {
@@ -47,7 +47,7 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
                 },
             }
             if (actor.thunder.phase == .hover and (previous != .hover or enemy.distance < 128)) {
-                const ceiling = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, 1024 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
+                const ceiling = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, .{ 0, 0, 1024 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
                 if (ceiling.end[2] - pose.position[2] > 128) velocity.linear[2] = 64;
             }
         } else actor.thunder.enter(.chase, now);

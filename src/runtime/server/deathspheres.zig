@@ -31,7 +31,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
         }
         if (actor.reaction_until_ms == null) {
             if (sensed.enemy) |target| {
-                const enemy = (try world.get(target, data.Transform)).position;
+                const enemy = (try target.get(data.Transform)).position;
                 face(pose, enemy, definition);
                 const previous = state.phase;
                 switch (state.phase) {
@@ -134,7 +134,7 @@ pub fn step(actors: *@import("actors.zig").Actors, world: *data.World, slots: *S
     actor.ground_entity = c.ENTITYNUM_NONE;
 }
 fn height(point: v.Vec3, slot: u16, offset: f32) !f32 {
-    const hit = try engine.collisionService().trace(.{ .start = point, .end = v.add(point, .{ 0, 0, offset }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = if (offset > 0) c.MASK_SOLID else c.MASK_SOLID | c.CONTENTS_BODY });
+    const hit = try @import("actor_collision.zig").service().trace(.{ .start = point, .end = v.add(point, .{ 0, 0, offset }), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = if (offset > 0) c.MASK_SOLID else c.MASK_SOLID | c.CONTENTS_BODY });
     return hit.fraction * @abs(offset);
 }
 fn face(pose: *data.Transform, point: v.Vec3, definition: Definition) void {
@@ -155,10 +155,10 @@ fn sound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection,
     try @import("events.zig").sound(world, slots, projections, name, point, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
 }
 fn obstructed(world: *data.World, slots: *Slots, pose: data.Transform, body: data.Body, enemy: v.Vec3, slot: u16) !bool {
-    const ahead = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(v.basis(pose.angles).forward, 64)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
+    const ahead = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(v.basis(pose.angles).forward, 64)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
     if (ahead.fraction < 1) return true;
-    const sight = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(enemy, .{ 0, 0, -24 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
-    if (sight.entity < slots.occupants.len) if (slots.occupants[sight.entity]) |other| return (world.get(other, data.Actor) catch null) != null and (world.get(other, data.Health) catch return false).current > 0;
+    const sight = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(enemy, .{ 0, 0, -24 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+    if (@import("region_access.zig").victim(world, slots, sight)) |other| return (other.get(data.Actor) catch null) != null and (other.get(data.Health) catch return false).current > 0;
     return false;
 }
 fn sidestep(actor: *data.Actor, pose: data.Transform, enemy: v.Vec3, range: f32, roll: f32, now: i64) void {

@@ -17,7 +17,7 @@ pub fn destination(actors: *@import("actors.zig").Actors, world: *data.World, en
             const direction = v.basis(.{ pose.angles[0], pose.angles[1] + degrees, pose.angles[2] }).forward;
             const point = v.add(pose.position, .{ direction[0] * distance, direction[1] * distance, 0 });
             _ = random.next(); // The shared reference vector helper samples altitude even on XY-only searches.
-            const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = point, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
+            const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = point, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID | c.CONTENTS_BODY });
             if (!hit.start_solid and hit.fraction == 1) {
                 return actors.water_routes.nearest(point);
             }

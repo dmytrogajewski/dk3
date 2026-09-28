@@ -405,6 +405,11 @@ fn consoleCommand() isize {
             @import("server/actors.zig").diagnostics(&active.systems.actors, &active.world.?, &active.slots, clock.now_ms) catch |err| runtimeFailure(err);
             return 1;
         }
+        if (@import("server/actor_probe.zig").command(command, active, clock.now_ms) catch |err| blk: {
+            var message: [128]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "dk3 actor probe failed: {s}\n", .{@errorName(err)}) catch unreachable);
+            break :blk true;
+        }) return 1;
         if (@import("server/combat_probe.zig").command(command, &active.world.?, &active.slots, &active.projection, active.clients.entities[0], &active.clients.weapon_table, clock.now_ms) catch |err| blk: {
             var message: [128]u8 = undefined;
             engine.print(std.fmt.bufPrintZ(&message, "dk3 zig combat probe failed: {s}\n", .{@errorName(err)}) catch unreachable);
@@ -577,7 +582,7 @@ fn depart(request: @import("domain/travel.zig").Request) !void {
     // Qualified corridors preserve the actual command, pose and action instead.
     var arrival: ?campaign_module.Arrival = null;
     if (edge.kind != .identity) {
-        var traveler = try @import("domain/travel.zig").Traveler.capture(&active.world.?, player, active.clients.episode, clock.now_ms);
+        var traveler = try @import("server/companions.zig").capture(&active.world.?, player, active.clients.episode, clock.now_ms);
         traveler.selectParty(journey);
         try @import("server/weapon_actions.zig").cancel(&active.world.?, &active.slots, &active.projection, player);
         try traveler.arrive(destination.clients.episode, clock.now_ms, &destination.clients.weapon_table);
@@ -754,8 +759,8 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     const pose = (active.world.?.get(player, component.Transform) catch unreachable).*;
                     const v = @import("domain/vector.zig");
                     const origin = v.add(pose.position, .{ 0, 0, 22 });
-                    const trace = engine.collisionService().trace(.{ .start = origin, .end = v.add(origin, v.scale(v.basis(pose.angles).forward, 2000)), .mins = @splat(0), .maxs = @splat(0), .slot = @intCast(arg0), .mask = c.MASK_SHOT | c.CONTENTS_TRIGGER }) catch |err| runtimeFailure(err);
-                    const target = if (trace.entity < active.slots.occupants.len) if (active.slots.occupants[trace.entity]) |entity| active.world.?.persistentId(entity) catch unreachable else 0 else 0;
+                    const trace = @import("server/region_collision.zig").trace(.{ .start = origin, .end = v.add(origin, v.scale(v.basis(pose.angles).forward, 2000)), .mins = @splat(0), .maxs = @splat(0), .slot = @intCast(arg0), .mask = c.MASK_SHOT | c.CONTENTS_TRIGGER }) catch |err| runtimeFailure(err);
+                    const target = if (@import("server/region_access.zig").victim(&active.world.?, &active.slots, trace)) |hit| hit.id() catch unreachable else 0;
                     const changed = @import("server/companions.zig").order(&active.systems.actors, &active.world.?, clock.now_ms, player, who, order, target, trace.end) catch |err| runtimeFailure(err);
                     engine.send(@intCast(arg0), if (changed) "cp \"Companion order received\"" else "cp \"Companion order unavailable\"");
                 }

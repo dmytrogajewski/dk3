@@ -2,6 +2,7 @@
 //! Collision/event adapter for the admitted class-owned ground attack policies.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -101,7 +102,7 @@ pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World
             .labmonkey => catalog.labmonkey.select(perceived.distance, random),
             .dwarf => catalog.dwarf.select(perceived.distance, random),
             .lycanthir => blk: {
-                const velocity = (try world.get(target, data.Velocity)).linear;
+                const velocity = (try target.get(data.Velocity)).linear;
                 break :blk catalog.lycanthir.select(perceived.distance, definition.attack_range, v.dot(v.basis(pose.angles).forward, velocity), velocity[0] * velocity[0] + velocity[1] * velocity[1], random, (try world.get(entity, data.Random)).next());
             },
             .skeleton => if (perceived.distance >= definition.range) catalog.skeleton.chase_pose else catalog.skeleton.select(random),
@@ -135,7 +136,7 @@ pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World
     actor.mode = if (actor.melee.active) if (actor.melee.moving and (kind == .column or kind == .femgang or perceived.distance >= (if (kind == .lycanthir) @as(f32, 60) else 40))) .chase else .attack else if (!reachable) .chase else .idle;
     if (actor.melee.active) try emit(world, slots, projections, entity, actor, pose.*, definition, target, facing, now);
 }
-pub fn emit(world: *data.World, slots: *@import("../engine/slots.zig").Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: @import("../domain/actors.zig").Definition, target: ecs.Entity, facing: bool, now: i64) !void {
+pub fn emit(world: *data.World, slots: *@import("../engine/slots.zig").Slots, projections: []abi.EntityProjection, entity: ecs.Entity, actor: *data.Actor, pose: data.Transform, definition: @import("../domain/actors.zig").Definition, target: Ref, facing: bool, now: i64) !void {
     const kind = catalog.entries[actor.definition].kind;
     if (kind == .satyr and actor.melee.pose >= 3) return;
     const index = actor.melee.pose;
@@ -166,15 +167,15 @@ pub fn emit(world: *data.World, slots: *@import("../engine/slots.zig").Slots, pr
         }
         const axes = v.basis(pose.angles);
         const start = v.add(pose.position, v.add(v.scale(axes.right, definition.offset[0]), v.add(v.scale(axes.forward, definition.offset[1]), .{ 0, 0, definition.offset[2] })));
-        const body = (try world.get(target, data.Body)).*;
-        const aim = v.add((try world.get(target, data.Transform)).position, v.scale(v.add(body.mins, body.maxs), 0.5));
+        const body = (try target.get(data.Body)).*;
+        const aim = v.add((try target.get(data.Transform)).position, v.scale(v.add(body.mins, body.maxs), 0.5));
         const leading = if (kind == .femgang or kind == .cerberus or kind == .shark or kind == .dopefish) try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random)) else null;
-        const hit = try engine.collisionService().trace(.{ .start = if (leading) |value| value.origin else start, .end = if (leading) |value| v.add(value.origin, v.scale(value.direction, definition.range)) else v.add(start, v.scale(v.normalize(v.subtract(aim, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
-        if (hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |victim| {
+        const hit = try @import("region_collision.zig").trace(.{ .start = if (leading) |value| value.origin else start, .end = if (leading) |value| v.add(value.origin, v.scale(value.direction, definition.range)) else v.add(start, v.scale(v.normalize(v.subtract(aim, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+        if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
             const random = (try world.get(entity, data.Random)).next();
-            const before = if (world.get(target, data.Health) catch null) |health| health.current else 0;
-            _ = try @import("damage.zig").apply(world, victim, @intFromFloat(@ceil(definition.damage + random * definition.random_damage)), now, .{ .source = try world.persistentId(entity), .attacker_class = catalog.entries[actor.definition].classname });
-            if (kind == .dopefish and (try world.get(target, data.Health)).current < before) try @import("blood_clouds.zig").spawn(world, slots, projections, target, entity, now);
-        };
+            const before = if (target.get(data.Health) catch null) |health| health.current else 0;
+            _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(definition.damage + random * definition.random_damage)), now, .{ .source = try world.persistentId(entity), .attacker_class = catalog.entries[actor.definition].classname });
+            if (kind == .dopefish and (try target.get(data.Health)).current < before) try @import("blood_clouds.zig").spawn(world, slots, projections, target, entity, now);
+        }
     };
 }

@@ -50,11 +50,11 @@ pub const Routes = struct {
             const steps: usize = @intFromFloat(@max(1, @ceil(v.length(v.subtract(b, a)) / 16)));
             for (0..steps + 1) |i| {
                 const point = v.add(a, v.scale(v.subtract(b, a), @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(steps))));
-                if (try engine.collisionService().contents(point, slot) & c.MASK_WATER == 0) return false;
+                if (try @import("actor_collision.zig").service().contents(point, slot) & c.MASK_WATER == 0) return false;
             }
         }
 
-        const hit = try engine.collisionService().trace(.{ .start = a, .end = b, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
+        const hit = try @import("actor_collision.zig").service().trace(.{ .start = a, .end = b, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_SOLID });
         return !hit.start_solid and !hit.all_solid and hit.fraction == 1;
     }
     pub fn next(self: *const Routes, position: v.Vec3, destination: v.Vec3, body: data.Body, slot: u16) !?v.Vec3 {
