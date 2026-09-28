@@ -207,4 +207,30 @@ test "foreign persistent owners and aliased transport slots cannot select a loca
     manifest.edges[0].kind = .cut;
     try t.expect(!try party.required(&second.world.?, b, 2));
     try t.expect((try party.capture(&second.world.?, b, 1, 1000)).companions[1] == null);
+    // Remote detonation spans the physical region, preserving each stagger and
+    // another player's charges. A cinematic cut must stop that spatial search.
+    const charge: data.Charge = .{ .owner = leader, .damage = 100, .born_ms = 0, .stepped_ms = 0, .next_ms = 50, .expires_ms = 10000 };
+    const local_charge = try first.world.?.create(null, .{charge});
+    const remote_charge = try second.world.?.create(null, .{charge});
+    var unrelated = charge;
+    unrelated.owner = 123;
+    const other_charge = try second.world.?.create(null, .{unrelated});
+    manifest.edges[0].kind = .identity;
+    try t.expectEqual(@as(usize, 2), try @import("c4.zig").detonate(&first.world.?, leader, 1000, true));
+    try t.expectEqual(@as(?i64, 1200), (try first.world.?.get(local_charge, data.Charge)).detonate_ms);
+    try t.expectEqual(@as(?i64, 1400), (try second.world.?.get(remote_charge, data.Charge)).detonate_ms);
+    try t.expectEqual(@as(?i64, null), (try second.world.?.get(other_charge, data.Charge)).detonate_ms);
+    (try first.world.?.get(local_charge, data.Charge)).detonate_ms = null;
+    (try second.world.?.get(remote_charge, data.Charge)).detonate_ms = null;
+    manifest.edges[0].kind = .cut;
+    try t.expectEqual(@as(usize, 1), try @import("c4.zig").detonate(&first.world.?, leader, 1000, true));
+    try t.expectEqual(@as(?i64, null), (try second.world.?.get(remote_charge, data.Charge)).detonate_ms);
+    const victim_id = try first.world.?.persistentId(a);
+    const bolt = try second.world.?.create(null, .{data.Projectile{ .owner = leader, .weapon = @import("weapon_catalog").ballista.id, .damage = 100, .born_ms = 0, .stepped_ms = 0, .flight = .{ .ballista = .{ .victim = victim_id } } }});
+    const bolt_id = try second.world.?.persistentId(bolt);
+    try first.world.?.put(a, data.Body{ .motion_owner = bolt_id });
+    try @import("ballista.zig").detach(&first.world.?, a);
+    try t.expectEqual(@as(?u32, null), (try first.world.?.get(a, data.Body)).motion_owner);
+    try t.expectEqual(@as(?u32, null), (try second.world.?.get(bolt, data.Projectile)).flight.ballista.victim);
+    try t.expectEqual(@as(u8, 1), (try second.world.?.get(bolt, data.Projectile)).flight.ballista.releases);
 }

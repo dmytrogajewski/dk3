@@ -14,6 +14,7 @@ test {
     _ = @import("domain/portal_trace.zig");
     _ = @import("domain/world_aperture.zig");
     _ = @import("server/region_access.zig");
+    _ = @import("server/weapon_actions.zig");
     _ = @import("server/actor_collision.zig");
     _ = @import("server/region_presentation.zig");
     _ = @import("server/configuration.zig");

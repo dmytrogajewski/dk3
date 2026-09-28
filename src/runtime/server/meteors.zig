@@ -14,7 +14,7 @@ const life = @import("weapon_entities.zig");
 fn angles(dir: v.Vec3) v.Vec3 {
     return .{ -std.math.atan2(dir[2], @sqrt(dir[0] * dir[0] + dir[1] * dir[1])) * 180 / std.math.pi, std.math.atan2(dir[1], dir[0]) * 180 / std.math.pi, 0 };
 }
-fn create(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: u32, pose: data.Transform, velocity: v.Vec3, state: policy.State, random: data.Random, now: i64) !void {
+fn create(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: u32, source: v.Vec3, pose: data.Transform, velocity: v.Vec3, state: policy.State, random: data.Random, now: i64) !void {
     const size: f32 = switch (state.phase) {
         .stave => 12,
         .fragment => 5,
@@ -24,6 +24,7 @@ fn create(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
     errdefer world.destroy(entity) catch unreachable;
     try life.bind(world, slots, projections, entity, if (state.phase == .flare) "models/e3/we_blackhole.sp2" else policy.model);
     try publish(world, entity, projections, now);
+    try @import("actor_aim.zig").finishLaunch(world, source, entity, now);
 }
 pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     var random = (try world.get(owner, data.Random)).*;
@@ -33,8 +34,8 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     const state: policy.State = .{ .next_ms = now + 100, .spin = .{ (random.next() * 2 - 1) * 40, (random.next() * 2 - 1) * 40, (random.next() * 2 - 1) * 40 }, .damage = tuning.damage, .radius = tuning.damage, .speed = tuning.speed };
     const id = try world.persistentId(owner);
     (try world.get(owner, data.Random)).* = random;
-    try create(world, slots, projections, id, .{ .position = point, .angles = angles(aim.direction) }, v.scale(aim.direction, tuning.speed * 0.05), state, random, now);
-    try create(world, slots, projections, id, .{ .position = point }, @splat(0), .{ .phase = .flare, .next_ms = now + 100, .scale = @splat(0.1), .spin = .{ 0, 0, 15 }, .damage = 0, .radius = 0, .speed = 0 }, random, now);
+    try create(world, slots, projections, id, pose.position, .{ .position = point, .angles = angles(aim.direction) }, v.scale(aim.direction, tuning.speed * 0.05), state, random, now);
+    try create(world, slots, projections, id, pose.position, .{ .position = point }, @splat(0), .{ .phase = .flare, .next_ms = now + 100, .scale = @splat(0.1), .spin = .{ 0, 0, 15 }, .damage = 0, .radius = 0, .speed = 0 }, random, now);
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     const attack = (try world.get(entity, data.ActorAttack)).*;
@@ -90,7 +91,7 @@ fn impact(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
             const bounce_max = 2 + random.next() * 3;
             // Fragment health is never assigned by the source spawn callback.
             // Its radius is scaled, but its damage remains zero; do not invent it.
-            try create(world, slots, projections, attack.owner, .{ .position = point, .angles = angles(direction) }, v.scale(direction, v.length(velocity) * 1.85), .{ .phase = .fragment, .next_ms = now + 100, .scale = scale, .spin = spin, .damage = 0, .radius = size / 0.25 * state.damage, .speed = 0, .glow = 1.2 * size * 0.65, .bounce_max = bounce_max }, random, now);
+            try create(world, slots, projections, attack.owner, pose.position, .{ .position = point, .angles = angles(direction) }, v.scale(direction, v.length(velocity) * 1.85), .{ .phase = .fragment, .next_ms = now + 100, .scale = scale, .spin = spin, .damage = 0, .radius = size / 0.25 * state.damage, .speed = 0, .glow = 1.2 * size * 0.65, .bounce_max = bounce_max }, random, now);
         }
     }
     const point = v.add(pose.position, v.scale(normal, 4));

@@ -12,25 +12,73 @@ is inferred from class counts or test volume.
 
 ## Current outcome matrix
 
-Sequence 304 connects actor perception/attacks, physical pursuit, continuing party
-ownership and authored script ownership across the reviewed seams. Build
-`0262fb…`, detailed below, verifies controlled turret/projectile contact, enemy and
-Superfly crossing, and restoration. **Seamless campaign acceptance remains
-incomplete.** Specialized player weapons, navigation beyond the tested corridor,
-remaining authored party interactions, multiple portal views and the fresh route
-remain open. Counts below describe supporting checks, not port completion.
+Sequence 305 consolidates specialized player weapon targets, collision, grouped
+controllers and muzzle ownership on build `187506…`. Eleven controlled weapon
+contact scenarios, selected active-controller restores, actor attacks, both
+renderers and region save/death restoration pass. **Seamless campaign acceptance
+remains incomplete.** The fresh normal-input opening route is running; wider
+weapon interactions, navigation, authored party actions, multiple portal views,
+remaining seam qualification and admission stalls remain open. Counts below
+describe supporting checks, not port completion.
 
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
-| Seamless connected regions | Region admission/ordinary exits, qualified collision, 304 actor targets/projectiles/physical transfer, party ownership and authored script scope | 400 Zig, 81 Python and actual C owner/collision/inline-handle contracts pass | On `0262fb…`: controlled turret and frog projectile hit across the seam; Slaughterskeet and Superfly cross and restore. Both renderer combat paths, A↔B movement and region save/death restoration replay | One reviewed corridor and selected classes/weapon paths. Specialized weapons, broader navigation/party interactions, multiple views, seam qualification, eviction/admission stalls and fresh route remain open. [Evidence](#sequence-304--actor-and-party-ownership). |
-| Weapons | All 28 class-owned controllers connected | Class contract roots pass at 296; full interactions unverified | 296 verifies rendered Ion flight/light; earlier narrow controller fixtures do not establish full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Travel/admission/restore changes through 304 require full fresh replay | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
+| Seamless connected regions | Region admission/ordinary exits, qualified collision, actor/projectile transfer, specialized weapons, party ownership and authored script scope | 402 Zig, 82 Python and actual C owner/collision/inline-handle contracts pass | On `187506…`: eleven weapon contact cases, selected controller restores, real turret/frog contact, both renderer combat paths, enemy/companion/player crossing and region save/death restoration | One reviewed corridor and selected interactions. Broader navigation/party actions, multiple views, seam qualification, eviction/admission stalls and fresh route remain open. [Evidence](#sequence-305--specialized-weapons-across-seams). |
+| Weapons | All 28 class-owned controllers connected; 305 extends spatial and persistent ownership | Class roots and ownership/slot/cancellation contracts execute at 305 | Eleven controlled specialized weapon contacts across A/B; Wyndrax, Nightmare, Metamaser and pending Zeus restore on `187506…`. Three actual Trident tips confirmed | Not all interactions: Trident merge/water, Ballista carried crossing/pin restoration, destruction variants, return/pickup and complete audiovisual comparison remain open |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Travel/admission/restore changes through 305 require full fresh replay | **Not accepted:** 305 New Game reaches living normal e1m1a after the full intro/arrival; driver then fails an observation assertion before its arrival save. Corrected fresh replay running on `187506…` | `runtime-zig-305/fresh-opening/` retains the failure: sampled cursor misses brief shot 69 and includes finished cursor 115; actual server transition events cover the missed shot. Driver uses those events plus actual first-shot observation. 294 traversal and 293 checkpoint completion remain historical, not transferred acceptance |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
-| Saves and visited worlds | Schema-2 residents, typed references/time, flat native archive migration, moved actor authored scope and recovery | Snapshot/migration/ownership roots execute at 304 | Crossed enemy and companion actually save/reload; independently altered A/B actor health restores after save/load and death; six-world factory cinematic restores | Full party/controller combinations and fresh campaign restoration remain unverified. Unmodified legacy archive migration also replays at 304 with actual restoration-boundary auditing. |
-| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected; protocol 1349 | Native wire and runtime roots pass at 304 | Two actual UDP clients replay movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart on `0262fb…` | Complete CTF/deathtag, natural bot traversal, public admission/browser/authenticated rooms and full modes remain open. No online service deployment. |
+| Saves and visited worlds | Schema-2 residents, typed references/time, flat native archive migration, moved actor authored scope and recovery | Snapshot/migration/ownership roots execute at 305 | Selected weapon controllers, crossed enemy/companion, independent A/B actor health, death restoration, six-world factory cinematic and unmodified legacy archive migration replay on `187506…` | Full party/controller combinations and fresh campaign restoration remain unverified. Legacy actors are audited before simulation. |
+| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected; protocol 1349 | Native wire and runtime roots pass at 305 | Two actual UDP clients replay movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart on `187506…` | Complete CTF/deathtag, natural bot traversal, public admission/browser/authenticated rooms and full modes remain open. No online service deployment. |
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. 304 replays six-world factory arrival restoration; the full fresh intro still needs replay | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 305 — specialized weapons across seams
+
+Immutable build `18750658f9ccb2d67fe6f782a277dcb754fafadbeb26058e236ec474171c5c13`;
+combined identity `abaccd1628f849daca0e1c96b1df01de9232dc33543e2ad466baf63dbed7ada3`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`;
+region manifest `f0cb127dcc3fa705a51cc5d9fd597960396e7bfdc3ca2cc55e709998e6a1368d`.
+Evidence: `zig-out/reports/runtime-zig-305/`. Protocol 1349 and renderer ABI 12
+unchanged. The native build is coherent; diagnostic setups are not campaign play.
+
+| Evidence | Verified outcome | Setup and limits |
+|---|---|---|
+| `nightmare-final/` | Real attack captures the required B-owned worker, transfers the ritual into B, restores the same ritual/victim and actual body freeze, then damages/releases that victim and completes | Controlled dry grounded worker, player placement, health and equipment. The ritual processes its other acquired actors first; bounded driver wait follows the actual required victim. |
+| `wyndrax-final/` | A-owned wisp acquires the B worker, saves/loads with the same controller identity, then damages the required foreign target | Real class actor and input; controlled placement/equipment. Not every fade, bounce or cancellation interaction. |
+| `metamaser-final/` | Thrown cube moves A→B, reaches tracking, saves/loads the same controller and damages the B worker afterward. Original save inspection also proves the B cube damaged and retained a lock on A-owned fly 357 before saving | `saved-owners.json` retains actual physical owner, lock and Hurt receipt (source Hiro, weapon 26, damage 40), rather than inferring ownership from birth ID. Post-load fly contact is logged but its then-current physical map is not separately asserted. Not destruction-controller acceptance. |
+| `zeus-final/` | Pending chain saves/loads with the same identity, then ordinary delayed strike damages the B worker | Pending phase only; not a restored expanded branch graph. |
+| `trident-final/`, `ballista-final/` | Actual three-tip Trident launch contacts the B worker. Ballista contacts and reports skewer of that same real foreign actor | Dry, uncharged Trident contact; not merge/water. Ballista contact/skewer only, not carried crossing, pinning or active transport restoration. |
+| `discus-final/`, `c4-final/`, `sunflare-final/`, `stavros-final/`, `shockwave-final/` | Each ordinary attack damages the required B-owned worker while Hiro remains in A | Controlled setup and actual qualified target ray/contact; no blanket return/pickup, remote chain, water, secondary blast or reference presentation claim. |
+| `sentry-final/`, `spit-final/` | Real Rockgat attack and identified Froginator spit again contact Hiro across the seam | Controlled class placement; frog setup checks grounded, dry and actual attack occurrence. |
+| `foreign-final-opengl1/`, `foreign-final-opengl2/` | Glock/Ion/Sidewinder qualified foreign contact, owning model registry and late resource publication replay in both renderers | Synthetic target/equipment and one aperture. |
+| `region-save-final/` | Independently modified A/B actors and player state restore after real save/load and death/reload | Diagnostic placements, ownership and health edits. |
+| `pursuit-final/`, `companion-final/`, `crossing-final/` | Real Slaughterskeet pursuit and Superfly follow cross B→A and restore their identities/health/authored home. Ordinary player A→B→A movement retains connection, input and identity | Controlled initial placements and class spawns; one corridor. |
+| `lan-final/` | Two actual UDP clients pass movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart | Existing lifecycle scope, not full modes/bots or public service acceptance. |
+| `legacy-visited-final/`, `cinematic-restore-final/` | Unmodified older archives restore all 53 checked actors at installation; schema-2 migration/reload and obsolete-command rejection replay. Six-world factory cinematic restores/completes and ordinary movement/saving resumes | Historical immutable fixtures, not fresh campaign traversal. |
+| `aggregate-final.log`, `python-final.log`, `c4-regression/` | 44/44 steps, 402 Zig and original 81 Python tests pass; actual C contracts execute. After the driver correction, all 82 Python tests pass. Removing neighbor detonation from a temporary source copy fails the C4 assertion (`expected 2, found 1`) | Runtime/catalog roots use ReleaseSafe assertions, other roots Debug. Production code was not modified for the defect run. The 18 affected driver contracts also pass in `driver-regressions.log`. |
+| `fresh-opening/` | **Failed driver observation:** ordinary New Game reaches living normal e1m1a after intro/arrival; it stops before saving because sampled shot 69 was missed | `observation-diagnosis.json` records actual server transition evidence. Finished cursor 115 cannot replace a missing shot. This run remains failed. |
+| `fresh-opening-events/`, `factory-checkpoint/` | Fresh replay and independent factory checkpoint development running | No outcome yet. Checkpoint development cannot establish fresh acceptance. Driver resolves map-authored IDs against stationary exits and checks actual retained-connection transitions. |
+
+Implementation also covers Hammer radius recipients, NPC offset muzzle ownership,
+Metamaser destruction controllers, class-owned liquid/visibility masks, projectile
+step guards and global cancellation. Lightning hops attach to their physical
+source separately from player ownership. Persistent references remap after all
+foreign presentation slots exist; Metamaser laser endpoints remain coordinates.
+These paths have only the contract/runtime coverage stated above.
+
+Failed setups and superseded builds are retained. The first worker-health setup
+could not address a foreign actor; read-only/controller diagnostics and the
+explicit health fixture now resolve persistent identity. The next Nightmare
+driver timeout expired while earlier acquired victims were being processed;
+Wyndrax's post-restore driver awaited damage logging with `developer` disabled.
+Both driver repairs preserve class timing, damage and acquisition. No failed
+setup is counted as weapon acceptance.
+
+Selected weapon screenshots were inspected. Developer output still reports an
+invalid frame on a marsh swap model (`d1_swp3.dkm.md3`); finer presentation remains
+open. No private reference implementation or original assets enter the source tree.
 
 ## Sequence 304 — actor and party ownership
 

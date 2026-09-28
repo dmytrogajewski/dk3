@@ -39,7 +39,7 @@ pub const State = struct {
             out.otherEntityNum = self.lookup(owner, out.otherEntityNum);
         if (out.eType == c.ET_DK3_EFFECT and out.weapon == weapons.nightmare.id) out.otherEntityNum2 = self.lookup(owner, out.otherEntityNum2);
         if ((out.eType == c.ET_MISSILE and out.weapon == weapons.wyndrax.id) or
-            ((out.eType == c.ET_MISSILE or out.eType == c.ET_DK3_EFFECT) and out.weapon == weapons.metamaser.id))
+            (out.eType == c.ET_MISSILE and out.weapon == weapons.metamaser.id))
         {
             out.otherEntityNum = self.lookup(owner, out.otherEntityNum);
             out.otherEntityNum2 = self.lookup(owner, out.otherEntityNum2);
@@ -53,7 +53,7 @@ pub const State = struct {
         for (self.aliases, 0..) |maybe, slot| if (maybe) |alias| if (alias.identity == identity) return @intCast(slot);
         return c.ENTITYNUM_NONE;
     }
-    fn actorReferences(self: *const State, active: *Context, out: *c.entityState_t) void {
+    fn controllerReferences(self: *const State, active: *Context, out: *c.entityState_t, now: i64) void {
         const ref = access.find(&active.world.?, @bitCast(out.dk3Identity)) orelse return;
         if (ref.get(data.Actor) catch null) |actor| if (out.time2 == @import("actor_catalog").medusa.gaze_tag) {
             out.otherEntityNum = self.identitySlot(active, actor.medusa.target);
@@ -61,6 +61,37 @@ pub const State = struct {
         if (ref.get(data.ActorAttack) catch null) |attack| if (attack.attack == .gunner_burst) {
             out.otherEntityNum = self.identitySlot(active, attack.owner);
         };
+        if (out.eType == c.ET_DK3_EFFECT) {
+            // Only effect publishers that declare an owner slot participate.
+            inline for (.{ data.Nova, data.Flashlight, data.Zeus, data.ZeusBolt, data.Nightmare, data.MetaRing, data.MetaLaser }) |T| if (ref.get(T) catch null) |action| {
+                out.otherEntityNum = self.identitySlot(active, action.owner);
+            };
+            if (ref.get(data.Nightmare) catch null) |ritual| out.otherEntityNum2 = self.identitySlot(active, ritual.victim orelse 0);
+        }
+        if (ref.get(data.Projectile) catch null) |projectile| switch (projectile.flight) {
+            .sunflare => if (out.eType == c.ET_DK3_EFFECT) {
+                out.otherEntityNum = self.identitySlot(active, projectile.owner);
+            },
+            .wyndrax => {
+                var targets: [4]i32 = undefined;
+                for (projectile.flight.wyndrax.targets, &targets) |identity, *slot| slot.* = self.identitySlot(active, identity);
+                targetSlots(out, targets);
+            },
+            .metamaser => |cube| {
+                var targets: [4]i32 = @splat(c.ENTITYNUM_NONE);
+                if (cube.phase == .tracking and now >= projectile.born_ms + cube.pause_ms) for (cube.acquired, &targets) |lock, *slot| {
+                    slot.* = self.identitySlot(active, lock.target);
+                };
+                targetSlots(out, targets);
+            },
+            else => {},
+        };
+    }
+    fn targetSlots(out: *c.entityState_t, targets: [4]i32) void {
+        out.otherEntityNum = targets[0];
+        out.otherEntityNum2 = targets[1];
+        out.origin2[0] = @floatFromInt(targets[2]);
+        out.origin2[1] = @floatFromInt(targets[3]);
     }
     pub fn tag(active: *Context) !void {
         // Tag local states even outside campaign mode. Identity guards client
@@ -167,7 +198,7 @@ pub const State = struct {
             output.state.solid = candidate.context.projection[candidate.slot].state.solid;
         }
         for (active.slots.occupants, 0..) |maybe, slot| if (maybe != null or self.aliases[slot] != null) {
-            self.actorReferences(active, &active.projection[slot].state);
+            self.controllerReferences(active, &active.projection[slot].state, now);
         };
     }
 };
@@ -190,4 +221,40 @@ test "foreign projection references distinguish entity slots from class-owned fl
     state.references(&flags);
     try std.testing.expectEqual(@as(i32, 64), flags.otherEntityNum);
     try std.testing.expectEqual(@as(i32, c.ENTITYNUM_NONE), state.lookup(516, 64));
+}
+
+test "weapon reference slots preserve endpoints and resolve targets across owners" {
+    const t = std.testing;
+    const active = try t.allocator.create(Context);
+    defer t.allocator.destroy(active);
+    active.* = .{ .world = data.World.initNamespaced(t.allocator, 32, 0), .handle = @enumFromInt(513) };
+    defer active.world.?.deinit();
+    var state: State = .{};
+    const local = try active.world.?.create(null, .{data.Health{ .current = 100 }});
+    const local_slot = try active.slots.acquire(local, null);
+    const local_id = try active.world.?.persistentId(local);
+    state.aliases[100] = .{ .world = 514, .identity = 16777217, .source_slot = local_slot };
+    const wisp = try active.world.?.create(null, .{data.Projectile{ .owner = local_id, .weapon = @import("weapon_catalog").wyndrax.id, .damage = 10, .born_ms = 0, .stepped_ms = 0, .flight = .{ .wyndrax = .{ .targets = .{ 16777217, local_id, 0, 0 } } } }});
+    var out = std.mem.zeroes(c.entityState_t);
+    out.eType = c.ET_MISSILE;
+    out.dk3Identity = @bitCast(try active.world.?.persistentId(wisp));
+    out.origin2[2] = 0.75;
+    state.controllerReferences(active, &out, 1000);
+    try t.expectEqual(@as(i32, 100), out.otherEntityNum);
+    try t.expectEqual(@as(i32, local_slot), out.otherEntityNum2);
+    try t.expectEqual(@as(f32, 0.75), out.origin2[2]);
+    var cube: @import("weapon_catalog").metamaser.BallisticState = .{ .phase = .tracking, .pause_ms = 2000 };
+    cube.acquired[0].target = 16777217;
+    (try active.world.?.get(wisp, data.Projectile)).flight = .{ .metamaser = cube };
+    state.controllerReferences(active, &out, 1999);
+    try t.expectEqual(@as(i32, c.ENTITYNUM_NONE), out.otherEntityNum);
+    state.controllerReferences(active, &out, 2000);
+    try t.expectEqual(@as(i32, 100), out.otherEntityNum);
+    // A destruction laser carries a position, not the cube's four target slots.
+    out.dk3World = 514;
+    out.eType = c.ET_DK3_EFFECT;
+    out.weapon = @import("weapon_catalog").metamaser.id;
+    out.origin2 = .{ -1392, 640, 529 };
+    state.references(&out);
+    try t.expectEqual([3]f32{ -1392, 640, 529 }, out.origin2);
 }

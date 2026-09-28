@@ -77,3 +77,23 @@ pub fn reaches(local: *data.World, hit: collision.Trace, target: @import("../dom
     const binding = target.get(data.Binding) catch return false;
     return hit.entity == binding.slot;
 }
+
+/// PVS is map-local. A straight cross-seam sightline must be in the PVS of each
+/// segment's own map; prefetched maps and cinematic landings confer no visibility.
+pub fn inPvs(world: *data.World, origin: v.Vec3, target: @import("../domain/world_references.zig").Ref, point: v.Vec3) !bool {
+    const source = access.contextFor(world) orelse return engine.inPvs(origin, point);
+    var owner = source;
+    var request: collision.Request = .{ .start = origin, .end = point, .mins = @splat(0), .maxs = @splat(0), .slot = c.ENTITYNUM_NONE, .mask = 0 };
+    var traversed: [256]bool = @splat(false);
+    while (true) {
+        const scope = try owner.select();
+        defer scope.deinit();
+        if (&owner.world.? == target.world) return engine.inPvs(request.start, point);
+        const next = try (Backend{ .skip = 0 }).crossing(@intFromEnum(owner.handle.?), request, &traversed) orelse return false;
+        const boundary = v.add(request.start, v.scale(v.subtract(point, request.start), next.fraction));
+        if (!engine.inPvs(request.start, boundary)) return false;
+        traversed[next.edge] = true;
+        request.start = boundary;
+        owner = access.byHandle(@enumFromInt(next.world)) orelse return error.TraceWorldUnavailable;
+    }
+}

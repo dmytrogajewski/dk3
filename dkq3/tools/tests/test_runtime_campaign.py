@@ -7,9 +7,21 @@ from types import SimpleNamespace
 import unittest
 
 from runtime_campaign_probe import complete_opening
+from runtime_input import cinematic_shots
 
 
 class CampaignEvidenceTests(unittest.TestCase):
+    def test_short_shot_uses_actual_transition_not_the_finished_cursor(self):
+        inputs = [{"observed": dict(map="intro", cinematic=1, shot=i)} for i in (0, 2)]
+        inputs.append({"observed": dict(map="intro", cinematic=0, shot=3)})
+        actual = lambda log: cinematic_shots(log, inputs, "intro", "intro", 3)
+        self.assertEqual(actual(""), {0, 2})
+        self.assertEqual(actual("dk3 cinematic: shot=2/3 name=intro\n"), {0, 1, 2})
+        self.assertEqual(actual("dk3 cinematic: shot=2/3 name=other\n"
+                                "dk3 cinematic: shot=2/4 name=intro\n"), {0, 2})
+        inputs.pop(0)
+        self.assertNotIn(0, actual("dk3 cinematic: started\n"))
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

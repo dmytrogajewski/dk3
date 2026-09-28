@@ -37,19 +37,21 @@ def death_reload(driver, capture, report):
 
 
 def bridge_progress(driver):
-    from runtime_bridge_route import items, world_rows
+    from runtime_bridge_route import authored_id, items, world_rows
+    namespace = authored_id(driver, 1) & 0xff000000
     boss = next(row for row in actors(driver).values() if row["unique"] == "tskeet")
     controls = world_rows(driver, "destructible")
     trees = world_rows(driver, "tree")
     drops = [row for row in items(driver).values() if row["class"] == "item_megashield"]
     if boss["health"] > 0 or len(drops) != 1 or drops[0]["visible"] != "0":
         raise RuntimeError("Visited-world setup requires the defeated boss and collected reward")
-    return {"boss_health": boss["health"], "controls": {str(i): controls[i]["broken"] for i in (91, 86, 80, 81, 82)},
-            "tree_fruit": trees[110]["fruit"], "boss_reward_visible": drops[0]["visible"]}
+    return {"boss_health": boss["health"], "controls": {str(i): controls[namespace | i]["broken"] for i in (91, 86, 80, 81, 82)},
+            "tree_fruit": trees[namespace | 110]["fruit"], "boss_reward_visible": drops[0]["visible"]}
 
 
 def travel(driver, destination):
     offset = len(driver.text())
+    before = driver.observe()
     driver.issue("+forward")
     try:
         state = driver.until(lambda s: s["map"] == destination and s["mode"] == "normal", seconds=20,
@@ -57,8 +59,11 @@ def travel(driver, destination):
     finally:
         driver.issue("-forward")
         driver.until(lambda s: s["forward"] == 0, description="processed arrival release")
-    wait(driver.process, driver.log, lambda text: "saved world restored" in text[offset:] and
-         "dk3 zig client: restoration applied" in text[offset:], 5)
+    wait(driver.process, driver.log, lambda text: "kind=identity connection=retained" in text[offset:], 5)
+    text = driver.text()[offset:]
+    if state["player_id"] != before["player_id"] or "Server Initialization" in text or "ClientBegin" in text:
+        raise RuntimeError("Resident round trip restarted the connection or changed player identity")
+    driver.inputs.append({"connected_crossing": {"from": before, "to": state, "connection_retained": True}})
     return state
 
 

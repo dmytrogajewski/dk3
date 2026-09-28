@@ -25,7 +25,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
 fn shotgun(world: *data.World, slots: *Slots, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
-    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, tuning.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(owner, data.Binding)).slot, .mask = c.MASK_SHOT });
+    const hit = try @import("region_collision.zig").from(aim.world, .{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, tuning.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(owner, data.Binding)).slot, .mask = c.MASK_SHOT }, try world.persistentId(owner));
     if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
         if ((victim.get(data.Health) catch null) == null) return;
         const distance = v.length(v.subtract((try target.get(data.Transform)).position, pose.position));

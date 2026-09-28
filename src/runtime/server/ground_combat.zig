@@ -170,7 +170,7 @@ pub fn emit(world: *data.World, slots: *@import("../engine/slots.zig").Slots, pr
         const body = (try target.get(data.Body)).*;
         const aim = v.add((try target.get(data.Transform)).position, v.scale(v.add(body.mins, body.maxs), 0.5));
         const leading = if (kind == .femgang or kind == .cerberus or kind == .shark or kind == .dopefish) try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random)) else null;
-        const hit = try @import("region_collision.zig").trace(.{ .start = if (leading) |value| value.origin else start, .end = if (leading) |value| v.add(value.origin, v.scale(value.direction, definition.range)) else v.add(start, v.scale(v.normalize(v.subtract(aim, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+        const hit = try @import("region_collision.zig").from(if (leading) |value| value.world else try @import("actor_aim.zig").originOwner(world, pose.position, start), .{ .start = if (leading) |value| value.origin else start, .end = if (leading) |value| v.add(value.origin, v.scale(value.direction, definition.range)) else v.add(start, v.scale(v.normalize(v.subtract(aim, start)), definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT }, try world.persistentId(entity));
         if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
             const random = (try world.get(entity, data.Random)).next();
             const before = if (target.get(data.Health) catch null) |health| health.current else 0;

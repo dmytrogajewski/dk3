@@ -9,6 +9,10 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_region_weapons")) {
+        try @import("weapon_probe.zig").inspect(world, slots);
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_target_model")) {
         var argument: [96]u8 = undefined;
         const identity = try std.fmt.parseInt(u32, engine.argv(1, &argument), 10);
@@ -160,11 +164,14 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
     if (std.mem.eql(u8, name, "dk3_runtime_probe_health")) {
         var target_argument: [24]u8 = undefined;
         const target_text = engine.argv(2, &target_argument);
-        const owner = if (target_text.len == 0) player orelse return error.MissingPlayer else world.find(try std.fmt.parseInt(u32, target_text, 10)) orelse return error.MissingTarget;
+        const Ref = @import("../domain/world_references.zig").Ref;
+        const owner: Ref = if (target_text.len == 0) .{ .world = world, .entity = player orelse return error.MissingPlayer } else @import("region_access.zig").find(world, try std.fmt.parseInt(u32, target_text, 10)) orelse return error.MissingTarget;
         var argument: [16]u8 = undefined;
         const value = try std.fmt.parseInt(i32, engine.argv(1, &argument), 10);
         if (value < 1 or value > 10000) return error.InvalidProbeHealth;
-        (try world.get(owner, data.Health)).current = value;
+        (try owner.get(data.Health)).current = value;
+        var output: [112]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&output, "dk3 probe health: id={d} health={d}\n", .{ try owner.id(), value }));
         return true;
     }
     if (std.mem.eql(u8, name, "dk3_runtime_shot_lanes")) {

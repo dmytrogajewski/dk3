@@ -317,12 +317,8 @@ def marsh_exit(driver, capture, report, start_index=0):
         checkpoint = driver.save("opening_before_exit")
         shutil.copy2(checkpoint, report / checkpoint.name)
         driver.aim(0, 0)
-        driver.issue("+forward")
-        try:
-            state = driver.until(lambda s: s["map"] == "e1m1b" and s["mode"] == "normal", seconds=30, description="ordinary touch of authored e1m1b exit")
-        finally:
-            driver.issue("-forward")
-            driver.until(lambda s: s["forward"] == 0, description="release after authored travel")
+        from runtime_campaign_restoration import travel
+        state = travel(driver, "e1m1b")
         capture("e1m1b-authored-arrival")
         checkpoint = driver.save("opening_bridge_arrival")
         shutil.copy2(checkpoint, report / checkpoint.name)

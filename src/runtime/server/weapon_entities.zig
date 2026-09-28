@@ -40,3 +40,12 @@ pub fn remove(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try slots.release(slot, entity);
     try world.destroy(entity);
 }
+
+/// Retire the actual spatial owner, never a same-numbered slot in the caller.
+pub fn removeReference(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, target: @import("../domain/world_references.zig").Ref) !void {
+    if (target.world == world) return remove(world, slots, projections, target.entity);
+    const context = @import("region_access.zig").contextFor(target.world) orelse return error.WeaponWorldUnavailable;
+    const scope = try context.select();
+    defer scope.deinit();
+    return remove(target.world, &context.slots, &context.projection, target.entity);
+}

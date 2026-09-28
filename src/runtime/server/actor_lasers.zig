@@ -23,6 +23,7 @@ pub fn deathbolt(world: *data.World, slots: *Slots, projections: []abi.EntityPro
     errdefer world.destroy(entity) catch unreachable;
     try lifecycle.bind(world, slots, projections, entity, @import("actor_catalog").deathsphere.bolt_model);
     try publish(world, entity, projections, now);
+    try @import("actor_aim.zig").finishLaunch(world, pose.position, entity, now);
 }
 pub const origin = @import("actor_aim.zig").muzzle;
 pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, tuning: policy.Tuning, turret: bool, now: i64) !void {
@@ -46,6 +47,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try lifecycle.bind(world, slots, projections, entity, policy.sprite);
     try publish(world, entity, projections, now);
     try @import("events.zig").sound(world, slots, projections, "global/we_zapa.wav", start, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
+    try @import("actor_aim.zig").finishLaunch(world, pose.position, entity, now);
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     const state = (try world.get(entity, data.ActorLaser)).*;

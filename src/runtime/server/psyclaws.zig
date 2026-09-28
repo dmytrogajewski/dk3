@@ -106,7 +106,7 @@ fn emit(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, 
     if ((!first and !second) or !facing) return;
     if (index == 0) return @import("psyclaw_spheres.zig").launch(world, slots, projections, entity, target, pose, definition.psyclaw_blast, now);
     const aim = try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random));
-    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
+    const hit = try @import("region_collision.zig").from(aim.world, .{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT }, try world.persistentId(entity));
     if (@import("region_access.zig").victim(world, slots, hit)) |victim| {
         if ((victim.get(data.Health) catch null) == null) return;
         const amount = definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;

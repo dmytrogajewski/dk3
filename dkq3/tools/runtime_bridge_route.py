@@ -24,6 +24,19 @@ def world_rows(driver, kind):
     return rows
 
 
+def authored_id(driver, local_id):
+    """Resolve an authored map index using stationary exits in the active world.
+
+    Birth namespaces survive restoration and need not follow admission order.
+    Never infer this from the player or an actor that may have crossed a seam.
+    """
+    exits = world_rows(driver, "exit")
+    namespaces = {identity & 0xff000000 for identity in exits}
+    if len(namespaces) != 1 or not 0 < local_id <= 0xffffff:
+        raise RuntimeError(f"Cannot resolve authored index {local_id} from active exits: {exits}")
+    return next(iter(namespaces)) | local_id
+
+
 def items(driver):
     before = len(driver.text())
     driver.issue("dk3_runtime_items")
@@ -91,6 +104,7 @@ def aim_at(driver, point):
 
 
 def resupply(driver, identity):
+    identity = authored_id(driver, identity)
     uses = []
     while driver.observe()["health"] < 100:
         tree = world_rows(driver, "tree")[identity]
@@ -140,6 +154,10 @@ def clear_close_attackers(driver, capture):
 
 
 def shoot_control(driver, capture, identity, removed_actor=None):
+    identity = authored_id(driver, identity)
+    if removed_actor is not None:
+        removed_actor = (identity & 0xff000000) | removed_actor
+        assert removed_actor in actors(driver), "Linked turret setup is missing"
     target = world_rows(driver, "destructible")[identity]
     if target["broken"] != "0" or int(target["health"]) <= 0:
         raise RuntimeError("Control setup is already broken")
@@ -169,6 +187,8 @@ def shoot_control(driver, capture, identity, removed_actor=None):
 
 
 def clear_ford(driver, capture, report, identities=(387, 419), label="bridge"):
+    namespace = authored_id(driver, 1) & 0xff000000
+    identities = tuple(namespace | identity for identity in identities)
     if driver.observe()["water"] != 0:
         raise RuntimeError("Ford firing position is not on dry land")
     checkpoint(driver, capture, report, f"{label}_ford_bank")
@@ -301,14 +321,15 @@ def bridge_route(driver, capture, report, phase="bridge-arrival"):
 
 
 def bridge_span(driver, capture, report):
+    control_id = authored_id(driver, 86)
     control_visible = False
     for point in ((-2240, -256, 496), (-2184, -92, 479), (-2288, 48, 472), (-2411, 148, 472)):
         walk(driver, point, capture, combat=True)
-        control = world_rows(driver, "destructible")[86]
+        control = world_rows(driver, "destructible")[control_id]
         aim_at(driver, control["center"])
         trace = driver.diagnostics("dk3_runtime_ion_aim", "dk3 ion aimtrace:")
         match = re.search(r"dk3 ion aimtrace: [^\n]*?\btarget=(\d+)", trace)
-        if match and int(match[1]) == 86:
+        if match and int(match[1]) == control_id:
             control_visible = True
             shoot_control(driver, capture, 86, 85)
             checkpoint(driver, capture, report, "bridge_west_control")
@@ -346,7 +367,8 @@ def bridge_crossing(driver, capture, report):
     for point in ((-1563, 622, 988), (-1420, 640, 984), (-1280, 640, 984),
                   (-1120, 640, 984), (-1010, 640, 984), (-930, 640, 984)):
         walk(driver, point, capture, combat=True)
-    sequence = world_rows(driver, "sequence")[70]
+    namespace = authored_id(driver, 1) & 0xff000000
+    sequence = world_rows(driver, "sequence")[namespace | 70]
     if int(sequence["start"]) <= 0 or int(sequence["cursor"].split("/")[0]) == 0:
         raise RuntimeError("Ordinary bridge crossing did not activate its authored timeline")
     deadline = time.monotonic() + 20
@@ -357,7 +379,7 @@ def bridge_crossing(driver, capture, report):
         rows = actors(driver)
         boss = next((row for row in rows.values() if row["unique"] == "tskeet"), None)
         pieces = world_rows(driver, "destructible")
-        if boss and all(pieces[identity]["broken"] == "1" for identity in (80, 81, 82)):
+        if boss and all(pieces[namespace | identity]["broken"] == "1" for identity in (80, 81, 82)):
             break
         # Engage the visible wave during its authored entrance instead of
         # standing idle until all ten actors and the boss have arrived.
@@ -413,16 +435,11 @@ def bridge_exit(driver, capture, report):
             checkpoint(driver, capture, report, "bridge_exit_resupplied")
             for supply in (*reversed(bank[:-1]), point):
                 walk(driver, supply, capture, combat=True)
-    from runtime_campaign_restoration import bridge_progress, visited_bridge
+    from runtime_campaign_restoration import bridge_progress, travel, visited_bridge
     progress = bridge_progress(driver)
     checkpoint(driver, capture, report, "bridge_before_exit")
     aim_at(driver, (-760, 1600, 686))
-    driver.issue("+forward")
-    try:
-        arrival = driver.until(lambda s: s["map"] == "e1m1c" and s["mode"] == "normal",
-                               seconds=20, description="authored bridge exit into e1m1c")
-    finally:
-        driver.stop_forward()
+    arrival = travel(driver, "e1m1c")
     checkpoint(driver, capture, report, "factory_arrival")
     visit = visited_bridge(driver, capture, report, progress)
     from runtime_factory_route import factory_route

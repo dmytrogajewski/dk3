@@ -193,7 +193,7 @@ fn select(world: *data.World, entity: ecs.Entity, actor: *data.Actor, now: i64) 
 }
 fn slice(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, target: Ref, actor: *data.Actor, pose: data.Transform, definition: @import("../domain/actors.zig").Definition, now: i64) !void {
     const aim = try @import("actor_aim.zig").lead(world, target, pose, definition.offset, try world.get(entity, data.Random));
-    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
+    const hit = try @import("region_collision.zig").from(aim.world, .{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT }, try world.persistentId(entity));
     if (@import("region_access.zig").victim(world, slots, hit)) |victim| if (victim.get(data.Health) catch null) |health| {
         const amount: f32 = if (health.current > 1) @floatFromInt(health.current - 1) else definition.damage + (try world.get(entity, data.Random)).next() * definition.random_damage;
         _ = try @import("weapon_damage.zig").hurt(victim.world, victim.entity, try world.persistentId(entity), 0, amount, now, false);

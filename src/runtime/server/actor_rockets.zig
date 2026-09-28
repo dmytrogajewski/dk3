@@ -40,6 +40,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try lifecycle.bind(world, slots, projections, entity, policy.model(kind));
     try publish(world, entity, projections, now);
     try @import("events.zig").sound(world, slots, projections, if (kind == .battleboar) "global/e_firetravelb.wav" else "e4/m_rockgangataka.wav", origin, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
+    try @import("actor_aim.zig").finishLaunch(world, pose.position, entity, now);
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     const state = (try world.get(entity, data.ActorAttack)).*;

@@ -2,6 +2,7 @@
 //! Delayed Hammer strikes become persistent quakes after a grounded full charge.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const access = @import("region_access.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -46,10 +47,10 @@ fn strike(world: *data.World, slots: *Slots, projections: []abi.EntityProjection
     const slot = (try world.get(owner, data.Binding)).slot;
     const axes = v.basis(pose.angles);
     const start = v.add(pose.position, v.scale(v.cross(axes.right, axes.forward), 4));
-    const hit = try engine.collisionService().trace(.{ .start = start, .end = v.add(start, v.scale(axes.forward, 50)), .mins = @splat(-1), .maxs = @splat(1), .slot = slot, .mask = c.MASK_SHOT });
+    const hit = try @import("region_collision.zig").owned(world, .{ .start = start, .end = v.add(start, v.scale(axes.forward, 50)), .mins = @splat(-1), .maxs = @splat(1), .slot = slot, .mask = c.MASK_SHOT }, action.owner);
     const amount = action.damage * W.chargeScale(action.charge_ms);
-    if (hit.fraction < 1 and hit.entity < slots.occupants.len) if (slots.occupants[hit.entity]) |target| {
-        if (try damage.hurt(world, target, action.owner, W.id, amount, now, false)) try damage.shove(world, target, action.owner, axes.forward, amount, now);
+    if (hit.fraction < 1) if (access.victim(world, slots, hit)) |target| {
+        if (try damage.hurt(target.world, target.entity, action.owner, W.id, amount, now, false)) try damage.shove(target.world, target.entity, action.owner, axes.forward, amount, now);
     };
     const quake = action.charge_ms >= 1800 and body.grounded;
     try area.apply(world, slots, .{ .owner = action.owner, .weapon = W.id, .origin = pose.position, .damage = if (quake) action.damage else amount, .radius = action.range, .skip_slot = slot, .self_scale = 0, .diminishing = !quake, .occlusion = quake }, now);
@@ -106,16 +107,16 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (now >= action.next_ms) {
             const position = (try world.get(entity, data.Transform)).position;
             var random = (try world.get(entity, data.Random)).*;
-            for (slots.occupants) |occupant| {
-                const target = occupant orelse continue;
-                const actor = world.get(target, data.Actor) catch null;
-                if (actor == null and (world.get(target, data.Player) catch null) == null) continue;
-                if ((try world.get(target, data.Health)).current <= 0 or !(try world.get(target, data.Body)).grounded) continue;
-                const strength = W.quakeStrength(v.length(v.subtract((try world.get(target, data.Transform)).position, position)), until - now, action.damage, actor != null);
+            var candidates = access.Damageables.init(world, slots);
+            while (candidates.next()) |target| {
+                const actor = target.get(data.Actor) catch null;
+                if (actor == null and (target.get(data.Player) catch null) == null) continue;
+                if ((try target.get(data.Health)).current <= 0 or !(try target.get(data.Body)).grounded) continue;
+                const strength = W.quakeStrength(v.length(v.subtract((try target.get(data.Transform)).position, position)), until - now, action.damage, actor != null);
                 if (strength <= 0) continue;
                 var impulse: v.Vec3 = undefined;
                 for (&impulse) |*axis| axis.* = (random.next() - 0.5) * strength * 1.25;
-                try airborne(world, target, impulse);
+                try airborne(target.world, target.entity, impulse);
             }
             (try world.get(entity, data.Random)).* = random;
             action.next_ms = now + 100;

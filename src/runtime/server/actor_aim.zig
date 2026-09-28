@@ -8,11 +8,24 @@ const v = @import("../domain/vector.zig");
 const engine = @import("../engine/server.zig");
 const c = @import("../engine/abi.zig").c;
 const Slots = @import("../engine/slots.zig").Slots;
+pub const Aim = struct { origin: v.Vec3, direction: v.Vec3, world: u32 };
+/// Class-authored muzzle offsets are unchanged. This zero-mask segment assigns
+/// their coordinate owner; the actual attack still uses its authored hull/mask.
+pub fn originOwner(world: *data.World, position: v.Vec3, origin: v.Vec3) !u32 {
+    const source = try @import("actor_collision.zig").ownerAt(world, position);
+    const hit = try @import("region_collision.zig").from(source, .{ .start = position, .end = origin, .mins = @splat(0), .maxs = @splat(0), .slot = c.ENTITYNUM_NONE, .mask = 0 }, 0);
+    return hit.world;
+}
+pub fn finishLaunch(world: *data.World, position: v.Vec3, entity: ecs.Entity, now: i64) !void {
+    const origin = (try world.get(entity, data.Transform)).position;
+    const cursor: @import("region_motion.zig").Cursor = .{ .owner = try originOwner(world, position, origin), .skip = 0 };
+    try cursor.finish(world, entity, now);
+}
 pub fn muzzle(pose: data.Transform, offset: v.Vec3) v.Vec3 {
     const axes = v.basis(pose.angles);
     return v.add(pose.position, v.add(v.scale(axes.right, offset[0]), v.add(v.scale(axes.forward, offset[1]), v.scale(v.cross(axes.right, axes.forward), offset[2]))));
 }
-pub fn lead(_: *data.World, target: Ref, pose: data.Transform, offset: v.Vec3, random: *data.Random) !struct { origin: v.Vec3, direction: v.Vec3 } {
+pub fn lead(world: *data.World, target: Ref, pose: data.Transform, offset: v.Vec3, random: *data.Random) !Aim {
     const target_pose = (try target.get(data.Transform)).*;
     const target_velocity = (try target.get(data.Velocity)).linear;
     const basis = v.basis(pose.angles);
@@ -35,13 +48,13 @@ pub fn lead(_: *data.World, target: Ref, pose: data.Transform, offset: v.Vec3, r
         const target_body = (try target.get(data.Body)).*;
         destination[2] -= target_body.maxs[2] - target_body.mins[2];
     };
-    return .{ .origin = origin, .direction = v.normalize(v.subtract(destination, origin)) };
+    return .{ .origin = origin, .direction = v.normalize(v.subtract(destination, origin)), .world = try originOwner(world, pose.position, origin) };
 }
 
 pub fn clearProjectile(world: *data.World, slots: *Slots, entity: ecs.Entity, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, minimum: f32) !bool {
     const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, try world.get(entity, data.Random));
     const distance = v.length(v.subtract((try target.get(data.Transform)).position, pose.position));
-    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, distance)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
+    const hit = try @import("region_collision.zig").from(aim.world, .{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, distance)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT }, try world.persistentId(entity));
     if (@import("region_collision.zig").reaches(world, hit, target)) return true;
     if (@import("region_access.zig").victim(world, slots, hit)) |other| {
         if ((other.get(data.Player) catch null) != null) return true;
@@ -51,7 +64,7 @@ pub fn clearProjectile(world: *data.World, slots: *Slots, entity: ecs.Entity, ta
 }
 
 // ITF_NOLEAD aims at the actual target with authored spread and crouch offset.
-pub fn direct(_: *data.World, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, random: *data.Random) !struct { origin: v.Vec3, direction: v.Vec3 } {
+pub fn direct(world: *data.World, target: Ref, pose: data.Transform, tuning: @import("actor_catalog").weapon.Tuning, random: *data.Random) !Aim {
     const origin = muzzle(pose, tuning.offset);
     const axes = v.basis(pose.angles);
     const right_spread = tuning.spread[0] * random.next() * (if (random.next() < 0.5) @as(f32, -1) else 1);
@@ -61,5 +74,5 @@ pub fn direct(_: *data.World, target: Ref, pose: data.Transform, tuning: @import
         const body = (try target.get(data.Body)).*;
         point[2] -= (body.maxs[2] - body.mins[2]) * 0.65;
     };
-    return .{ .origin = origin, .direction = v.normalize(v.subtract(point, origin)) };
+    return .{ .origin = origin, .direction = v.normalize(v.subtract(point, origin)), .world = try originOwner(world, pose.position, origin) };
 }

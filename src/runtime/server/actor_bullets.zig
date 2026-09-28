@@ -14,7 +14,7 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     const random = try world.get(entity, data.Random);
     const aim = try @import("actor_aim.zig").lead(world, enemy, pose, tuning.offset, random);
     const slot = (try world.get(entity, data.Binding)).slot;
-    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, tuning.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT });
+    const hit = try @import("region_collision.zig").from(aim.world, .{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, tuning.range)), .mins = @splat(0), .maxs = @splat(0), .slot = slot, .mask = c.MASK_SHOT }, try world.persistentId(entity));
     var contact: u32 = 0;
     if (@import("region_access.zig").victim(world, slots, hit)) |victim| if ((victim.get(data.Health) catch null) != null and policy.damageAdmitted(@intCast(std.math.clamp(engine.integer("g_spSkill"), 1, 5)), random.next())) {
         const amount = tuning.damage + random.next() * tuning.random_damage;

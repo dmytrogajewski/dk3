@@ -28,6 +28,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try publish(world, entity, projections, now);
     var text: [128]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 frog: id={d} spit={d} damage={d:.2}\n", .{ try world.persistentId(owner), try world.persistentId(entity), amount }));
+    try @import("actor_aim.zig").finishLaunch(world, pose.position, entity, now);
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     const binding = (try world.get(entity, data.Binding)).*;

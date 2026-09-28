@@ -155,7 +155,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     if (shot.weapon == catalog.metamaser.id) return @import("metamaser.zig").launch(world, slots, projections, owner, shot, table, now);
     _ = try spawn(world, slots, projections, owner, shot, table, now);
 }
-pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, shot: weapons.Fired, table: *const weapons.Table, now: i64) !ecs.Entity {
+pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, shot: weapons.Fired, table: *const weapons.Table, now: i64) !@import("../domain/world_references.zig").Ref {
     const spec = catalog.find(shot.weapon).?.spec;
     const tuning = table.entries[shot.weapon];
     const owner_id = try world.persistentId(owner);
@@ -165,12 +165,13 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     const eye = rules.eye(shot.position, shot.view_height);
     var angles = shot.angles;
     if (launch_pose.pitch != 0) angles[0] = std.math.clamp(angles[0] + launch_pose.pitch, -89, 89);
-    const start = (try engine.collisionService().trace(.{ .start = eye, .end = rules.muzzle(eye, angles, launch_pose.muzzle), .mins = spec.projectile.mins, .maxs = spec.projectile.maxs, .slot = owner_slot, .mask = c.MASK_SHOT })).end;
+    var motion = @import("region_motion.zig").Cursor.init(world, owner_id);
+    const start = (try motion.trace(.{ .start = eye, .end = rules.muzzle(eye, angles, launch_pose.muzzle), .mins = spec.projectile.mins, .maxs = spec.projectile.maxs, .slot = owner_slot, .mask = c.MASK_SHOT })).end;
     const forward = v.basis(angles).forward;
     const target = (try trace(eye, v.add(eye, v.scale(forward, spec.projectile.aim_range)), owner_slot, 0, c.MASK_SHOT)).end;
     const speed = (if (tuning.speed > 0) tuning.speed else 400) * (1 + 0.3 * @as(f32, @floatFromInt(attack)));
     var projectile: data.Projectile = .{ .owner = owner_id, .weapon = shot.weapon, .damage = tuning.damage, .born_ms = now, .stepped_ms = now, .flight = try catalog.flightState(shot.weapon), .launch_position = start, .speed = speed };
-    projectile.wet = (try engine.collisionService().contents(start, owner_slot)) & c.MASK_WATER != 0;
+    projectile.wet = (try motion.contents(start)) & c.MASK_WATER != 0;
     if (projectile.flight == .shockwave) projectile.flight.shockwave.last_ring = start;
     if (spec.projectile.recoil_on_launch) {
         const velocity = try world.get(owner, data.Velocity);
@@ -202,7 +203,9 @@ pub fn spawn(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     try world.put(entity, data.Binding{ .slot = slot, .model = model });
     projections[slot] = std.mem.zeroes(abi.EntityProjection);
     try publish(world, entity, projections, now);
-    return entity;
+    const identity = try world.persistentId(entity);
+    try motion.finish(world, entity, now);
+    return access.find(world, identity).?;
 }
 
 fn explode(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, projectile: data.Projectile, hit: @import("../domain/collision.zig").Trace, now: i64) !void {
@@ -240,13 +243,13 @@ fn directHit(world: *data.World, target: ecs.Entity, projectile: data.Projectile
 }
 fn restingContact(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, projectile: data.Projectile, position: v.Vec3, now: i64) !bool {
     const bounds = catalog.find(projectile.weapon).?.spec.projectile;
-    for (slots.occupants, 0..) |occupant, slot| {
-        const target = occupant orelse continue;
-        const health = world.get(target, data.Health) catch continue;
+    var candidates = @import("region_access.zig").Damageables.init(world, slots);
+    while (candidates.next()) |target| {
+        const health = target.get(data.Health) catch continue;
         if (health.current <= 0) continue;
-        if ((world.get(target, data.Actor) catch null) == null and (world.get(target, data.Player) catch null) == null) continue;
-        const pose = (try world.get(target, data.Transform)).*;
-        const body = (try world.get(target, data.Body)).*;
+        if ((target.get(data.Actor) catch null) == null and (target.get(data.Player) catch null) == null) continue;
+        const pose = (try target.get(data.Transform)).*;
+        const body = (try target.get(data.Body)).*;
         var overlaps = true;
         for (0..3) |axis| if (position[axis] + bounds.maxs[axis] < pose.position[axis] + body.mins[axis] or position[axis] + bounds.mins[axis] > pose.position[axis] + body.maxs[axis]) {
             overlaps = false;
@@ -254,8 +257,8 @@ fn restingContact(world: *data.World, slots: *Slots, projections: []abi.EntityPr
         };
         if (!overlaps) continue;
         const visible = try trace(position, v.add(pose.position, v.scale(v.add(body.mins, body.maxs), 0.5)), (try world.get(entity, data.Binding)).slot, 0, c.MASK_SOLID);
-        if (visible.fraction < 1 and visible.entity != slot) continue;
-        try directHit(world, target, projectile, @splat(0), now);
+        if (!region.reaches(world, visible, target)) continue;
+        try directHit(target.world, target.entity, projectile, @splat(0), now);
         try @import("events.zig").impact(world, slots, projections, .{ .weapon = projectile.weapon, .kind = .flesh, .normal = .{ 0, 0, 1 } }, position, now);
         try remove(world, slots, projections, entity);
         return true;

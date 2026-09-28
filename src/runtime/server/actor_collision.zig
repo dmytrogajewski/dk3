@@ -79,12 +79,25 @@ pub const Frame = struct {
     pub fn finish(self: *Frame, now: i64) !void {
         if (!self.world.alive(self.entity)) return;
         const body = try self.world.get(self.entity, data.Body);
-        if (body.motion_owner != null) return;
+        if (body.motion_owner) |identity| {
+            const controller = access.find(self.world, identity) orelse return;
+            const projectile = controller.get(data.Projectile) catch return;
+            // Impaled actors still use collision-checked physical movement.
+            // Cinematic/reaper positioning keeps its controller's own contract.
+            if (projectile.flight != .ballista or projectile.flight.ballista.victim != try self.world.persistentId(self.entity)) return;
+        }
         const point = (try self.world.get(self.entity, data.Transform)).position;
         const cursor: @import("region_motion.zig").Cursor = .{ .owner = try self.ownerAt(point), .skip = 0 };
         try cursor.finish(self.world, self.entity, now);
     }
 };
+/// The caller's current pose can already lie across a seam before the enclosing
+/// actor frame commits. Offset attacks must start from that accepted owner.
+pub fn ownerAt(world: *data.World, point: data.Vec3) !u32 {
+    if (active) |frame| if (frame.world == world) return frame.ownerAt(point);
+    return @import("region_motion.zig").Cursor.init(world, 0).owner;
+}
+
 pub fn service() collision.Collision {
     const frame = active orelse return engine.collisionService();
     return .{ .context = frame, .trace_fn = Frame.trace, .contents_fn = Frame.contents };

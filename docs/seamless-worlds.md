@@ -1,6 +1,6 @@
 # Seamless connected worlds
 
-Sequences 297–304 implement connected owners on `rewrite/native-zig-runtime`.
+Sequences 297–305 implement connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary campaign exits now use resident ownership.**
 Automatic handoff is not acceptance of portal views or cross-world combat.
 
@@ -212,6 +212,23 @@ A/B, Slaughterskeet pursuit and Superfly following into A, and save/load of both
 crossed actors. The aggregate and affected player/render/save/LAN scenarios replay
 on build `0262fb…`; see native acceptance for exact identities and limitations.
 This does not qualify every actor/controller, party script or campaign route.
+
+Sequence 305 extends specialized player controllers: Trident groups, Wyndrax
+targets, Zeus branches, Nightmare victims, Metamaser locks/destruction, Ballista
+transport, Discus return/pickup, C4, Sunflare, Stavros, Shockwave and Hammer.
+Accepted motion determines physical ownership; class-owned damage, timing,
+visibility/liquid masks and acquisition rules remain authoritative. NPC muzzle
+offsets also resolve their actual world without changing the authored offset.
+Lightning-hop attachment is distinct from attack ownership, and disconnect
+cleanup resolves personal controllers across ready maps. Controller presentation
+references are mapped only after foreign transport slots have been assigned.
+
+On `187506…`, eleven controlled weapon scenarios establish actual contact;
+selected active controllers restore, and affected renderer/actor/save checks
+replay. These are scoped diagnostics, not full interaction or campaign acceptance;
+see `native-acceptance.md`. The current manifest has 124 exits: six qualified
+identity seams, 33 authored cuts and 85 unreviewed landings. The raw inventory's
+91 geometry-unreviewed rows include the six subsequently qualified seams.
 
 ## Remaining implementation, in dependency order
 

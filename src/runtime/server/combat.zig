@@ -88,7 +88,8 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             } else try @import("projectiles.zig").launch(world, slots, projections, owner, shot, table, now);
         },
         .ion => |policy| {
-            const start = (try trace(eye, rules.muzzle(eye, shot.angles, tuning.muzzle), slot, policy.radius, c.MASK_SHOT)).end;
+            const muzzle = try trace(eye, rules.muzzle(eye, shot.angles, tuning.muzzle), slot, policy.radius, c.MASK_SHOT);
+            const start = muzzle.end;
             const aimed = (try trace(eye, v.add(eye, v.scale(forward, 2000)), slot, 0, c.MASK_SHOT)).end;
             const speed_factor = if (world.get(owner, data.Character)) |state| 1 + 0.3 * @as(f32, @floatFromInt(state.attribute(.attack, now))) else |_| 1;
             const model = try @import("resources.zig").model(entry.spec.visual.projectile_model);
@@ -99,6 +100,8 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try world.put(bolt, data.Binding{ .slot = bolt_slot, .model = model });
             projections[bolt_slot] = std.mem.zeroes(abi.EntityProjection);
             try @import("projectiles.zig").publish(world, bolt, projections, now);
+            const cursor: @import("region_motion.zig").Cursor = .{ .owner = muzzle.world, .skip = 0 };
+            try cursor.finish(world, bolt, now);
         },
     }
     if (combat_policy == .melee and (try catalog.meleePlan(shot.weapon, shot.sequence, (try world.get(owner, data.Weapons)).dk3SwordExperience)).sound_on_strike) return;

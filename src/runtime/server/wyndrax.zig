@@ -2,6 +2,9 @@
 //! Wisp acquisition and collision adapters; the weapon class owns its oscillator and fade.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const Ref = @import("../domain/world_references.zig").Ref;
+const access = @import("region_access.zig");
+const geometry = @import("region_collision.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -31,7 +34,8 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     const owner_id = try world.persistentId(owner);
     var random: data.Random = .{ .state = owner_id ^ @as(u32, @truncate(@as(u64, @bitCast(now)))) ^ 0x2b6471c9 };
     const eye = @import("../domain/combat.zig").eye(shot.position, shot.view_height);
-    const position = (try engine.collisionService().trace(.{ .start = eye, .end = @import("../domain/combat.zig").muzzle(eye, shot.angles, tuning.muzzle), .mins = W.spec.projectile.mins, .maxs = W.spec.projectile.maxs, .slot = (try world.get(owner, data.Binding)).slot, .mask = c.MASK_SOLID })).end;
+    var motion = @import("region_motion.zig").Cursor.init(world, owner_id);
+    const position = (try motion.trace(.{ .start = eye, .end = @import("../domain/combat.zig").muzzle(eye, shot.angles, tuning.muzzle), .mins = W.spec.projectile.mins, .maxs = W.spec.projectile.maxs, .slot = (try world.get(owner, data.Binding)).slot, .mask = c.MASK_SOLID })).end;
     const speed = 500 + 500 * random.next();
     const wisp: W.BallisticState = .{ .personality = random.next(), .sound_ms = 100 + @as(i64, @intFromFloat(200 * random.next())) };
     const lifetime: i64 = @intFromFloat(tuning.lifetime * 1000);
@@ -41,36 +45,37 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try entities.bind(world, slots, projections, entity, W.spec.visual.projectile_model);
     try @import("projectiles.zig").publish(world, entity, projections, now);
     try sound(world, slots, projections, owner, W.spec.audio.fire.?, now);
+    try motion.finish(world, entity, now);
 }
 fn alive(world: *data.World, id: u32) bool {
-    const entity = world.find(id) orelse return false;
-    return (world.get(entity, data.Health) catch return false).current > 0;
+    const entity = access.find(world, id) orelse return false;
+    return (entity.get(data.Health) catch return false).current > 0;
 }
-fn valid(world: *data.World, entity: ecs.Entity, owner: u32) !bool {
-    const id = try world.persistentId(entity);
-    if (id == owner or !alive(world, id)) return false;
-    if ((world.get(entity, data.Actor) catch null) != null) return true;
-    return engine.integer("g_gametype") != c.GT_SINGLE_PLAYER and (world.get(entity, data.Player) catch null) != null;
+fn valid(entity: Ref, owner: u32) !bool {
+    if (try entity.id() == owner or (entity.get(data.Health) catch return false).current <= 0) return false;
+    if ((entity.get(data.Actor) catch null) != null) return true;
+    return engine.integer("g_gametype") != c.GT_SINGLE_PLAYER and (entity.get(data.Player) catch null) != null;
 }
-fn visible(world: *data.World, position: v.Vec3, skip: u16, target: ecs.Entity) !bool {
-    return @import("area_damage.zig").visible(position, (try world.get(target, data.Transform)).position, skip, (try world.get(target, data.Binding)).slot);
+fn visible(world: *data.World, position: v.Vec3, skip: u32, target: Ref) !bool {
+    const hit = try geometry.owned(world, .{ .start = position, .end = (try target.get(data.Transform)).position, .mins = @splat(0), .maxs = @splat(0), .slot = c.ENTITYNUM_NONE, .mask = c.MASK_SOLID }, skip);
+    return geometry.reaches(world, hit, target);
 }
 fn acquire(world: *data.World, slots: *Slots, entity: ecs.Entity, projectile: data.Projectile, wisp: *W.BallisticState, random: *data.Random, position: v.Vec3) !void {
-    const skip = (try world.get(entity, data.Binding)).slot;
+    const skip = try world.persistentId(entity);
     const old = wisp.enemy;
-    if (old) |id| if (!alive(world, id) or !try visible(world, position, skip, world.find(id).?)) {
+    if (old) |id| if (!alive(world, id) or !try visible(world, position, skip, access.find(world, id).?)) {
         wisp.enemy = null;
     };
     const gather = random.next() > 0.02;
     var nearest: f32 = std.math.inf(f32);
     var next = wisp.enemy;
-    for (slots.occupants) |occupant| {
-        const target = occupant orelse continue;
-        if (!try valid(world, target, projectile.owner)) continue;
-        const distance = v.length(v.subtract((try world.get(target, data.Transform)).position, position));
+    var candidates = access.Damageables.init(world, slots);
+    while (candidates.next()) |target| {
+        if (!try valid(target, projectile.owner)) continue;
+        const distance = v.length(v.subtract((try target.get(data.Transform)).position, position));
         if ((!gather or distance > 300) and wisp.enemy != null) continue;
         if (!try visible(world, position, skip, target)) continue;
-        const id = try world.persistentId(target);
+        const id = try target.id();
         if (gather and distance <= 300) _ = wisp.include(id);
         if (wisp.enemy == null and distance < nearest) {
             nearest = distance;
@@ -82,25 +87,25 @@ fn acquire(world: *data.World, slots: *Slots, entity: ecs.Entity, projectile: da
         wisp.enemy = id;
     };
 }
-fn zap(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, projectile: data.Projectile, wisp: *W.BallisticState, random: *data.Random, position: v.Vec3, now: i64) !void {
+fn zap(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, projectile: data.Projectile, wisp: *W.BallisticState, random: *data.Random, position: v.Vec3, owner_world: u32, now: i64) !void {
     const age = now - projectile.born_ms;
     var audible = age > wisp.sound_ms;
     for (&wisp.targets) |*id| {
         if (id.* == 0) continue;
         audible = true;
-        const target = world.find(id.*) orelse {
+        const target = access.find(world, id.*) orelse {
             id.* = 0;
             continue;
         };
-        const delta = v.subtract((try world.get(target, data.Transform)).position, position);
+        const delta = v.subtract((try target.get(data.Transform)).position, position);
         if (v.length(delta) > 250) continue;
         const amount = projectile.damage * 0.5;
-        if (try damage.hurt(world, target, projectile.owner, W.id, amount, now, false)) try damage.shove(world, target, projectile.owner, v.normalize(delta), amount, now);
+        if (try damage.hurt(target.world, target.entity, projectile.owner, W.id, amount, now, false)) try damage.shove(target.world, target.entity, projectile.owner, v.normalize(delta), amount, now);
         if (!alive(world, id.*) or random.next() > 0.9) id.* = 0;
     }
     if (audible) {
         wisp.sound_ms = age + 100 + @as(i64, @intFromFloat(200 * random.next()));
-        try sound(world, slots, projections, entity, W.sounds[@min(2, @as(usize, @intFromFloat(random.next() * 3)))], now);
+        try @import("events.zig").soundOwned(world, slots, projections, owner_world, W.sounds[@min(2, @as(usize, @intFromFloat(random.next() * 3)))], position, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
     }
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
@@ -109,7 +114,8 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = occupant orelse continue;
         if (!world.alive(entity)) continue;
         var projectile = (world.get(entity, data.Projectile) catch continue).*;
-        if (projectile.flight != .wyndrax) continue;
+        if (projectile.flight != .wyndrax or now <= projectile.stepped_ms) continue;
+        var motion = @import("region_motion.zig").Cursor.init(world, try world.persistentId(entity));
         var wisp = projectile.flight.wyndrax;
         var random = (try world.get(entity, data.Random)).*;
         var pose = (try world.get(entity, data.Transform)).*;
@@ -121,7 +127,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         while (at < now) {
             const delta_ms = @min(20, now - at);
             const goal = v.add(pose.position, v.scale(velocity, @as(f32, @floatFromInt(delta_ms)) * 0.001));
-            const hit = try engine.collisionService().trace(.{ .start = pose.position, .end = goal, .mins = W.spec.projectile.mins, .maxs = W.spec.projectile.maxs, .slot = skip, .mask = c.MASK_SOLID });
+            const hit = try motion.trace(.{ .start = pose.position, .end = goal, .mins = W.spec.projectile.mins, .maxs = W.spec.projectile.maxs, .slot = skip, .mask = c.MASK_SOLID });
             pose.position = hit.end;
             at += delta_ms;
             if (hit.fraction < 1) {
@@ -133,15 +139,15 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         var remove = now >= (try world.get(entity, data.Lifetime)).expires_ms;
         if (age >= wisp.next_ms) {
             wisp.next_ms = age + 100;
-            try zap(world, slots, projections, entity, projectile, &wisp, &random, pose.position, now);
+            try zap(world, slots, projections, projectile, &wisp, &random, pose.position, motion.owner, now);
             const fading = wisp.phase == .fading;
             if (fading) remove = remove or wisp.fade() else if (age >= projectile.lifetime_ms or !alive(world, projectile.owner)) wisp.phase = .fading;
             if (fading or (wisp.phase == .active and age >= wisp.sine_ms)) {
                 var heading = velocity;
                 var distance: f32 = 200;
-                if (wisp.enemy) |id| if (world.find(id)) |target| {
-                    const position = (try world.get(target, data.Transform)).position;
-                    const body = (try world.get(target, data.Body)).*;
+                if (wisp.enemy) |id| if (access.find(world, id)) |target| {
+                    const position = (try target.get(data.Transform)).position;
+                    const body = (try target.get(data.Body)).*;
                     distance = v.length(v.subtract(position, pose.position));
                     heading = v.subtract(v.add(position, body.maxs), pose.position);
                 };
@@ -149,7 +155,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             }
         }
         if (remove) {
-            try sound(world, slots, projections, entity, W.spec.audio.away.?, now);
+            try @import("events.zig").soundOwned(world, slots, projections, motion.owner, W.spec.audio.away.?, pose.position, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
             try entities.remove(world, slots, projections, entity);
             continue;
         }
@@ -161,5 +167,6 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         (try world.get(entity, data.Velocity)).linear = velocity;
         (try world.get(entity, data.Random)).* = random;
         try @import("projectiles.zig").publish(world, entity, projections, now);
+        try motion.finish(world, entity, now);
     }
 }

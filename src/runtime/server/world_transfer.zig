@@ -19,7 +19,7 @@ const Attached = struct {
             var query = source.world.?.queryAccess(0, 0, 0);
             defer query.deinit();
             while (query.next()) |view| for (view.entities()) |action| {
-                if (@import("weapon_actions.zig").owner(&source.world.?, action) != identity) continue;
+                if (@import("weapon_actions.zig").attachment(&source.world.?, action) != identity) continue;
                 const moved = try source.world.?.cloneInto(action, &destination.world.?);
                 errdefer destination.world.?.destroy(moved) catch unreachable;
                 if (destination.world.?.get(moved, data.Binding) catch null) |binding| {

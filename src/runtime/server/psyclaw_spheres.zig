@@ -22,6 +22,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
         errdefer world.destroy(entity) catch unreachable;
         try lifecycle.bind(world, slots, projections, entity, policy.model);
         try publish(world, entity, projections, now);
+        try @import("actor_aim.zig").finishLaunch(world, pose.position, entity, now);
     }
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {

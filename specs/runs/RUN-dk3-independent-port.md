@@ -6253,3 +6253,53 @@ unreviewed seams, residency/admission stalls and fresh campaign/full multiplayer
 acceptance remain. Script/action implementation is not blanket authored acceptance.
 Continue the accepted seamless/full-port work beyond this checkpoint. Main remains
 `e3966c4d40678dbf91619034b5dcb33b763dcbed`; installed game, saves and service unchanged.
+
+## runtime-zig-305 — specialized weapons across seams
+
+Immutable build `18750658f9ccb2d67fe6f782a277dcb754fafadbeb26058e236ec474171c5c13`;
+combined identity `abaccd1628f849daca0e1c96b1df01de9232dc33543e2ad466baf63dbed7ada3`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`;
+region manifest `f0cb127dcc3fa705a51cc5d9fd597960396e7bfdc3ca2cc55e709998e6a1368d`.
+Evidence: `zig-out/reports/runtime-zig-305/`. Protocol 1349, renderer ABI 12 unchanged.
+
+Connected specialized player weapon targets, grouped controllers, qualified
+muzzle/flight ownership, Ballista victim transport, global personal-action cleanup
+and controller presentation references. Class-owned damage, timing, acquisition,
+visibility/liquid masks, geometry and puzzle rules remain unchanged. Lightning
+hop attachment follows its source separately from attack ownership. Metamaser
+laser endpoints are coordinates and no longer undergo entity-slot remapping.
+NPC offset attacks retain their actual spatial owner without changing the offset.
+
+| Evidence | Result | Limits |
+|---|---|---|
+| Eleven `*-final/` weapon scenarios | Real dry grounded B worker takes actual damage from ordinary player attacks in A: Wyndrax, Nightmare, Metamaser, Zeus, Trident, Ballista, Discus, C4, Sunflare, Stavros, Shockwave. Wisp/ritual/tracking-cube/pending-chain identities restore. Nightmare restores actual victim freeze, damages/releases the victim and completes. | Diagnostic class spawn/placement/health/equipment, not authored encounters. Three actual Trident tips; no merge/water acceptance. Ballista contact/skewer, not carried crossing/pin restore. No blanket secondary interaction or reference presentation claim. |
+| `metamaser-final/saved-owners.json` | Original saved cube is physically in B; its locked fly is physically in A with an actual weapon-26 Hurt receipt from Hiro (40 damage). | Read-only inspection, not an inference from birth ID. Post-load fly physical ownership is not separately asserted. |
+| `sentry-final/`, `spit-final/`, `pursuit-final/`, `companion-final/` | Real Rockgat/Froginator attacks contact Hiro across the seam; enemy pursuit and Superfly follow cross B→A and actually restore health, identity, authored home and party/threat ownership. | Controlled real classes and one reviewed corridor. |
+| `foreign-final-opengl1/`, `foreign-final-opengl2/`, `crossing-final/` | Owning renderer/resource publication, actual Glock/Ion/Sidewinder foreign contact and normal A→B→A player movement replay. | Synthetic combat target and controlled approach; retained connection/input/identity checked. |
+| `region-save-final/`, `legacy-visited-final/`, `cinematic-restore-final/` | Independent A/B actor and hero state restore after save/death; unmodified older archive migration audits all 53 actors before simulation; six-world factory arrival restores/completes and permits movement/saving. | Controlled or historical immutable fixtures, not fresh campaign traversal. |
+| `lan-final/` | Two real UDP clients replay the existing movement/fire/death/respawn/spectate/rejoin/reconnect/restart lifecycle. | No public service or full multiplayer mode/bot acceptance. |
+| `aggregate-final.log`, `python-final.log`, `c4-regression/` | 44/44 steps, 402 Zig, original 81 Python tests and actual C contracts pass. After the driver repair, all 82 Python tests pass; affected driver contracts 18/18. Temporarily removing C4 neighbor scheduling fails `expected 2, found 1`. | Assertions enabled: runtime/catalog ReleaseSafe, other roots Debug. Defect copy is outside production source. |
+| `fresh-opening/` | Failed observation assertion after living normal marsh arrival. Full intro and arrival advance; driver misses sampled shot 69 and includes finished cursor 115. | Actual server shot-transition event proves the brief missed observation. Original failure remains failed; no arrival save or route acceptance. |
+| `fresh-opening-events/`, `factory-checkpoint/` | Running: corrected fresh New Game and independent factory checkpoint development. | Results pending; checkpoint progress never transfers into fresh acceptance. |
+
+Failed health setup and superseded builds are retained. The foreign health fixture
+initially addressed only local IDs. Later Wyndrax awaited disabled damage logging,
+and Nightmare's driver timeout expired while its earlier acquired victims were
+being processed. Corrected diagnostics and bounded event-based waits preserve the
+class rules. Failed setup assertions invalidate their scenarios.
+
+The campaign driver now resolves authored IDs against stationary active-world
+exits, checks actual retained-connection crossings, and distinguishes completed
+cinematic cursors from played shots. Actual transition events supplement active
+player observations; shot zero still requires a real active observation. Selected
+weapon frames were inspected; developer swap-model invalid-frame output remains
+an open presentation defect.
+
+Full fresh opening acceptance, broader weapon/party/navigation interactions,
+multiple/recursive views, remaining geometry qualification, residency/admission
+stalls and complete campaign/multiplayer acceptance remain open. The manifest has
+six identity seams, 33 cuts and 85 unreviewed landings (124 exits total). No private
+reference implementation or original assets enter the public source. Continue the
+authorized work after this checkpoint. Main, installed game, user saves and online
+service remain unchanged.

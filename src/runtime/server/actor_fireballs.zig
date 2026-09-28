@@ -24,6 +24,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try lifecycle.bind(world, slots, projections, entity, policy.model);
     try publish(world, entity, projections, now);
     try @import("events.zig").sound(world, slots, projections, "global/e_firetraveld.wav", pose.position, (try world.get(owner, data.Binding)).slot, c.CHAN_AUTO, now);
+    try @import("actor_aim.zig").finishLaunch(world, pose.position, entity, now);
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     const attack = (try world.get(entity, data.ActorAttack)).*;

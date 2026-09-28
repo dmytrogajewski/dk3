@@ -5,8 +5,9 @@ import math
 import re
 import time
 
-from runtime_bridge_route import aim_at, checkpoint, clear_ford, resupply, shoot_control, world_rows
+from runtime_bridge_route import aim_at, authored_id, checkpoint, clear_ford, resupply, shoot_control, world_rows
 from runtime_opening_route import actors, walk
+from runtime_input import cinematic_shots
 
 
 def movers(driver):
@@ -24,6 +25,7 @@ def movers(driver):
 
 
 def await_open(driver, identity, seconds=25):
+    identity = authored_id(driver, identity)
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         state = driver.observe()
@@ -161,6 +163,7 @@ def factory_route(driver, capture, report, phase="factory-arrival"):
 
 
 def use_button(driver, identity, point):
+    identity = authored_id(driver, identity)
     state = aim_at(driver, point)
     if sum((point[i] - state["pos"][i] - (22 if i == 2 else 0)) ** 2 for i in range(3)) > 96 ** 2:
         raise RuntimeError(f"Button {identity} is outside actual use reach")
@@ -216,7 +219,7 @@ def factory_departure(driver, capture, report):
     for point in ((2401, 1737, 806), (2215, 1900, 824), (2214, 1696, 849), (2206, 1560, 849),
                   (2208, 1478, 852), (2208, 1416, 852)):
         walk(driver, point, capture, combat=True, tolerance=16)
-    if 219 not in movers(driver):
+    if authored_id(driver, 219) not in movers(driver):
         raise RuntimeError("Factory platform controller 219 is missing")
     risen = driver.until(lambda s: s["health"] <= 0 or s["pos"][2] >= 960,
                          seconds=10, description="ordinary platform contact raises the player")
@@ -254,6 +257,9 @@ def factory_lower(driver, capture, report):
 
 
 def factory_exit(driver, capture, report):
+    start = len(driver.text())
+    input_start = len(driver.inputs)
+    before = driver.observe()
     aim_at(driver, (1520, 672, driver.observe()["pos"][2] + 22))
     driver.issue("+forward")
     try:
@@ -262,13 +268,20 @@ def factory_exit(driver, capture, report):
     finally:
         driver.issue("-forward")
         driver.until(lambda s: s["forward"] == 0, description="processed e1m2a arrival release")
-    arrival = driver.until(lambda s: s["map"] == "e1m2a" and s["mode"] == "normal",
+    arrival = driver.until(lambda s: s["map"] == "e1m2a" and s["mode"] == "normal" and not s["cinematic"]
+                           and "shot=9/9 name=e1m2_cinestart" in driver.text()[start:],
                            seconds=90, description="e1m2a arrival cinematic releases player control")
     if arrival["health"] <= 0 or arrival["skill"] != 3:
         raise RuntimeError("Factory exit did not retain a living normal-difficulty player")
+    text = driver.text()[start:]
+    shots = sorted(cinematic_shots(text, driver.inputs[input_start:], "e1m2a", "e1m2_cinestart", 9))
+    if shots != list(range(9)) or "kind=cut connection=retained" not in text or arrival["player_id"] != before["player_id"]:
+        raise RuntimeError("Factory cut lost its cinematic, connection or player identity")
+    if "Server Initialization" in text or "ClientBegin" in text:
+        raise RuntimeError("Factory cut restarted the connection")
     checkpoint(driver, capture, report, "e1m2a_authored_arrival")
     return {"scope": "Normal-input contact with the authored e1m2a exit and complete arrival cinematic.",
-            "state": driver.observe()}
+            "state": driver.observe(), "shots": shots, "connection_retained": True}
 
 
 def pipe_jump(driver, capture, takeoff, destination):
@@ -310,18 +323,20 @@ def pipe_jump(driver, capture, takeoff, destination):
 
 
 def verify_monitor(driver, capture, report):
+    identity = authored_id(driver, 177)
+    camera = (identity & 0xff000000) | 211
     started = driver.until(lambda state: state["mode"] == "frozen", seconds=3,
                            description="authored monitor freezes the real player")
-    monitor = world_rows(driver, "monitor").get(177)
-    if monitor is None or int(monitor["viewer"]) == 0 or int(monitor["camera"]) != 211:
+    monitor = world_rows(driver, "monitor").get(identity)
+    if monitor is None or int(monitor["viewer"]) == 0 or int(monitor["camera"]) != camera:
         raise RuntimeError("Factory monitor did not resolve its authored viewer and camera")
     driver.until(lambda state: state["now"] >= started["now"] + 2500 and state["mode"] == "frozen",
                  seconds=5, description="actual partial monitor playback before saving")
-    before = world_rows(driver, "monitor")[177]
+    before = world_rows(driver, "monitor")[identity]
     remaining = int(before["until"]) - driver.observe()["now"]
     checkpoint(driver, capture, report, "factory_monitor_active")
     restored = driver.load("factory_monitor_active")
-    after = world_rows(driver, "monitor")[177]
+    after = world_rows(driver, "monitor")[identity]
     if restored["mode"] != "frozen" or after["camera"] != before["camera"] or after["pos"] != before["pos"] or after["angles"] != before["angles"]:
         raise RuntimeError("Monitor restore lost its camera or frozen control")
     if not 0 < int(after["until"]) - restored["now"] <= remaining + 500:
@@ -329,7 +344,7 @@ def verify_monitor(driver, capture, report):
     capture("factory-monitor-restored")
     finished = driver.until(lambda state: state["mode"] == "normal", seconds=10,
                             description="authored monitor releases player control")
-    if int(world_rows(driver, "monitor")[177]["viewer"]) != 0:
+    if int(world_rows(driver, "monitor")[identity]["viewer"]) != 0:
         raise RuntimeError("Monitor retained its viewer after release")
     (report / "monitor-restoration.json").write_text(json.dumps({"before": before, "after": after,
         "remaining_before": remaining, "restored_player": restored, "released_player": finished}, indent=2) + "\n")

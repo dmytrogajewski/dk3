@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import time
 
-from runtime_input import NativeInput, record_identity
+from runtime_input import NativeInput, cinematic_shots, record_identity
 from runtime_probe import client_settings, stage_client_modules, wait
 from runtime_ui_probe import Input
 
@@ -115,7 +115,8 @@ def run(args):
                             shutil.copy2(checkpoint, args.report / checkpoint.name)
                         if state["shot"] in (1, 20, 50, 80, 110) or state["map"] == "e1m1a":
                             capture(f"{state['map']}-shot-{state['shot']:03}")
-                    if state["map"] == "e1m1a" and state["cinematic"] == 0 and state["mode"] == "normal":
+                    arrival_complete = (args.checkpoint and args.checkpoint_map == "e1m1a") or "shot=7/7 name=e1m1_cinestart" in driver.text()
+                    if state["map"] == "e1m1a" and state["cinematic"] == 0 and state["mode"] == "normal" and arrival_complete:
                         break
                     if state["health"] <= 0:
                         raise RuntimeError("Player died during the intro or arrival cinematic")
@@ -128,7 +129,10 @@ def run(args):
                         pass
                 else:
                     raise TimeoutError("Full intro did not reach playable e1m1a")
-                intro_shots = {shot for level, shot in seen if level == "intro"}
+                intro_shots = cinematic_shots(driver.text(), inputs, "intro", "intro", 115)
+                (args.report / "intro-coverage.json").write_text(json.dumps({
+                    "scope": "Actual active player observations and one-based server shot-transition events; completed cursor excluded.",
+                    "shots": sorted(intro_shots)}, indent=2) + "\n")
                 if not args.checkpoint and not set(range(115)).issubset(intro_shots):
                     raise RuntimeError(f"Intro observation incomplete: {len(intro_shots)}/115 shots")
                 save = driver.save("opening_arrival")

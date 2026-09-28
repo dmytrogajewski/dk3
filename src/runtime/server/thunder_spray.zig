@@ -27,6 +27,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     if (alternate) try @import("events.zig").sound(world, slots, projections, policy.spray_sound, pose.position, (try world.get(owner, data.Binding)).slot, c.CHAN_AUTO, now);
     var text: [128]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 thunder: id={d} spray={d} alternate={d}\n", .{ try world.persistentId(owner), try world.persistentId(entity), @intFromBool(alternate) }));
+    try @import("actor_aim.zig").finishLaunch(world, pose.position, entity, now);
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {
     const binding = (try world.get(entity, data.Binding)).*;

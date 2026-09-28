@@ -175,7 +175,7 @@ fn think(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Slot
 fn bite(world: *data.World, slots: *Slots, owner: ecs.Entity, enemy: Ref, pose: data.Transform, definition: Definition, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const aim = try @import("actor_aim.zig").lead(world, enemy, pose, definition.offset, random);
-    const hit = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(owner, data.Binding)).slot, .mask = abi.c.MASK_SHOT });
+    const hit = try @import("region_collision.zig").from(aim.world, .{ .start = aim.origin, .end = v.add(aim.origin, v.scale(aim.direction, definition.range)), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(owner, data.Binding)).slot, .mask = abi.c.MASK_SHOT }, try world.persistentId(owner));
     if (@import("region_access.zig").victim(world, slots, hit)) |target| {
         const source = try world.persistentId(owner);
         const amount = definition.damage + random.next() * definition.random_damage;

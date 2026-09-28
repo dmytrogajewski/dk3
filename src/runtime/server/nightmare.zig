@@ -2,6 +2,7 @@
 //! Saved ritual phases and explicit victim ownership; no callback or legacy entity mirrors.
 const std = @import("std");
 const data = @import("../domain/components.zig");
+const access = @import("region_access.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const engine = @import("../engine/server.zig");
@@ -12,23 +13,23 @@ const v = @import("../domain/vector.zig");
 const c = abi.c;
 const entities = @import("weapon_entities.zig");
 fn alive(world: *data.World, identity: u32) bool {
-    const target = world.find(identity) orelse return false;
-    return (world.get(target, data.Health) catch return false).current > 0;
+    const target = access.find(world, identity) orelse return false;
+    return (target.get(data.Health) catch return false).current > 0;
 }
 pub fn frozen(world: *data.World, target: ecs.Entity) bool {
     if (@import("nharre_reaper.zig").frozen(world, target)) return true;
     const body = world.get(target, data.Body) catch return false;
-    const controller = world.find(body.motion_owner orelse return false) orelse return false;
-    const ritual = world.get(controller, data.Nightmare) catch return false;
+    const controller = access.find(world, body.motion_owner orelse return false) orelse return false;
+    const ritual = controller.get(data.Nightmare) catch return false;
     return ritual.victim == (world.persistentId(target) catch return false);
 }
 pub fn release(world: *data.World, controller: ecs.Entity, ritual: *data.Nightmare) !void {
-    if (ritual.victim) |identity| if (world.find(identity)) |target| {
-        const body = try world.get(target, data.Body);
+    if (ritual.victim) |identity| if (access.find(world, identity)) |target| {
+        const body = try target.get(data.Body);
         if (body.motion_owner == try world.persistentId(controller)) {
             body.motion_owner = null;
-            (try world.get(target, data.Velocity)).linear = @splat(0);
-            if (world.get(target, data.Player) catch null) |player| {
+            (try target.get(data.Velocity)).linear = @splat(0);
+            if (target.get(data.Player) catch null) |player| {
                 if (player.mode == .frozen) player.mode = if (alive(world, identity)) .normal else .dead;
                 player.view_height = ritual.previous_view_height;
             }
@@ -39,7 +40,7 @@ pub fn release(world: *data.World, controller: ecs.Entity, ritual: *data.Nightma
 pub fn remove(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity) !void {
     var ritual = (try world.get(entity, data.Nightmare)).*;
     try release(world, entity, &ritual);
-    if (world.find(ritual.owner)) |owner| if (world.get(owner, data.Weapons) catch null) |loadout| if (loadout.weapon == W.id) {
+    if (access.find(world, ritual.owner)) |owner| if (owner.get(data.Weapons) catch null) |loadout| if (loadout.weapon == W.id) {
         loadout.weaponTime = 0;
     };
     try entities.remove(world, slots, projections, entity);
@@ -61,23 +62,23 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try publish(world, entity, projections);
 }
 fn search(world: *data.World, slots: *Slots, entity: ecs.Entity, ritual: *data.Nightmare, now: i64) !void {
-    const owner = world.find(ritual.owner).?;
+    const owner = access.find(world, ritual.owner).?;
     const origin = (try world.get(entity, data.Transform)).position;
-    const view: v.Vec3 = .{ 0, 0, (try world.get(owner, data.Player)).view_height };
-    const eye = v.add((try world.get(owner, data.Transform)).position, view);
+    const view: v.Vec3 = .{ 0, 0, (try owner.get(data.Player)).view_height };
+    const eye = v.add((try owner.get(data.Transform)).position, view);
     var seen = false;
-    for (slots.occupants) |occupant| {
-        const target = occupant orelse continue;
-        const identity = try world.persistentId(target);
+    var candidates = access.Damageables.init(world, slots);
+    while (candidates.next()) |target| {
+        const identity = try target.id();
         if (identity == ritual.owner or !alive(world, identity)) continue;
-        if ((world.get(target, data.Actor) catch null) == null and (engine.integer("g_gametype") == c.GT_SINGLE_PLAYER or (world.get(target, data.Player) catch null) == null)) continue;
-        const position = (try world.get(target, data.Transform)).position;
+        if ((target.get(data.Actor) catch null) == null and (engine.integer("g_gametype") == c.GT_SINGLE_PLAYER or (target.get(data.Player) catch null) == null)) continue;
+        const position = (try target.get(data.Transform)).position;
         if (v.length(v.subtract(position, origin)) > ritual.range) continue;
         // com_Visible offsets both endpoints by the observer's view offset and masks opaque liquids.
-        const sight = try engine.collisionService().trace(.{ .start = eye, .end = v.add(position, view), .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(owner, data.Binding)).slot, .mask = c.MASK_OPAQUE });
-        if (sight.start_solid or sight.all_solid or (sight.fraction < 1 and sight.entity != (try world.get(target, data.Binding)).slot)) continue;
+        const sight = try @import("region_collision.zig").owned(owner.world, .{ .start = eye, .end = v.add(position, view), .mins = @splat(0), .maxs = @splat(0), .slot = (try owner.get(data.Binding)).slot, .mask = c.MASK_OPAQUE }, ritual.owner);
+        if (!@import("region_collision.zig").reaches(world, sight, target)) continue;
         seen = true;
-        if (world.get(target, data.MapObject) catch null) |object| if (std.mem.eql(u8, object.classname, "monster_garroth")) continue;
+        if (target.get(data.MapObject) catch null) |object| if (std.mem.eql(u8, object.classname, "monster_garroth")) continue;
         _ = ritual.mark(identity);
     }
     if (!seen) _ = ritual.mark(ritual.owner);
@@ -87,30 +88,37 @@ fn search(world: *data.World, slots: *Slots, entity: ecs.Entity, ritual: *data.N
 fn sound(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, name: [:0]const u8, now: i64) !void {
     try @import("events.zig").sound(world, slots, projections, name, (try world.get(entity, data.Transform)).position, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
 }
-fn nextVictim(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, ritual: *data.Nightmare, now: i64) !bool {
+fn nextVictim(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, ritual: *data.Nightmare, motion: *@import("region_motion.zig").Cursor, now: i64) !bool {
     while (ritual.cursor < ritual.count) {
         const identity = ritual.targets[ritual.cursor];
         ritual.cursor += 1;
         if (!alive(world, identity)) continue;
-        const target = world.find(identity).?;
+        const target = access.find(world, identity).?;
         // An existing transport/freeze keeps ownership; overlapping rituals cannot steal it.
-        if ((try world.get(target, data.Body)).motion_owner != null) continue;
-        if (world.get(target, data.Player) catch null) |player| if (player.mode != .normal) continue;
-        const forward = try @import("clear_direction.zig").choose(world, target, c.MASK_SHOT);
-        const pose = (try world.get(target, data.Transform)).*;
+        if ((try target.get(data.Body)).motion_owner != null) continue;
+        if (target.get(data.Player) catch null) |player| if (player.mode != .normal) continue;
+        const forward = blk: {
+            const context = access.contextFor(target.world) orelse return error.RitualWorldUnavailable;
+            const scope = try context.select();
+            defer scope.deinit();
+            break :blk try @import("clear_direction.zig").choose(target.world, target.entity, c.MASK_SHOT);
+        };
+        const pose = (try target.get(data.Transform)).*;
         (try world.get(entity, data.Transform)).* = .{ .position = v.add(pose.position, v.scale(forward, 100)), .angles = .{ 0, std.math.atan2(-forward[1], -forward[0]) * (180.0 / std.math.pi), 0 } };
         ritual.victim = identity;
-        (try world.get(target, data.Body)).motion_owner = try world.persistentId(entity);
-        (try world.get(target, data.Velocity)).linear = @splat(0);
-        if (world.get(target, data.Player) catch null) |player| {
+        (try target.get(data.Body)).motion_owner = try world.persistentId(entity);
+        (try target.get(data.Velocity)).linear = @splat(0);
+        if (target.get(data.Player) catch null) |player| {
             ritual.previous_view_height = player.view_height;
             player.view_height = 32;
             player.mode = .frozen;
-            (try world.get(target, data.Transform)).angles = .{ -25, std.math.atan2(forward[1], forward[0]) * (180.0 / std.math.pi), 0 };
+            (try target.get(data.Transform)).angles = .{ -25, std.math.atan2(forward[1], forward[0]) * (180.0 / std.math.pi), 0 };
         }
         ritual.advance(.appearing, now, 500);
-        try sound(world, slots, projections, entity, W.sounds.appear, now);
-        try sound(world, slots, projections, entity, W.sounds.wind, now);
+        const point = (try world.get(entity, data.Transform)).position;
+        motion.* = .{ .owner = try @import("actor_aim.zig").originOwner(target.world, pose.position, point), .skip = 0 };
+        try @import("events.zig").soundOwned(world, slots, projections, motion.owner, W.sounds.appear, point, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
+        try @import("events.zig").soundOwned(world, slots, projections, motion.owner, W.sounds.wind, point, c.ENTITYNUM_NONE, c.CHAN_AUTO, now);
         return true;
     }
     return false;
@@ -121,6 +129,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const entity = occupant orelse continue;
         if (!world.alive(entity)) continue;
         var ritual = (world.get(entity, data.Nightmare) catch continue).*;
+        var motion = @import("region_motion.zig").Cursor.init(world, 0);
         if (!alive(world, ritual.owner)) {
             try remove(world, slots, projections, entity);
             continue;
@@ -131,29 +140,30 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         };
         if (now >= ritual.next_ms) switch (ritual.phase) {
             .casting => try search(world, slots, entity, &ritual, now),
-            .waiting, .after => if (!try nextVictim(world, slots, projections, entity, &ritual, now)) {
+            .waiting, .after => if (!try nextVictim(world, slots, projections, entity, &ritual, &motion, now)) {
                 try remove(world, slots, projections, entity);
                 continue;
             },
             .appearing => ritual.advance(.reaping, now, W.strike_ms),
             .reaping => {
                 const identity = ritual.victim.?;
-                const target = world.find(identity).?;
-                const position = (try world.get(target, data.Transform)).position;
+                const target = access.find(world, identity).?;
+                const position = (try target.get(data.Transform)).position;
                 const origin = (try world.get(entity, data.Transform)).position;
                 try release(world, entity, &ritual);
                 try sound(world, slots, projections, entity, W.sounds.strike, now);
-                if ((world.get(target, data.Player) catch null) != null) {
-                    (try world.get(target, data.Velocity)).linear = v.scale(v.normalize(v.subtract(position, origin)), 1500);
-                    (try world.get(target, data.Player)).ground_entity = c.ENTITYNUM_NONE;
-                    (try world.get(target, data.Body)).grounded = false;
+                if ((target.get(data.Player) catch null) != null) {
+                    (try target.get(data.Velocity)).linear = v.scale(v.normalize(v.subtract(position, origin)), 1500);
+                    (try target.get(data.Player)).ground_entity = c.ENTITYNUM_NONE;
+                    (try target.get(data.Body)).grounded = false;
                 }
                 const amount = ritual.damage;
-                if (try @import("weapon_damage.zig").hurt(world, target, ritual.owner, W.id, amount, now, false)) try @import("weapon_damage.zig").shove(world, target, ritual.owner, v.subtract(position, v.add(origin, .{ 0, 0, -24 })), amount, now);
+                if (try @import("weapon_damage.zig").hurt(target.world, target.entity, ritual.owner, W.id, amount, now, false)) try @import("weapon_damage.zig").shove(target.world, target.entity, ritual.owner, v.subtract(position, v.add(origin, .{ 0, 0, -24 })), amount, now);
                 ritual.advance(.after, now, 300);
             },
         };
         (try world.get(entity, data.Nightmare)).* = ritual;
         try publish(world, entity, projections);
+        try motion.finish(world, entity, now);
     }
 }

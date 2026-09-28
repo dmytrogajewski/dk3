@@ -16,7 +16,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     const aim = try @import("actor_aim.zig").lead(world, target, pose, tuning.offset, random);
     const owner_slot = (try world.get(owner, data.Binding)).slot;
     const target_position = (try target.get(data.Transform)).position;
-    const clear = try @import("region_collision.zig").trace(.{ .start = aim.origin, .end = target_position, .mins = @splat(0), .maxs = @splat(0), .slot = owner_slot, .mask = c.MASK_SHOT });
+    const clear = try @import("region_collision.zig").from(aim.world, .{ .start = aim.origin, .end = target_position, .mins = @splat(0), .maxs = @splat(0), .slot = owner_slot, .mask = c.MASK_SHOT }, try world.persistentId(owner));
     if (!@import("region_collision.zig").reaches(world, clear, target)) return false;
     const amount = tuning.damage + random.next() * tuning.random_damage;
     const entity = try world.create(null, .{
@@ -28,6 +28,7 @@ pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     try lifecycle.bind(world, slots, projections, entity, policy.axe_model);
     try publish(world, entity, projections, now);
     try @import("events.zig").sound(world, slots, projections, policy.flight_sound, aim.origin, (try world.get(entity, data.Binding)).slot, c.CHAN_AUTO, now);
+    try @import("actor_aim.zig").finishLaunch(world, pose.position, entity, now);
     return true;
 }
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection, now: i64) !void {

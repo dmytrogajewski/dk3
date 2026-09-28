@@ -15,6 +15,22 @@ def engine_failure(text):
                  or (line.startswith("Client ") and " dropped: " in line)), None)
 
 
+def cinematic_shots(text, inputs, map_name, program, count):
+    """Observed playback indices plus actual server shot-transition events.
+
+    A short shot can finish between observations. Transition events name the
+    entered shot using one-based indices; the completed cursor is not a shot.
+    The first shot requires an actual active-player observation.
+    """
+    sampled = {row["shot"] for entry in inputs if (row := entry.get("observed", {}))
+               and row.get("map") == map_name and row.get("cinematic")
+               and 0 <= row["shot"] < count}
+    entered = {int(shot) - 1 for shot, total, name in re.findall(
+        r"dk3 cinematic: shot=(\d+)/(\d+) name=(\S+)", text)
+        if name == program and int(total) == count and 1 < int(shot) <= count}
+    return sampled | entered
+
+
 class NativeInput:
     def __init__(self, process, pipe, log, home, inputs, *, diagnostic=False):
         if not __debug__:
