@@ -23,6 +23,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "server.h"
 #include "../botlib/botlib.h"
+#include "../qcommon/owned_memory.h"
+static ownedHeap_t botHeap;
 
 typedef struct bot_debugpoly_s
 {
@@ -286,7 +288,8 @@ BotImport_GetMemory
 static void *BotImport_GetMemory(int size) {
 	void *ptr;
 
-	ptr = Z_TagMalloc( size, TAG_BOTLIB );
+	ptr = Owned_Alloc(&botHeap, size);
+	if (!ptr) Com_Error(ERR_DROP, "Resident navigation needs %d more bytes (%lu retained)", size, (unsigned long)botHeap.bytes);
 	return ptr;
 }
 
@@ -296,7 +299,7 @@ BotImport_FreeMemory
 ==================
 */
 static void BotImport_FreeMemory(void *ptr) {
-	Z_Free(ptr);
+	Owned_Free(ptr);
 }
 
 /*
@@ -467,12 +470,15 @@ it is changing to a different game directory.
 ===============
 */
 int SV_BotLibShutdown( void ) {
+    int result;
 
 	if ( !botlib_export ) {
 		return -1;
 	}
 
-	return botlib_export->BotLibShutdown();
+	result = botlib_export->BotLibShutdown();
+    Owned_Clear(&botHeap);
+    return result;
 }
 
 /*
@@ -632,4 +638,3 @@ int SV_BotGetSnapshotEntity( int client, int sequence ) {
 	}
 	return svs.snapshotEntities[(frame->first_entity + sequence) % svs.numSnapshotEntities].number;
 }
-

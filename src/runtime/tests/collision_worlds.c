@@ -2,8 +2,37 @@
  * Exercise the actual engine collision loader, not a second implementation. */
 #include "q_shared.h"
 #include "qcommon.h"
+#include "owned_memory.h"
 
 #define CHECK(condition) do { if (!(condition)) { fprintf(stderr, "collision worlds: line %d: %s\n", __LINE__, #condition); exit(1); } } while (0)
+
+static void ownedMemory(void) {
+    ownedHeap_t renderer = {0}, navigation = {0};
+    byte *images[16], *routes;
+    int i;
+    for (i = 0; i < 16; ++i) {
+        images[i] = Owned_Alloc(&renderer, 4 * 1024 * 1024);
+        CHECK(images[i]);
+        CHECK((uintptr_t)images[i] % __alignof__(long double) == 0);
+        images[i][0] = i;
+        images[i][4 * 1024 * 1024 - 1] = i;
+    }
+    routes = Owned_Alloc(&navigation, 1123584);
+    CHECK(routes && renderer.bytes == 64 * 1024 * 1024);
+    routes[0] = 77;
+    /* Free a middle block and the list head, then cancel all remaining work.
+     * Navigation survives renderer shutdown and can be freed independently. */
+    Owned_Free(images[7]);
+    Owned_Free(images[15]);
+    CHECK(images[6][0] == 6 && images[8][4 * 1024 * 1024 - 1] == 8);
+    Owned_Clear(&renderer);
+    CHECK(renderer.bytes == 0 && renderer.first == NULL && routes[0] == 77);
+    Owned_Clear(&renderer);
+    Owned_Free(routes);
+    CHECK(navigation.bytes == 0 && navigation.first == NULL);
+    CHECK(Owned_Alloc(&renderer, -1) == NULL);
+    puts("resident memory: allocations beyond single-map zone, alignment, interleaved release and independent cancellation passed");
+}
 
 void QDECL Com_Printf(const char *format, ...) { (void)format; }
 void QDECL Com_DPrintf(const char *format, ...) { (void)format; }
@@ -109,6 +138,7 @@ int main(void) {
     CHECK(!CM_SelectWorld(b) && !CM_SelectWorld(replacement) && !CM_SelectWorld(base));
     CHECK(CM_CurrentWorld() != base);
     CM_ClearMap();
+    ownedMemory();
     puts("collision worlds: isolated geometry, inline models, pinned ownership, stale handles and malformed-header rejection passed");
     return 0;
 }

@@ -1,5 +1,6 @@
 """Development installation publishes complete builds and preserves player state."""
 import json
+import struct
 from pathlib import Path
 import tempfile
 import unittest
@@ -21,6 +22,12 @@ class PlayInstallTest(unittest.TestCase):
             with zipfile.ZipFile(path, 'w') as archive:
                 for entry in play.REQUIRED_ENTRIES if index == 0 else (f'fixture/{name}',):
                     archive.writestr(entry, 'fixture')
+                if name == 'maps':
+                    # Installation now derives the campaign graph from real BSP
+                    # authoring, so provide a valid empty map rather than text.
+                    bsp = bytearray(144)
+                    struct.pack_into('<4si', bsp, 0, b'IBSP', 46)
+                    archive.writestr('maps/e1m1a.bsp', bsp)
             records[path.name] = {'sha256': play.digest(path)}
         (source / 'manifest.json').write_text(json.dumps(dict(
             format=1, profile='retail', key='fixture', packages=records)))

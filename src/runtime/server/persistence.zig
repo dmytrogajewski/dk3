@@ -146,168 +146,174 @@ pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProje
             try clients.publish(world, projections, states, 0, now);
             continue;
         }
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .chest) {
-            try @import("chests.zig").publish(world, entity, projections, now);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .blood_cloud) {
-            try @import("blood_clouds.zig").publish(world, entity, projections);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .target_effect) {
-            try @import("target_effects.zig").publish(world, entity, projections);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .weather) {
-            try @import("weather.zig").publish(world, entity, projections);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .lightning or control.action == .lightning_bolt) {
-            try @import("lightning.zig").publish(world, entity, projections);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .particles) {
-            try @import("complex_particles.zig").publish(world, entity, projections);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .light) {
-            try @import("lights.zig").publish(world, entity, projections);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .spotlight) {
-            try @import("spotlights.zig").publish(world, entity, projections);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .earthquake) {
-            try @import("earthquakes.zig").publish(world, entity, projections);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .debris) {
-            try @import("debris.zig").publish(world, entity, slots, projections);
-            continue;
-        };
-        if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .healer or control.action == .laser or control.action == .speaker) {
-            if (control.action == .laser) {
-                try @import("lasers.zig").publish(world, entity, projections);
-                continue;
-            }
-            if (control.action == .healer) {
-                try @import("healers.zig").publish(world, entity, projections);
-                continue;
-            }
-            try @import("speakers.zig").publish(world, entity, projections);
-            continue;
-        };
-        if ((world.get(entity, data.Firefly) catch null) != null) {
-            try @import("fireflies.zig").publish(world, entity, projections);
-            continue;
-        }
-        if ((world.get(entity, data.Scenery) catch null) != null) {
-            try @import("scenery.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.ThunderSpray) catch null) != null) {
-            try @import("thunder_spray.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.HealthTree) catch null) != null) {
-            try @import("healthtrees.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.DwarfAxe) catch null) != null) {
-            try @import("dwarf_axes.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.ActorAttack) catch null) != null) {
-            try @import("actor_attacks.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.ActorLaser) catch null) != null) {
-            try @import("actor_lasers.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.CryoSpray) catch null) != null) {
-            try @import("cryo_spray.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.FrogSpit) catch null) != null) {
-            try @import("frog_spit.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.Performer) catch null) != null) {
-            try @import("cinematics.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.Actor) catch null) != null) {
-            try systems.actors.publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.Pickup) catch null) != null) {
-            try @import("items.zig").publish(world, entity, projections);
-            continue;
-        }
-        if ((world.get(entity, data.Projectile) catch null) != null) {
-            try @import("projectiles.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.Charge) catch null) != null) {
-            try @import("c4.zig").publish(world, entity, projections, now);
-            continue;
-        }
-        if ((world.get(entity, data.Hammer) catch null) != null) {
-            try @import("hammer.zig").publish(world, entity, projections);
-            continue;
-        }
-        if ((world.get(entity, data.Shockwave) catch null) != null) {
-            try @import("shockwave.zig").publish(world, entity, projections);
-            continue;
-        }
-        if ((world.get(entity, data.Nova) catch null) != null) {
-            try @import("novabeam.zig").publish(world, entity, projections);
-            continue;
-        }
-        if ((world.get(entity, data.Flashlight) catch null) != null) {
-            try @import("flashlight.zig").publish(world, entity, projections);
-            continue;
-        }
-        if ((world.get(entity, data.Zeus) catch null) != null or (world.get(entity, data.ZeusBolt) catch null) != null) {
-            try @import("zeus.zig").publish(world, entity, projections);
-            continue;
-        }
-        if ((world.get(entity, data.MetaRing) catch null) != null or (world.get(entity, data.MetaLaser) catch null) != null) {
-            try @import("metamaser_death.zig").publish(world, entity, projections);
-            continue;
-        }
-        if ((world.get(entity, data.Nightmare) catch null) != null) {
-            try @import("nightmare.zig").publish(world, entity, projections);
-            continue;
-        }
-        const object = (try world.get(entity, data.MapObject)).*;
-        const body = (try world.get(entity, data.Body)).*;
-        const transform = (try world.get(entity, data.Transform)).*;
-        const projection = &projections[binding.slot];
-        if (object.model.len == 0 and (world.get(entity, data.Train) catch null) != null) {
-            projection.state.eType = c.ET_MOVER;
-            projection.shared.svFlags = c.SVF_NOCLIENT;
-            projection.shared.mins = body.mins;
-            projection.shared.maxs = body.maxs;
-            try @import("trains.zig").publish(world, entity, projections);
-            continue;
-        }
-        var model: [64]u8 = undefined;
-        _ = engine.gateway.call(c.G_SET_BRUSH_MODEL, .{ projection, (try std.fmt.bufPrintZ(&model, "{s}", .{object.model})).ptr });
-        projection.state.eType = c.ET_MOVER;
-        projection.state.pos = @import("../engine/trajectory.zig").stationary(transform.position);
-        projection.state.apos = @import("../engine/trajectory.zig").stationary(transform.angles);
-        projection.shared.currentOrigin = transform.position;
-        projection.shared.currentAngles = @import("brushes.zig").collisionAngles(object.classname, transform.angles);
-        projection.shared.contents = @bitCast(body.contents);
-        var hidden = std.mem.startsWith(u8, object.classname, "trigger_") or std.mem.eql(u8, object.classname, "func_clip") or std.mem.eql(u8, object.classname, "func_monsterclip");
-        if (world.get(entity, data.Destructible) catch null) |destructible| hidden = hidden or destructible.hidden or destructible.broken;
-        if (world.get(entity, data.Wall) catch null) |wall| hidden = hidden or !wall.visible;
-        if (hidden) projection.shared.svFlags |= c.SVF_NOCLIENT;
-        engine.link(projection);
+        try projectEntity(world, slots, projections, systems, entity, now);
     };
     @import("lights.zig").styles(world, now);
     try @import("music.zig").restore(world, @import("std").heap.c_allocator);
+}
+
+/// The same class-owned projection is used after restoration and ownership transfer.
+pub fn projectEntity(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, systems: *const @import("world_systems.zig").State, entity: @import("../ecs/world.zig").Entity, now: i64) !void {
+    const binding = (try world.get(entity, data.Binding)).*;
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .chest) {
+        try @import("chests.zig").publish(world, entity, projections, now);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .blood_cloud) {
+        try @import("blood_clouds.zig").publish(world, entity, projections);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .target_effect) {
+        try @import("target_effects.zig").publish(world, entity, projections);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .weather) {
+        try @import("weather.zig").publish(world, entity, projections);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .lightning or control.action == .lightning_bolt) {
+        try @import("lightning.zig").publish(world, entity, projections);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .particles) {
+        try @import("complex_particles.zig").publish(world, entity, projections);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .light) {
+        try @import("lights.zig").publish(world, entity, projections);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .spotlight) {
+        try @import("spotlights.zig").publish(world, entity, projections);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .earthquake) {
+        try @import("earthquakes.zig").publish(world, entity, projections);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .debris) {
+        try @import("debris.zig").publish(world, entity, slots, projections);
+        return;
+    };
+    if (world.get(entity, data.WorldControl) catch null) |control| if (control.action == .healer or control.action == .laser or control.action == .speaker) {
+        if (control.action == .laser) {
+            try @import("lasers.zig").publish(world, entity, projections);
+            return;
+        }
+        if (control.action == .healer) {
+            try @import("healers.zig").publish(world, entity, projections);
+            return;
+        }
+        try @import("speakers.zig").publish(world, entity, projections);
+        return;
+    };
+    if ((world.get(entity, data.Firefly) catch null) != null) {
+        try @import("fireflies.zig").publish(world, entity, projections);
+        return;
+    }
+    if ((world.get(entity, data.Scenery) catch null) != null) {
+        try @import("scenery.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.ThunderSpray) catch null) != null) {
+        try @import("thunder_spray.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.HealthTree) catch null) != null) {
+        try @import("healthtrees.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.DwarfAxe) catch null) != null) {
+        try @import("dwarf_axes.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.ActorAttack) catch null) != null) {
+        try @import("actor_attacks.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.ActorLaser) catch null) != null) {
+        try @import("actor_lasers.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.CryoSpray) catch null) != null) {
+        try @import("cryo_spray.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.FrogSpit) catch null) != null) {
+        try @import("frog_spit.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.Performer) catch null) != null) {
+        try @import("cinematics.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.Actor) catch null) != null) {
+        try systems.actors.publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.Pickup) catch null) != null) {
+        try @import("items.zig").publish(world, entity, projections);
+        return;
+    }
+    if ((world.get(entity, data.Projectile) catch null) != null) {
+        try @import("projectiles.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.Charge) catch null) != null) {
+        try @import("c4.zig").publish(world, entity, projections, now);
+        return;
+    }
+    if ((world.get(entity, data.Hammer) catch null) != null) {
+        try @import("hammer.zig").publish(world, entity, projections);
+        return;
+    }
+    if ((world.get(entity, data.Shockwave) catch null) != null) {
+        try @import("shockwave.zig").publish(world, entity, projections);
+        return;
+    }
+    if ((world.get(entity, data.Nova) catch null) != null) {
+        try @import("novabeam.zig").publish(world, entity, projections);
+        return;
+    }
+    if ((world.get(entity, data.Flashlight) catch null) != null) {
+        try @import("flashlight.zig").publish(world, entity, projections);
+        return;
+    }
+    if ((world.get(entity, data.Zeus) catch null) != null or (world.get(entity, data.ZeusBolt) catch null) != null) {
+        try @import("zeus.zig").publish(world, entity, projections);
+        return;
+    }
+    if ((world.get(entity, data.MetaRing) catch null) != null or (world.get(entity, data.MetaLaser) catch null) != null) {
+        try @import("metamaser_death.zig").publish(world, entity, projections);
+        return;
+    }
+    if ((world.get(entity, data.Nightmare) catch null) != null) {
+        try @import("nightmare.zig").publish(world, entity, projections);
+        return;
+    }
+    const object = (try world.get(entity, data.MapObject)).*;
+    const body = (try world.get(entity, data.Body)).*;
+    const transform = (try world.get(entity, data.Transform)).*;
+    const projection = &projections[binding.slot];
+    if (object.model.len == 0 and (world.get(entity, data.Train) catch null) != null) {
+        projection.state.eType = c.ET_MOVER;
+        projection.shared.svFlags = c.SVF_NOCLIENT;
+        projection.shared.mins = body.mins;
+        projection.shared.maxs = body.maxs;
+        try @import("trains.zig").publish(world, entity, projections);
+        return;
+    }
+    var model: [64]u8 = undefined;
+    _ = engine.gateway.call(c.G_SET_BRUSH_MODEL, .{ projection, (try std.fmt.bufPrintZ(&model, "{s}", .{object.model})).ptr });
+    projection.state.eType = c.ET_MOVER;
+    projection.state.pos = @import("../engine/trajectory.zig").stationary(transform.position);
+    projection.state.apos = @import("../engine/trajectory.zig").stationary(transform.angles);
+    projection.shared.currentOrigin = transform.position;
+    projection.shared.currentAngles = @import("brushes.zig").collisionAngles(object.classname, transform.angles);
+    projection.shared.contents = @bitCast(body.contents);
+    var hidden = std.mem.startsWith(u8, object.classname, "trigger_") or std.mem.eql(u8, object.classname, "func_clip") or std.mem.eql(u8, object.classname, "func_monsterclip");
+    if (world.get(entity, data.Destructible) catch null) |destructible| hidden = hidden or destructible.hidden or destructible.broken;
+    if (world.get(entity, data.Wall) catch null) |wall| hidden = hidden or !wall.visible;
+    if (hidden) projection.shared.svFlags |= c.SVF_NOCLIENT;
+    engine.link(projection);
 }

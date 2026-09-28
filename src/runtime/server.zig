@@ -21,6 +21,7 @@ var restoring_visit = false;
 const checkpoint_rules = @import("domain/checkpoint.zig");
 var checkpoint: checkpoint_rules.State = .{};
 var resident_worlds: @import("server/resident_worlds.zig").State = .{};
+var progression: @import("server/region_progression.zig").State = .{};
 
 export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
@@ -36,6 +37,7 @@ fn shutdown(restart: bool) void {
     if (active.handle) |handle| @import("engine/worlds.zig").select(handle) catch {};
     _ = @import("server/resources.zig").select(&active.resources);
     resident_worlds.deinit();
+    progression.deinit();
     campaign.deinit();
     restoring_visit = false;
     checkpoint = .{};
@@ -147,6 +149,7 @@ fn init(now: i64, restart: bool) !void {
         }
     }
     try rooms.init();
+    if (engine.integer("dk3_runtime_probe") == 2) try progression.init();
     // Publish the saved resource registry while the engine is still loading the
     // map. The initial gamestate must contain these identities; replacing them
     // at ClientBegin can overflow reliable commands before any acknowledgement.
@@ -211,6 +214,7 @@ fn saveCommand(command: []const u8) !bool {
     const slot = engine.argv(1, &argument);
     if (!@import("domain/snapshot.zig").validName(slot) or std.mem.startsWith(u8, slot, "dk3-")) return error.InvalidSaveSlot;
     if (saving) {
+        if (progression.held or active.restore_pending != null) return error.RegionAdmissionInProgress;
         try saveRegion(slot);
         rememberCheckpoint(slot, false) catch |err| saveFeedback(err);
         engine.print("dk3 zig: world saved\n");
@@ -522,6 +526,9 @@ fn enterWorld(name: []const u8) !void {
     // mode as placement/equipment probes. Normal save reloads clear sv_cheats.
     if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER or engine.integer("dk3_runtime_probe") != 2) return error.DiagnosticRequiresNativeSinglePlayer;
     const destination = if (std.mem.eql(u8, name, "initial") or std.mem.eql(u8, name, std.mem.sliceTo(&initial_context.map_name, 0))) &initial_context else try resident_worlds.destination(name);
+    try activateWorld(destination);
+}
+fn activateWorld(destination: *Context) !void {
     try @import("server/world_transfer.zig").player(active, destination, clock.now_ms);
     active = destination;
     try @import("engine/worlds.zig").select(active.handle.?);
@@ -531,6 +538,41 @@ fn enterWorld(name: []const u8) !void {
     const entity = active.clients.entities[0].?;
     const pose = (try active.world.?.get(entity, component.Transform)).*;
     engine.print(try std.fmt.bufPrintZ(&message, "dk3 world transfer: map={s} world={d} player={d} position={d:.3},{d:.3},{d:.3} command={d}\n", .{ engine.mapName(&map_buffer), active.network_id, try active.world.?.persistentId(entity), pose.position[0], pose.position[1], pose.position[2], (try active.world.?.get(entity, component.Player)).command_ms }));
+}
+fn depart(request: @import("domain/travel.zig").Request) !void {
+    const journey = (try campaign_module.departure(&active.world.?, &active.clients, &active.systems, &active.projection, request, clock.now_ms)) orelse {
+        progression.pending = null; // The cinematic/ending owns subsequent dispatch.
+        return;
+    };
+    const edge = try progression.edge(active, request.exit);
+    if (!std.mem.eql(u8, progression.manifest.names[edge.destination], journey.destination)) return error.RegionAuthoringMismatch;
+    if (!(try progression.ready(&resident_worlds, &initial_context, journey.destination, false))) {
+        if (edge.kind == .identity) return error.ConnectedRegionNotReady;
+        progression.pending = request;
+        progression.hold(true);
+        return;
+    }
+    const destination = if (std.mem.eql(u8, journey.destination, std.mem.sliceTo(&initial_context.map_name, 0))) &initial_context else try resident_worlds.destination(journey.destination);
+    if (progression.held) try active.awaken(clock.now_ms);
+    const player = active.clients.entities[0].?;
+    // Authored cuts retain the established inventory/episode/landing contract.
+    // Qualified corridors preserve the actual command, pose and action instead.
+    var arrival: ?campaign_module.Arrival = null;
+    if (edge.kind != .identity) {
+        var traveler = try @import("domain/travel.zig").Traveler.capture(&active.world.?, player, active.clients.episode, clock.now_ms);
+        try @import("server/weapon_actions.zig").cancel(&active.world.?, &active.slots, &active.projection, player);
+        try traveler.arrive(destination.clients.episode, clock.now_ms, &destination.clients.weapon_table);
+        arrival = .{ .journey = journey, .traveler = traveler };
+    }
+    try activateWorld(destination);
+    if (arrival) |value| {
+        try active.clients.arrive(&active.world.?, &active.slots, &active.projection, &active.players, value, &active.systems.actors, clock.now_ms);
+    } else try campaign_module.disarmArrival(&active.world.?, &active.projection, active.clients.entities[0].?);
+    progression.pending = null;
+    progression.hold(false);
+    checkpoint.pending = true;
+    var message: [192]u8 = undefined;
+    engine.print(try std.fmt.bufPrintZ(&message, "dk3 region: authored departure map={s} exit={d} kind={s} connection=retained\n", .{ journey.destination, request.exit, @tagName(edge.kind) }));
 }
 export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, arg6: isize, arg7: isize, arg8: isize, arg9: isize, arg10: isize, arg11: isize) callconv(.c) isize {
     _ = .{ arg1, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11 };
@@ -570,9 +612,10 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 campaign.arrival = null;
                 restoring_visit = false;
             };
+            if (arg0 == 0 and progression.initial_pending) progression.hold(true);
         },
         c.GAME_CLIENT_USERINFO_CHANGED => active.clients.userinfo(&active.world.?, @intCast(arg0)) catch |err| runtimeFailure(err),
-        c.GAME_CLIENT_THINK => if (active.restore_pending == null) {
+        c.GAME_CLIENT_THINK => if (active.restore_pending == null and !progression.held and !progression.initial_pending) {
             active.clients.think(&active.world.?, &active.slots, &active.projection, &active.players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err);
         },
         c.GAME_CLIENT_DISCONNECT => {
@@ -590,6 +633,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
                 if (campaign.departing) return 0;
+                if (active.clients.entities[0] == null and engine.integer("g_gametype") == c.GT_SINGLE_PLAYER) return 0;
                 resident_worlds.step(clock.now_ms, &active.clients.weapon_table) catch |err| runtimeFailure(err);
                 if (active.restore_pending) |*pending| {
                     if (active.clients.entities[0] == null or !(resident_worlds.restorationReady(pending) catch |err| runtimeFailure(err))) return 0;
@@ -598,6 +642,19 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     restore(&saved, restoring_visit) catch |err| runtimeFailure(err);
                     engine.send(0, "dk3_region_wait 0");
                     engine.print("dk3 region: restoration committed\n");
+                }
+                if (progression.initial_pending) {
+                    resident_worlds.initial_namespace = @intCast(active.world.?.id_first >> 24);
+                    if (!(progression.ready(&resident_worlds, &initial_context, std.mem.sliceTo(&active.map_name, 0), false) catch |err| runtimeFailure(err))) return 0;
+                    active.awaken(clock.now_ms) catch |err| runtimeFailure(err);
+                    progression.initial_pending = false;
+                    progression.hold(false);
+                    engine.print("dk3 region: initial admission committed\n");
+                }
+                _ = progression.ready(&resident_worlds, &initial_context, std.mem.sliceTo(&active.map_name, 0), true) catch |err| runtimeFailure(err);
+                if (progression.pending) |request| {
+                    depart(request) catch |err| runtimeFailure(err);
+                    return 0;
                 }
                 rooms.tick(&active.world.?, &active.clients, clock.now_ms) catch |err| runtimeFailure(err);
                 active.systems.multiplayer.warmup = rooms.warmup_ms != 0;
@@ -618,7 +675,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 if (active.targets.travel) |request| {
                     active.targets.travel = null;
                     if (@import("server/cinematics.zig").active(&active.world.?)) @import("server/cinematics.zig").finish(&active.world.?, &active.slots, &active.projection, &active.targets, active.clients.entities[0].?, clock.now_ms) catch |err| runtimeFailure(err);
-                    campaign_module.depart(&campaign, &active.world.?, &active.clients, &active.targets, &active.systems, &active.projection, request, clock.now_ms) catch |err| {
+                    depart(request) catch |err| {
                         var message: [160]u8 = undefined;
                         engine.print(std.fmt.bufPrintZ(&message, "dk3 travel: exit {d} refused: {s}\n", .{ request.exit, @errorName(err) }) catch unreachable);
                     };

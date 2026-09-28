@@ -1,8 +1,8 @@
 # Seamless connected worlds
 
-Sequences 297–300 implement connected owners on `rewrite/native-zig-runtime`.
-**The feature is incomplete. Ordinary exits still perform their existing map load.**
-Preparing collision, rendering and dormant entities is not acceptance of a seamless crossing.
+Sequences 297–301 implement connected owners on `rewrite/native-zig-runtime`.
+**The feature is incomplete. Ordinary campaign exits now use resident ownership.**
+Automatic handoff is not acceptance of portal views or cross-world combat.
 
 ## Accepted outcome
 
@@ -121,7 +121,28 @@ frozen preparation clocks survive schema-2 restoration. The client now excludes
 inactive connection snapshots before applying world identity or gameplay events;
 the death/restore regression fails before this correction and passes afterward.
 
-Prepared gameplay and render contexts remain developer diagnostics. Renderer
+Sequence 301 connects automatic preparation to ordinary campaign exits. A local
+asset-derived manifest retains every authored exit and distinct reciprocal path.
+The reviewed opening seams are pinned to both BSP hashes; changed geometry loses
+that qualification. Other connections retain their existing authored landing
+contract. Cinematic controls invoking an exit establish a cut even without exit
+flags: the inventory now contains 33 cuts and 91 unreviewed connections.
+
+Initial control waits for its connected region's actual client readiness. Outgoing
+regions prepare during play. Cut readiness waits retain the connection, and
+existing companion checks, cinematic/ending rules and traveler policies precede
+ownership commit. Opening corridor handoffs preserve pose, inventory, command
+history and carried weapon actions. The class projection dispatcher is shared with
+restoration. A→B→A automatic trigger touches are verified with controlled approach
+placement; that does not qualify a fresh campaign route.
+
+Restoring more than four member maps queues client admissions at the renderer's
+reader limit. Renderer and navigation CPU allocations have independent tracked
+heap lifetimes; server spatial owners also use releasable heap storage. This fixes
+observed exhaustion of the old 48 MB single-map zone during region preparation.
+The failed runs and repaired-build verification are recorded in native acceptance.
+
+Renderer
 allocations are retained until region/renderer shutdown; fine-grained GPU eviction
 is not implemented. Complete old-archive-to-region migration remains open.
 
@@ -144,9 +165,9 @@ is not implemented. Complete old-archive-to-region migration remains open.
    live cross-map controllers and cancellation/failure scenarios. Preserve original
    saves. The current controlled two-map restore is not acceptance of every map,
    pending action or cross-map combat restoration.
-5. Connect New Game/restore admission, region residency and transition preparation;
-   integrate deterministic cut holds and failure reporting. Preserve multiplayer
-   match semantics and map rotation rather than connecting separate arenas.
+5. Finish region residency/eviction, deterministic cut presentation and failure
+   reporting around the connected New Game/restore/exit admission. Preserve
+   multiplayer match semantics and map rotation rather than connecting arenas.
 
 ## Acceptance
 

@@ -4,7 +4,7 @@ const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const abi = @import("../engine/abi.zig");
 const Slots = @import("../engine/slots.zig").Slots;
-fn owner(world: *data.World, entity: ecs.Entity) ?u32 {
+pub fn owner(world: *data.World, entity: ecs.Entity) ?u32 {
     inline for (.{ data.Melee, data.WeaponLaunch, data.Nova, data.Flashlight, data.Zeus, data.ZeusBolt }) |T| if (world.get(entity, T) catch null) |action| return action.owner;
     if (world.get(entity, data.Hammer) catch null) |hammer| if (hammer.quake_until_ms == null) return hammer.owner;
     return null;

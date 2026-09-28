@@ -22,6 +22,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // cl_main.c  -- client main loop
 
 #include "client.h"
+#include "../qcommon/owned_memory.h"
 #include <limits.h>
 #include "dk_save_format.h"
 
@@ -134,6 +135,7 @@ qboolean			cl_oldGameSet;
 
 // Structure containing functions exported from refresh DLL
 refexport_t	re;
+static void CL_FreeRendererMemory(void);
 #ifdef USE_RENDERER_DLOPEN
 static void	*rendererLib = NULL;
 #endif
@@ -1228,8 +1230,10 @@ void CL_ShutdownAll(qboolean shutdownRef)
 	// shutdown the renderer
 	if(shutdownRef)
 		CL_ShutdownRef();
-	else if(re.Shutdown)
+	else if(re.Shutdown) {
 		re.Shutdown(qfalse);		// don't destroy window or context
+		CL_FreeRendererMemory();
+	}
 
 	cls.uiStarted = qfalse;
 	cls.cgameStarted = qfalse;
@@ -3187,6 +3191,7 @@ void CL_ShutdownRef( void ) {
 	if ( re.Shutdown ) {
 		re.Shutdown( qtrue );
 	}
+	CL_FreeRendererMemory();
 
 	Com_Memset( &re, 0, sizeof( re ) );
 
@@ -3266,8 +3271,15 @@ void CL_StartHunkUsers( qboolean rendererOnly ) {
 CL_RefMalloc
 ============
 */
-void *CL_RefMalloc( int size ) {
-	return Z_TagMalloc( size, TAG_RENDERER );
+/* Several resident maps share this lifetime without exhausting the fixed zone. */
+static ownedHeap_t rendererHeap;
+void *CL_RefMalloc(int size) {
+    void *pointer = Owned_Alloc(&rendererHeap, size);
+    if (!pointer) Com_Error(ERR_DROP, "Resident renderer needs %d more bytes (%lu retained)", size, (unsigned long)rendererHeap.bytes);
+    return pointer;
+}
+static void CL_FreeRendererMemory(void) {
+    Owned_Clear(&rendererHeap);
 }
 
 int CL_ScaledMilliseconds(void) {
@@ -3325,7 +3337,7 @@ void CL_InitRef( void ) {
 	ri.Error = Com_Error;
 	ri.Milliseconds = CL_ScaledMilliseconds;
 	ri.Malloc = CL_RefMalloc;
-	ri.Free = Z_Free;
+	ri.Free = Owned_Free;
 #ifdef HUNK_DEBUG
 	ri.Hunk_AllocDebug = Hunk_AllocDebug;
 #else

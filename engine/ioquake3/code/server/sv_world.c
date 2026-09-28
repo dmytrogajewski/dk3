@@ -77,7 +77,7 @@ void SV_ClearWorlds(void) {
         if (!world) continue;
         for (j = 0; j < MAX_CONFIGSTRINGS; ++j)
             if (world->configstrings[j]) Z_Free(world->configstrings[j]);
-        Z_Free(world);
+        free(world);
         sv_residentWorlds[i] = NULL;
     }
     sv.world = sv.primaryWorld = NULL;
@@ -88,7 +88,8 @@ static serverWorld_t *SV_NewWorld(void) {
     serverWorld_t *world;
     for (i = 0; i < ARRAY_LEN(sv_residentWorlds); ++i) {
         if (sv_residentWorlds[i]) continue;
-        world = Z_Malloc(sizeof(*world));
+        world = calloc(1, sizeof(*world));
+        if (!world) return NULL;
         for (j = 0; j < MAX_CONFIGSTRINGS; ++j) world->configstrings[j] = CopyString("");
         sv_residentWorlds[i] = world;
         return world;
@@ -99,6 +100,7 @@ static serverWorld_t *SV_NewWorld(void) {
 void SV_InitWorlds(void) {
     SV_ClearWorlds();
     sv.world = sv.primaryWorld = SV_NewWorld();
+    if (!sv.world) Com_Error(ERR_DROP, "Cannot allocate initial server world");
 }
 
 unsigned int SV_CurrentWorld(void) { return sv.world ? sv.world->collision : 0; }
@@ -179,7 +181,7 @@ qboolean SV_ReleaseWorld(unsigned int collision) {
         if (botlib_export && !botlib_export->ReleaseWorld(collision)) return qfalse;
         if (!CM_ReleaseWorld(collision)) return qfalse;
         for (j = 0; j < MAX_CONFIGSTRINGS; ++j) Z_Free(world->configstrings[j]);
-        Z_Free(world);
+        free(world);
         sv_residentWorlds[i] = NULL;
         return qtrue;
     }
@@ -796,4 +798,3 @@ int SV_PointContents( const vec3_t p, int passEntityNum ) {
 
 	return contents;
 }
-

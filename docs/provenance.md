@@ -330,3 +330,12 @@ uses the public `SNAPFLAG_NOT_ACTIVE` contract and the existing bundled GPL
 `code/cgame/cg_snapshot.c` initialization behavior; no private implementation was
 consulted or imported. Generated save/geometry evidence remains local. Old visited
 archive conversion and fully connected traversal/combat remain separate open work.
+
+Sequence 301 derives local campaign admission metadata from supplied converted BSP
+entities. Exact opening BSP digests pin the prior geometry review; generated manifests
+remain local and are included in installation/evidence identity. Cinematic-controlled
+exits are classified from authored target relationships. No private reference
+implementation was consulted or copied for this sequence. New engine owned_memory.h
+is independent GPL-2.0-or-later code; reviewed renderer/navigation/server allocations
+retain their existing owners and explicit shutdowns. Engine file hashes and pinned
+upstream identities are recorded in engine/DEVELOPMENT.json.

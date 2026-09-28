@@ -89,6 +89,13 @@ def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None):
     compatibility_file = prefix / 'share/dk3/compatibility.json'
     write_json(compatibility_file, compatibility)
     files['share/dk3/compatibility.json'] = compatibility_file
+    # Derived authoring data is local, exact-build content. Never reuse a portal
+    # geometry review after either BSP changes.
+    import campaign_regions
+    region_file = prefix / 'share/dk3/dk3/campaign-regions.cfg'
+    region_file.parent.mkdir(parents=True, exist_ok=True)
+    region_file.write_text(campaign_regions.build(source / 'packages/dk3-maps.pk3'))
+    files['share/dk3/dk3/campaign-regions.cfg'] = region_file
     records = {}
     for name, path in files.items():
         if not path.is_file():

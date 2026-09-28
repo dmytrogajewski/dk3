@@ -93,8 +93,7 @@ pub fn spawn(world: *data.World) !void {
         try world.put(entity, data.Exit{});
     };
 }
-pub fn depart(state: *State, world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, systems: *@import("world_systems.zig").State, projections: []const @import("../engine/abi.zig").EntityProjection, request: travel.Request, now: i64) !void {
-    if (state.departing) return;
+pub fn departure(world: *data.World, clients: *const @import("clients.zig").Clients, systems: *@import("world_systems.zig").State, projections: []const @import("../engine/abi.zig").EntityProjection, request: travel.Request, now: i64) !?travel.Journey {
     if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return error.CampaignExitRequiresSinglePlayer;
     const exit = world.find(request.exit) orelse return error.MissingExit;
     const player = clients.entities[0] orelse return error.MissingTraveler;
@@ -111,7 +110,7 @@ pub fn depart(state: *State, world: *data.World, clients: *const @import("client
             if (try systems.cinematics.trigger(world, exit, name, request.player)) {
                 (try world.get(@import("cinematics.zig").findController(world).?, data.Cinematic)).exit = request.exit;
             }
-            return;
+            return null;
         }
     };
     if (object.flags & 8 != 0) {
@@ -124,18 +123,18 @@ pub fn depart(state: *State, world: *data.World, clients: *const @import("client
             (try world.get(player, data.Body)).motion_owner = request.exit;
             (try world.get(player, data.Velocity)).linear = @splat(0);
             engine.send(0, "cp \"Campaign complete\nPress a key after the intermission to continue\"");
-            return;
+            return null;
         }
-        if (now <= ending.ending_started.? + 5000) return;
+        if (now <= ending.ending_started.? + 5000) return null;
         var input: c.usercmd_t = undefined;
         engine.usercmd(0, &input);
-        if (input.buttons & c.BUTTON_ANY == 0) return;
+        if (input.buttons & c.BUTTON_ANY == 0) return null;
     }
     const destination = @import("properties.zig").text(object, "map") orelse return error.MissingExitMap;
     if (!snapshot.validName(destination)) return error.InvalidExitMap;
     var name: [64]u8 = undefined;
     const current = persistence.mapName(&name);
-    if (std.mem.eql(u8, current, destination)) return;
+    if (std.mem.eql(u8, current, destination)) return null;
     var path: [80]u8 = undefined;
     const bsp = try std.fmt.bufPrintZ(&path, "maps/{s}.bsp", .{destination});
     var file: c.fileHandle_t = 0;
@@ -146,6 +145,13 @@ pub fn depart(state: *State, world: *data.World, clients: *const @import("client
     const v = @import("../domain/vector.zig");
     const pose = (try world.get(player, data.Transform)).*;
     const journey: travel.Journey = .{ .destination = destination, .spawn = object.target, .offset = v.add(pose.position, v.scale(v.add(projection.shared.absmin, projection.shared.absmax), -0.5)), .angles = pose.angles, .kind = travel.kind(current, destination), .companions = @as(u2, if (object.flags & 4 != 0) 1 else 0) | @as(u2, if (object.flags & 2 != 0) 2 else 0) };
+    return journey;
+}
+pub fn departPrepared(state: *State, world: *data.World, clients: *const @import("clients.zig").Clients, targets: *const @import("targets.zig").Router, systems: *@import("world_systems.zig").State, journey: travel.Journey, now: i64) !void {
+    const player = clients.entities[0] orelse return error.MissingTraveler;
+    const destination = journey.destination;
+    var name: [64]u8 = undefined;
+    const current = persistence.mapName(&name);
     var scratch = std.heap.ArenaAllocator.init(allocator);
     defer scratch.deinit();
     const buffer = try scratch.allocator().alloc(u8, snapshot.maximum);
@@ -160,7 +166,7 @@ pub fn depart(state: *State, world: *data.World, clients: *const @import("client
     const command = try std.fmt.bufPrintZ(&text, "map {s}\n", .{destination});
     _ = engine.gateway.call(c.G_SEND_CONSOLE_COMMAND, .{ @as(isize, c.EXEC_APPEND), command.ptr });
     state.departing = true;
-    engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: campaign departure {s} -> {s} via {s} health={d}\n", .{ current, destination, object.target, (try world.get(player, data.Health)).current }));
+    engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: campaign departure {s} -> {s} via {s} health={d}\n", .{ current, destination, journey.spawn, (try world.get(player, data.Health)).current }));
 }
 pub fn disarmArrival(world: *data.World, projections: []const @import("../engine/abi.zig").EntityProjection, player: @import("../ecs/world.zig").Entity) !void {
     const player_slot = (try world.get(player, data.Binding)).slot;

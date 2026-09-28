@@ -14,15 +14,51 @@ is inferred from class counts or test volume.
 
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
-| Seamless connected regions | Sequence 300 adds atomic resident-region saves and asynchronous region restoration to 299's player transfer; automatic seamless traversal remains incomplete | Region uniqueness/foreign-reference/schema-1 contracts; 383 Zig tests pass | Both renderers restore independently changed A/B actor state and player 341 after manual load and actual death in the other map | Qualified seams/portal views, connected combat, admission stalls and migration of old visited archives into resident namespaces remain open. [Exact evidence and limitations](#sequence-300--resident-region-save-and-death-restoration). |
+| Seamless connected regions | 301 connects automatic region preparation and ordinary authored exits; reviewed opening corridors retain position, other exits retain authored landings | Region graph/reference/save contracts, 384 Zig tests and actual C memory/collision checks | Controlled A→B→A touches (GL1), intro/factory cuts (GL2), six-world restore and UDP regression pass on one current build | Portal views, cross-boundary combat/actors, other seam qualification, eviction, admission stalls and legacy visited migration remain open. [Exact evidence](#sequence-301--automatic-region-progression). |
 | Weapons | All 28 class-owned controllers connected | Class contract roots pass at 296; full interactions unverified | 296 verifies rendered Ion flight/light; earlier narrow controller fixtures do not establish full interaction acceptance | Remaining interactions and visual/audio qualification; Trident setup and Sunflare edges open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable native contracts pass at 296; connected coverage needs revalidation | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Travel/admission changes at 301 require full fresh replay | **Not accepted:** fresh 294 completes all 115 intro shots, marsh, bridge encounter/boss, death/reload and C→B→C visited-world restoration on `4c2502…` | Driver then unnecessarily jumps while correcting a downhill waypoint, times out alive with 58 health. Evidence: `runtime-zig-294/fresh-opening/failure.json`. Sequence 293 checkpoint replay reaches e1m2a; this is not fresh acceptance |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
-| Saves and visited worlds | Schema-2 region members, typed controllers, rebased clocks, visited archives and recovery | Snapshot/region/reference/schema-1 contracts pass at 300 | 300 verifies two-map save/load and death/reload in both renderers; an actual schema-1 save loads and resaves | Complete old-archive conversion, cross-map controller restoration and fresh campaign coverage remain open |
+| Saves and visited worlds | Schema-2 region members, typed controllers, rebased clocks, visited archives and recovery | Snapshot/region/reference/schema-1 contracts pass at 300 | 301 restores and resaves six resident worlds; 300 separately verifies two-map death/reload and a schema-1 save | Complete old-archive conversion, cross-map controller restoration and fresh campaign coverage remain open |
 | Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected | 240 native contracts pass at 296; wire contracts remain green | 296 `lan-regression/` replays two real UDP clients through movement/fire/death/respawn/spectator/rejoin/reconnect/restart. Earlier 294 CTF verifies four bots and one contested capture; full modes remain open | Natural deathtag reaches carriers but cannot complete capture. Water-jump routing now passes the explicit slime-escape query; stationary lift waiting is repaired; the physical exit is an authored teleporter, but the new local passage recovery still fails to select it. Client-driver inputs are automated. Public admission, browser, authenticated reconnect/rooms and complete modes remain open |
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. Earlier factory arrival replay needs revalidation after shared changes | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 301 — automatic region progression
+
+Current installation `af499dc7237f74b162e5a6d49ea7b55758c1b2b22b2440bc5a07335833c945c9`,
+combined identity `ff127b1a20c07fc3fcfdcb16b395773f8899ddcd837cb447db239dad637012e7`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD SHA `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`.
+Local region manifest SHA `af0c2eea2324fd08577c5db4a0293175424540d1b94e3b3f1babd843d8835320`.
+Evidence: `zig-out/reports/runtime-zig-301/`.
+
+| Evidence | Outcome | Limits |
+|---|---|---|
+| `automatic-crossing-owned-memory/` | A→B→A authored touch handoffs retain player 341, health, command time and ordinary movement, without Server Initialization or ClientBegin. | Controlled approach placement; not continuous campaign acceptance, portal views or cross-map combat. |
+| `authored-cuts-opengl2/` | Skipped intro invokes its authored exit, all seven A arrival shots complete, and the C exit reaches prefetched e1m2a. Connection retained through both cuts; six worlds save and reload. | Explicit transfer to C and placement inside its exit brush. Final restored sample is in the saved M2 arrival cinematic; full intro, factory puzzle and complete cinematic restoration are not inferred. |
+| `lan-owned-memory/` | Two real UDP clients pass movement/fire/death/respawn/spectator/rejoin/reconnect/restart after allocator changes. | Full multiplayer modes remain open. |
+| `six-world-restore-owned-memory/` | Actual saved e1m2a plus intro/A/B/C/e1m2b restore after cancellation of initial preparation. Every member reaches client readiness; player 433 retains health 100 and processed input; resaving succeeds. | Immutable controlled save from `authored-cuts-controlled-overlap/`, not fresh campaign evidence. |
+| `aggregate-final.log` | 44/44 steps, 384 Zig tests, 81 Python tests and actual C collision/owned-memory checks pass. | Assertions enabled; all intended roots execute. |
+
+Regression history is retained. `authored-cuts-cinematic/` on `6eb60…` exhausts
+OpenGL2's fixed zone while preparing the next region. `authored-cuts-controlled-overlap/`
+on `6b260…` completes both cuts and saves, then the fifth restored map exceeds the
+four-reader admission limit. `six-world-restore-window/` on `efc409…` restores all
+members, then navigation exhausts the fixed zone while preparing the next region.
+The final replay repairs both ownership capacity defects and the admission queue.
+
+`authored-cuts-initial/` has cinematics disabled and is invalid setup.
+`authored-cuts-renderer-memory/` samples the single normal handoff frame before
+arrival playback, then transfers during that cinematic: invalid setup.
+`authored-cuts-synchronized/` reaches the unchanged locked factory door, which blocks
+its diagnostic approach. The focused cut test explicitly places inside the supplied
+exit brush; it does not qualify unlocking or traversing the door.
+
+`geometry-candidates.json` and its recorded analysis driver retain registration
+candidates for other exits, not admitted portal transforms. Prior campaign and
+cross-world action scenarios need applicable replay. No fresh opening or full
+campaign acceptance is inferred from these subsystem results.
 
 ## Sequence 300 — resident region save and death restoration
 

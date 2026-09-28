@@ -22,6 +22,18 @@ pub const State = struct {
     entries: [127]?Entry = @splat(null),
     cursor: usize = 0,
     initial_namespace: u7 = 0,
+    pub fn ensure(self: *State, name: []const u8) !bool {
+        for (self.entries) |maybe| if (maybe) |entry| {
+            if (!std.mem.eql(u8, name, std.mem.sliceTo(&entry.name, 0))) continue;
+            if (entry.status == .failed or entry.client_failed) return error.RegionPreparationFailed;
+            return entry.ready and entry.publication != null and entry.publication.?.ready;
+        };
+        self.request(name, true) catch |err| switch (err) {
+            error.WorldReaderLimit => return false,
+            else => return err,
+        };
+        return false;
+    }
     pub fn hasGameplay(self: *const State) bool {
         for (self.entries) |maybe| if (maybe) |entry| if (entry.gameplay) return true;
         return false;
@@ -127,7 +139,17 @@ pub const State = struct {
             self.cursor = (index + 1) % self.entries.len;
             const entry = if (self.entries[index]) |*value| value else continue;
             if (entry.ready and !entry.client_failed) {
-                if (entry.publication == null) entry.publication = try @import("world_publication.zig").State.capture(entry.handle);
+                if (entry.publication == null) {
+                    // Renderer admission retains its reader through decoding.
+                    // A fifth simultaneous publication must wait for readiness,
+                    // not mistake that bounded capacity for a corrupt map.
+                    var admitting: usize = 0;
+                    for (self.entries) |maybe| if (maybe) |other| if (other.publication) |publication| {
+                        if (!publication.ready and !other.client_failed) admitting += 1;
+                    };
+                    if (admitting >= 4) continue;
+                    entry.publication = try @import("world_publication.zig").State.capture(entry.handle);
+                }
                 try entry.publication.?.step(entry.handle, std.mem.sliceTo(&entry.name, 0));
                 continue;
             }

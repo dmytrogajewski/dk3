@@ -11,7 +11,7 @@ from runtime_probe import runtime_files, send, wait
 
 def engine_failure(text):
     """Include client and engine drops, which leave a live process at the menu."""
-    return next((line for line in reversed(text.splitlines()) if line.startswith("ERROR: ")
+    return next((line for line in reversed(text.splitlines()) if line.startswith("ERROR: ") or "fatal crashed:" in line
                  or (line.startswith("Client ") and " dropped: " in line)), None)
 
 
@@ -163,7 +163,7 @@ class NativeInput:
         self.issue(f"load {slot}")
         result = wait(self.process, self.log, lambda text: ("saved world restored" in text[before:] and
              "dk3 zig client: restoration applied" in text[before:]) or "Save/load refused:" in text[before:]
-             or engine_failure(text[before:]), 15)[before:]
+             or engine_failure(text[before:]), 120)[before:]
         if failure := engine_failure(result):
             raise RuntimeError(failure)
         if "Save/load refused:" in result:
@@ -182,6 +182,9 @@ def record_identity(engine, prefix, report, *, require_installation=False):
     files += sorted((engine / "share/dk3").glob("*.pk3"))
     # Renderers can be built in or adjacent to the engine executable.
     files += sorted((engine / "bin").glob("*renderer*.so"))
+    regions = engine / "share/dk3/dk3/campaign-regions.cfg"
+    if regions.exists():
+        files.append(regions)
     records = {}
     for path in files:
         with path.open("rb") as stream:

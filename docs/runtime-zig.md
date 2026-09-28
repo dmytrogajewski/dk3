@@ -650,3 +650,19 @@ renderers, together with a real schema-1 fixture and the inactive-snapshot regre
 See [current acceptance](native-acceptance.md) for exact identities, evidence and
 limits; authored seamless traversal and complete legacy visited-region conversion
 remain open.
+
+## runtime-zig-301 — automatic region progression
+
+The local installation derives a campaign graph and pins reviewed opening seam
+geometry to both BSP hashes. Single-player initial admission prepares its region
+before control; outgoing regions prepare during play. Ordinary exits use resident
+ownership with existing authored preconditions and cut/traveler policies. Carried
+weapon actions retain their identity and class-owned projection. Other corridors
+retain authored landing semantics pending geometric qualification.
+
+A six-world restore regression exposed the four-reader queue boundary and both
+renderer/navigation exhaustion of the original fixed memory zone. Bounded client
+admission and independently releasable owner heaps repair those cases. Current
+identities, failed evidence and exact acceptance limits are in
+[native-acceptance.md](native-acceptance.md). Portal views/cross-boundary gameplay,
+old visited-archive migration and full campaign acceptance remain open.

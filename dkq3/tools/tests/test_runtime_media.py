@@ -2,6 +2,7 @@
 import contextlib
 import io
 import json
+import struct
 from pathlib import Path
 import tempfile
 import unittest
@@ -22,6 +23,10 @@ class RuntimeMediaTest(unittest.TestCase):
             for name in play.PACKAGES:
                 with zipfile.ZipFile(generation / 'packages' / f'dk3-{name}.pk3', 'w') as archive:
                     archive.writestr(f'{name}/fixture.cfg', 'synthetic package')
+                    if name == 'maps':
+                        bsp = bytearray(144)
+                        struct.pack_into('<4si', bsp, 0, b'IBSP', 46)
+                        archive.writestr('maps/e1m1a.bsp', bsp)
             for name in play.BINARIES:
                 target = prefix / 'bin' / name
                 target.parent.mkdir(parents=True, exist_ok=True)

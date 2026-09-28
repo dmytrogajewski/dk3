@@ -3,6 +3,7 @@ import struct
 import unittest
 
 from campaign_connections import connections, read_map
+from campaign_regions import encode, REVIEWED
 
 
 class Connections(unittest.TestCase):
@@ -40,3 +41,27 @@ class Connections(unittest.TestCase):
         rows = connections(maps)
         self.assertEqual(rows[0]["status"], "authored_cut")
         self.assertEqual(rows[1]["status"], "geometry_unreviewed")
+
+    def test_cinematic_control_owns_cut_even_without_exit_flags(self):
+        entity_text = (b'{\n"classname" "worldspawn"\n}\n'
+                       b'{\n"classname" "func_button"\n"target" "changelev"\n"cinetrigger" "intro"\n}\n'
+                       b'{\n"classname" "trigger_changelevel"\n"targetname" "changelev"\n"model" "*1"\n"map" "next"\n}\n\0')
+        bsp = bytearray(144)
+        struct.pack_into('<4si', bsp, 0, b'IBSP', 46)
+        struct.pack_into('<ii', bsp, 8, len(bsp), len(entity_text))
+        bsp += entity_text
+        struct.pack_into('<ii', bsp, 8 + 7 * 8, len(bsp), 80)
+        bsp += struct.pack('<6f4i', 0, 0, 0, 1, 1, 1, 0, 0, 0, 0) * 2
+        source = read_map('unrelated_name', bsp)
+        rows = connections({'unrelated_name': source, 'next': dict(exits=[], starts=[])})
+        self.assertTrue(source['exits'][0]['cinematic_control'])
+        self.assertEqual(rows[0]['status'], 'authored_cut')
+
+    def test_geometry_review_requires_both_exact_maps(self):
+        document = dict(maps={name: dict(sha256=sha) for name, sha in REVIEWED.items()},
+                        connections=[dict(source='e1m1a', destination='e1m1b', entity=25,
+                                          status='geometry_unreviewed', return_exit_candidates=[449])])
+        self.assertIn('kind "identity"', encode(document))
+        document['maps']['e1m1b']['sha256'] = 'f' * 64
+        self.assertNotIn('kind "identity"', encode(document))
+        self.assertIn('kind "landing"', encode(document))

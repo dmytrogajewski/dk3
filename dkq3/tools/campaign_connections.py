@@ -37,6 +37,12 @@ def read_map(name, data):
         raise ValueError(f"{name}: invalid model/shader array")
     models = list(struct.iter_unpack("<6f4i", lumps[7]))
     parsed = entities.parse(lumps[0])
+    # A cinematic can invoke an otherwise ordinary brush exit through a named
+    # control (the opening movie does this). Follow the authored target, not the
+    # map's spelling or the absence of a reciprocal corridor.
+    cinematic_targets = {entities.value(pairs, 'target').lower()
+                         for pairs in parsed if entities.value(pairs, 'cinetrigger')
+                         and entities.value(pairs, 'target')}
     starts, exits = [], []
     for index, pairs in enumerate(parsed):
         get = lambda key, default="": entities.value(pairs, key) or default
@@ -58,6 +64,7 @@ def read_map(name, data):
                 raise ValueError(f"{name} exit {index + 1}: invalid brush bounds")
             exits.append(dict(entity=index + 1, destination=get("map"), target=get("target"),
                               flags=int(get("spawnflags", "0")), cinematic=get("cinematic"),
+                              cinematic_control=get("targetname").lower() in cinematic_targets,
                               model=reference, mins=mins, maxs=maxs,
                               angles=vector(get("angles", f"0 {get('angle', '0')} 0"))))
     shaders = sorted({entry[:64].split(b"\0", 1)[0].decode("ascii")
@@ -90,7 +97,7 @@ def connections(maps):
                 # Authored intermission applies to an exit without a named
                 # landing. Named submap returns retain direct travel even when
                 # the intermission flag is present; map spelling is irrelevant.
-                if exit["cinematic"] or exit["flags"] & 8 or (exit["flags"] & 1 and not exit["target"]):
+                if exit["cinematic"] or exit.get("cinematic_control") or exit["flags"] & 8 or (exit["flags"] & 1 and not exit["target"]):
                     row["status"] = "authored_cut"
             result.append(row)
     return result

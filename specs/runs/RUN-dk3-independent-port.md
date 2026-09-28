@@ -6087,3 +6087,42 @@ qualification, portal views/collision, cross-map actors/projectiles/hitscan/soun
 remaining admission stalls and complete campaign/multiplayer acceptance remain open.
 Main, installed game, user saves and live service are unchanged. Continue past this
 checkpoint toward authored traversal; the complete independent-port scope remains.
+
+## Sequence 301 — automatic-region-progression
+
+**Implemented:** local asset-derived region graph; automatic required-region
+admission before control; upcoming-region preparation; ordinary authored exit
+handoff with established companion, cinematic, ending and traveler rules. Exact
+BSP digests qualify opening identity seams. Other exits retain authored landings.
+Carried actions retain identity and reuse the restoration projection dispatcher.
+A cinematic-authored control identifies the intro cut (33 cuts, 91 unreviewed
+connections). Full portal/cross-boundary gameplay remains incomplete.
+
+**Verified build:** `af499dc7237f74b162e5a6d49ea7b55758c1b2b22b2440bc5a07335833c945c9`;
+combined `ff127b1a20c07fc3fcfdcb16b395773f8899ddcd837cb447db239dad637012e7`;
+base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`;
+region manifest `af0c2eea2324fd08577c5db4a0293175424540d1b94e3b3f1babd843d8835320`.
+Evidence under `zig-out/reports/runtime-zig-301/`.
+
+| Scenario | State and scope |
+|---|---|
+| `automatic-crossing-owned-memory/` | Passed GL1 actual A→B→A touch handoffs, stable player/health/input, continued movement, retained connection. Controlled approach placement. |
+| `authored-cuts-opengl2/` | Passed skipped-intro authored exit, complete seven-shot A arrival, and controlled C exit overlap into prefetched M2. Both cuts retain connection. Region save/load succeeds, final sample in saved M2 arrival cinematic. Full intro/factory puzzle not covered. |
+| `six-world-restore-owned-memory/` | Passed load/resave of immutable controlled six-world fixture, all five members acknowledged, player 433 health100, processed input. Cinematics disabled in this narrow replay. |
+| `lan-owned-memory/` | Passed two real UDP clients movement/fire/death/respawn/spectator/rejoin/reconnect/fast restart. |
+| `aggregate-final.log` | Passed 44/44 steps, 384 Zig tests, 81 Python tests, real C collision and independent owner-memory contracts, assertions enabled. |
+
+Before/after regressions retain the OpenGL2 renderer-zone exhaustion on `6eb60…`,
+fifth-reader failure on `6b260…`, and subsequent botlib-zone exhaustion on `efc409…`.
+The final build queues client admissions at actual readiness and gives renderer,
+navigation and spatial owners releasable heap storage. No damage/geometry/puzzle
+rule was changed. Invalid driver setups (disabled intro, transfer during arrival,
+and a normal approach blocked by the authored locked door) remain documented in
+[native acceptance](../../docs/native-acceptance.md).
+
+No fresh campaign acceptance. Complete geometric qualification, portal views,
+actors/projectiles/hitscan/sound across seams, eviction/admission stalls, legacy
+visited-save migration and complete campaign/multiplayer acceptance remain open.
+Main, installed playable game, user saves and live service remain unchanged.
+Continue beyond this implementation checkpoint.
