@@ -6347,3 +6347,30 @@ that build are superseded by the final replays. Wider seamless work and the full
 independent campaign/multiplayer scope remain open in the current acceptance
 matrix. Continue after this checkpoint; preserve main, installation, saves and
 service. No private reference implementation/assets admitted.
+
+## Sequence 307 — native-hd-png-admission
+
+Build `99ea9654869df4e10be7ddc2eed76e49bbe91da4eaa034a255cf9ffb98293123`;
+combined identity `499e7f690756d540e13b8aba24c3d6687835c6079392851c015c045773cb3028`. Base, HD and region manifest
+identities are unchanged from 306. Protocol 1349 and renderer ABI 12 unchanged.
+Evidence: `zig-out/reports/runtime-zig-307/`.
+
+The actual image timings identify PNG read/decode as the dominant HD material
+stall. Both renderers now use the already bundled zlib inflater once, with an
+exact scanline allocation bound, retaining the existing pixel/filter/alpha
+conversion. Empty IDAT chunks consume their CRC; oversized palettes are rejected.
+The zlib header/checksum is now validated, a deliberate stricter malformed-input
+contract. No private runtime, assets or new third-party component is admitted.
+
+| Evidence | Verified outcome | Limits |
+|---|---|---|
+| `png-opengl1/`, `png-opengl2/` | Both actual renderers admit A/B/C, display an owned portal and record actual foreign Glock/Ion/Sidewinder contact; HD textures enabled | Controlled setup. Surface phase peaks 26/33 ms respectively, versus 107–111/101–107 ms in 306 final runs. Decoding/upload still occur on the owner thread; no frame-time or full asynchronous-loader claim. GL2 aperture inspected. |
+| `aggregate-final.log`, `png-contract.log`, `png-defect/` | 50/50 steps, 402 Zig, 87 Python and actual C roots pass; synthetic PNG checks exercise filters, alpha, bit depths, Adam7, empty/split IDAT, malformed streams and cleanup | Initial aggregate had a missing SDL include in the new C root; fixed. The unmodified prior public decoder fails the valid empty-IDAT fixture. Assertions enabled. |
+| `bridge-collision-forecast/` | Read-only forecast copies the actual spray controller and traces the existing geometry; six eventual impacts match within 0.008 units and 8–35 ms frame quantization | **Failed boss encounter** on earlier `4fd0ae…`, combined `d69b3e…`; Hiro dies with boss health 270. Forecast validity does not establish successful avoidance or campaign traversal. No gameplay damage/rule changes. |
+
+`306/fresh-opening/` is now a failed superseded-build development route: full
+intro/arrival, marsh and ordinary bridge progression reach the boss; the driver
+falls into water and loses its firing lane. `305/fresh-opening-defenders/` also
+fails at the boss. Neither is a fresh complete milestone. Checkpointed factory
+exit evidence remains narrow. Next work removes remaining decode stalls and
+uses a materially different legitimate encounter route before replaying the gate.

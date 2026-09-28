@@ -1,6 +1,6 @@
 # Seamless connected worlds
 
-Sequences 297–306 implement connected owners on `rewrite/native-zig-runtime`.
+Sequences 297–307 implement connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary campaign exits now use resident ownership.**
 Automatic handoff is not acceptance of portal views or cross-world combat.
 
@@ -240,6 +240,13 @@ surface/texture preparation as a remaining source of long stalls. Final build
 region save/death, ordinary controlled crossings and LAN lifecycle. Lightmap
 phases measure 2–4 ms, while surface steps still exceed 100 ms. This is not a
 complete asynchronous loader or fresh campaign acceptance.
+
+Sequence 307 replaces the PNG decoder's two inflation passes with the engine's
+bundled zlib and an exact scanline bound, retaining existing filter/pixel conversion.
+Both HD renderer/contact scenarios pass; measured surface peaks fall to 26/33 ms.
+Individual image decode/upload still occurs synchronously and remains a loading
+stall. Read-only spray forecasting improves diagnostics but its boss replay fails;
+no fresh campaign gate is accepted. Exact build/evidence are in native acceptance.
 
 ## Remaining implementation, in dependency order
 

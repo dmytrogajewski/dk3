@@ -16,6 +16,15 @@ pub fn declareTests(b: *std.Build, optimize: std.builtin.OptimizeMode) *std.Buil
     collision.addCSourceFile(.{ .file = b.path("src/runtime/tests/collision_worlds.c"), .flags = &.{"-std=gnu99"} });
     collision.linkSystemLibrary("m", .{});
     step.dependOn(&b.addRunArtifact(b.addExecutable(.{ .name = "collision-world-contracts", .root_module = collision })).step);
+    const png = b.createModule(.{ .target = b.graph.host, .optimize = optimize, .link_libc = true });
+    png.addIncludePath(b.path("engine/ioquake3/code/thirdparty/SDL2-2.32.8/include"));
+    for ([_][]const u8{ "src/runtime/tests/renderer_png.c", "engine/ioquake3/code/qcommon/q_shared.c" }) |source|
+        png.addCSourceFile(.{ .file = b.path(source), .flags = &.{ "-std=gnu99", "-fno-sanitize=alignment", "-ffunction-sections", "-fdata-sections" } });
+    for (@import("ioq3_sources.zig").zlib_sources) |source|
+        png.addCSourceFile(.{ .file = b.path(b.fmt("engine/ioquake3/{s}", .{source})), .flags = &.{ "-std=gnu99", "-DNO_GZIP", "-w" } });
+    const png_contract = b.addExecutable(.{ .name = "png-loader-contracts", .root_module = png });
+    png_contract.link_gc_sections = true;
+    step.dependOn(&b.addRunArtifact(png_contract).step);
     for ([_]bool{ false, true }) |gl2| {
         const lightmaps = b.createModule(.{ .target = b.graph.host, .optimize = optimize, .link_libc = true });
         lightmaps.addIncludePath(b.path("engine/ioquake3/code/thirdparty/SDL2-2.32.8/include"));

@@ -1029,6 +1029,7 @@ image_t	*R_FindImageFile( const char *name, imgType_t type, imgFlags_t flags )
 	int		width, height;
 	byte	*pic;
 	long	hash;
+	int started, decoded, completed;
 
 	if (!name) {
 		return NULL;
@@ -1054,13 +1055,19 @@ image_t	*R_FindImageFile( const char *name, imgType_t type, imgFlags_t flags )
 	//
 	// load the pic from disk
 	//
+	started = ri.Milliseconds();
 	R_LoadImage( name, &pic, &width, &height );
+	decoded = ri.Milliseconds();
 	if ( pic == NULL ) {
 		return NULL;
 	}
 
 	image = R_CreateImage( ( char * ) name, pic, width, height, type, flags, 0 );
 	ri.Free( pic );
+	completed = ri.Milliseconds();
+	if (completed - started >= 4)
+		ri.Printf(PRINT_DEVELOPER, "dk3 image admission: name=%s size=%dx%d read_decode_ms=%d prepare_upload_ms=%d\n",
+			name, width, height, decoded - started, completed - decoded);
 	return image;
 }
 
@@ -1671,4 +1678,3 @@ void	R_SkinList_f( void ) {
 	}
 	ri.Printf (PRINT_ALL, "------------------\n");
 }
-

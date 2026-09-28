@@ -348,3 +348,11 @@ independent GPL-2.0-or-later code. The reliable boundary repair follows the bund
 engine’s CL_ParseGamestate and CL_InitCGame contracts; it preserves ordinary
 reliable handling. The doubled sound separator is verified against the supplied
 local sound package. Updated engine file identities are in engine/DEVELOPMENT.json.
+
+Sequence 307 reuses the bundled `engine/ioquake3/code/thirdparty/zlib-1.3.1/`
+in both renderer PNG loaders. Its six existing inflate/checksum/allocation source
+files and the notice in `zlib.h` were reviewed; no new external component is added.
+The existing GPL PNG decoder/filter/pixel conversion remains attributed. The new
+allocation bound and chunk handling are project changes. Invalid zlib headers or
+checksums now reject a PNG instead of being ignored; valid pixels remain covered
+by independent synthetic fixtures. No original game asset is part of those tests.

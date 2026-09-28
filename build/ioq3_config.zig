@@ -208,6 +208,8 @@ fn appendRendererSources(arena: std.mem.Allocator, paths: *std.ArrayList([]const
     try paths.appendSlice(arena, renderer);
     try paths.appendSlice(arena, shaders);
     try paths.appendSlice(arena, &(lists.sdl_renderer_sources ++ lists.jpeg_sources ++ lists.dynamic_renderer_sources));
+    // Native resident texture admission reuses the already bundled inflater.
+    try paths.appendSlice(arena, &lists.zlib_sources);
 }
 
 /// `<MODULE>_SOURCES_BASEGAME` then `<MODULE>_BINARY_SOURCES`, cmake/basegame.cmake:126-128, :139-151.

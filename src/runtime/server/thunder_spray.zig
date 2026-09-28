@@ -11,6 +11,33 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const policy = @import("actor_catalog").thunderskeet;
 const lifecycle = @import("weapon_entities.zig");
+/// Diagnostic prediction only: copies the controller and traces current geometry.
+/// Moving geometry can invalidate a forecast; this neither steps nor damages the
+/// live world. The class oscillator, hull, mask and lifetime remain authoritative.
+pub fn forecast(world: *data.World, entity: ecs.Entity, now: i64) !?struct { eta: f32, point: v.Vec3 } {
+    var spray = (try world.get(entity, data.ThunderSpray)).*;
+    var position = (try world.get(entity, data.Transform)).position;
+    var velocity = (try world.get(entity, data.Velocity)).linear;
+    const end = @min(now + 3000, (try world.get(entity, data.Lifetime)).expires_ms);
+    const slot = (try world.get(entity, data.Binding)).slot;
+    var cursor = @import("region_motion.zig").Cursor.init(world, try world.persistentId(entity));
+    while (spray.stepped_ms < end) {
+        const until = @min(end, spray.next_ms);
+        const elapsed = @as(f32, @floatFromInt(until - spray.stepped_ms));
+        const hit = try cursor.trace(.{ .start = position, .end = v.add(position, v.scale(velocity, elapsed * 0.001)), .mins = @splat(-1), .maxs = @splat(1), .slot = slot, .mask = c.CONTENTS_SOLID | c.CONTENTS_PLAYERCLIP });
+        if (hit.fraction < 1 or hit.start_solid) return .{
+            .eta = @max(0, @as(f32, @floatFromInt(spray.stepped_ms - now)) + elapsed * hit.fraction) * 0.001,
+            .point = hit.end,
+        };
+        position = hit.end;
+        spray.stepped_ms = until;
+        if (until == spray.next_ms) {
+            _ = spray.tick(&velocity);
+            spray.next_ms += 100;
+        }
+    }
+    return null;
+}
 pub fn launch(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, owner: ecs.Entity, target: Ref, pose: data.Transform, alternate: bool, offset: v.Vec3, now: i64) !void {
     const random = try world.get(owner, data.Random);
     const speed = 128 + random.next() * 64;
@@ -68,8 +95,8 @@ fn explode(world: *data.World, slots: *Slots, entity: ecs.Entity, owner_world: u
         _ = try @import("weapon_damage.zig").hurt(target.world, target.entity, spray.owner, 0, amount, now, false);
         try @import("weapon_damage.zig").shove(target.world, target.entity, spray.owner, delta, amount, now);
     }
-    var text: [100]u8 = undefined;
-    engine.print(try std.fmt.bufPrintZ(&text, "dk3 thunder: spray={d} world-contact blast=40 radius=256\n", .{try world.persistentId(entity)}));
+    var text: [180]u8 = undefined;
+    engine.print(try std.fmt.bufPrintZ(&text, "dk3 thunder: spray={d} world-contact blast=40 radius=256 at={d} position={d:.3},{d:.3},{d:.3}\n", .{ try world.persistentId(entity), now, point[0], point[1], point[2] }));
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64) !void {
     const occupants = slots.occupants;

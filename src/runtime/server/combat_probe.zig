@@ -120,8 +120,10 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
             if (world.get(entity, data.ThunderSpray) catch null) |spray| {
                 const velocity = (try world.get(entity, data.Velocity)).linear;
                 const position = (try world.get(entity, data.Transform)).position;
-                var output: [256]u8 = undefined;
-                engine.print(try std.fmt.bufPrintZ(&output, "dk3 thunder spray state: id={d} owner={d} velocity={d:.2},{d:.2},{d:.2} position={d:.2},{d:.2},{d:.2}\n", .{ try world.persistentId(entity), spray.owner, velocity[0], velocity[1], velocity[2], position[0], position[1], position[2] }));
+                const forecast = try @import("thunder_spray.zig").forecast(world, entity, now);
+                const impact = if (forecast) |value| value.point else @as(v.Vec3, @splat(0));
+                var output: [384]u8 = undefined;
+                engine.print(try std.fmt.bufPrintZ(&output, "dk3 thunder spray state: id={d} owner={d} velocity={d:.2},{d:.2},{d:.2} position={d:.2},{d:.2},{d:.2} prediction_at={d} forecast={d} impact_eta={d:.3} impact={d:.2},{d:.2},{d:.2}\n", .{ try world.persistentId(entity), spray.owner, velocity[0], velocity[1], velocity[2], position[0], position[1], position[2], now, @intFromBool(forecast != null), if (forecast) |value| value.eta else -1, impact[0], impact[1], impact[2] }));
             }
             const projectile = world.get(entity, data.Projectile) catch continue;
             const lifetime = world.get(entity, data.Lifetime) catch null;

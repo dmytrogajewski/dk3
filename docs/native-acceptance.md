@@ -12,27 +12,51 @@ is inferred from class counts or test volume.
 
 ## Current outcome matrix
 
-Sequence 306 adds verified incremental lightmap admission on `964389…`;
-sequence 305 consolidates specialized player weapon targets, collision, grouped
-controllers and muzzle ownership on `187506…`. Eleven controlled weapon
-contact scenarios, selected active-controller restores, actor attacks, both
-renderers and region save/death restoration pass. **Seamless campaign acceptance
-remains incomplete.** The fresh normal-input opening route is running; wider
-weapon interactions, navigation, authored party actions, multiple portal views,
-remaining seam qualification and admission stalls remain open. Counts below
-describe supporting checks, not port completion.
+Sequence 307 reduces measured HD PNG admission stalls on `99ea96…`;
+sequence 306 stages lightmaps and 305 consolidates specialized weapon ownership.
+**Seamless campaign acceptance remains incomplete.** Fresh opening development
+reaches the bridge boss but fails there. Wider weapon interactions, navigation,
+authored party actions, multiple portal views, seam qualification and remaining
+admission stalls remain open. Supporting check counts do not measure completion.
 
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
 | Seamless connected regions | Region admission/ordinary exits, qualified collision, actor/projectile transfer, specialized weapons, party ownership and authored script scope | 402 Zig, 82 Python and actual C owner/collision/inline-handle contracts pass | On `187506…`: eleven weapon contact cases, selected controller restores, real turret/frog contact, both renderer combat paths, enemy/companion/player crossing and region save/death restoration | One reviewed corridor and selected interactions. Broader navigation/party actions, multiple views, seam qualification, eviction/admission stalls and fresh route remain open. [Evidence](#sequence-305--specialized-weapons-across-seams). |
 | Weapons | All 28 class-owned controllers connected; 305 extends spatial and persistent ownership | Class roots and ownership/slot/cancellation contracts execute at 305 | Eleven controlled specialized weapon contacts across A/B; Wyndrax, Nightmare, Metamaser and pending Zeus restore on `187506…`. Three actual Trident tips confirmed | Not all interactions: Trident merge/water, Ballista carried crossing/pin restoration, destruction variants, return/pickup and complete audiovisual comparison remain open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Travel/admission/restore changes through 305 require full fresh replay | **Not accepted:** 305 New Game reaches living normal e1m1a after the full intro/arrival; driver then fails an observation assertion before its arrival save. Corrected fresh replay running on `187506…` | `runtime-zig-305/fresh-opening/` retains the failure: sampled cursor misses brief shot 69 and includes finished cursor 115; actual server transition events cover the missed shot. Driver uses those events plus actual first-shot observation. 294 traversal and 293 checkpoint completion remain historical, not transferred acceptance |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable contract roots execute through 307 | **Not accepted:** fresh 305 and superseded 306 runs reach the bridge encounter and fail. A separate legitimate factory checkpoint reaches e1m2a alive | Full coherent New Game→M2 route still required; boss avoidance/firing-lane strategy remains a driver blocker. No modified inventory or assembled checkpoint chain qualifies. |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
 | Saves and visited worlds | Schema-2 residents, typed references/time, flat native archive migration, moved actor authored scope and recovery | Snapshot/migration/ownership roots execute at 305 | Selected weapon controllers, crossed enemy/companion, independent A/B actor health, death restoration, six-world factory cinematic and unmodified legacy archive migration replay on `187506…` | Full party/controller combinations and fresh campaign restoration remain unverified. Legacy actors are audited before simulation. |
 | Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected; protocol 1349 | Native wire and runtime roots pass at 305 | Two actual UDP clients replay movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart on `187506…` | Complete CTF/deathtag, natural bot traversal, public admission/browser/authenticated rooms and full modes remain open. No online service deployment. |
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. 304 replays six-world factory arrival restoration; the full fresh intro still needs replay | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 307 — HD PNG admission and collision forecasting
+
+Build `99ea9654869df4e10be7ddc2eed76e49bbe91da4eaa034a255cf9ffb98293123`;
+combined identity `499e7f690756d540e13b8aba24c3d6687835c6079392851c015c045773cb3028`. Base, HD and region manifest
+identities are unchanged from 306. Protocol 1349 and renderer ABI 12 unchanged.
+Evidence: `zig-out/reports/runtime-zig-307/`.
+
+The actual image timings identify PNG read/decode as the dominant HD material
+stall. Both renderers now use the already bundled zlib inflater once, with an
+exact scanline allocation bound, retaining the existing pixel/filter/alpha
+conversion. Empty IDAT chunks consume their CRC; oversized palettes are rejected.
+The zlib header/checksum is now validated, a deliberate stricter malformed-input
+contract. No private runtime, assets or new third-party component is admitted.
+
+| Evidence | Verified outcome | Limits |
+|---|---|---|
+| `png-opengl1/`, `png-opengl2/` | Both actual renderers admit A/B/C, display an owned portal and record actual foreign Glock/Ion/Sidewinder contact; HD textures enabled | Controlled setup. Surface phase peaks 26/33 ms respectively, versus 107–111/101–107 ms in 306 final runs. Decoding/upload still occur on the owner thread; no frame-time or full asynchronous-loader claim. GL2 aperture inspected. |
+| `aggregate-final.log`, `png-contract.log`, `png-defect/` | 50/50 steps, 402 Zig, 87 Python and actual C roots pass; synthetic PNG checks exercise filters, alpha, bit depths, Adam7, empty/split IDAT, malformed streams and cleanup | Initial aggregate had a missing SDL include in the new C root; fixed. The unmodified prior public decoder fails the valid empty-IDAT fixture. Assertions enabled. |
+| `bridge-collision-forecast/` | Read-only forecast copies the actual spray controller and traces the existing geometry; six eventual impacts match within 0.008 units and 8–35 ms frame quantization | **Failed boss encounter** on earlier `4fd0ae…`, combined `d69b3e…`; Hiro dies with boss health 270. Forecast validity does not establish successful avoidance or campaign traversal. No gameplay damage/rule changes. |
+
+`306/fresh-opening/` is now a failed superseded-build development route: full
+intro/arrival, marsh and ordinary bridge progression reach the boss; the driver
+falls into water and loses its firing lane. `305/fresh-opening-defenders/` also
+fails at the boss. Neither is a fresh complete milestone. Checkpointed factory
+exit evidence remains narrow. Next work removes remaining decode stalls and
+uses a materially different legitimate encounter route before replaying the gate.
 
 ## Sequence 306 — incremental lightmap admission
 
@@ -58,7 +82,7 @@ its lump; both lightmap converters supply an explicit alpha byte for RGB pixels.
 | `region-save-final/`, `crossing-final/` | Actual A/B save/death restoration and retained-connection A→B→A movement pass | Controlled actors/placement/health edits and one corridor. |
 | `aggregate.log`, `python-final.log`, `lightmap-defect/` | 48/48 steps, 402 Zig, original 85 Python tests and both new actual C renderer roots pass. Subsequent driver batch: 86 Python tests pass. Removing only GL1's upload yield in an isolated source copy fails the interleaving assertion | Assertions remain enabled. C roots check interleaved owner uploads/pixels, merged deluxe pairs and a guard-page-protected single-lightmap lump. No production mutation for the defect run. |
 | `bridge-retreat/`, `bridge-open-bank/` | Failed legitimate-checkpoint boss encounters | Driver no longer loops at the northern obstruction; avoidance still fails to keep Hiro alive. No damage, geometry or class-rule change. Improve prediction or use a legitimate supply route before further retries. |
-| `fresh-opening/` | Ongoing ordinary-input development replay on **superseded** `258815…`, combined `e537ba…` | Started before the final RGB bounds correction. Cannot establish the consolidated-build fresh milestone. |
+| `fresh-opening/` | Failed ordinary-input development replay on **superseded** `258815…`, combined `e537ba…` | Full intro/arrival and bridge progression reach the boss; driver falls into water and loses its firing lane. Cannot establish the consolidated-build fresh milestone. |
 | `lan-final/` | Two real UDP clients pass movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart | Existing lifecycle scope; no target-contact, full modes/bots or public-service acceptance. |
 
 Campaign driver repairs distinguish a terminal damage event from an actor leaving

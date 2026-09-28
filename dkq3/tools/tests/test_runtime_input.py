@@ -3,10 +3,17 @@ import unittest
 from unittest.mock import patch
 
 from runtime_input import NativeInput
-from runtime_arena_combat import evade
+from runtime_arena_combat import evade, incoming
 
 
 class NativeInputTests(unittest.TestCase):
+    def test_spray_forecast_uses_actual_geometry_before_the_flat_floor(self):
+        base = "dk3 thunder spray state: id=1 owner=2 velocity=0,0,-100 position=10,20,1200 "
+        self.assertEqual(incoming(base + "forecast=1 impact_eta=0.5 impact=30,40,1150", 960),
+                         ([(0.5, (30.0, 40.0))], 1))
+        self.assertEqual(incoming(base + "forecast=0 impact_eta=-1 impact=0,0,0", 960), ([], 1))
+        self.assertEqual(incoming(base + "forecast=1 impact_eta=0.5 impact=30,40,1400", 960), ([], 1))
+
     def test_server_disconnect_invalidates_save_and_load_before_completion(self):
         driver = NativeInput(None, None, None, None, [])
         fatal = "Client Hiro dropped: Server command overflow"

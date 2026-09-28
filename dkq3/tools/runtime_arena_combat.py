@@ -33,6 +33,15 @@ def incoming(text, floor):
             continue
         active += 1
         fields = dict(re.findall(r"(\w+)=([^ ]+)", line))
+        if "forecast" in fields:
+            if fields["forecast"] == "1":
+                eta = float(fields["impact_eta"])
+                impact = tuple(map(float, fields["impact"].split(",")))
+                if 0 <= eta <= 3 and abs(impact[2] - (floor + 24)) < 256:
+                    result.append((eta, impact[:2]))
+            continue
+        # Historical immutable development builds lack collision forecasts.
+        # This older estimate is driver compatibility, not a gameplay backend.
         position = tuple(map(float, fields["position"].split(",")))
         velocity = tuple(map(float, fields["velocity"].split(",")))
         if velocity[2] >= 0:
