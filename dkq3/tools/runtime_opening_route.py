@@ -32,12 +32,21 @@ def nearest_hostile(driver, distance=500, expected_map=None):
         raise RuntimeError(f"Unexpected map while choosing encounter: {expected_map} -> {state['map']}")
     candidates = []
     for identity, row in actors(driver).items():
-        if row["health"] <= 0 or row.get("sight") != "1" or row.get("class") not in ("monster_slaughterskeet", "monster_froginator"):
+        if row["health"] <= 0 or row.get("sight") != "1" or row.get("class") not in ("monster_slaughterskeet", "monster_froginator", "monster_crox"):
             continue
         separation = math.dist(state["pos"], row["pos"])
         if separation < distance and row.get("skeeter") != "hatching":
             candidates.append((separation, identity, row))
     return min(candidates, default=None)
+
+
+def terminal_contact(text, identity):
+    """A retired actor requires an actual terminal hit in this encounter's log."""
+    for line in reversed(text.splitlines()):
+        match = re.search(r"dk3 zig combat: target=(\d+) blood=(\d+) armor=(\d+) killed=([01])(?:\s|$)", line)
+        if match and int(match[1]) == identity and int(match[2]) > 0 and match[4] == "1":
+            return line
+    return None
 
 
 def fight(driver, capture, expected_map, target_id=None):
@@ -65,6 +74,9 @@ def fight(driver, capture, expected_map, target_id=None):
         return False
     before, initial, previous = state, row.copy(), row.copy()
     fired = contacted = False
+    encounter_start = len(driver.text())
+    death_event = None
+    lost_target = False
     deadline = time.monotonic() + 3
     held = False
     try:
@@ -75,7 +87,15 @@ def fight(driver, capture, expected_map, target_id=None):
             fired |= state["event"] != before["event"] and state["fire"] != before["fire"]
             row = actors(driver).get(identity)
             if row is None:
-                raise RuntimeError("Observed combat target disappeared without a death sample")
+                death_event = terminal_contact(driver.text()[encounter_start:], identity)
+                if death_event is not None:
+                    contacted = True
+                    break
+                # This opportunistic encounter does not require a kill. An
+                # actor can physically leave the active map after knockback.
+                # Stop tracking it; absence establishes neither death nor hit.
+                lost_target = True
+                break
             contacted |= row["health"] < initial["health"]
             if row["health"] <= 0:
                 break
@@ -111,7 +131,8 @@ def fight(driver, capture, expected_map, target_id=None):
             released = driver.until(lambda s: not s["buttons"] & 1, description="processed combat release")
             fired |= released["event"] != before["event"] and released["fire"] != before["fire"]
         driver.inputs.append({"combat_target": identity, "fired": fired, "contacted": contacted,
-                              "before": initial, "after": row})
+                              "before": initial, "after": row, "death_event": death_event,
+                              "lost_target": lost_target})
     if held and not fired:
         raise RuntimeError("Held attack produced no actual fire event")
     # A miss is a recorded gameplay outcome, not a target-contact pass. Continue
@@ -201,7 +222,12 @@ def walk(driver, point, capture, *, combat=False, tolerance=48, floor_limit=None
                 yaw = math.degrees(math.atan2(point[1] - state["pos"][1], point[0] - state["pos"][0]))
                 driver.aim(yaw, 0)
                 heading, moving = yaw, False
-            if jump and not swimming_up and not jumped and len(point) == 3 and point[2] - state["pos"][2] > 18 and distance < 100:
+            raised_goal = len(point) == 3 and point[2] - state["pos"][2] > 18 and distance < 100
+            # A lip may be higher than the destination beyond it. Try one
+            # ordinary jump after actual grounded forward input stops gaining
+            # distance; do not infer a clear approach from waypoint height.
+            blocked_approach = state["ground"] != 2047 and state["water"] <= 1 and driver.forward_ms - last_progress >= 750
+            if jump and not swimming_up and not jumped and (raised_goal or blocked_approach):
                 start_z = state["pos"][2]
                 driver.issue("+forward")
                 driver.issue("+moveup")
@@ -303,7 +329,10 @@ def marsh_exit(driver, capture, report, start_index=0):
                 fight(driver, capture, "e1m1a")
                 checkpoint(driver, capture, report, f"marsh_before_tree_{tree}")
                 for supply in detour:
-                    walk(driver, supply, capture, tolerance=20)
+                    # Defenders can reach the alcove during the climb. A live
+                    # mosquito above Hiro physically blocks a jump; continue
+                    # observing/fighting instead of treating it as bad geometry.
+                    walk(driver, supply, capture, combat=True, tolerance=20)
                 uses = resupply(driver, tree)
                 driver.inputs.append({"marsh_tree": tree, "uses": uses})
                 checkpoint(driver, capture, report, f"marsh_tree_{tree}")

@@ -1,6 +1,6 @@
 # Seamless connected worlds
 
-Sequences 297–305 implement connected owners on `rewrite/native-zig-runtime`.
+Sequences 297–306 implement connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary campaign exits now use resident ownership.**
 Automatic handoff is not acceptance of portal views or cross-world combat.
 
@@ -229,6 +229,17 @@ replay. These are scoped diagnostics, not full interaction or campaign acceptanc
 see `native-acceptance.md`. The current manifest has 124 exits: six qualified
 identity seams, 33 authored cuts and 85 unreviewed landings. The raw inventory's
 91 geometry-unreviewed rows include the six subsequently qualified seams.
+
+Sequence 306 splits renderer lightmap admission across polls, preserving each
+world's registry, uploaded tile index and GL2 merged/deluxe page progress. Both
+actual renderer contracts interleave owners and check uploaded pixels; GL1's
+single-lightmap workaround no longer reads a nonexistent second image. RGB input
+provides an explicit alpha byte. Independent admission-phase timing identifies
+surface/texture preparation as a remaining source of long stalls. Final build
+`964389…` replays both renderer portals/foreign contact, six-world restoration,
+region save/death, ordinary controlled crossings and LAN lifecycle. Lightmap
+phases measure 2–4 ms, while surface steps still exceed 100 ms. This is not a
+complete asynchronous loader or fresh campaign acceptance.
 
 ## Remaining implementation, in dependency order
 

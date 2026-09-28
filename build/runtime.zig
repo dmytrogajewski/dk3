@@ -16,6 +16,17 @@ pub fn declareTests(b: *std.Build, optimize: std.builtin.OptimizeMode) *std.Buil
     collision.addCSourceFile(.{ .file = b.path("src/runtime/tests/collision_worlds.c"), .flags = &.{"-std=gnu99"} });
     collision.linkSystemLibrary("m", .{});
     step.dependOn(&b.addRunArtifact(b.addExecutable(.{ .name = "collision-world-contracts", .root_module = collision })).step);
+    for ([_]bool{ false, true }) |gl2| {
+        const lightmaps = b.createModule(.{ .target = b.graph.host, .optimize = optimize, .link_libc = true });
+        lightmaps.addIncludePath(b.path("engine/ioquake3/code/thirdparty/SDL2-2.32.8/include"));
+        if (gl2) lightmaps.addCMacro("DK3_TEST_GL2", "1");
+        for ([_][]const u8{ "src/runtime/tests/renderer_lightmaps.c", "engine/ioquake3/code/qcommon/q_shared.c" }) |source|
+            lightmaps.addCSourceFile(.{ .file = b.path(source), .flags = &.{ "-std=gnu99", "-ffunction-sections", "-fdata-sections" } });
+        lightmaps.linkSystemLibrary("m", .{});
+        const contract = b.addExecutable(.{ .name = if (gl2) "gl2-lightmap-contracts" else "gl1-lightmap-contracts", .root_module = lightmaps });
+        contract.link_gc_sections = true;
+        step.dependOn(&b.addRunArtifact(contract).step);
+    }
     // Named module imports do not contribute their own tests to the runtime root.
     for ([_][]const u8{ "src/actors/catalog.zig", "src/weapons/catalog.zig", "src/weapons/inventory_rules.zig", "src/items/catalog.zig" }) |source| {
         const catalog = b.createModule(.{ .root_source_file = b.path(source), .target = b.graph.host, .optimize = optimize });

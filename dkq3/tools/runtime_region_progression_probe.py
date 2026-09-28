@@ -146,6 +146,7 @@ if __name__ == '__main__':
     parser.add_argument('--engine', type=Path, required=True)
     parser.add_argument('--report', type=Path, required=True)
     parser.add_argument('--renderer', default='opengl1')
+    parser.add_argument('--developer', action='store_true', help='Record renderer admission phase timings and engine diagnostics')
     parser.add_argument('--cuts', action='store_true')
     parser.add_argument('--restore-from', type=Path)
     args = parser.parse_args()

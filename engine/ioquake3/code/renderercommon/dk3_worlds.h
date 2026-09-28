@@ -8,7 +8,11 @@ typedef struct {
     world_t world;
     unsigned int generation;
     int admission;
+    int admissionPeak[6];
     int surfaceNext, surfaceCounts[4];
+    qboolean lightmapInitialized;
+    int lightmapNext, lightmapPages, lightmapCount, lightmapFormat;
+    float lightmapPeak;
     byte *allocationStart;
     float *hdrVertices;
     int status; /* 0 free, 1 reading, 2 ready, -1 failed */

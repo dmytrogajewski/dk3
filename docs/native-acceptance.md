@@ -12,8 +12,9 @@ is inferred from class counts or test volume.
 
 ## Current outcome matrix
 
-Sequence 305 consolidates specialized player weapon targets, collision, grouped
-controllers and muzzle ownership on build `187506…`. Eleven controlled weapon
+Sequence 306 adds verified incremental lightmap admission on `964389…`;
+sequence 305 consolidates specialized player weapon targets, collision, grouped
+controllers and muzzle ownership on `187506…`. Eleven controlled weapon
 contact scenarios, selected active-controller restores, actor attacks, both
 renderers and region save/death restoration pass. **Seamless campaign acceptance
 remains incomplete.** The fresh normal-input opening route is running; wider
@@ -32,6 +33,47 @@ describe supporting checks, not port completion.
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. 304 replays six-world factory arrival restoration; the full fresh intro still needs replay | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 306 — incremental lightmap admission
+
+Build `96438935d3357b5ea701fa315569de849be720e40110ca43cf2b9c0d47c87073`;
+combined identity `825ee3cbe14bc71fce6672b97b9f92aaeb58bbb3a8e625c23a4a0634c783a428`.
+Base assets `e7dbc2565c3c1f9ce1add690e6d713841d55d9ef740b3be85de7f4a3375df9ff`;
+HD `d2e8d95bdbcb52de5529d932d8a3be378b46ac293fe2ec15849c7ac2d299c645`;
+region manifest `f0cb127dcc3fa705a51cc5d9fd597960396e7bfdc3ca2cc55e709998e6a1368d`.
+Protocol 1349 and renderer ABI 12 unchanged. Evidence:
+`zig-out/reports/runtime-zig-306/`. `zig build play` uses this isolated installation.
+
+Both renderers retain per-world lightmap upload progress and yield between uploads
+at the existing four-millisecond work target. GL2 retains merged-page allocation
+progress. Definitions, lightmaps and fog have separate admission phases; reported
+phase peaks distinguish the remaining synchronous surface/texture work. GL1's
+single-lightmap workaround duplicates the supplied image instead of reading past
+its lump; both lightmap converters supply an explicit alpha byte for RGB pixels.
+
+| Evidence | Verified outcome | Limits |
+|---|---|---|
+| `loader-final-opengl1/`, `loader-final-opengl2/` | Actual region admission, owned portal presentation/late resources and Glock/Ion/Sidewinder foreign contact pass on the consolidated build | Controlled synthetic target/equipment. Inspected GL2 aperture frame; no full reference comparison. Lightmap phases peak at 2–4 ms, but surface phases still reach 111 ms across these two runs. |
+| `restore-final-opengl2/` | Immutable six-world save restores its five resident members, arrival cinematic finishes, ordinary movement and saving resume | Historical controlled fixture; includes cancelling initial preparation. No fresh traversal claim. |
+| `region-save-final/`, `crossing-final/` | Actual A/B save/death restoration and retained-connection A→B→A movement pass | Controlled actors/placement/health edits and one corridor. |
+| `aggregate.log`, `python-final.log`, `lightmap-defect/` | 48/48 steps, 402 Zig, original 85 Python tests and both new actual C renderer roots pass. Subsequent driver batch: 86 Python tests pass. Removing only GL1's upload yield in an isolated source copy fails the interleaving assertion | Assertions remain enabled. C roots check interleaved owner uploads/pixels, merged deluxe pairs and a guard-page-protected single-lightmap lump. No production mutation for the defect run. |
+| `bridge-retreat/`, `bridge-open-bank/` | Failed legitimate-checkpoint boss encounters | Driver no longer loops at the northern obstruction; avoidance still fails to keep Hiro alive. No damage, geometry or class-rule change. Improve prediction or use a legitimate supply route before further retries. |
+| `fresh-opening/` | Ongoing ordinary-input development replay on **superseded** `258815…`, combined `e537ba…` | Started before the final RGB bounds correction. Cannot establish the consolidated-build fresh milestone. |
+| `lan-final/` | Two real UDP clients pass movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart | Existing lifecycle scope; no target-contact, full modes/bots or public-service acceptance. |
+
+Campaign driver repairs distinguish a terminal damage event from an actor leaving
+the local owner, maintain combat during health-tree climbs, observe a health pickup
+and its consumption despite damage during the approach, and try one ordinary jump
+at a confirmed blocked bank lip. The actual final-bank replay on unchanged `187506…`
+reaches e1m2a alive with all nine arrival shots and retained identity/connection:
+`runtime-zig-305/factory-bank-input/`. Checkpoint progress never transfers to a fresh
+run. Full-route acceptance now separately requires all ten observed bridge wave
+actors; a checkpoint encounter reports only the waves actually observed.
+
+Earlier `loader-opengl1/`, `loader-opengl2/`, `restore-opengl2/` results belong to
+`258815…` and are superseded by the final replays above. The remaining texture
+admission stalls, unreviewed seams/transforms, multiple portal views, wider actor
+navigation/party interactions, residency and full campaign/multiplayer remain open.
 
 ## Sequence 305 — specialized weapons across seams
 
@@ -59,7 +101,12 @@ unchanged. The native build is coherent; diagnostic setups are not campaign play
 | `legacy-visited-final/`, `cinematic-restore-final/` | Unmodified older archives restore all 53 checked actors at installation; schema-2 migration/reload and obsolete-command rejection replay. Six-world factory cinematic restores/completes and ordinary movement/saving resumes | Historical immutable fixtures, not fresh campaign traversal. |
 | `aggregate-final.log`, `python-final.log`, `c4-regression/` | 44/44 steps, 402 Zig and original 81 Python tests pass; actual C contracts execute. After the driver correction, all 82 Python tests pass. Removing neighbor detonation from a temporary source copy fails the C4 assertion (`expected 2, found 1`) | Runtime/catalog roots use ReleaseSafe assertions, other roots Debug. Production code was not modified for the defect run. The 18 affected driver contracts also pass in `driver-regressions.log`. |
 | `fresh-opening/` | **Failed driver observation:** ordinary New Game reaches living normal e1m1a after intro/arrival; it stops before saving because sampled shot 69 was missed | `observation-diagnosis.json` records actual server transition evidence. Finished cursor 115 cannot replace a missing shot. This run remains failed. |
-| `fresh-opening-events/`, `factory-checkpoint/` | Fresh replay and independent factory checkpoint development running | No outcome yet. Checkpoint development cannot establish fresh acceptance. Driver resolves map-authored IDs against stationary exits and checks actual retained-connection transitions. |
+| `fresh-opening-events/` | Full intro/arrival and save/load pass; route fails at the first tree while a live mosquito blocks the jump | Driver had disabled combat on the supply climb. Game build unchanged; this remains a failed fresh run. |
+| `factory-checkpoint/`, `factory-retirement-events/` | First run fails when a killed mosquito retires between observations. Corrected replay uses the tree, operates both factory controls, restores the monitor, rides both lifts and defeats the lower Crox; movement stops at the final bank lip | Legitimate checkpoint development, not fresh acceptance. The lip rises above its destination waypoint; driver repair/replay pending. |
+| `marsh-defender-events/` | Both marsh health-tree climbs and retained A→B crossing complete from a legitimate checkpoint; bridge health check fails under a pursuing Crox | Actual samples show the 25-point pickup, masked by damage over the whole approach. Driver must fight the visible Crox and confirm item consumption plus the observed heal. |
+| `fresh-opening-defenders/` | Fresh normal-input route reaches the bridge boss, then dies during combat | Immutable `187506…`; full intro, arrival restore, marsh supplies, ordinary A→B crossing and bridge controls traversed. Failed full milestone. |
+| `bridge-defender-events/`, `bridge-local-tracking/` | First run loses local tracking of an actor near the seam; repaired run collects health/ammo and reaches the boss, then gets stuck retreating at the northern edge | Legitimate checkpoint development. Missing local actors never imply death; retain actual terminal damage or lost-target evidence. |
+| `factory-bank-input/` | Actual lower-bank movement, Crox encounter, authored e1m2a exit and all nine arrival shots complete alive with retained connection/identity | Unmodified legitimate factory checkpoint on `187506…`, not fresh campaign acceptance. |
 
 Implementation also covers Hammer radius recipients, NPC offset muzzle ownership,
 Metamaser destruction controllers, class-owned liquid/visibility masks, projectile

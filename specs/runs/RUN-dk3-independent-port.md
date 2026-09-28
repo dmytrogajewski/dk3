@@ -6303,3 +6303,47 @@ six identity seams, 33 cuts and 85 unreviewed landings (124 exits total). No pri
 reference implementation or original assets enter the public source. Continue the
 authorized work after this checkpoint. Main, installed game, user saves and online
 service remain unchanged.
+
+
+## Sequence 306 — incremental-lightmap-admission
+
+Implemented and compiled on `rewrite/native-zig-runtime`. Build
+`96438935d3357b5ea701fa315569de849be720e40110ca43cf2b9c0d47c87073`, combined identity
+`825ee3cbe14bc71fce6672b97b9f92aaeb58bbb3a8e625c23a4a0634c783a428`.
+Assets/HD/region manifest unchanged from 305; protocol 1349 and renderer ABI 12
+unchanged. Evidence: `zig-out/reports/runtime-zig-306/`.
+
+Both renderers yield between lightmap uploads, retain per-world progress and
+separate definitions/lightmap/fog phases. GL2 retains merged/deluxe page progress.
+GL1 duplicates the actual single lightmap instead of reading a second nonexistent
+image; RGB converters provide alpha explicitly. Actual C renderer roots exercise
+interleaved owners, upload pixels, merged deluxe pairs and a guard page. Removing
+only GL1's upload yield in a temporary source copy fails the new assertion.
+
+Final-build `loader-final-opengl1/`, `loader-final-opengl2/`,
+`restore-final-opengl2/`, `region-save-final/`, `crossing-final/`, `lan-final/`
+pass their scoped controlled scenarios. GL2 aperture inspected. Lightmap phases
+peak at 2–4 ms; surface/texture stages still exceed 100 ms. No frame-time guarantee.
+Aggregate: 48/48 steps, 402 Zig, original 85 Python and actual C contracts pass;
+subsequent driver batch: all 86 Python tests pass. Assertions enabled.
+
+Driver repairs use actual kill events for retired targets; loss from a local
+owner is separately recorded and never implies a hit or death. Health-tree climbs
+retain combat; bridge health pickup requires observed healing and item consumption,
+including concurrent damage. Confirmed blocked approaches may try one normal jump.
+The actual factory lower-bank checkpoint reaches e1m2a alive and observes all nine
+arrival shots with retained connection/identity on unchanged 305 build (`305/factory-bank-input/`).
+
+Fresh `305/fresh-opening-defenders/` completes intro/arrival/save-load, marsh,
+ordinary A→B crossing and bridge progression, then dies during the boss fight.
+Checkpoint `bridge-retreat/` and `bridge-open-bank/` also die. Avoidance remains a
+driver blocker; no actor damage, geometry or puzzle changes are justified by it.
+A checkpoint fight may have fewer observed waves after earlier corpses retired;
+full fresh acceptance separately requires all ten actual wave observations.
+
+The `306/fresh-opening/` run uses superseded `258815…` (before final RGB bounds
+repair) and remains development evidence only. Earlier loader/restore results on
+that build are superseded by the final replays. Wider seamless work and the full
+independent campaign/multiplayer scope remain open in the current acceptance
+matrix. Continue after this checkpoint; preserve main, installation, saves and
+service. No private reference implementation/assets admitted.

@@ -29,6 +29,9 @@ def complete_opening(args, driver, intro_shots, final_state):
         raise RuntimeError("Fresh opening did not finish alive on normal difficulty")
     if not any(row.get("combat_target") and row.get("fired") and row.get("contacted") for row in driver.inputs):
         raise RuntimeError("Fresh opening has no observed attack and target contact")
+    required_waves = {f"skeet{i}{side}" for i in range(1, 6) for side in "ab"}
+    if not any(row.get("arena_contacts") and row.get("actual_fire") and set(row.get("waves", ())) == required_waves for row in driver.inputs):
+        raise RuntimeError("Fresh bridge lacks actual boss contact or all ten authored wave observations")
     death = json.loads((args.report / "connected-death-reload.json").read_text())
     visit = json.loads((args.report / "visited-world-roundtrip.json").read_text())
     monitor = json.loads((args.report / "monitor-restoration.json").read_text())

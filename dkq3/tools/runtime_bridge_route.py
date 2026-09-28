@@ -103,6 +103,11 @@ def aim_at(driver, point):
                       -math.degrees(math.atan2(delta[2], math.hypot(*delta[:2]))))
 
 
+def observed_heal(samples, amount):
+    return next(((a, b) for a, b in zip(samples, samples[1:])
+                 if 0 < a["health"] < 100 and b["health"] == min(100, a["health"] + amount)), None)
+
+
 def resupply(driver, identity):
     identity = authored_id(driver, identity)
     uses = []
@@ -291,11 +296,19 @@ def bridge_route(driver, capture, report, phase="bridge-arrival"):
             if index == 11:
                 clear_ford(driver, capture, report)
             if index == 5:
-                before_health = driver.observe()["health"]
+                pickup_id = authored_id(driver, 256)
+                pickup = items(driver).get(pickup_id)
+                if not pickup or pickup["class"] != "item_health_25" or pickup["visible"] != "1":
+                    raise RuntimeError("Bridge health pickup setup is missing or already consumed")
+                before = driver.observe()
+                input_start = len(driver.inputs)
                 walk(driver, (-720, -580, 664), capture, combat=True, tolerance=20)
                 state = driver.observe()
-                if state["health"] < min(100, before_health + 25):
+                samples = [before] + [row["observed"] for row in driver.inputs[input_start:] if "observed" in row]
+                healed = observed_heal(samples, 25)
+                if not healed or items(driver)[pickup_id]["visible"] != "0" or state["health"] <= 0:
                     raise RuntimeError("Health pickup was not confirmed; inspect concurrent combat and touch")
+                driver.inputs.append({"health_pickup": pickup_id, "observed_heal": healed, "consumed": True})
                 checkpoint(driver, capture, report, "bridge_health_pickup")
                 pond_ammunition(driver, capture, report)
             if index == 2:

@@ -116,6 +116,7 @@ static qboolean R_WorldHeader(const void *bytes, int length) {
 static qboolean R_AdmitWorld(dkRenderWorld_t *world, void *bytes, int length) {
     dkRenderWorld_t *previous = R_ResidentWorld(tr.worldRegistration);
     qboolean done;
+    int phase = world->admission, started = ri.Milliseconds(), elapsed;
     R_IssuePendingRenderCommands();
     if (previous) R_SaveWorld(previous);
     R_ApplyWorld(world);
@@ -126,6 +127,12 @@ static qboolean R_AdmitWorld(dkRenderWorld_t *world, void *bytes, int length) {
     dkLoadingWorld = NULL;
     fileBase = NULL;
     R_ApplyWorld(previous);
+    elapsed = ri.Milliseconds() - started;
+    if (phase < ARRAY_LEN(world->admissionPeak) && elapsed > world->admissionPeak[phase]) world->admissionPeak[phase] = elapsed;
+    if (done) ri.Printf(PRINT_DEVELOPER,
+        "dk3 render admission: map=%s peak_ms init=%d definitions=%d lightmaps=%d fog=%d surfaces=%d finalize=%d uploads=%d pages=%d\n",
+        world->name, world->admissionPeak[0], world->admissionPeak[1], world->admissionPeak[2],
+        world->admissionPeak[3], world->admissionPeak[4], world->admissionPeak[5], world->lightmapNext, world->lightmapPages);
     return done;
 }
 

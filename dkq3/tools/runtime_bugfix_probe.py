@@ -175,6 +175,8 @@ def run(args, scenario=None):
         stage_client_modules(args.engine, home, installation=args.engine)
         settings = client_settings(args.engine, home, args.renderer)
         settings.update(g_spSkill="3", r_picmip="0")
+        if getattr(args, "developer", False):
+            settings["developer"] = "1"
         if getattr(args, "restore_audit", False):
             settings["dk3_runtime_restore_audit"] = "1"
         if getattr(args, "cinematics", False):

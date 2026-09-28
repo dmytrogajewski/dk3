@@ -134,23 +134,25 @@ R_LoadLightmaps
 #define	LIGHTMAP_SIZE	128
 #include "../renderercommon/dk3_lightstyles.inc"
 
-static	void R_LoadLightmaps( lump_t *l ) {
+static qboolean R_LoadLightmaps( lump_t *l ) {
 	byte		*buf, *buf_p;
 	int			len;
 	byte		image[LIGHTMAP_SIZE*LIGHTMAP_SIZE*4];
-	int			i, j;
-	float maxIntensity = 0;
+	int			i, j, started = ri.Milliseconds();
+	float maxIntensity = dkLoadingWorld->lightmapPeak;
 
 	len = l->filelen;
 	if ( !len ) {
-		return;
+		return qtrue;
 	}
+	if (len % (LIGHTMAP_SIZE * LIGHTMAP_SIZE * 3)) ri.Error(ERR_DROP, "Invalid lightmap lump size");
 	buf = fileBase + l->fileofs;
 
 	// we are about to upload textures
 	R_IssuePendingRenderCommands();
 
-	// create all the lightmaps
+	if (!dkLoadingWorld->lightmapInitialized) {
+	// Allocate the owning registry once; uploads resume after each yield.
 	tr.numLightmaps = len / (LIGHTMAP_SIZE * LIGHTMAP_SIZE * 3);
 	if ( tr.numLightmaps == 1 ) {
 		//FIXME: HACK: maps with only one lightmap turn up fullbright for some reason.
@@ -158,15 +160,16 @@ static	void R_LoadLightmaps( lump_t *l ) {
 		tr.numLightmaps++;
 	}
 
-	// if we are in r_vertexLight mode, we don't need the lightmaps at all
-	if ( r_vertexLight->integer || glConfig.hardwareType == GLHW_PERMEDIA2 ) {
-		return;
-	}
-
 	tr.lightmaps = ri.Hunk_Alloc( tr.numLightmaps * sizeof(image_t *), h_low );
-	for ( i = 0 ; i < tr.numLightmaps ; i++ ) {
+	dkLoadingWorld->lightmapInitialized = qtrue;
+	}
+	// if we are in r_vertexLight mode, we don't need the lightmaps at all
+	if ( r_vertexLight->integer || glConfig.hardwareType == GLHW_PERMEDIA2 ) return qtrue;
+	for ( i = dkLoadingWorld->lightmapNext ; i < tr.numLightmaps ; i++ ) {
 		// expand the 24 bit on-disk to 32 bit
-		buf_p = buf + i * LIGHTMAP_SIZE*LIGHTMAP_SIZE * 3;
+		// The historical single-lightmap workaround duplicates its image; it
+		// must not read the next BSP lump as a second on-disk lightmap.
+		buf_p = buf + (i % (len / (LIGHTMAP_SIZE * LIGHTMAP_SIZE * 3))) * LIGHTMAP_SIZE*LIGHTMAP_SIZE * 3;
 
 		if ( r_lightmap->integer == 2 )
 		{	// color code by intensity as development tool	(FIXME: check range)
@@ -197,18 +200,22 @@ static	void R_LoadLightmaps( lump_t *l ) {
 			}
 		} else {
 			for ( j = 0 ; j < LIGHTMAP_SIZE * LIGHTMAP_SIZE; j++ ) {
-				R_ColorShiftLightingBytes( &buf_p[j*3], &image[j*4] );
-				image[j*4+3] = 255;
+				byte pixel[4] = { buf_p[j*3], buf_p[j*3+1], buf_p[j*3+2], 255 };
+				R_ColorShiftLightingBytes( pixel, &image[j*4] );
 			}
 		}
 		tr.lightmaps[i] = R_CreateImage( va("*w%u/lightmap%d", tr.worldRegistration, i), image,
 			LIGHTMAP_SIZE, LIGHTMAP_SIZE, IMGTYPE_COLORALPHA,
 			IMGFLAG_NOLIGHTSCALE | IMGFLAG_NO_COMPRESSION | IMGFLAG_CLAMPTOEDGE, 0 );
+		dkLoadingWorld->lightmapNext = i + 1;
+		dkLoadingWorld->lightmapPeak = maxIntensity;
+		if (i + 1 < tr.numLightmaps && ri.Milliseconds() - started >= 4) return qfalse;
 	}
 
 	if ( r_lightmap->integer == 2 )	{
 		ri.Printf( PRINT_ALL, "Brightest lightmap value: %d\n", ( int ) ( maxIntensity * 255 ) );
 	}
+	return qtrue;
 }
 
 
@@ -1853,15 +1860,23 @@ static qboolean R_DecodeWorldMap(const char *name, void *bytes, int length) {
     if (dkLoadingWorld->admission == 1) {
 	// load into heap
 	R_LoadShaders( &header->lumps[LUMP_SHADERS] );
-	R_LoadLightmaps( &header->lumps[LUMP_LIGHTMAPS] );
-	R_LoadPlanes (&header->lumps[LUMP_PLANES]);
-	R_LoadFogs( &header->lumps[LUMP_FOGS], &header->lumps[LUMP_BRUSHES], &header->lumps[LUMP_BRUSHSIDES] );
         dkLoadingWorld->admission = 2;
         return qfalse;
     }
     if (dkLoadingWorld->admission == 2) {
-	if (!R_LoadSurfaces( &header->lumps[LUMP_SURFACES], &header->lumps[LUMP_DRAWVERTS], &header->lumps[LUMP_DRAWINDEXES] )) return qfalse;
+	if (!R_LoadLightmaps( &header->lumps[LUMP_LIGHTMAPS] )) return qfalse;
         dkLoadingWorld->admission = 3;
+        return qfalse;
+    }
+    if (dkLoadingWorld->admission == 3) {
+	R_LoadPlanes (&header->lumps[LUMP_PLANES]);
+	R_LoadFogs( &header->lumps[LUMP_FOGS], &header->lumps[LUMP_BRUSHES], &header->lumps[LUMP_BRUSHSIDES] );
+        dkLoadingWorld->admission = 4;
+        return qfalse;
+    }
+    if (dkLoadingWorld->admission == 4) {
+	if (!R_LoadSurfaces( &header->lumps[LUMP_SURFACES], &header->lumps[LUMP_DRAWVERTS], &header->lumps[LUMP_DRAWINDEXES] )) return qfalse;
+        dkLoadingWorld->admission = 5;
         return qfalse;
     }
 
