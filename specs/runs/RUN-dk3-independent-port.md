@@ -6374,3 +6374,42 @@ falls into water and loses its firing lane. `305/fresh-opening-defenders/` also
 fails at the boss. Neither is a fresh complete milestone. Checkpointed factory
 exit evidence remains narrow. Next work removes remaining decode stalls and
 uses a materially different legitimate encounter route before replaying the gate.
+
+## Sequence 308 — native-background-png-preparation
+
+Final build `d3db133f78affc07113642a685d540a4a20ef01d19144ead550a9219d82a5813`;
+combined identity `940837b5c7363d6a6ea9923efba3054b3488daf6295323170b31ddc52b23c4c9`.
+Base, HD and region manifest identities remain those recorded at 306; protocol
+1349 and renderer ABI 12 are unchanged. Evidence: `zig-out/reports/runtime-zig-308/`.
+`zig build play` installs this isolated native implementation with HD enabled.
+
+World surface admission discovers each actual material's PNG inputs using the
+existing shader definitions and backend format preferences. Independent file reads
+feed pure CPU decode workers; completed pixels are consumed by the ordinary owner
+thread material compiler and GPU uploader. Each material has a 128 MiB pixel bound;
+cancellation joins before releasing input/output. No engine filesystem, renderer
+allocation, logging or GL calls occur on decode workers. Other image formats,
+generated normal maps, GPU uploads, collision decode and gameplay admission still
+include synchronous work. This is not complete loader/frame-time acceptance.
+
+Rejected lookahead no longer crashes the current world. A required failed
+destination is refused before traveler ownership changes, including a pending
+cut; a held source resumes its clocks and input. New saves exclude unfinished
+preparations with no exposure or restored/migrated state. Already exposed or
+historical worlds remain mandatory; no existing gameplay history is discarded.
+
+| Evidence | Verified outcome | Limits |
+|---|---|---|
+| `async-opengl1/`, `async-opengl2/`, `admission-summary.json` | Both renderers admit A/B/C and pass actual foreign Glock/Ion/Sidewinder contacts, owned portal presentation and late resources. Each prepares 189 PNGs; measured surface peaks 8/11 ms. GL2 aperture inspected | Renderer-consolidated build `af21d5416d577bdf23d259d4fa3615cd83afa90290b41411cf1b46d3598e1216`, combined `efcc2d9468dd22191f26c800f12a33f31195ff4a880a302d2bb6d398fb38a8a1`, precedes server failure repairs. Renderer code is unchanged in final build. Controlled setup, not fresh campaign acceptance. |
+| `failed-prefetch-save-boundary/` | On final build, a confirmed corrupt future PNG fails admission while current identity, connection and processed movement survive. Current save/load succeeds; a new failure is observed after restoration, entry into the failed factory region is refused, and ordinary control remains available | Temporary profile-only PNG override, recorded in `setup.json`; diagnostic placement/health. Original assets/saves untouched. |
+| `region-save-final/`, `restore-final/` | On final build, both A/B actor states survive actual load and death/reload; the unchanged six-world save admits all five resident members, completes its arrival cinematic and permits normal movement/saving | Controlled/historical fixtures. No fresh traversal acceptance; simultaneous final restore runs are not used for frame-time comparison. |
+| `aggregate-failure-repair.log`, `runtime-final.log`, `png-asan-final.log`, `worker-defect/` | Repair aggregate: 50/50 steps, 403 Zig and 87 Python plus actual C roots. Final save-boundary change: affected runtime suite 19/19 steps, 264 Zig and C roots. Worker/cleanup ASAN passes. Inline dispatch in a temporary source copy fails the required non-owner-thread assertion | Assertions enabled. Unaffected aggregate roots are retained rather than rerun. Tests exercise actual decoder pixels, two owners, cancellation during read/decode, prepared-cache consumption, corrupt input and budget failure. |
+
+Failed evidence remains: `failed-prefetch/` incorrectly equated renderer/server
+handles (invalid setup); `failed-prefetch-owner/` exposed the actual fatal future
+admission; `failed-prefetch-recovered/` exposed a saved unfinished second map that
+later failed restoration. All remain failed, superseded by the final recovery run.
+The latter uses build `4f46b1…`; positive six-world `restore-opengl2/` on `af21d5…`
+is superseded by `restore-final/`. No acceptance is transferred from the removed
+runtime. Wider seam qualification/transforms, multiple views, navigation, residency,
+remaining admission work and the fresh campaign gate are still open.

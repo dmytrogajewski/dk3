@@ -2397,6 +2397,9 @@ static imageExtToLoaderMap_t imageLoaders[ ] =
 };
 
 static int numImageLoaders = ARRAY_LEN( imageLoaders );
+#define DK3_IMAGE_GL2 1
+#include "../renderercommon/dk3_image_prefetch.inc"
+
 
 /*
 =================

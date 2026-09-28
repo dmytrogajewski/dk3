@@ -1792,6 +1792,26 @@ static qboolean R_LoadSurfaces( lump_t *surfs, lump_t *verts, lump_t *indexLump 
     in += dkLoadingWorld->surfaceNext;
 	out = s_worldData.surfaces + dkLoadingWorld->surfaceNext;
 	for ( i = dkLoadingWorld->surfaceNext ; i < count ; i++, in++, out++ ) {
+        int material = LittleLong(in->shaderNum);
+        if (material < 0 || material >= s_worldData.numShaders) ri.Error(ERR_DROP, "Invalid resident material index");
+        if (!dkLoadingWorld->materialImagesReady)
+            dkLoadingWorld->materialImagesReady = ri.Hunk_Alloc(s_worldData.numShaders, h_low);
+        if (!dkLoadingWorld->materialImagesReady[material]) {
+            int ready;
+            if (!dkLoadingWorld->imageBatch) {
+                dkLoadingWorld->imageBatch = R_CreateImageBatch(MAX_SHADER_STAGES * MAX_IMAGE_ANIMATIONS + 12);
+                if (!dkLoadingWorld->imageBatch || !R_QueueShaderImages(dkLoadingWorld->imageBatch, s_worldData.shaders[material].shader)) {
+                    ri.Printf(PRINT_WARNING, "Cannot prepare resident material %s\n", s_worldData.shaders[material].shader);
+                    dkLoadingWorld->status = -1;
+                    return qfalse;
+                }
+            }
+            ready = R_PollImageBatch(dkLoadingWorld->imageBatch);
+            if (ready < 0) dkLoadingWorld->status = -1;
+            if (ready <= 0) return qfalse;
+            R_SelectImageBatch(dkLoadingWorld->imageBatch);
+        }
+
 		switch ( LittleLong( in->surfaceType ) ) {
 		case MST_PATCH:
 			ParseMesh ( in, dv, hdrVertColors, out );
@@ -1812,6 +1832,10 @@ static qboolean R_LoadSurfaces( lump_t *surfs, lump_t *verts, lump_t *indexLump 
 		default:
 			ri.Error( ERR_DROP, "Bad surfaceType" );
 		}
+        R_SelectImageBatch(NULL);
+        R_FreeImageBatch(dkLoadingWorld->imageBatch);
+        dkLoadingWorld->imageBatch = NULL;
+        dkLoadingWorld->materialImagesReady[material] = 1;
         dkLoadingWorld->surfaceNext = i + 1;
         if (i + 1 < count && (ri.Milliseconds() - started >= 4 || (i & 63) == 63)) return qfalse;
 	}

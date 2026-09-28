@@ -123,7 +123,7 @@ static qboolean R_AdmitWorld(dkRenderWorld_t *world, void *bytes, int length) {
     dkLoadingWorld = world;
     done = R_DecodeWorldMap(world->name, bytes, length);
     R_SaveWorld(world);
-    if (done) world->status = 2;
+    if (done && world->status != -1) world->status = 2;
     dkLoadingWorld = NULL;
     fileBase = NULL;
     R_ApplyWorld(previous);
@@ -146,8 +146,12 @@ int RE_PollWorld(unsigned int handle) {
     result = ri.PollBackgroundRead(world->read, &bytes, &length);
     if (!result) return 0;
     if (result == 1 && (world->admission || R_WorldHeader(bytes, length))) {
-        if (!R_AdmitWorld(world, (void *)bytes, length)) return 0;
+        if (!R_AdmitWorld(world, (void *)bytes, length) && world->status != -1) return 0;
     } else world->status = -1;
+    if (world->status == -1) {
+        R_FreeImageBatch(world->imageBatch);
+        world->imageBatch = NULL;
+    }
     ri.EndBackgroundRead(world->read);
     world->read = NULL;
     return world->status == 2 ? 1 : -1;
@@ -164,7 +168,14 @@ void RE_LoadWorldMap(const char *name) {
         if (bytes) ri.FS_FreeFile(bytes);
         ri.Error(ERR_DROP, "Invalid render world %s", name);
     }
-    while (!R_AdmitWorld(world, bytes, length)) {}
+    while (!R_AdmitWorld(world, bytes, length)) {
+        if (world->status == -1) {
+            R_FreeImageBatch(world->imageBatch);
+            world->imageBatch = NULL;
+            ri.FS_FreeFile(bytes);
+            ri.Error(ERR_DROP, "Cannot prepare render world %s", name);
+        }
+    }
     ri.FS_FreeFile(bytes);
     RE_SelectWorld(R_WorldHandle(world));
 }
@@ -194,6 +205,7 @@ void R_ClearResidentWorlds(void) {
     for (i = 0; i < DK3_RENDER_WORLDS; ++i) {
         dkRenderWorld_t *world = &dkRenderWorlds[i];
         unsigned int generation = world->generation;
+        R_FreeImageBatch(world->imageBatch);
         if (world->read) ri.EndBackgroundRead(world->read);
         if (world->hdrVertices) ri.Free(world->hdrVertices);
         if (world->inlineModels) ri.Free(world->inlineModels);

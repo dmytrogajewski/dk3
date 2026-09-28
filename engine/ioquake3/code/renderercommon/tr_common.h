@@ -146,6 +146,18 @@ void R_LoadBMP( const char *name, byte **pic, int *width, int *height );
 void R_LoadJPG( const char *name, byte **pic, int *width, int *height );
 void R_LoadPCX( const char *name, byte **pic, int *width, int *height );
 void R_LoadPNG( const char *name, byte **pic, int *width, int *height );
+/* Resident material preparation. Decode workers use only immutable bytes and
+ * malloc; owner-thread polls retain all filesystem and GPU ownership. */
+typedef struct dkImageBatch_s dkImageBatch_t;
+void R_DecodePNG(const byte *bytes, int length, byte **pic, int *width, int *height, size_t maximum);
+dkImageBatch_t *R_CreateImageBatch(int capacity);
+qboolean R_QueuePNG(dkImageBatch_t *batch, const char *name);
+qboolean R_PrepareImage(dkImageBatch_t *batch, const char *name);
+qboolean R_QueueShaderImages(dkImageBatch_t *batch, const char *name);
+int R_PollImageBatch(dkImageBatch_t *batch);
+void R_SelectImageBatch(dkImageBatch_t *batch);
+qboolean R_TakePreparedPNG(const char *name, byte **pic, int *width, int *height);
+void R_FreeImageBatch(dkImageBatch_t *batch);
 void R_LoadPVR( const char *name, byte **pic, int *width, int *height );
 void R_LoadTGA( const char *name, byte **pic, int *width, int *height );
 

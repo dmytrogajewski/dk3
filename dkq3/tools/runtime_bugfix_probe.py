@@ -164,7 +164,7 @@ def sky(driver, report, capture):
     return dict(scope="Fixed actual camera, advancing native render time, supplied moving cloud/lightning shader. Pixel motion and illumination variance; not full original sky timing equivalence.", times=times, mean_luminance=means, differences=differences)
 
 
-def run(args, scenario=None):
+def run(args, scenario=None, setup=None):
     if not __debug__ or (args.report.exists() and any(args.report.iterdir())):
         raise RuntimeError("Evidence requires assertions and a fresh report directory")
     args.report.mkdir(parents=True, exist_ok=True)
@@ -173,6 +173,8 @@ def run(args, scenario=None):
     with tempfile.TemporaryDirectory(prefix="dk3-native-bugfix-") as temporary:
         home = Path(temporary)
         stage_client_modules(args.engine, home, installation=args.engine)
+        if setup:
+            setup(home, args.report)
         settings = client_settings(args.engine, home, args.renderer)
         settings.update(g_spSkill="3", r_picmip="0")
         if getattr(args, "developer", False):

@@ -12,8 +12,9 @@ is inferred from class counts or test volume.
 
 ## Current outcome matrix
 
-Sequence 307 reduces measured HD PNG admission stalls on `99ea96…`;
-sequence 306 stages lightmaps and 305 consolidates specialized weapon ownership.
+Sequence 308 moves HD PNG decoding to background workers and repairs rejected
+prefetch/save handling on `d3db13…`. Both renderers pass their affected contact
+checks; final failure, visited-world/death and six-world restore checks pass.
 **Seamless campaign acceptance remains incomplete.** Fresh opening development
 reaches the bridge boss but fails there. Wider weapon interactions, navigation,
 authored party actions, multiple portal views, seam qualification and remaining
@@ -23,13 +24,52 @@ admission stalls remain open. Supporting check counts do not measure completion.
 |---|---|---|---|---|
 | Seamless connected regions | Region admission/ordinary exits, qualified collision, actor/projectile transfer, specialized weapons, party ownership and authored script scope | 402 Zig, 82 Python and actual C owner/collision/inline-handle contracts pass | On `187506…`: eleven weapon contact cases, selected controller restores, real turret/frog contact, both renderer combat paths, enemy/companion/player crossing and region save/death restoration | One reviewed corridor and selected interactions. Broader navigation/party actions, multiple views, seam qualification, eviction/admission stalls and fresh route remain open. [Evidence](#sequence-305--specialized-weapons-across-seams). |
 | Weapons | All 28 class-owned controllers connected; 305 extends spatial and persistent ownership | Class roots and ownership/slot/cancellation contracts execute at 305 | Eleven controlled specialized weapon contacts across A/B; Wyndrax, Nightmare, Metamaser and pending Zeus restore on `187506…`. Three actual Trident tips confirmed | Not all interactions: Trident merge/water, Ballista carried crossing/pin restoration, destruction variants, return/pickup and complete audiovisual comparison remain open |
-| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable contract roots execute through 307 | **Not accepted:** fresh 305 and superseded 306 runs reach the bridge encounter and fail. A separate legitimate factory checkpoint reaches e1m2a alive | Full coherent New Game→M2 route still required; boss avoidance/firing-lane strategy remains a driver blocker. No modified inventory or assembled checkpoint chain qualifies. |
+| Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable contract roots execute through 308 | **Not accepted:** fresh 305 and superseded 306 runs reach the bridge encounter and fail. A separate legitimate factory checkpoint reaches e1m2a alive | Full coherent New Game→M2 route still required; boss avoidance/firing-lane strategy remains a driver blocker. No modified inventory or assembled checkpoint chain qualifies. |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
-| Saves and visited worlds | Schema-2 residents, typed references/time, flat native archive migration, moved actor authored scope and recovery | Snapshot/migration/ownership roots execute at 305 | Selected weapon controllers, crossed enemy/companion, independent A/B actor health, death restoration, six-world factory cinematic and unmodified legacy archive migration replay on `187506…` | Full party/controller combinations and fresh campaign restoration remain unverified. Legacy actors are audited before simulation. |
+| Saves and visited worlds | Schema-2 residents, typed references/time, archive migration, actor scope and recovery; unfinished unexposed preparations excluded from new saves | Affected runtime roots pass at 308 | On `d3db13…`, rejected future PNG preserves current play/save/load, independent A/B actor health and death restore pass, and six-world factory cinematic restores/completes. Earlier scoped controller/migration evidence below | Full party/controller combinations and fresh campaign restoration remain unverified. Historical state remains mandatory even when media preparation fails. |
 | Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected; protocol 1349 | Native wire and runtime roots pass at 305 | Two actual UDP clients replay movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart on `187506…` | Complete CTF/deathtag, natural bot traversal, public admission/browser/authenticated rooms and full modes remain open. No online service deployment. |
 | World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
 | Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. 304 replays six-world factory arrival restoration; the full fresh intro still needs replay | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 308 — background PNG preparation and recoverable lookahead
+
+Final build `d3db133f78affc07113642a685d540a4a20ef01d19144ead550a9219d82a5813`;
+combined identity `940837b5c7363d6a6ea9923efba3054b3488daf6295323170b31ddc52b23c4c9`.
+Base, HD and region manifest identities remain those recorded at 306; protocol
+1349 and renderer ABI 12 are unchanged. Evidence: `zig-out/reports/runtime-zig-308/`.
+`zig build play` installs this isolated native implementation with HD enabled.
+
+World surface admission discovers each actual material's PNG inputs using the
+existing shader definitions and backend format preferences. Independent file reads
+feed pure CPU decode workers; completed pixels are consumed by the ordinary owner
+thread material compiler and GPU uploader. Each material has a 128 MiB pixel bound;
+cancellation joins before releasing input/output. No engine filesystem, renderer
+allocation, logging or GL calls occur on decode workers. Other image formats,
+generated normal maps, GPU uploads, collision decode and gameplay admission still
+include synchronous work. This is not complete loader/frame-time acceptance.
+
+Rejected lookahead no longer crashes the current world. A required failed
+destination is refused before traveler ownership changes, including a pending
+cut; a held source resumes its clocks and input. New saves exclude unfinished
+preparations with no exposure or restored/migrated state. Already exposed or
+historical worlds remain mandatory; no existing gameplay history is discarded.
+
+| Evidence | Verified outcome | Limits |
+|---|---|---|
+| `async-opengl1/`, `async-opengl2/`, `admission-summary.json` | Both renderers admit A/B/C and pass actual foreign Glock/Ion/Sidewinder contacts, owned portal presentation and late resources. Each prepares 189 PNGs; measured surface peaks 8/11 ms. GL2 aperture inspected | Renderer-consolidated build `af21d5416d577bdf23d259d4fa3615cd83afa90290b41411cf1b46d3598e1216`, combined `efcc2d9468dd22191f26c800f12a33f31195ff4a880a302d2bb6d398fb38a8a1`, precedes server failure repairs. Renderer code is unchanged in final build. Controlled setup, not fresh campaign acceptance. |
+| `failed-prefetch-save-boundary/` | On final build, a confirmed corrupt future PNG fails admission while current identity, connection and processed movement survive. Current save/load succeeds; a new failure is observed after restoration, entry into the failed factory region is refused, and ordinary control remains available | Temporary profile-only PNG override, recorded in `setup.json`; diagnostic placement/health. Original assets/saves untouched. |
+| `region-save-final/`, `restore-final/` | On final build, both A/B actor states survive actual load and death/reload; the unchanged six-world save admits all five resident members, completes its arrival cinematic and permits normal movement/saving | Controlled/historical fixtures. No fresh traversal acceptance; simultaneous final restore runs are not used for frame-time comparison. |
+| `aggregate-failure-repair.log`, `runtime-final.log`, `png-asan-final.log`, `worker-defect/` | Repair aggregate: 50/50 steps, 403 Zig and 87 Python plus actual C roots. Final save-boundary change: affected runtime suite 19/19 steps, 264 Zig and C roots. Worker/cleanup ASAN passes. Inline dispatch in a temporary source copy fails the required non-owner-thread assertion | Assertions enabled. Unaffected aggregate roots are retained rather than rerun. Tests exercise actual decoder pixels, two owners, cancellation during read/decode, prepared-cache consumption, corrupt input and budget failure. |
+
+Failed evidence remains: `failed-prefetch/` incorrectly equated renderer/server
+handles (invalid setup); `failed-prefetch-owner/` exposed the actual fatal future
+admission; `failed-prefetch-recovered/` exposed a saved unfinished second map that
+later failed restoration. All remain failed, superseded by the final recovery run.
+The latter uses build `4f46b1…`; positive six-world `restore-opengl2/` on `af21d5…`
+is superseded by `restore-final/`. No acceptance is transferred from the removed
+runtime. Wider seam qualification/transforms, multiple views, navigation, residency,
+remaining admission work and the fresh campaign gate are still open.
 
 ## Sequence 307 — HD PNG admission and collision forecasting
 

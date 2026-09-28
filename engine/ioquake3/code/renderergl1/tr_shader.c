@@ -2442,6 +2442,9 @@ static char *FindShaderInShaderText( const char *shadername ) {
 	return NULL;
 }
 
+#include "../renderercommon/dk3_shader_prefetch.inc"
+
+
 
 /*
 ==================

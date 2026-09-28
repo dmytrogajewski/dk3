@@ -28,7 +28,17 @@ pub const State = struct {
         var complete = true;
         for (self.manifest.names[0..self.manifest.count], wanted[0..self.manifest.count]) |name, selected| {
             if (!selected or std.mem.eql(u8, name, std.mem.sliceTo(&initial.map_name, 0))) continue;
-            if (!(try residents.ensure(name))) complete = false;
+            const admitted = residents.ensure(name) catch |err| switch (err) {
+                // A rejected future region cannot invalidate the playable one.
+                // Required initial/restore/exit admission still rejects it;
+                // the resident owner has already reported the precise failure.
+                error.RegionPreparationFailed => if (prefetch) {
+                    complete = false;
+                    continue;
+                } else return err,
+                else => return err,
+            };
+            if (!admitted) complete = false;
         }
         return complete;
     }
@@ -60,3 +70,39 @@ pub const State = struct {
         engine.send(0, if (enabled) "dk3_region_wait 1" else "dk3_region_wait 0");
     }
 };
+
+test "failed lookahead leaves the current region ready but never admits the failed destination" {
+    const t = std.testing;
+    const initial = try t.allocator.create(Context);
+    defer t.allocator.destroy(initial);
+    initial.* = .{};
+    initial.map_name[0] = 'a';
+    const residents = try t.allocator.create(Residents);
+    defer t.allocator.destroy(residents);
+    residents.* = .{};
+    var state: State = .{};
+    state.manifest.count = 3;
+    state.manifest.names[0..3].* = .{ "a", "b", "c" };
+    state.manifest.edge_count = 2;
+    state.manifest.edges[0] = .{ .source = 0, .destination = 1, .exit = 1, .reciprocal = 0, .kind = .cut };
+    state.manifest.edges[1] = .{ .source = 0, .destination = 2, .exit = 2, .reciprocal = 0, .kind = .cut };
+    for (0..2) |index| {
+        residents.entries[index] = .{
+            .handle = @enumFromInt(@as(u32, @intCast(514 + index))),
+            .status = .collision_ready,
+            .ready = true,
+            .publication = .{ .payload = &.{}, .digest = 0, .checksum = 0, .ready = true },
+        };
+        residents.entries[index].?.name[0] = @intCast('b' + index);
+    }
+    try t.expect(try state.ready(residents, initial, "a", true));
+    residents.entries[0].?.client_failed = true;
+    try t.expect(!try state.ready(residents, initial, "a", true));
+    try t.expect(try state.ready(residents, initial, "a", false));
+    try t.expectError(error.RegionPreparationFailed, state.ready(residents, initial, "b", false));
+    try t.expect(try state.ready(residents, initial, "c", false));
+    residents.entries[0].?.client_failed = false;
+    residents.entries[0].?.status = .failed;
+    try t.expect(!try state.ready(residents, initial, "a", true));
+    try t.expectError(error.RegionPreparationFailed, state.ready(residents, initial, "b", false));
+}

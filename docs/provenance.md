@@ -356,3 +356,12 @@ The existing GPL PNG decoder/filter/pixel conversion remains attributed. The new
 allocation bound and chunk handling are project changes. Invalid zlib headers or
 checksums now reject a PNG instead of being ignored; valid pixels remain covered
 by independent synthetic fixtures. No original game asset is part of those tests.
+
+Sequence 308 separates that existing decoder into a pure, bounded CPU entry point
+and its renderer adapter. Project-owned pthread preparation uses immutable input,
+owned pixels and atomic completion; engine filesystem/renderer calls stay on the
+owner thread. Existing material lookup and format preference remain authoritative.
+The worker contracts use independent synthetic PNGs; the corrupt-world scenario
+writes only a temporary profile override. No private implementation or additional
+third-party component is admitted. Updated renderer identities are recorded in
+`engine/DEVELOPMENT.json`.

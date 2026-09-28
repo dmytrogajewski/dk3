@@ -10,6 +10,8 @@ typedef struct {
     int admission;
     int admissionPeak[6];
     int surfaceNext, surfaceCounts[4];
+    byte *materialImagesReady;
+    dkImageBatch_t *imageBatch;
     qboolean lightmapInitialized;
     int lightmapNext, lightmapPages, lightmapCount, lightmapFormat;
     float lightmapPeak;

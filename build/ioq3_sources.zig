@@ -111,6 +111,7 @@ pub const renderer_common_sources = [_][]const u8{
     "code/renderercommon/tr_image_jpg.c",
     "code/renderercommon/tr_image_pcx.c",
     "code/renderercommon/tr_image_png.c",
+    "code/renderercommon/tr_image_prepare.c",
     "code/renderercommon/tr_image_pvr.c",
     "code/renderercommon/tr_image_tga.c",
     "code/renderercommon/tr_noise.c",

@@ -1,6 +1,6 @@
 # Seamless connected worlds
 
-Sequences 297–307 implement connected owners on `rewrite/native-zig-runtime`.
+Sequences 297–308 implement connected owners on `rewrite/native-zig-runtime`.
 **The feature is incomplete. Ordinary campaign exits now use resident ownership.**
 Automatic handoff is not acceptance of portal views or cross-world combat.
 
@@ -247,6 +247,16 @@ Both HD renderer/contact scenarios pass; measured surface peaks fall to 26/33 ms
 Individual image decode/upload still occurs synchronously and remains a loading
 stall. Read-only spray forecasting improves diagnostics but its boss replay fails;
 no fresh campaign gate is accepted. Exact build/evidence are in native acceptance.
+
+Sequence 308 prepares actual material PNGs through independent file reads and
+bounded pure CPU decode workers. Both renderer/contact checks pass; measured
+surface peaks are 8/11 ms. Material compilation and GPU uploads stay on the owner
+thread. Other formats and map admission still contain synchronous work. A failed
+future preparation now leaves the current world playable and refuses required
+entry before transfer. Saving during lookahead excludes unfinished unexposed
+preparations; historical gameplay state remains mandatory. Final native failure,
+A/B save/death and six-world cinematic restoration pass on `d3db13…`. These are
+controlled regressions, not the complete connected campaign milestone.
 
 ## Remaining implementation, in dependency order
 

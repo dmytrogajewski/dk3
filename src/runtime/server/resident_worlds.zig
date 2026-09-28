@@ -46,6 +46,12 @@ pub const State = struct {
         var result: std.ArrayList(@import("../domain/snapshot.zig").Archive) = .empty;
         if (initial != active) try result.append(allocator, try initial.capture(allocator));
         for (self.entries) |maybe| if (maybe) |entry| if (entry.ready) if (entry.context) |context| {
+            // An unfinished, unexposed preparation has no gameplay history.
+            // Its media may still fail after this save; do not make it a
+            // restoration requirement before admission has actually completed.
+            // Exposed and restored/migrated worlds always retain their state.
+            const admitted = !entry.client_failed and entry.publication != null and entry.publication.?.ready;
+            if (!admitted and !context.activated and entry.saved == null and entry.migrated == null) continue;
             if (context != active) try result.append(allocator, try context.capture(allocator));
         };
         return result.items;

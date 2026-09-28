@@ -601,6 +601,16 @@ fn depart(request: @import("domain/travel.zig").Request) !void {
     var message: [192]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&message, "dk3 region: authored departure map={s} exit={d} kind={s} connection=retained\n", .{ journey.destination, request.exit, @tagName(edge.kind) }));
 }
+fn refuseDeparture(request: @import("domain/travel.zig").Request, err: anyerror) !void {
+    // Readiness fails before traveler/weapon/party ownership changes. Resume
+    // the existing world if a cut was held while that failure arrived.
+    if (progression.held) try active.awaken(clock.now_ms);
+    progression.pending = null;
+    progression.hold(false);
+    var message: [160]u8 = undefined;
+    engine.print(try std.fmt.bufPrintZ(&message, "dk3 travel: exit {d} refused: {s}\n", .{ request.exit, @errorName(err) }));
+    if (err == error.RegionPreparationFailed) engine.send(0, "cp \"The next area could not be loaded.\"");
+}
 export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, arg6: isize, arg7: isize, arg8: isize, arg9: isize, arg10: isize, arg11: isize) callconv(.c) isize {
     _ = .{ arg1, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11 };
     switch (command) {
@@ -683,7 +693,10 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 _ = progression.ready(&resident_worlds, &initial_context, std.mem.sliceTo(&active.map_name, 0), true) catch |err| runtimeFailure(err);
                 progression.publishPortals() catch |err| runtimeFailure(err);
                 if (progression.pending) |request| {
-                    depart(request) catch |err| runtimeFailure(err);
+                    depart(request) catch |err| switch (err) {
+                        error.RegionPreparationFailed => refuseDeparture(request, err) catch |failure| runtimeFailure(failure),
+                        else => runtimeFailure(err),
+                    };
                     return 0;
                 }
                 rooms.tick(&active.world.?, &active.clients, clock.now_ms) catch |err| runtimeFailure(err);
@@ -710,8 +723,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                     active.targets.travel = null;
                     if (@import("server/cinematics.zig").active(&active.world.?)) @import("server/cinematics.zig").finish(&active.world.?, &active.slots, &active.projection, &active.targets, active.clients.entities[0].?, clock.now_ms) catch |err| runtimeFailure(err);
                     depart(request) catch |err| {
-                        var message: [160]u8 = undefined;
-                        engine.print(std.fmt.bufPrintZ(&message, "dk3 travel: exit {d} refused: {s}\n", .{ request.exit, @errorName(err) }) catch unreachable);
+                        refuseDeparture(request, err) catch |failure| runtimeFailure(failure);
                     };
                 }
             }
