@@ -26,6 +26,14 @@ pub fn declareTests(b: *std.Build, optimize: std.builtin.OptimizeMode) *std.Buil
     png.linkSystemLibrary("pthread", .{});
     png_contract.link_gc_sections = true;
     step.dependOn(&b.addRunArtifact(png_contract).step);
+    const reads = b.createModule(.{ .target = b.graph.host, .optimize = optimize, .link_libc = true });
+    reads.addIncludePath(b.path("engine/ioquake3/code/qcommon"));
+    for ([_][]const u8{ "src/runtime/tests/background_read.c", "engine/ioquake3/code/qcommon/unzip.c", "engine/ioquake3/code/qcommon/ioapi.c" }) |source|
+        reads.addCSourceFile(.{ .file = b.path(source), .flags = &.{"-std=gnu99"} });
+    for (@import("ioq3_sources.zig").zlib_sources) |source|
+        reads.addCSourceFile(.{ .file = b.path(b.fmt("engine/ioquake3/{s}", .{source})), .flags = &.{ "-std=gnu99", "-DNO_GZIP", "-w" } });
+    reads.linkSystemLibrary("pthread", .{});
+    step.dependOn(&b.addRunArtifact(b.addExecutable(.{ .name = "background-read-contracts", .root_module = reads })).step);
     for ([_]bool{ false, true }) |gl2| {
         const lightmaps = b.createModule(.{ .target = b.graph.host, .optimize = optimize, .link_libc = true });
         lightmaps.addIncludePath(b.path("engine/ioquake3/code/thirdparty/SDL2-2.32.8/include"));

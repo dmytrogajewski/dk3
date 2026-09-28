@@ -9,6 +9,12 @@ const Slots = @import("../engine/slots.zig").Slots;
 const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, player: ?ecs.Entity, table: *const @import("../domain/weapons.zig").Table, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_actor_motion")) {
+        var argument: [64]u8 = undefined;
+        const identity = try std.fmt.parseInt(u32, engine.argv(1, &argument), 10);
+        try @import("navigation_probe.zig").actorMotion(world, identity);
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_region_weapons")) {
         try @import("weapon_probe.zig").inspect(world, slots);
         return true;

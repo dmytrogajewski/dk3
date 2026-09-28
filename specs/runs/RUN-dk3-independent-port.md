@@ -6533,3 +6533,52 @@ evidence above was recreated. Historical journal outcomes retain their identitie
 but missing artifacts are not treated as fresh native acceptance. No preserved
 installation, saves, main branch or service was changed. Full-port and connected
 campaign acceptance remain open.
+
+## Sequence 312 — native-restoration-wet-ground
+
+Build `26864935fe82571da35369cc415d47920647333b6d74d38998ad7db711cf1ca0`;
+combined executable/module/asset identity
+`4144b1501f1e32fe307155cc2258d8c80f5bb8e95a68d87d1b56e52442f521eb`.
+Protocol 1350 and renderer ABI 12 remain unchanged. Each final report's
+`identity.json` records every admitted asset hash; base/HD/region manifest remain
+at sequence 311 identities. Evidence: `zig-out/reports/runtime-zig-312/`.
+
+Loading a saved region previously consumed a frame for every preparation step
+and kept its progress bar empty. Loading now processes at most 64 steps or an
+8 ms scheduling budget per frame; individual engine calls retain their existing
+limits. Ordinary background prefetch still yields after one step. Progress counts
+actual admitted resources/worlds, and restoration still requires every saved world.
+A reproduced loader crash exposed background ZIP closure freeing the engine zone
+from workers. Stream finalization and CRC validation now follow the reader join on
+the engine owner thread; no zone-size increase or discarded history masks the issue.
+
+The reported robot is an authored Sludgeminion. The supplied hull has valid floor
+support, but the old ground routing flags reject water areas, including walkable
+shallow floors. Native AAS now allows water areas for ground walking without
+adding swimming, water-jump, ladder, elevator or hazardous-liquid capabilities.
+Class-owned speed, collision, damage and authored geometry remain unchanged.
+
+| Evidence | State and verified outcome | Limits |
+|---|---|---|
+| `aggregate.log` | Passed: 52/52 steps, 415 Zig tests, 87 Python tests and actual C contracts, including the new background ZIP reader root | Assertions enabled; runtime root explicitly includes navigation and client admission tests |
+| `read-fixed.log`, `read-defective.log` | Actual bundled minizip/shared reader passes concurrent completion, repeated polling, cancellation, size rejection and CRC failure; moving cleanup back to the worker fails the owner-thread assertion | Synthetic local ZIP, no private assets or alternate runtime |
+| `wading-before-defect.json`, `robot-diagnostic/` | Expected defect reproduced: living chasing robot remains horizontally stationary across actual engine samples | Intermediate build `ff196a…` with loader diagnostics, preceding navigation repair; not product acceptance |
+| `wading-final/` | Passed: untouched autosave's robot 83886443 moves 28 units during measured pursuit at supplied speed 80; actual AAS travel cost is 0 without water admission and 1377 with it | User's saved easy difficulty and inventory retained; player position unchanged during pursuit. Camera placement occurs only after acceptance. Not fresh traversal |
+| `ui-autosave-input-fixed/` | Passed: real mouse selection and Load from paused/main menus, visible nonzero progress, restored input and actual death recovery in e1m2b, OpenGL2 | Untouched copied user autosave with ten resident worlds; menu loads 7.21/6.59 s, death recovery 10.61 s including death delay. Local software-renderer timings, not a performance guarantee |
+| `ui-save2-opengl1/` | Passed: same menu/death sequence using untouched copied save2 in e1m3a, OpenGL1 | Twelve resident worlds; menu loads 9.66/7.60 s, death recovery 11.62 s. Both save scenarios assert retained dead actors and restored player identity/weapon |
+| `ground-regression/` | Passed: authored guard navigates around occlusion, moves over 32 units and fires | Controlled last-seen goal/player placement; unaffected dry-ground regression, not campaign completion |
+| `region-save-isolated/` | Passed: independently changed actor health in e1m1a/e1m1b, active world/player identity and inventory restore after explicit load and death in the other world | Controlled health/placement and resident transfer; not connected campaign traversal |
+
+The initial console reproductions could restore the user saves but required long
+admission waits. `robot-wading-isolated/` preserves the pre-cleanup-fix real zone
+allocation crash. Failed UI setup runs did not exercise Load: one shared display
+received another window's input, and another used relative mouse grab with an
+absolute XTest driver. The corrected driver uses the existing ungrabbed UI test
+mode and asserts actual pause before clicking. Concurrent display teardown also
+invalidated `region-save-regression/`; engine regressions run alone afterward.
+None of those failed setups counts as acceptance.
+
+Original save files remain byte-identical; main, the preserved installation and
+online service are unchanged. Full campaign, broader ground-actor/worker routes,
+all weapon interactions and multiplayer qualification remain open. Earlier route
+results affected by shared navigation changes still require replay.

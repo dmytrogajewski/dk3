@@ -645,7 +645,8 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             if (arg0 == 0 and active.restore_pending == null) @import("server/companions.zig").start(&active.systems.actors, &active.world.?, &active.slots, &active.projection, active.clients.entities[0].?, if (campaign.arrival) |arrival| arrival.journey.spawn else "", if (campaign.arrival) |arrival| if (arrival.journey.kind == .submap) arrival.journey.companions else null else null, clock.now_ms) catch |err| runtimeFailure(err);
             if (arg0 == 0) if (active.restore_pending) |value| {
                 if (value.residents.len != 0) {
-                    engine.send(0, "dk3_region_wait 1");
+                    var wait_command: [64]u8 = undefined;
+                    engine.send(0, std.fmt.bufPrintZ(&wait_command, "dk3_region_wait 1 {d}", .{value.residents.len}) catch unreachable);
                 } else {
                     var saved = value;
                     active.restore_pending = null;

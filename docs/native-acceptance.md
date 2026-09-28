@@ -17,7 +17,8 @@ transport and multiplayer weapon presentation lifetime, and adds worker fear,
 party-health autosaves and softer Cambot lights. Sequence 310 adds the installed-map
 picker for Internet Create and LAN hosting. Sequence 311 repairs pickup raises,
 first-person stair/duck smoothing, pickup rotation/lighting and weapon shine.
-Latest coherent build: `e1e3c7…`,
+Sequence 312 repairs saved-region loading, worker ZIP cleanup and wet-floor
+robot navigation. Latest coherent build: `268649…`,
 protocol 1350; earlier gameplay evidence retains its recorded identity below.
 **Seamless campaign acceptance remains incomplete.** Fresh opening development
 reaches the bridge boss but has not completed the milestone. Ground-controller
@@ -28,16 +29,65 @@ remaining admission stalls stay open. Supporting checks do not measure completio
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
 | Seamless connected regions | Region admission/ordinary exits, qualified collision, actor/projectile transfer, specialized weapons, party ownership and authored script scope | 402 Zig, 82 Python and actual C owner/collision/inline-handle contracts pass | On `187506…`: eleven weapon contact cases, selected controller restores, real turret/frog contact, both renderer combat paths, enemy/companion/player crossing and region save/death restoration | One reviewed corridor and selected interactions. Broader navigation/party actions, multiple views, seam qualification, eviction/admission stalls and fresh route remain open. [Evidence](#sequence-305--specialized-weapons-across-seams). |
-| Ground actors and workers | Shared floor-departure repair, worker retreat/cower and fear audio connected | Actual settled-motor/jump and class policy tests pass at 309; defective sign test is detected | Guard navigates around occlusion and fires; worker reaction/restoration and Crox swimming/melee are replayed | Worker behavior inspected privately; full ground-class/campaign navigation remains unverified. Earlier shared-motor encounter evidence requires revalidation |
+| Ground actors and workers | Floor-departure and wet-floor routing repairs; worker retreat/cower and fear audio connected | Settled-motor/jump, capability exclusions and class roots pass through 312 | On `268649…`, Sludgeminion pursues from the unchanged user save; guard dry-ground pursuit/fire replays. Worker/Crox evidence retains its 309 identity | Private ground/water behavior inspected. Full ground-class/worker/campaign routes remain unverified; earlier affected route evidence requires revalidation |
 | Weapons | All 28 class-owned controllers connected; 305 extends spatial and persistent ownership | Class roots and ownership/slot/cancellation contracts execute at 305 | Eleven controlled specialized weapon contacts across A/B; Wyndrax, Nightmare, Metamaser and pending Zeus restore on `187506…`. Three actual Trident tips confirmed | Not all interactions: Trident merge/water, Ballista carried crossing/pin restoration, destruction variants, return/pickup and complete audiovisual comparison remain open |
 | Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable contract roots execute through 308 | **Not accepted:** fresh 305 and superseded 306 runs reach the bridge encounter and fail. A separate legitimate factory checkpoint reaches e1m2a alive | Full coherent New Game→M2 route still required; boss avoidance/firing-lane strategy remains a driver blocker. No modified inventory or assembled checkpoint chain qualifies. |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
-| Saves and visited worlds | Region persistence/recovery plus visible arrival and healthy-party periodic autosaves | Runtime/party-health roots pass at 309 | Final 309: A/B crossing creates the arrival save; the real minute boundary rejects 90% health, saves at 91% and restores it; independent actor health and active world restore through save/load/death | Complete live-party autosave and fresh campaign restoration remain unverified. Historical state stays mandatory |
+| Saves and visited worlds | Region recovery, autosaves, bounded loading work, actual progress and owner-thread ZIP finalization | Runtime/party-health and actual concurrent ZIP/CRC/cancellation contracts pass at 312 | On `268649…`, user autosave/save2 restore via both menus and death recovery in both renderers with all 10/12 resident worlds; original files preserved | Full live-party autosave and fresh campaign restoration remain unverified. 309 autosave timing retains its identity; historical state stays mandatory. [Evidence](#sequence-312--native-restoration-wet-ground) |
 | Multiplayer and bots | Native sessions/modes/bots; spawn-aware shared weapon presentation; protocol 1350 | Wire, counter-wrap and respawn contracts pass at 309 | Final 309: two actual UDP clients show advancing attack frames before/after respawn and pass spectate/rejoin/reconnect/restart | Every weapon interaction, full CTF/deathtag, public admission/authenticated rooms and full modes remain open. No service deployment |
 | World/effects | Authored controls, hazards, debris, lighting and sky connected; softer Cambot lamp/beam/contact pools | Applicable contracts pass; final build checks at 309 | Final 309: Cambot acquisition and rendered lamp captures inspected in both backends. 296 fragment/sky evidence retained with its original identity | Broader authored effects/audio/PHS parity remains open; enhancement is not a shadow-mapped spotlight |
 | Presentation and cinematic input | Menus/loading art, interpolation, cinematic input and all camera modes connected | Three-bit camera modes survive actual message encoding at 309 | Final 309: ordinary e1m1c button use, remote door view, release and finished-scene save/load. Earlier intro/menu evidence retains its recorded identity | Full fresh intro, all authored scenes, menu equivalence and audiovisual comparison remain unverified |
 | Pickup and first-person feedback | Shared class-owned raise transition, stair/duck offsets, selected rotating pickups, minimum model light and neutral shine | Acquisition/queued-input, rotation exclusions and camera replay/boundary contracts execute at 311 | Final 311: one actual Ion pickup draw, smooth crouch/stand and ready-weapon restore in both renderers; three actual e1m1c step rises; armor/ammo/shine captures inspected | Main camera timing and private pickup behavior inspected. Controlled setup; broader weapon interactions, custom rotation overrides and exact glow/material parity remain open |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 312 — native-restoration-wet-ground
+
+Build `26864935fe82571da35369cc415d47920647333b6d74d38998ad7db711cf1ca0`;
+combined executable/module/asset identity
+`4144b1501f1e32fe307155cc2258d8c80f5bb8e95a68d87d1b56e52442f521eb`.
+Protocol 1350 and renderer ABI 12 remain unchanged. Each final report's
+`identity.json` records every admitted asset hash; base/HD/region manifest remain
+at sequence 311 identities. Evidence: `zig-out/reports/runtime-zig-312/`.
+
+Loading a saved region previously consumed a frame for every preparation step
+and kept its progress bar empty. Loading now processes at most 64 steps or an
+8 ms scheduling budget per frame; individual engine calls retain their existing
+limits. Ordinary background prefetch still yields after one step. Progress counts
+actual admitted resources/worlds, and restoration still requires every saved world.
+A reproduced loader crash exposed background ZIP closure freeing the engine zone
+from workers. Stream finalization and CRC validation now follow the reader join on
+the engine owner thread; no zone-size increase or discarded history masks the issue.
+
+The reported robot is an authored Sludgeminion. The supplied hull has valid floor
+support, but the old ground routing flags reject water areas, including walkable
+shallow floors. Native AAS now allows water areas for ground walking without
+adding swimming, water-jump, ladder, elevator or hazardous-liquid capabilities.
+Class-owned speed, collision, damage and authored geometry remain unchanged.
+
+| Evidence | State and verified outcome | Limits |
+|---|---|---|
+| `aggregate.log` | Passed: 52/52 steps, 415 Zig tests, 87 Python tests and actual C contracts, including the new background ZIP reader root | Assertions enabled; runtime root explicitly includes navigation and client admission tests |
+| `read-fixed.log`, `read-defective.log` | Actual bundled minizip/shared reader passes concurrent completion, repeated polling, cancellation, size rejection and CRC failure; moving cleanup back to the worker fails the owner-thread assertion | Synthetic local ZIP, no private assets or alternate runtime |
+| `wading-before-defect.json`, `robot-diagnostic/` | Expected defect reproduced: living chasing robot remains horizontally stationary across actual engine samples | Intermediate build `ff196a…` with loader diagnostics, preceding navigation repair; not product acceptance |
+| `wading-final/` | Passed: untouched autosave's robot 83886443 moves 28 units during measured pursuit at supplied speed 80; actual AAS travel cost is 0 without water admission and 1377 with it | User's saved easy difficulty and inventory retained; player position unchanged during pursuit. Camera placement occurs only after acceptance. Not fresh traversal |
+| `ui-autosave-input-fixed/` | Passed: real mouse selection and Load from paused/main menus, visible nonzero progress, restored input and actual death recovery in e1m2b, OpenGL2 | Untouched copied user autosave with ten resident worlds; menu loads 7.21/6.59 s, death recovery 10.61 s including death delay. Local software-renderer timings, not a performance guarantee |
+| `ui-save2-opengl1/` | Passed: same menu/death sequence using untouched copied save2 in e1m3a, OpenGL1 | Twelve resident worlds; menu loads 9.66/7.60 s, death recovery 11.62 s. Both save scenarios assert retained dead actors and restored player identity/weapon |
+| `ground-regression/` | Passed: authored guard navigates around occlusion, moves over 32 units and fires | Controlled last-seen goal/player placement; unaffected dry-ground regression, not campaign completion |
+| `region-save-isolated/` | Passed: independently changed actor health in e1m1a/e1m1b, active world/player identity and inventory restore after explicit load and death in the other world | Controlled health/placement and resident transfer; not connected campaign traversal |
+
+The initial console reproductions could restore the user saves but required long
+admission waits. `robot-wading-isolated/` preserves the pre-cleanup-fix real zone
+allocation crash. Failed UI setup runs did not exercise Load: one shared display
+received another window's input, and another used relative mouse grab with an
+absolute XTest driver. The corrected driver uses the existing ungrabbed UI test
+mode and asserts actual pause before clicking. Concurrent display teardown also
+invalidated `region-save-regression/`; engine regressions run alone afterward.
+None of those failed setups counts as acceptance.
+
+Original save files remain byte-identical; main, the preserved installation and
+online service are unchanged. Full campaign, broader ground-actor/worker routes,
+all weapon interactions and multiplayer qualification remain open. Earlier route
+results affected by shared navigation changes still require replay.
 
 ## Sequence 311 — native-pickup-view-feedback
 

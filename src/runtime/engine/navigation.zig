@@ -99,8 +99,7 @@ pub const Navigation = struct {
         const to = engine.gateway.call(c.BOTLIB_AI_REACHABILITY_AREA, .{ &request.destination, @as(isize, c.ENTITYNUM_NONE) });
         if (from == 0 or to == 0) return null;
         if (from == to) return .{ .point = request.destination, .from_area = @intCast(from), .to_area = @intCast(to) };
-        // Only the shared player/companion motor supports these additional travels.
-        var flags = c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR | (if (request.player) @as(i32, c.TFL_CROUCH | c.TFL_LADDER | c.TFL_SWIM | c.TFL_WATER | c.TFL_WATERJUMP | c.TFL_WALKOFFLEDGE | c.TFL_TELEPORT | c.TFL_ELEVATOR | c.TFL_FUNCBOB) else 0);
+        var flags = travelFlags(request.player);
         var route = std.mem.zeroes(c.aas_predictroute_t);
         _ = engine.gateway.call(c.BOTLIB_AAS_PREDICT_ROUTE, .{ &route, from, &request.position, to, @as(isize, flags), @as(isize, 1), @as(isize, 0), @as(isize, c.RSE_USETRAVELTYPE), @as(isize, 0), @as(isize, flags), @as(isize, 0) });
         if (route.stopevent == c.RSE_NOROUTE and request.allow_slime_escape) {
@@ -119,6 +118,21 @@ pub const Navigation = struct {
         return .{ .point = route.endpos, .jump = route.endtravelflags & (c.TFL_JUMP | c.TFL_BARRIERJUMP) != 0, .crouch = route.endtravelflags & c.TFL_CROUCH != 0, .ladder = route.endtravelflags & c.TFL_LADDER != 0, .from_area = @intCast(from), .to_area = @intCast(to) };
     }
 };
+fn travelFlags(player: bool) i32 {
+    // WATER admits areas containing ordinary water, including shallow floors.
+    // SWIM is a separate reachability capability. Ground actors still require
+    // supported walking/jumping edges and collision-checked floor movement.
+    return c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR | c.TFL_WATER |
+        (if (player) @as(i32, c.TFL_CROUCH | c.TFL_LADDER | c.TFL_SWIM | c.TFL_WATERJUMP | c.TFL_WALKOFFLEDGE | c.TFL_TELEPORT | c.TFL_ELEVATOR | c.TFL_FUNCBOB) else 0);
+}
+test "ground routes admit wet walking areas without swimming or hazardous liquid travel" {
+    const t = std.testing;
+    const ground = travelFlags(false);
+    try t.expect(ground & c.TFL_WATER != 0);
+    try t.expect(ground & (c.TFL_SWIM | c.TFL_WATERJUMP | c.TFL_SLIME | c.TFL_LAVA | c.TFL_LADDER | c.TFL_ELEVATOR) == 0);
+    try t.expect(ground & (c.TFL_WALK | c.TFL_JUMP | c.TFL_BARRIERJUMP) == (c.TFL_WALK | c.TFL_JUMP | c.TFL_BARRIERJUMP));
+    try t.expect(travelFlags(true) & (c.TFL_SWIM | c.TFL_WATER | c.TFL_LADDER | c.TFL_ELEVATOR) == (c.TFL_SWIM | c.TFL_WATER | c.TFL_LADDER | c.TFL_ELEVATOR));
+}
 fn variable(name: [:0]const u8, value: [:0]const u8) void {
     _ = engine.gateway.call(c.BOTLIB_LIBVAR_SET, .{ name.ptr, value.ptr });
 }

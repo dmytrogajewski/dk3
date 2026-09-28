@@ -11,6 +11,8 @@ test {
     _ = @import("domain/map_catalog.zig");
     _ = @import("domain/view_motion.zig");
     _ = @import("domain/world_admission.zig");
+    _ = @import("client/world_admission.zig");
+    _ = @import("engine/navigation.zig");
     _ = @import("client/config_patch.zig");
     _ = @import("domain/campaign_regions.zig");
     _ = @import("domain/portal_trace.zig");

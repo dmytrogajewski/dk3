@@ -177,6 +177,8 @@ def run(args, scenario=None, setup=None):
             setup(home, args.report)
         settings = client_settings(args.engine, home, args.renderer)
         settings.update(g_spSkill="3", r_picmip="0")
+        if getattr(args, "ui_input", False):
+            settings['in_nograb'] = '1'
         if getattr(args, "developer", False):
             settings["developer"] = "1"
         if getattr(args, "restore_audit", False):

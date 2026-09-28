@@ -401,3 +401,22 @@ pulsing glow. Enhanced weapon shine is a project-owned, neutral modulation of th
 lit skin rather than the former blue additive overlay; exact reference material
 equivalence is not claimed. No private implementation, texture or other asset was
 imported. Engine file hashes are recorded in `engine/DEVELOPMENT.json`.
+
+Sequence 312 inspects private Sludgeminion initialization and common ground/water
+movement only for behavioral facts: this authored robot is a ground mover with
+class-supplied bounds/speed, and ground actors can walk through shallow water.
+No private implementation or assets were copied. The native repair uses the
+bundled GPL AAS distinction between water area admission (`TFL_WATER`) and swim
+reachability (`TFL_SWIM`); unsupported swimming and hazardous liquids remain
+excluded. The supplied local AI table retains the Sludgeminion's 80-unit run speed
+and 68×68×95 hull. Read-only native traces establish safe ground and an actual
+route before accepting displacement. Full original route equivalence is unverified.
+
+The loader correction is project-owned Zig scheduling over the existing engine
+admission service, with resource-derived progress. Engine background ZIP cleanup
+is independently repaired from inspection of bundled minizip's zone allocations:
+only reading/inflation runs on the worker; joined finalization/CRC validation runs
+on the engine owner. A synthetic locally generated ZIP fixture exercises actual
+bundled minizip and the shared background-read implementation. Reinstating worker
+cleanup in a temporary source copy fails the thread-ownership assertion. Engine
+file hashes are recorded in `engine/DEVELOPMENT.json`.

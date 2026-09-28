@@ -15,6 +15,7 @@ pub const State = struct {
     initial: ?*Initial = null,
     active_id: u32 = 0,
     waiting: bool = false,
+    required_worlds: usize = 0,
     patches: [128]?struct { owner: u32, receiver: wire.Receiver } = @splat(null),
     portals: [256]?@import("../domain/world_aperture.zig").Aperture = @splat(null),
     const Initial = struct {
@@ -157,7 +158,11 @@ pub const State = struct {
         if (std.mem.eql(u8, command_name, "dk3_region_wait")) {
             const value = arg(1, &buffer);
             if (!std.mem.eql(u8, value, "0") and !std.mem.eql(u8, value, "1")) return error.InvalidRegionWait;
-            self.waiting = value[0] == '1';
+            const waiting = value[0] == '1';
+            if (!self.waiting or !waiting) self.required_worlds = 0;
+            self.waiting = waiting;
+            const count = arg(2, &buffer);
+            if (count.len != 0) self.required_worlds = try std.fmt.parseInt(usize, count, 10);
             _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_region_loading"), @as([*:0]const u8, if (self.waiting) "1" else "0") });
             _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_loading_progress"), @as([*:0]const u8, if (self.waiting) "0" else "1") });
             return;
@@ -246,6 +251,29 @@ pub const State = struct {
         };
     }
     pub fn step(self: *State) !void {
+        // Background preparation yields after one resource. While gameplay is
+        // held for admission, cheap resources must not each consume a frame.
+        // Bound both elapsed time and work, including polls awaiting worker I/O.
+        const started = engine.gateway.call(c.CG_MILLISECONDS, .{});
+        for (0..if (self.waiting) @as(usize, 64) else 1) |_| {
+            if (!try self.stepOne()) break;
+            if (engine.gateway.call(c.CG_MILLISECONDS, .{}) - started >= 8) break;
+        }
+        if (self.waiting) {
+            var count: usize = 0;
+            var completed: f32 = 0;
+            for (self.entries) |maybe| if (maybe) |entry| {
+                const admission = entry.admission orelse continue;
+                count += 1;
+                if (entry.ready) completed += admission.progress();
+            };
+            const total = @max(self.required_worlds, count);
+            var value: [32]u8 = undefined;
+            const progress = if (total == 0) 0 else completed / @as(f32, @floatFromInt(total));
+            _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_loading_progress"), (try std.fmt.bufPrintZ(&value, "{d:.4}", .{progress})).ptr });
+        }
+    }
+    fn stepOne(self: *State) !bool {
         for (0..self.entries.len) |_| {
             const index = self.cursor;
             self.cursor = (index + 1) % self.entries.len;
@@ -255,7 +283,7 @@ pub const State = struct {
                 if (entry.admission) |admission| {
                     if (admission.ready or admission.failed) continue;
                     admission.step(entry.handle, std.mem.sliceTo(&entry.name, 0)) catch |err| admission.fail(err);
-                    return;
+                    return true;
                 }
                 continue;
             }
@@ -265,14 +293,15 @@ pub const State = struct {
             entry.total_ms += elapsed;
             entry.max_step_ms = @max(entry.max_step_ms, elapsed);
             entry.polls += 1;
-            if (status == 0) return;
+            if (status == 0) return true;
             entry.ready = status == 1;
             entry.failed = status < 0;
             if (entry.failed) if (entry.admission) |admission| admission.fail(error.RenderWorldUnavailable);
             var buffer: [192]u8 = undefined;
             engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 render world: map={s} handle={d} ready={d} admission_ms={d} max_step_ms={d} polls={d}\n", .{ std.mem.sliceTo(&entry.name, 0), entry.handle, @intFromBool(entry.ready), entry.total_ms, entry.max_step_ms, entry.polls }));
-            return;
+            return true;
         }
+        return false;
     }
     pub fn command(self: *State) !void {
         var verb_buffer: [32]u8 = undefined;

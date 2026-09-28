@@ -133,3 +133,30 @@ pub fn chase(world: *data.World, player: ecs.Entity, now: i64) !void {
     var text: [240]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig navigation fixture: actor={d} start={d:.3},{d:.3},{d:.3} goal={d:.3},{d:.3},{d:.3} travel={d} occluded=1\n", .{ id, position[0], position[1], position[2], goal[0], goal[1], goal[2], cost }));
 }
+
+pub fn actorMotion(world: *data.World, identity: u32) !void {
+    const target = @import("region_access.zig").find(world, identity) orelse return error.MissingProbeTarget;
+    const context = @import("region_access.zig").contextFor(target.world) orelse return error.MissingProbeOwner;
+    const scope = try context.select();
+    defer scope.deinit();
+    const actor = try target.get(data.Actor);
+    const pose = try target.get(data.Transform);
+    const body = try target.get(data.Body);
+    const slot = (try target.get(data.Binding)).slot;
+    const goal = if (actor.route.waypoint) |point| point.point else actor.threat_position;
+    const ahead = v.add(pose.position, v.scale(v.normalize(.{ goal[0] - pose.position[0], goal[1] - pose.position[1], 0 }), 12));
+    var output: [512]u8 = undefined;
+    engine.print(try std.fmt.bufPrintZ(&output, "dk3 actor motion: id={d} waypoint={d} blocked={d} goal={d:.3},{d:.3},{d:.3} mins={d:.3},{d:.3},{d:.3} maxs={d:.3},{d:.3},{d:.3}\n", .{ identity, @intFromBool(actor.route.waypoint != null), @intFromBool(actor.route.blocked), goal[0], goal[1], goal[2], body.mins[0], body.mins[1], body.mins[2], body.maxs[0], body.maxs[1], body.maxs[2] }));
+    for ([_]v.Vec3{ pose.position, ahead, v.add(ahead, .{ 0, 0, 18 }) }, 0..) |start, index| {
+        const hit = try engine.collisionService().trace(.{ .start = start, .end = v.add(if (index == 0) pose.position else ahead, .{ 0, 0, if (index == 0) -0.25 else -32 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        engine.print(try std.fmt.bufPrintZ(&output, "dk3 actor support: sample={d} fraction={d:.5} startsolid={d} allsolid={d} entity={d} normal={d:.3},{d:.3},{d:.3} contents={d} end={d:.3},{d:.3},{d:.3}\n", .{ index, hit.fraction, @intFromBool(hit.start_solid), @intFromBool(hit.all_solid), hit.entity, hit.normal[0], hit.normal[1], hit.normal[2], hit.contents, hit.end[0], hit.end[1], hit.end[2] }));
+    }
+    const from = engine.gateway.call(c.BOTLIB_AI_REACHABILITY_AREA, .{ &pose.position, @as(isize, slot) });
+    const to = engine.gateway.call(c.BOTLIB_AI_REACHABILITY_AREA, .{ &actor.threat_position, @as(isize, c.ENTITYNUM_NONE) });
+    const dry = c.TFL_WALK | c.TFL_BARRIERJUMP | c.TFL_JUMP | c.TFL_AIR;
+    for ([_]i32{ dry, dry | c.TFL_WATER }, 0..) |flags, index| {
+        const travel = engine.gateway.call(c.BOTLIB_AAS_AREA_TRAVEL_TIME_TO_GOAL_AREA, .{ from, &pose.position, to, @as(isize, flags) });
+        engine.print(try std.fmt.bufPrintZ(&output, "dk3 actor route: water={d} from={d} to={d} travel={d}\n", .{ index, from, to, travel }));
+    }
+    engine.print("dk3 actor motion complete\n");
+}

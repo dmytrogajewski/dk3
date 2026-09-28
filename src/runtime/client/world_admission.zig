@@ -73,6 +73,20 @@ pub const State = struct {
         }
         try self.acknowledge();
     }
+    /// Completed admission units, never an elapsed-time estimate. Rendering is
+    /// the first unit; model/sound counts become known from validated config.
+    pub fn progress(self: *const State) f32 {
+        if (self.ready) return 1;
+        if (!self.definitions or !self.collision_ready) return 0;
+        var total: usize = self.inline_count + 1; // Render world and final sky.
+        for (1..c.MAX_MODELS) |index| if (self.game.stringOffsets[c.CS_MODELS + index] != 0) {
+            total += 1;
+        };
+        for (1..c.MAX_SOUNDS) |index| if (self.game.stringOffsets[c.CS_SOUNDS + index] != 0) {
+            total += 1;
+        };
+        return @as(f32, @floatFromInt(self.inline_cursor + self.models + self.sounds)) / @as(f32, @floatFromInt(total));
+    }
     /// One resource per step; renderer admission has already completed. A map is
     /// acknowledged only after actual collision, inline, model and sound work.
     pub fn step(self: *State, render_world: u32, name: []const u8) !void {
@@ -126,3 +140,25 @@ pub const State = struct {
         engine.print(try std.fmt.bufPrintZ(&text, "dk3 world admission: map={s} handle={d} ready=1 inline={d} models={d} sounds={d} checksum={d}\n", .{ name, self.server_id, self.inline_count - 1, self.models, self.sounds, self.checksum }));
     }
 };
+
+test "loading progress counts admitted resources and reserves completion for finalization" {
+    const t = std.testing;
+    const state = try t.allocator.create(State);
+    defer t.allocator.destroy(state);
+    state.* = .{ .server_id = 1, .checksum = 0, .collision = 1, .receiver = .{ .bytes = &.{}, .digest = 0 } };
+    try t.expectEqual(@as(f32, 0), state.progress());
+    state.game = std.mem.zeroes(c.gameState_t);
+    state.game.dataCount = 1;
+    try @import("config_patch.zig").apply(&state.game, c.CS_MODELS + 3, "models/actor.md3");
+    try @import("config_patch.zig").apply(&state.game, c.CS_SOUNDS + 7, "sounds/actor.wav");
+    state.definitions = true;
+    state.collision_ready = true;
+    state.inline_count = 3;
+    try t.expectApproxEqAbs(@as(f32, 1.0 / 6.0), state.progress(), 0.0001);
+    state.inline_cursor = 3;
+    state.models = 1;
+    state.sounds = 1;
+    try t.expectApproxEqAbs(@as(f32, 5.0 / 6.0), state.progress(), 0.0001);
+    state.ready = true;
+    try t.expectEqual(@as(f32, 1), state.progress());
+}
