@@ -1,6 +1,22 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Single-player recovery is gated by an admitted checkpoint and post-death input.
 pub const slot = "dk3-restart-internal";
+pub const arrival_slot = "autosave-arrival";
+pub const periodic_slot = "autosave";
+pub const Autosave = struct {
+    next_ms: ?i64 = null,
+    retry_ms: i64 = 0,
+    pub fn healthy(current: i32, maximum: i32) bool {
+        return maximum > 0 and @as(i64, current) * 10 > @as(i64, maximum) * 9;
+    }
+    pub fn due(self: *Autosave, now: i64) bool {
+        if (self.next_ms == null) self.completed(now);
+        return now >= self.next_ms.? and now >= self.retry_ms;
+    }
+    pub fn completed(self: *Autosave, now: i64) void {
+        self.* = .{ .next_ms = now + 60000 };
+    }
+};
 pub const State = struct {
     pending: bool = true,
     available: bool = false,
@@ -32,4 +48,21 @@ test "death recovery waits for input and cannot repeatedly enqueue loads" {
     try t.expect(!state.wantsRestart(false, true, 4200));
     try t.expect(!state.wantsRestart(true, true, 4300));
     try t.expect(!state.wantsRestart(false, true, 4400));
+}
+test "periodic saving requires strictly more than ninety percent and a completed minute" {
+    const t = @import("std").testing;
+    var autosave: Autosave = .{};
+    try t.expect(!autosave.due(100));
+    try t.expect(!autosave.due(60099));
+    try t.expect(autosave.due(60100));
+    try t.expect(!Autosave.healthy(90, 100));
+    try t.expect(Autosave.healthy(91, 100));
+    try t.expect(!Autosave.healthy(180, 200));
+    try t.expect(Autosave.healthy(181, 200));
+    try t.expect(!Autosave.healthy(0, 100));
+    autosave.retry_ms = 65100;
+    try t.expect(!autosave.due(61000));
+    try t.expect(autosave.due(65100));
+    autosave.completed(65100);
+    try t.expect(!autosave.due(65101));
 }

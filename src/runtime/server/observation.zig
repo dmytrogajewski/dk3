@@ -17,8 +17,8 @@ pub fn match(world: *data.World, now: i64) !void {
             const character = (try world.get(entity, data.Character)).*;
             const position = (try world.get(entity, data.Transform)).position;
             const hurt = (try world.get(entity, data.Hurt)).*;
-            engine.print(try std.fmt.bufPrintZ(&text, "dk3 match player: slot={d} id={d} bot={d} team={s} health={d} mode={s} score={d} deaths={d} captures={d} weapon={d} inventory={d} ammo={d} fire={d} event={d} experience={d} level={d} hurt={d} source={d} hit_weapon={d} pos={d:.3},{d:.3},{d:.3}\n", .{
-                (try world.get(entity, data.Binding)).slot, try world.persistentId(entity), @intFromBool(session.bot), @tagName(session.team), (try world.get(entity, data.Health)).current, @tagName(player.mode), session.score, session.deaths, session.captures, weapons.weapon, weapons.dk3Inventory, weapons.ammo[@intCast(std.math.clamp(weapons.weapon, 0, 31))], weapons.last_fire_ms orelse -1, weapons.event_sequence, character.experience, character.level, hurt.amount, hurt.source, hurt.weapon, position[0], position[1], position[2],
+            engine.print(try std.fmt.bufPrintZ(&text, "dk3 match player: respawned={d} cmd={d} slot={d} id={d} bot={d} team={s} health={d} mode={s} score={d} deaths={d} captures={d} weapon={d} inventory={d} ammo={d} fire={d} event={d} experience={d} level={d} hurt={d} source={d} hit_weapon={d} pos={d:.3},{d:.3},{d:.3}\n", .{
+                @intFromBool(player.respawned), player.command_ms, (try world.get(entity, data.Binding)).slot, try world.persistentId(entity), @intFromBool(session.bot), @tagName(session.team), (try world.get(entity, data.Health)).current, @tagName(player.mode), session.score, session.deaths, session.captures, weapons.weapon, weapons.dk3Inventory, weapons.ammo[@intCast(std.math.clamp(weapons.weapon, 0, 31))], weapons.last_fire_ms orelse -1, weapons.event_sequence, character.experience, character.level, hurt.amount, hurt.source, hurt.weapon, position[0], position[1], position[2],
             }));
         };
     }

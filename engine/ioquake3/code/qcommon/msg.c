@@ -1393,7 +1393,7 @@ netField_t	playerStateFields[] =
 { PSF(dk3WeaponSequence), 8 },
 { PSF(dk3NovaSpent), 16 },
 { PSF(dk3Charge), 16 },
-{ PSF(dk3CameraActive), 1 },
+{ PSF(dk3CameraActive), 3 },
 { PSF(dk3CameraOrigin[0]), 0 }, { PSF(dk3CameraOrigin[1]), 0 }, { PSF(dk3CameraOrigin[2]), 0 },
 { PSF(dk3CameraAngles[0]), 0 }, { PSF(dk3CameraAngles[1]), 0 }, { PSF(dk3CameraAngles[2]), 0 },
 { PSF(dk3CameraFov), 0 },

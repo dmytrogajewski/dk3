@@ -30,6 +30,20 @@ pub fn member(world: *data.World, identity: policy.Identity, owner: u32) ?Ref {
     }
     return null;
 }
+/// Include recruited members in neighboring worlds, including a stopped or
+/// carried companion. Unrecruited map actors are not members of Hiro's party.
+pub fn healthyParty(world: *data.World, player: ecs.Entity) !bool {
+    const eligible = @import("../domain/checkpoint.zig").Autosave.healthy;
+    const health = (try world.get(player, data.Health)).*;
+    if (!eligible(health.current, health.maximum)) return false;
+    const owner = try world.persistentId(player);
+    for ([_]policy.Identity{ .mikiko, .superfly }) |identity| {
+        const follower = member(world, identity, owner) orelse continue;
+        const value = (try follower.world.get(follower.entity, data.Health)).*;
+        if (!eligible(value.current, value.maximum)) return false;
+    }
+    return true;
+}
 pub fn capture(world: *data.World, player: ecs.Entity, episode: u8, now: i64) !@import("../domain/travel.zig").Traveler {
     const travel = @import("../domain/travel.zig");
     var result = try travel.Traveler.capture(world, player, episode, now);
@@ -309,4 +323,21 @@ pub fn arrive(actors: *@import("actors.zig").Actors, world: *data.World, slots: 
         (try world.get(entity, data.Velocity)).linear = @splat(0);
         try actors.publish(world, entity, projections, now);
     };
+}
+
+test "autosaves require healthy recruited companions even when stopped or carried" {
+    var world = data.World.init(std.testing.allocator, 8);
+    defer world.deinit();
+    const player = try world.create(1, .{data.Health{ .current = 91 }});
+    const mikiko = try world.create(2, .{ data.Health{ .current = 180, .maximum = 200 }, data.Companion{ .identity = .mikiko, .owner = 1, .carrying = true } });
+    const superfly = try world.create(3, .{ data.Health{ .current = 100 }, data.Companion{ .identity = .superfly, .owner = 1, .stopped = true } });
+    try std.testing.expect(!try healthyParty(&world, player));
+    (try world.get(mikiko, data.Health)).current = 181;
+    try std.testing.expect(try healthyParty(&world, player));
+    (try world.get(superfly, data.Health)).current = 0;
+    try std.testing.expect(!try healthyParty(&world, player));
+    (try world.get(superfly, data.Companion)).owner = 0;
+    try std.testing.expect(try healthyParty(&world, player));
+    (try world.get(player, data.Health)).current = 90;
+    try std.testing.expect(!try healthyParty(&world, player));
 }

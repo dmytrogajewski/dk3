@@ -207,7 +207,7 @@ pub const player = [_]Field{
     Field.of(c.playerState_t, "dk3WeaponSequence", 8),
     Field.of(c.playerState_t, "dk3NovaSpent", 16),
     Field.of(c.playerState_t, "dk3Charge", 16),
-    Field.of(c.playerState_t, "dk3CameraActive", 1),
+    Field.of(c.playerState_t, "dk3CameraActive", 3),
     Field.of(c.playerState_t, "dk3CameraOrigin[0]", 0),
     Field.of(c.playerState_t, "dk3CameraOrigin[1]", 0),
     Field.of(c.playerState_t, "dk3CameraOrigin[2]", 0),

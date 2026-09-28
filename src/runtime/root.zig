@@ -17,6 +17,7 @@ test {
     _ = @import("server/region_progression.zig");
     _ = @import("server/weapon_actions.zig");
     _ = @import("server/actor_collision.zig");
+    _ = @import("server/actor_motion.zig");
     _ = @import("server/region_presentation.zig");
     _ = @import("server/configuration.zig");
     _ = @import("domain/scenery.zig");
@@ -28,6 +29,7 @@ test {
     _ = @import("server/bot_routes.zig");
     _ = @import("server/items.zig");
     _ = @import("server/companion_items.zig");
+    _ = @import("server/companions.zig");
     _ = @import("server/companion_weapons.zig");
     _ = @import("domain/player_pose.zig");
     _ = @import("domain/actions.zig");

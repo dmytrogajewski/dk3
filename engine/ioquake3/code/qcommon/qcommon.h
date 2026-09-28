@@ -260,7 +260,7 @@ PROTOCOL
 ==============================================================
 */
 
-#define	PROTOCOL_VERSION	1349
+#define	PROTOCOL_VERSION	1350
 #define PROTOCOL_LEGACY_VERSION	68
 // 1.31 - 67
 

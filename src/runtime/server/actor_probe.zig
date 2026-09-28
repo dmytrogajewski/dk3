@@ -7,6 +7,21 @@ const Context = @import("world_context.zig").Context;
 const engine = @import("../engine/server.zig");
 const access = @import("region_access.zig");
 pub fn command(name: []const u8, context: *Context, now: i64) !bool {
+    if (std.mem.eql(u8, name, "dk3_runtime_actor_ground")) {
+        var argument: [32]u8 = undefined;
+        const id = try std.fmt.parseInt(u32, engine.argv(1, &argument), 10);
+        const ref = access.find(&context.world.?, id) orelse return error.MissingActor;
+        const owner = access.contextFor(ref.world) orelse return error.ActorProbeOwnerMissing;
+        const scope = try owner.select();
+        defer scope.deinit();
+        const point = (try ref.get(data.Transform)).position;
+        const body = (try ref.get(data.Body)).*;
+        const slot = (try ref.get(data.Binding)).slot;
+        const hit = try engine.collisionService().trace(.{ .start = point, .end = @import("../domain/vector.zig").add(point, .{ 0, 0, -0.25 }), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+        var output: [384]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&output, "dk3 actor ground: id={d} fraction={d:.4} start={d} all={d} entity={d} normal={d:.3},{d:.3},{d:.3} mins={d:.1},{d:.1},{d:.1} maxs={d:.1},{d:.1},{d:.1}\n", .{ id, hit.fraction, @intFromBool(hit.start_solid), @intFromBool(hit.all_solid), hit.entity, hit.normal[0], hit.normal[1], hit.normal[2], body.mins[0], body.mins[1], body.mins[2], body.maxs[0], body.maxs[1], body.maxs[2] }));
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_actor_spawn")) {
         var buffer: [96]u8 = undefined;
         const requested_map = engine.argv(6, &buffer);

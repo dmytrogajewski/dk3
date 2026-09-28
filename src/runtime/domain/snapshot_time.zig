@@ -308,6 +308,8 @@ pub fn rebase(comptime id: data.ComponentId, value: *data.types[@intFromEnum(id)
             try deadline(&value.contact_ms, delta);
         },
         .actor => {
+            try active(&value.worker.started_ms, delta);
+            try active(&value.worker.retry_ms, delta);
             try deadline(&value.stepped_ms, delta);
             try liquid(&value.liquid, delta);
             try active(&value.gunner.ready_ms, delta);

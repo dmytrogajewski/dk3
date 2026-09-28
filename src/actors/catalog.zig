@@ -89,6 +89,7 @@ pub const thunderskeet = @import("thunderskeet.zig");
 pub const rockgat = @import("rockgat.zig");
 pub const crox = @import("crox.zig");
 pub const cambot = @import("cambot.zig");
+pub const workers = @import("workers.zig");
 pub const Kind = enum { civilian, mishima_guard, protopod, skeeter, froginator, thunderskeet, cambot, crox, rockgat, companion, ragemaster, skeleton, satyr, column, dwarf, lycanthir, spider, smallspider, cryotech, surgeon, labmonkey, inmater, lasergat, knight1, knight2, cerberus, piperat, plague_rat, shark, venomvermin, rotworm, centurion, fletcher, battleboar, rocketdude, rocketmp, thief, blackprisoner, whiteprisoner, femgang, sludgeminion, sealcaptain, sealcommando, sealgirl, uzigang, psyclaw, doombat, griffon, harpy, dragon, deathsphere, chaingang, buboid, wyndrax, garroth, stavros, mikiko, medusa, kage, ghost, nharre, fish, dopefish, seagull };
 pub fn sequenceAttack(kind: Kind) bool {
     return groundAttack(kind) or kind == .doombat or kind == .griffon or kind == .harpy or kind == .dragon or kind == .deathsphere or kind == .chaingang or kind == .buboid or kind == .wyndrax or kind == .garroth or kind == .stavros or kind == .mikiko or kind == .medusa or kind == .kage or kind == .ghost or kind == .nharre;
@@ -213,6 +214,7 @@ test "map fish aliases resolve to the supplied class tuning without becoming hos
 }
 
 test {
+    _ = workers;
     _ = fish;
     _ = seagull;
     _ = nharre;

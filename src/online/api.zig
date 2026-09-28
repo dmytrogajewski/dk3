@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Versioned control-plane contracts. Strings are bounded and validated at admission.
 pub const version = 1;
-pub const protocol = 1349;
+pub const protocol = 1350;
 pub const Mode = enum { dm, ctf, deathtag };
 pub const Privacy = enum { public, private };
 pub const Phase = enum { allocating, lobby, playing, draining, ended, failed };
@@ -11,7 +11,7 @@ pub const Compatibility = struct {
     rules: []const u8,
     gameplay: []const u8,
     cosmetic: []const u8,
-    const protocol_version = 1349;
+    const protocol_version = 1350;
     pub fn compatible(a: Compatibility, b: Compatibility) bool {
         const std = @import("std");
         return a.protocol == b.protocol and std.mem.eql(u8, a.schema, b.schema) and std.mem.eql(u8, a.rules, b.rules) and std.mem.eql(u8, a.gameplay, b.gameplay);

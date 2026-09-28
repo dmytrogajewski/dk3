@@ -365,3 +365,20 @@ The worker contracts use independent synthetic PNGs; the corrupt-world scenario
 writes only a temporary profile override. No private implementation or additional
 third-party component is admitted. Updated renderer identities are recorded in
 `engine/DEVELOPMENT.json`.
+
+Sequence 309 uses local private reference behavior only for worker fear: the
+skinny-worker hide/cower callbacks, fat-worker callbacks and common cower dispatch.
+Recorded facts are the ten-second retreat/cower bounds, skinny model poses
+`gamba`/`gambc`, the 300-unit visible-threat retry, active-distance release, and
+class-specific probabilistic vocal choices. Native code is independently written;
+no private implementation or assets are copied into this repository. Existing
+native AAS/collision routing remains in use; original hide-node route equivalence
+is not claimed. Fat workers use their ambient fallback when retreat is blocked.
+
+The shared ground correction follows the already admitted ioquake3 slide/player
+contract (`bg_pmove.c` ground departure test): separating overclip residue is not
+a jump. The new regression exercises the native actor motor with a captured
+0.04 upward resting velocity; reinstating the defective strict sign check in a
+temporary source copy makes that regression fail. Camera modes and player event
+ordering use the project's own native transport. Autosave health rules and softer
+Cambot surface pools are owner-requested additions, not claims of reference parity.

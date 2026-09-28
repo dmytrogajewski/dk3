@@ -71,6 +71,9 @@ pub const Actors = struct {
         const animation = @import("../domain/animation.zig");
         definition.idle = try animation.find(metadata, policy.idle) orelse return error.MissingActorIdle;
         definition.run = try animation.find(metadata, policy.run) orelse return error.MissingActorRun;
+        if (catalog.workers.skinny(policy.classname)) for (catalog.workers.cower_poses, 0..) |name_, index| {
+            definition.cower[index] = try animation.find(metadata, name_) orelse return error.MissingWorkerCower;
+        };
         definition.death = try animation.find(metadata, policy.death) orelse return error.MissingActorDeath;
         const attacks: []const []const u8 = switch (policy.kind) {
             .mishima_guard => &catalog.mishima.attacks,
@@ -330,6 +333,7 @@ pub const Actors = struct {
         if (policy.kind == .chaingang and actor.mode != .dead and actor.chaingang.flying) projection.state.time2 = catalog.chaingang.jet_tag;
         if (policy.kind == .deathsphere) projection.state.loopSound = if (actor.mode != .dead and actor.threat_seen_ms > 0) try @import("resources.zig").sound("e1/m_dspherehovera.wav") else 0;
         var playback: @import("../domain/animation.zig").Playback = .{ .sequence = sequence, .started = if (actor.reaction != null and actor.mode != .dead) actor.reaction_started_ms else if (catalog.sequenceAttack(policy.kind) and actor.melee.active) actor.melee.started_ms else if (actor.scripted_pose != null and actor.mode != .dead) actor.scripted_ms else if ((catalog.sequenceAttack(policy.kind)) and actor.mode == .attack) actor.melee.started_ms else if (policy.kind == .crox and actor.mode == .attack) actor.crox.started_ms else if (policy.kind == .thunderskeet and actor.mode == .attack) actor.thunder.started_ms else if (policy.kind == .froginator and actor.mode == .attack) actor.frog.started_ms else if (policy.kind == .skeeter and (actor.mode == .attack or hatching)) actor.skeeter.started_ms else if (policy.kind == .mishima_guard and (actor.mode == .attack or actor.mode == .reload)) actor.guard.started_ms else if (actor.mode == .idle and actor.idle_started_ms != null) actor.idle_started_ms.? else actor.changed_ms, .looping = !hatching and actor.reaction == null and !actor.melee.active and (actor.mode == .idle or actor.mode == .flee or actor.mode == .chase) };
+        if (catalog.workers.owns(policy.classname) and actor.worker.phase == .cower and actor.mode != .dead and actor.reaction == null) playback = .{ .sequence = if (catalog.workers.skinny(policy.classname)) definition.cower[actor.worker.variant] else definition.idle, .started = actor.worker.started_ms, .looping = true };
         if (policy.kind == .lycanthir) if (@import("lycanthirs.zig").playback(actor, definition)) |value| {
             playback = value;
         };
@@ -576,9 +580,10 @@ pub const Actors = struct {
                     // A dead civilian records its last attacker. Only a new, visible death can trigger a witness.
                     for (occupants, 0..) |other, other_slot| {
                         const corpse = other orelse continue;
-                        if (!world.alive(corpse)) continue;
-                        _ = world.get(corpse, data.Actor) catch continue;
-                        if ((try world.get(corpse, data.Health)).current > 0) continue;
+                        if (other_slot == binding.slot or !world.alive(corpse)) continue;
+                        const other_actor = world.get(corpse, data.Actor) catch continue;
+                        // Workers alert each other on witnessed injuries as well as deaths.
+                        if ((try world.get(corpse, data.Health)).current > 0 and !catalog.workers.owns(catalog.entries[other_actor.definition].classname)) continue;
                         const receipt = (try world.get(corpse, data.Hurt)).*;
                         if (receipt.at_ms <= actor.witness_ms) continue;
                         const point = (try world.get(corpse, data.Transform)).position;
@@ -587,11 +592,12 @@ pub const Actors = struct {
                         actor.witness_ms = receipt.at_ms;
                         actor.panic(receipt.source, point, now);
                     }
-                    if (actor.mode == .flee and now >= actor.panic_until) {
+                    if (!catalog.workers.owns(policy.classname) and actor.mode == .flee and now >= actor.panic_until) {
                         actor.mode = .idle;
                         actor.changed_ms = now;
                     }
                 }
+                if (!dead and catalog.workers.owns(policy.classname)) try @import("workers.zig").think(world, slots, projections, entity, &actor, pose, self.table.definitions[actor.definition], now);
                 if (!dead and policy.kind == .surgeon) try @import("surgeons.zig").think(world, entity, &actor, pose, self.table.definitions[actor.definition], now);
                 const script = world.get(entity, data.Script) catch null;
                 const reviving = (policy.kind == .lycanthir and actor.lycanthir.phase != .living) or (policy.kind == .buboid and actor.buboid.phase != .living and actor.buboid.phase != .coffin);
@@ -603,7 +609,7 @@ pub const Actors = struct {
                     break :actor_step;
                 }
                 const party_pain = policy.kind == .companion and actor.reaction != null;
-                const acting = !party_pain and !reviving and !actor.surgeon.active and !(policy.kind == .civilian and actor.mode == .flee) and script != null and script.?.active;
+                const acting = !party_pain and !reviving and !actor.surgeon.active and !(policy.kind == .civilian and (actor.mode == .flee or actor.worker.phase == .cower)) and script != null and script.?.active;
                 if (!dead and !acting and policy.kind == .cambot and now >= actor.think_ms) try @import("cambots.zig").sense(world, slots, projections, entity, &actor, pose, body, self.table.definitions[actor.definition], now);
                 if (!dead and (policy.kind == .rockgat or policy.kind == .lasergat)) {
                     if (policy.kind == .lasergat) try @import("lasergats.zig").think(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now) else try @import("rockgats.zig").step(world, slots, projections, entity, &actor, &pose, now);
@@ -614,7 +620,7 @@ pub const Actors = struct {
                     break :actor_step;
                 }
                 if (!dead and !acting and actor.path != 0 and policy.kind != .civilian and !catalog.ambient(policy.kind) and policy.kind != .dopefish and policy.kind != .surgeon and policy.kind != .companion and policy.kind != .protopod and policy.kind != .cambot) try @import("actor_perception.zig").acquire(world, slots, entity, &actor, pose, self.table.definitions[actor.definition], now);
-                const following = !party_pain and !reviving and !(policy.kind == .nharre and actor.nharre.phase != .combat) and !(policy.kind == .kage and actor.kage.phase != .combat) and !(policy.kind == .wyndrax and actor.wyndrax.phase != .combat) and !(policy.kind == .medusa and actor.medusa.phase != .combat) and !actor.surgeon.active and actor.mode != .flee and actor.path != 0 and hurt.revision == actor.receipt and (actor.ignore_player or actor.threat == 0);
+                const following = !party_pain and !reviving and !(policy.kind == .nharre and actor.nharre.phase != .combat) and !(policy.kind == .kage and actor.kage.phase != .combat) and !(policy.kind == .wyndrax and actor.wyndrax.phase != .combat) and !(policy.kind == .medusa and actor.medusa.phase != .combat) and !actor.surgeon.active and actor.mode != .flee and actor.worker.phase != .cower and actor.path != 0 and hurt.revision == actor.receipt and (actor.ignore_player or actor.threat == 0);
                 if (!dead and body.motion_owner == null and (acting or following)) {
                     var velocity = (try world.get(entity, data.Velocity)).*;
                     const definition = self.table.definitions[actor.definition];
@@ -797,7 +803,7 @@ pub fn diagnostics(self: *const Actors, world: *data.World, slots: *const Slots,
         };
         var text: [768]u8 = undefined;
         engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig actor: id={d} state={s} health={d} pos={d:.3},{d:.3},{d:.3} threat={d} witness={d} class={s} unique={s} path={d} ignore={d} sight={d} aim={d:.3},{d:.3},{d:.3} velocity={d:.3},{d:.3},{d:.3} frog={s} skeeter={s} ground={d} camera_seen={d} camera_alarm={d} ", .{ try world.persistentId(entity), @tagName(actor.mode), (try world.get(entity, data.Health)).current, pose.position[0], pose.position[1], pose.position[2], actor.threat, actor.witness_ms, catalog.entries[actor.definition].classname, actor.unique, actor.path, @intFromBool(actor.ignore_player), @intFromBool(sight), aim[0], aim[1], aim[2], velocity[0], velocity[1], velocity[2], @tagName(actor.frog.phase), @tagName(actor.skeeter.phase), actor.ground_entity, @intFromBool(actor.cambot.seen), actor.cambot.alarmed }));
-        engine.print(try std.fmt.bufPrintZ(&text, "crox_water={d} crox_swim={d} crox_wander={d} crox_pose={d} crox_struck={d} gun={s} gun_shots={d} gun_pending={d} gun_frame={d} now={d} attack_left={d} angles={d:.3},{d:.3},{d:.3}\n", .{ actor.crox.water, @intFromBool(actor.crox.swimming), @intFromBool(actor.crox.wandering), actor.crox.pose, @intFromBool(actor.crox.struck), @tagName(actor.rockgat.phase), actor.rockgat.shots, pending, actor.rockgat.frame(now), now, @max(0, attack_until - now), pose.angles[0], pose.angles[1], pose.angles[2] }));
+        engine.print(try std.fmt.bufPrintZ(&text, "worker={s} worker_frame={d} crox_water={d} crox_swim={d} crox_wander={d} crox_pose={d} crox_struck={d} gun={s} gun_shots={d} gun_pending={d} gun_frame={d} now={d} attack_left={d} angles={d:.3},{d:.3},{d:.3}\n", .{ @tagName(actor.worker.phase), (if (actor.worker.phase == .cower and catalog.workers.skinny(catalog.entries[actor.definition].classname)) self.table.definitions[actor.definition].cower[actor.worker.variant] else self.table.definitions[actor.definition].run).frame(now - actor.worker.started_ms, true), actor.crox.water, @intFromBool(actor.crox.swimming), @intFromBool(actor.crox.wandering), actor.crox.pose, @intFromBool(actor.crox.struck), @tagName(actor.rockgat.phase), actor.rockgat.shots, pending, actor.rockgat.frame(now), now, @max(0, attack_until - now), pose.angles[0], pose.angles[1], pose.angles[2] }));
     }
     engine.print("dk3 zig actor states complete\n");
 }

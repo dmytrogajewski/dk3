@@ -12,25 +12,82 @@ is inferred from class counts or test volume.
 
 ## Current outcome matrix
 
-Sequence 308 moves HD PNG decoding to background workers and repairs rejected
-prefetch/save handling on `d3db13…`. Both renderers pass their affected contact
-checks; final failure, visited-world/death and six-world restore checks pass.
+Sequence 309 repairs the shared actor ground-departure check, camera mode
+transport and multiplayer weapon presentation lifetime, and adds worker fear,
+party-health autosaves and softer Cambot lights. Current coherent build:
+`18681c…`, protocol 1350; exact scenario coverage is recorded below.
 **Seamless campaign acceptance remains incomplete.** Fresh opening development
-reaches the bridge boss but fails there. Wider weapon interactions, navigation,
-authored party actions, multiple portal views, seam qualification and remaining
-admission stalls remain open. Supporting check counts do not measure completion.
+reaches the bridge boss but has not completed the milestone. Ground-controller
+changes require replay of earlier encounter/route evidence. Wider weapon
+interactions, navigation, party actions, multiple views, seam qualification and
+remaining admission stalls stay open. Supporting checks do not measure completion.
 
 | Milestone | Implemented | Contract-tested | Running native engine / connected play | Reference comparison and remaining work |
 |---|---|---|---|---|
 | Seamless connected regions | Region admission/ordinary exits, qualified collision, actor/projectile transfer, specialized weapons, party ownership and authored script scope | 402 Zig, 82 Python and actual C owner/collision/inline-handle contracts pass | On `187506…`: eleven weapon contact cases, selected controller restores, real turret/frog contact, both renderer combat paths, enemy/companion/player crossing and region save/death restoration | One reviewed corridor and selected interactions. Broader navigation/party actions, multiple views, seam qualification, eviction/admission stalls and fresh route remain open. [Evidence](#sequence-305--specialized-weapons-across-seams). |
+| Ground actors and workers | Shared floor-departure repair, worker retreat/cower and fear audio connected | Actual settled-motor/jump and class policy tests pass at 309; defective sign test is detected | Guard navigates around occlusion and fires; worker reaction/restoration and Crox swimming/melee are replayed | Worker behavior inspected privately; full ground-class/campaign navigation remains unverified. Earlier shared-motor encounter evidence requires revalidation |
 | Weapons | All 28 class-owned controllers connected; 305 extends spatial and persistent ownership | Class roots and ownership/slot/cancellation contracts execute at 305 | Eleven controlled specialized weapon contacts across A/B; Wyndrax, Nightmare, Metamaser and pending Zeus restore on `187506…`. Three actual Trident tips confirmed | Not all interactions: Trident merge/water, Ballista carried crossing/pin restoration, destruction variants, return/pickup and complete audiovisual comparison remain open |
 | Fresh opening gate | Intro, actors, authored controls, progression and saves connected | Applicable contract roots execute through 308 | **Not accepted:** fresh 305 and superseded 306 runs reach the bridge encounter and fail. A separate legitimate factory checkpoint reaches e1m2a alive | Full coherent New Game→M2 route still required; boss avoidance/firing-lane strategy remains a driver blocker. No modified inventory or assembled checkpoint chain qualifies. |
 | All four episodes | Additional hostile/ambient/boss controllers, scripts, cinematics, companions, world effects and ending connected | Coding-pass contract roots pass at 285; connected scenarios unrun | No complete episode accepted on native runtime | Broader ability/task audit, connected boss/puzzle/companion traversal and ending remain |
-| Saves and visited worlds | Schema-2 residents, typed references/time, archive migration, actor scope and recovery; unfinished unexposed preparations excluded from new saves | Affected runtime roots pass at 308 | On `d3db13…`, rejected future PNG preserves current play/save/load, independent A/B actor health and death restore pass, and six-world factory cinematic restores/completes. Earlier scoped controller/migration evidence below | Full party/controller combinations and fresh campaign restoration remain unverified. Historical state remains mandatory even when media preparation fails. |
-| Multiplayer and bots | Native sessions, combat/respawn, advancement, pickups, DM, CTF/deathtag, bot input and rooms connected; protocol 1349 | Native wire and runtime roots pass at 305 | Two actual UDP clients replay movement/fire/death/respawn/spectate/rejoin/reconnect/fast restart on `187506…` | Complete CTF/deathtag, natural bot traversal, public admission/browser/authenticated rooms and full modes remain open. No online service deployment. |
-| World/effects | Movers, controls, hazards, breakage/debris, lighting and sky bindings connected | Applicable contracts pass at 296 | Sequence 296 verifies bridge fragments/restoration, Cambot lamps and animated sky; see exact identity below | Target effects and ambient fish/seagulls now connect; the broader authored behavior audit continues; shared particle/beam/audio/PHS behavior requires replay |
-| Presentation and cinematic input | Escape completion, supplied button/slider/loading art, authored frame timing and snapshot interpolation connected | 240 native contracts include captured-clock interpolation, clip timing, discontinuities and dialogue boundaries | 296 OpenGL2 real New Game/Escape/Marsh/save/load/pause passes; OpenGL1 opening captures verify actual intermediate motion. 304 replays six-world factory arrival restoration; the full fresh intro still needs replay | Behavior/art layout reviewed against private reference; full menu equivalence, all-class animation and audiovisual comparison remain unverified. OpenGL2 sky crash repaired and replayed. |
+| Saves and visited worlds | Region persistence/recovery plus visible arrival and healthy-party periodic autosaves | Runtime/party-health roots pass at 309 | Final 309: A/B crossing creates the arrival save; the real minute boundary rejects 90% health, saves at 91% and restores it; independent actor health and active world restore through save/load/death | Complete live-party autosave and fresh campaign restoration remain unverified. Historical state stays mandatory |
+| Multiplayer and bots | Native sessions/modes/bots; spawn-aware shared weapon presentation; protocol 1350 | Wire, counter-wrap and respawn contracts pass at 309 | Final 309: two actual UDP clients show advancing attack frames before/after respawn and pass spectate/rejoin/reconnect/restart | Every weapon interaction, full CTF/deathtag, public admission/authenticated rooms and full modes remain open. No service deployment |
+| World/effects | Authored controls, hazards, debris, lighting and sky connected; softer Cambot lamp/beam/contact pools | Applicable contracts pass; final build checks at 309 | Final 309: Cambot acquisition and rendered lamp captures inspected in both backends. 296 fragment/sky evidence retained with its original identity | Broader authored effects/audio/PHS parity remains open; enhancement is not a shadow-mapped spotlight |
+| Presentation and cinematic input | Menus/loading art, interpolation, cinematic input and all camera modes connected | Three-bit camera modes survive actual message encoding at 309 | Final 309: ordinary e1m1c button use, remote door view, release and finished-scene save/load. Earlier intro/menu evidence retains its recorded identity | Full fresh intro, all authored scenes, menu equivalence and audiovisual comparison remain unverified |
 | Independent release | Bare `zig build play` builds/installs native code with the existing local cache | Build/contracts and installer preservation pass at 286 | Guarded native menu, e1m1a admission and actual save/load pass; explicit map and disabled intro | Full independent fresh-checkout/release and campaign qualification remain |
+
+## Sequence 309 — native gameplay feedback and grounded actors
+
+Build `18681cf879b513dd84b471dd4e6b9cfe6d0c0cf9356badfa7fb353e29b4282d5`;
+combined identity `a7211a68e66400d48df29e744ecf970c732b5e79b443e590a2edf4799936b0d0`.
+Base, HD and region manifest remain at the identities recorded in sequence 306.
+Protocol 1350, renderer ABI 12. Evidence: `zig-out/reports/runtime-zig-309/`.
+Native clients and servers must use the matching protocol; the live service is
+unchanged. `zig build play` selects this isolated development build with HD assets.
+
+The actor motor no longer mistakes the 0.04 upward velocity left by floor
+collision for an actual jump. Its departure rule matches the admitted slide/player
+contract. Worker-specific fear consumes witnessed injury/death and existing
+navigation, vocal and animation services; blocked/finished retreat stops in an
+authored cower/ambient pose. Private reference behavior was inspected, without
+importing implementation. Original hide-node route equivalence remains unverified.
+
+Monitor mode 2 and ending mode 4 previously vanished in a one-bit snapshot field,
+while the server correctly used the remote view for visibility. Three bits retain
+all modes. Multiplayer already uses shared class-owned weapon controllers; the
+repair gives presentation a spawn lifetime and consistent 16-bit shot ordering.
+It does not create separate single-player/multiplayer weapon implementations.
+
+Playable arrivals write `autosave-arrival`; periodic saves write `autosave` after
+60 simulation seconds, only when Hiro and every recruited companion exceed 90%
+of their own maximum health. Stopped/carried members and connected neighboring
+worlds participate. Successful saves also refresh death recovery; manual slots
+are untouched. Cambot lights use a small emitter, a softer beam and a contact
+surface pool with range attenuation; this is an enhancement, not a shadow-mapped
+spotlight or a claim of original rendering parity.
+
+| Evidence | State and verified outcome | Setup limits |
+|---|---|---|
+| `aggregate-final.log` | Passed: 93/93 build/check steps, 409 Zig, 87 Python and actual C roots | Assertions enabled; explicit worker, companion-health, camera-wire and movement roots execute |
+| `ground-defect.log`, `ground-defect.json` | Passed regression sensitivity: restoring the strict upward-sign rejection in a temporary copy fails the actual actor-motor test | Captured resting velocity, ordinary slide collision; no production source mutation |
+| `ground/`, `crox-ready/` | Passed: actual guard pursuit around occlusion and subsequent fire; Crox swimming, restored pending melee and real contact | Ground-equivalent build `21d238…`, combined `ec768240c73d1296d224f65ff92df1227a4b204759c08f219025fa2c49fbe036`; diagnostic positioning/health, no route acceptance |
+| `monitor-final-opengl1/`, `workers-final-opengl1/` | Passed on final build: ordinary button use selects the actual remote camera, releases input and restores a finished scene; witnessed worker injury/death dispatches fear vocals, settles into the stopped pose and restores fear state | Diagnostic placement/equipment. Fat worker uses ambient fallback; skinny cower frame ranges appear during the living victim's injury. No full cinematic/task parity claim |
+| `lighting-final-opengl1/`, `lighting-final-opengl2/` | Passed on final build: Cambot acquisition, actual lamp submission and inspected close/wide captures | Enhanced appearance, not full renderer equivalence or independent shadow/occlusion qualification |
+| `multiplayer-final/` | Passed on final build: two real UDP clients advance/interpolate attack frames before and after respawn, then spectate/rejoin/reconnect/restart | Ordinary starting weapon; this does not qualify every weapon interaction or multiplayer mode |
+| `progression-final/`, `region-save-final/` | Passed on final build: ordinary movement across both authored A/B exits retains identity/input and creates a B arrival autosave; independent actor states and active world survive save/load and death recovery | Controlled approach/state changes; no fresh playthrough. `arrival-b.sav` and `.info` retain the actual boundary evidence |
+| `autosaves-final-opengl1/` | Passed on final build: actual arrival save, real 60-second eligibility boundary rejects 90% health, saves at 91% and restores 91% after subsequent damage | Controlled health setup; companion maximum/ownership/stopped/carried eligibility is contract-tested, not yet exercised as a complete live party autosave scenario |
+
+Earlier successful `monitor-input/` and `autosaves-ready/` use `6201ad…`, combined
+`1d6004cdfc56d92014bb8734ab308b2f3482a0c22098f6f3931661a5cd834295`.
+`workers-terminal/`, `multiplayer-input/` and initial `lighting/` use `21d238…`;
+the latter's close-range pool was too bright and is superseded by reduced gain.
+Failed setup runs remain: early monitor aim preceded floor settling, multiplayer
+held attack through the normal respawn guard, initial world readiness timed out,
+and a killed worker was correctly retired before the driver's next sample.
+These invalidate those scenarios; later runs require actual input/attack, camera,
+readiness, contact and save-completion evidence. Ground contract fixture failures
+preceded correction of its contact-depth tolerance; final assertions and the
+negative mutation both execute. Fresh intro/campaign, broad ground-class traversal,
+full multiplayer modes and the complete independent port remain unaccepted.
 
 ## Sequence 308 — background PNG preparation and recoverable lookahead
 

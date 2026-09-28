@@ -159,6 +159,24 @@ def run(args):
                 until(lambda p: len(p) == index + 1 and p[index]["health"] > 0 and p[index]["bot"] == 0,
                       f"client {index} authoritative admission")
 
+            def animated(client, label):
+                frames = []
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    client.check()
+                    offset = client.log.stat().st_size
+                    client.issue("dk3_runtime_presentation")
+                    text = wait(client.process, client.log, lambda text:
+                                "dk3 weapon presentation:" in text[offset:], 3)[offset:]
+                    line = next(line for line in text.splitlines() if line.startswith("dk3 weapon presentation:"))
+                    row = dict(re.findall(r"(\w+)=([^ ]+)", line))
+                    if row["phase"] == "fire":
+                        frames.append(row)
+                        if len({frame["frame"] for frame in frames}) > 1 and any(0 < float(frame["backlerp"]) < 1 for frame in frames):
+                            result.setdefault("animations", {})[label] = frames
+                            return frames[-1]
+                raise TimeoutError(f"{label}: no advancing, interpolated first-person attack: {frames}")
+
             initial = until(lambda p: len(p) == 2 and all(row["mode"] == "normal" for row in p.values()), "both clients active")
             offset = server.log.stat().st_size
             server.issue("status")
@@ -194,6 +212,7 @@ def run(args):
                     result.setdefault("fire", {})[index] = until(lambda p:
                         p[index]["fire"] > prior["fire"] and p[index]["event"] != prior["event"],
                         f"client {index} authoritative attack")[index]
+                    animated(client, f"client-{index}-initial")
                 finally:
                     client.issue("-attack")
                 client.capture(args.report, f"client-{index}-playing")
@@ -210,6 +229,18 @@ def run(args):
                 finally:
                     client.issue("-attack")
                 result.setdefault("respawn", {})[index] = {"dead": dead, "living": living}
+                # The normal respawn guard requires attack release before a new shot.
+                # Wait on actual processed input, not merely on the spawn event.
+                until(lambda p: p[index]["respawned"] == 0 and p[index]["cmd"] > living["cmd"], "processed attack release after respawn")
+                client.issue("+attack")
+                try:
+                    fired = until(lambda p: p[index]["event"] > living["event"] and p[index]["fire"] > living["fire"], f"client {index} actual post-respawn shot")[index]
+                    frame = animated(client, f"client-{index}-respawn")
+                    assert int(frame["incarnation"]) > int(result["animations"][f"client-{index}-initial"][-1]["incarnation"])
+                    result["respawn"][index]["fired"] = fired
+                finally:
+                    client.issue("-attack")
+
 
             clients[1].issue("team spectator")
             result["spectator"] = until(lambda p: p[1]["team"] == "spectator"

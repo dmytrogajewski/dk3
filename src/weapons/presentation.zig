@@ -7,6 +7,7 @@ pub const Phase = enum { ready, away, fire, settle, reload, idle };
 pub const Cue = struct { pose: [:0]const u8, sound: ?[:0]const u8 = null, phase: Phase, rate: u16 = 20, loop: bool = false };
 pub const Input = struct { weapon: u5, state: i32, sequence: i32, reloading: bool, attack_factor: f32 = 1, now_ms: i64, fire_pose: ?[:0]const u8 = null, fire_rate: ?u16 = null, finish_ms: ?i64 = null };
 pub const State = struct {
+    incarnation: ?u16 = null,
     weapon: u5 = 0,
     state: i32 = controller.ready,
     phase: Phase = .ready,
@@ -15,10 +16,15 @@ pub const State = struct {
     fire_weapon: u5 = 0,
     fire_ms: i64 = -1000,
     pending_fire: bool = false,
+    pub fn synchronize(self: *State, incarnation: u16) void {
+        if (self.incarnation != incarnation) self.* = .{ .incarnation = incarnation };
+    }
     pub fn noteFire(self: *State, weapon: u5, serial: u32, now: i64) void {
         if (self.fire_serial) |prior| {
-            const difference = serial -% prior;
-            if (difference == 0 or difference >= 0x80000000) return;
+            // Player event sequences have a 16-bit wire representation. Both
+            // predicted full counters and decoded echoes use this same order.
+            const difference = @as(u16, @truncate(serial)) -% @as(u16, @truncate(prior));
+            if (difference == 0 or difference >= 0x8000) return;
         }
         self.fire_serial = serial;
         self.fire_weapon = weapon;
@@ -95,4 +101,24 @@ test "burst shots retain their pose and rotary fire spins down after release" {
     try std.testing.expect(view.update(rotary, input).?.loop);
     input.state = controller.ready;
     try std.testing.expectEqual(Phase.settle, view.update(rotary, input).?.phase);
+}
+
+test "respawn accepts the first shot and wire wrap deduplicates predicted echoes" {
+    var state: State = .{};
+    state.synchronize(1);
+    state.noteFire(1, 500, 1000);
+    state.synchronize(2);
+    state.noteFire(1, 0, 2000);
+    try std.testing.expectEqual(@as(i64, 2000), state.fire_ms);
+    state.synchronize(2);
+    state.noteFire(1, 0, 2010);
+    try std.testing.expectEqual(@as(i64, 2000), state.fire_ms);
+    state.synchronize(3);
+    state.noteFire(1, 65535, 3000);
+    state.noteFire(1, 65536, 3010);
+    state.pending_fire = false;
+    state.noteFire(1, 0, 3020);
+    try std.testing.expect(!state.pending_fire);
+    state.noteFire(1, 1, 3030);
+    try std.testing.expectEqual(@as(i64, 3030), state.fire_ms);
 }

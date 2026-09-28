@@ -20,6 +20,7 @@ var campaign: campaign_module.State = .{};
 var restoring_visit = false;
 const checkpoint_rules = @import("domain/checkpoint.zig");
 var checkpoint: checkpoint_rules.State = .{};
+var autosave: checkpoint_rules.Autosave = .{};
 var resident_worlds: @import("server/resident_worlds.zig").State = .{};
 var progression: @import("server/region_progression.zig").State = .{};
 
@@ -45,6 +46,7 @@ fn shutdown(restart: bool) void {
     campaign.deinit();
     restoring_visit = false;
     checkpoint = .{};
+    autosave = .{};
     if (active.restore_pending) |*saved| saved.deinit(std.heap.c_allocator);
     active.restore_pending = null;
     active.systems.deinit(restart);
@@ -201,6 +203,7 @@ fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
     resident_worlds.legacy_archives = campaign.visited;
     resident_worlds.traveler_id = header.player_id;
     if (!visit) {
+        autosave.completed(clock.now_ms);
         if (saveRegion(checkpoint_rules.slot)) |_| {
             checkpoint.saved();
             engine.print("dk3 checkpoint: ready\n");
@@ -292,10 +295,18 @@ fn recovery() !void {
     const entity = active.clients.entities[0] orelse return;
     const player = (try active.world.?.get(entity, component.Player)).*;
     const alive = (try active.world.?.get(entity, component.Health)).current > 0;
-    if (checkpoint.pending and alive and player.mode == .normal and player.command_ms > 0 and !@import("server/cinematics.zig").active(&active.world.?)) {
-        // A fresh playable arrival becomes a checkpoint; user save slots are untouched.
-        try saveRegion(checkpoint_rules.slot);
-        try rememberCheckpoint(checkpoint_rules.slot, false);
+    const playable = alive and player.mode == .normal and player.command_ms > 0 and !@import("server/cinematics.zig").active(&active.world.?) and !progression.held;
+    const periodic_due = autosave.due(clock.now_ms);
+    if (playable and clock.now_ms >= autosave.retry_ms and (checkpoint.pending or (periodic_due and try @import("server/companions.zig").healthyParty(&active.world.?, entity)))) {
+        const slot = if (checkpoint.pending) checkpoint_rules.arrival_slot else checkpoint_rules.periodic_slot;
+        // Advance the deadline only after the atomic write has completed. Failed
+        // storage is retried with a bound rather than once per simulation frame.
+        autosave.retry_ms = clock.now_ms + 5000;
+        try saveRegion(slot);
+        try rememberCheckpoint(slot, false);
+        autosave.completed(clock.now_ms);
+        var message: [128]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&message, "dk3 autosave: saved slot={s} now={d}\n", .{ slot, clock.now_ms }));
     }
     var input: c.usercmd_t = undefined;
     engine.usercmd(0, &input);

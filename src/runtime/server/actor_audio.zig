@@ -31,7 +31,7 @@ fn idle(actors: *const @import("actors.zig").Actors, world: *data.World, entity:
     const scripted = if (world.get(entity, data.Script) catch null) |script| script.active else false;
     const kind = @import("actor_catalog").entries[actor.definition].kind;
     const swimming_or_wandering = kind == .crox and (actor.crox.swimming or actor.crox.wandering);
-    if (actor.mode != .idle or actor.reaction != null or actor.melee.active or actor.scripted_pose != null or scripted or swimming_or_wandering or definition.idle_choices.len == 0) {
+    if (actor.worker.phase == .cower or actor.mode != .idle or actor.reaction != null or actor.melee.active or actor.scripted_pose != null or scripted or swimming_or_wandering or definition.idle_choices.len == 0) {
         actor.idle_pose = null;
         actor.idle_started_ms = null;
         return;

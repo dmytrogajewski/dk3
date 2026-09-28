@@ -30,7 +30,7 @@ def scenario(driver, report):
         wait(driver.process, driver.log, lambda _: source.exists() and source.stat().st_size > 0, 5)
         shutil.copy2(source, report / source.name)
 
-    driver.until(lambda s: s["map"] == "e1m1b" and s["skill"] == 3 and s["mode"] == "normal", description="normal bridge fixture connected")
+    driver.until(lambda s: s["map"] == "e1m1b" and s["skill"] == 3 and s["mode"] == "normal", seconds=60, description="normal bridge fixture connected and processing input")
     driver.issue("dk3_runtime_probe_health 1000")
     driver.until(lambda s: s["health"] == 1000, description="controlled combat health")
     rows = actors(driver)

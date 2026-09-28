@@ -6,6 +6,7 @@ const animation = @import("animation.zig");
 pub const Mode = enum { idle, flee, chase, attack, reload, dead };
 pub const State = struct {
     definition: u8,
+    worker: catalog.workers.State = .{},
     stepped_ms: ?i64 = null,
     audio: @import("actor_audio.zig").State = .{},
     idle_pose: ?animation.Sequence = null,
@@ -94,7 +95,12 @@ pub const State = struct {
         if (self.mode == .dead) return;
         if (self.mode != .flee) self.changed_ms = now;
         self.mode = .flee;
-        self.panic_until = now + catalog.entries[self.definition].panic_ms;
+        const policy = catalog.entries[self.definition];
+        if (catalog.workers.owns(policy.classname)) {
+            self.worker.start(now);
+            self.route = .{};
+        }
+        self.panic_until = now + if (catalog.workers.owns(policy.classname)) catalog.workers.retreat_ms else policy.panic_ms;
         self.threat = source;
         self.threat_position = point;
     }
@@ -104,6 +110,7 @@ pub const Definition = struct {
     audio: []const @import("actor_audio.zig").Cue = &.{},
     idle_choices: []const @import("actor_audio.zig").Idle = &.{},
     attenuation: [2]f32 = .{ 256, 648 },
+    cower: [2]animation.Sequence = @splat(.{}),
     pain_c: ?animation.Sequence = null,
     dwarf: catalog.dwarf.Tuning = .{},
     thief_knife: catalog.weapon.Tuning = .{},

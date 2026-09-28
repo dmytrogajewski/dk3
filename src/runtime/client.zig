@@ -174,6 +174,7 @@ fn draw(now: i32) !void {
         }
         if (!have_snapshot) engine.print("dk3 zig client: first snapshot applied\n");
         have_snapshot = true;
+        weapon_view.state.synchronize(@truncate(@as(u32, @bitCast(snapshot.ps.persistant[c.PERS_SPAWN_COUNT]))));
         const sequence_number: u32 = @bitCast(snapshot.ps.eventSequence);
         for (0..c.MAX_PS_EVENTS) |i| {
             const serial = sequence_number -% @as(u32, @intCast(c.MAX_PS_EVENTS - i));
@@ -589,6 +590,7 @@ fn console() isize {
     }
     if (std.mem.eql(u8, name, "dk3_runtime_presentation")) {
         var message: [512]u8 = undefined;
+        engine.print(std.fmt.bufPrintZ(&message, "dk3 weapon presentation: now={d} incarnation={d} weapon={d} phase={s} serial={d} frame={d} oldframe={d} backlerp={d:.4} started={d}\n", .{ weapon_view.presented_ms, weapon_view.state.incarnation orelse 0, weapon_view.state.weapon, @tagName(weapon_view.state.phase), weapon_view.state.fire_serial orelse 0, weapon_view.presented.frame, weapon_view.presented.oldframe, weapon_view.presented.backlerp, weapon_view.started_ms }) catch unreachable);
         for (foreign_presented[0..foreign_count]) |identity| engine.print(std.fmt.bufPrintZ(&message, "dk3 foreign presentation: identity={d} at={d}\n", .{ identity, presentation.now }) catch unreachable);
         engine.print(std.fmt.bufPrintZ(&message, "dk3 presentation: now={d} camera={d} models={d} blended={d} entity={d} frame={d} oldframe={d} backlerp={d:.4} snapshot={d} ions={d} lamps={d} gibs={d} chunks={d} motion_blended={d}\n", .{ presentation.now, snapshot.ps.dk3CameraActive, presentation.models, presentation.blended, presentation.entity, presentation.frame, presentation.oldframe, presentation.backlerp, snapshot.serverTime, presentation.ions, presentation.lamps, presentation.gibs, presentation.chunks, @import("client/interpolation.zig").blendedMotion(presentation.now) }) catch unreachable);
         return 1;

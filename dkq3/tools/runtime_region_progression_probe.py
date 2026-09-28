@@ -45,6 +45,12 @@ def progression(driver, report, capture):
     assert entered['player_id'] == source['player_id'] == before['player_id']
     assert moved['health'] == source['health'] > 0
     assert moved['cmd'] > source['cmd']
+    # The actual authored departure, not a console transfer, must produce an
+    # arrival autosave after the resident handoff becomes playable.
+    arrival = driver.home / 'state/dk3/saves/autosave-arrival.info'
+    wait(driver.process, driver.log, lambda _: arrival.exists() and 'map "e1m1b"' in arrival.read_text(), 10)
+    shutil.copy2(arrival, report / 'arrival-b.info')
+    shutil.copy2(arrival.with_suffix('.sav'), report / 'arrival-b.sav')
     capture('b-after-authored-touch')
     driver.aim(180, 0)
     driver.issue('+forward')

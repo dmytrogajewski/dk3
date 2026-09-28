@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (C) 1999-2005 Id Software, Inc.
-//! Bounded protocol-1349 message codec, ported from bundled ioquake3/msg.c.
+//! Bounded protocol-1350 message codec, ported from bundled ioquake3/msg.c.
 //! C layouts are adapters only: ordered scalar fields define the wire schema.
 //! The reviewed upstream Huffman implementation remains the compression library.
 const std = @import("std");
@@ -644,4 +644,23 @@ test "signed tail widths, truncated packets and output bounds" {
     try std.testing.expect(msg.overflowed != 0);
     try std.testing.expectEqual(@as(u8, 0x5a), guarded[0]);
     try std.testing.expectEqual(@as(u8, 0xa5), guarded[2]);
+}
+
+test "all native camera modes survive the real player snapshot wire" {
+    var previous = std.mem.zeroes(c.playerState_t);
+    for ([_]c_int{ 1, 2, 3, 4, 0 }) |mode| {
+        var next = previous;
+        next.dk3CameraActive = mode;
+        next.dk3CameraOrigin = .{ 128, -64, 96 };
+        var storage: [8192]u8 = @splat(0);
+        var msg: c.msg_t = undefined;
+        MSG_Init(&msg, &storage, storage.len);
+        MSG_WriteDeltaPlayerstate(&msg, &previous, &next);
+        MSG_BeginReading(&msg);
+        var decoded: c.playerState_t = undefined;
+        MSG_ReadDeltaPlayerstate(&msg, &previous, &decoded);
+        try std.testing.expectEqual(mode, decoded.dk3CameraActive);
+        try std.testing.expectEqual(next.dk3CameraOrigin, decoded.dk3CameraOrigin);
+        previous = decoded;
+    }
 }

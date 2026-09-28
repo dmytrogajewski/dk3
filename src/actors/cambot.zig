@@ -7,6 +7,9 @@ pub const alert_light = "models/global/e_sflred.sp2";
 pub const idle_tag: i32 = 0x43414d;
 pub const alert_tag: i32 = idle_tag + 1;
 pub const searchlight = .{ .reach = 600, .radius = 2, .pitch = 45, .sweep_rate = 0.08, .sweep_span = 109, .idle_color = [3]f32{ 0.6, 0.6, 0.1 }, .alert_color = [3]f32{ 0.8, 0.1, 0.1 } };
+// Presentation enhancement: a small emitter and a soft, range-attenuated
+// surface pool replace the large omnidirectional glow at the camera body.
+pub const lighting = .{ .emitter_radius = 40, .emitter_gain = 0.2, .surface_offset = 6, .minimum_radius = 24, .maximum_radius = 128, .falloff_distance = 300, .surface_gain = 1, .beam_alpha = 24, .flare_scale = 1.5, .flare_alpha = 160 };
 pub const State = struct {
     seen: bool = false,
     alarmed: u32 = 0,

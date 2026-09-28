@@ -56,7 +56,9 @@ pub const Clients = struct {
         var cmd: c.usercmd_t = undefined;
         engine.usercmd(@intCast(index), &cmd);
         for (transform.angles, 0..) |angle, i| (try world.get(entity, data.Player)).delta_angles[i] = @as(i32, @intFromFloat(angle * (65536.0 / 360.0))) -% cmd.angles[i];
+        const incarnation = (states[index].persistant[c.PERS_SPAWN_COUNT] + 1) & 0xffff;
         @memset(std.mem.asBytes(&states[index]), 0);
+        states[index].persistant[c.PERS_SPAWN_COUNT] = incarnation;
         states[index].clientNum = @intCast(index);
         states[index].speed = 320;
         states[index].gravity = 800;

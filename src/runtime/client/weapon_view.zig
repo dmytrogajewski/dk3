@@ -32,6 +32,8 @@ const Model = struct {
 };
 const Media = struct { view: ?Model = null, flash: ?Model = null, flash_sprite: ?u8 = null, hum: c.sfxHandle_t = 0, flash_shader: c.qhandle_t = 0 };
 pub const View = struct {
+    presented: @TypeOf((animation.Sequence{}).sample(0, false)) = .{ .frame = 0, .oldframe = 0, .backlerp = 0 },
+    presented_ms: i64 = 0,
     media: [29]Media = @splat(.{}),
     state: catalog.presentation.State = .{},
     sequence: animation.Sequence = .{},
@@ -139,6 +141,8 @@ pub const View = struct {
                 }
             } else self.charge_sound_ms = 0;
         }
+        self.presented = sample;
+        self.presented_ms = now;
         rendered.frame = sample.frame;
         rendered.oldframe = sample.oldframe;
         rendered.backlerp = sample.backlerp;
