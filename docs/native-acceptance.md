@@ -1,5 +1,141 @@
 # Native port acceptance
 
+## Sequence 319 — character references, leg limits and combat motion — focused scenarios passed
+
+Mikiko, Superfly, Mishima and Usagi receive reference-based face bakes; Hiro keeps
+the accepted 318 atlas. All five rigs now constrain knee flexion, hip target
+direction, ankle/toe rotation and leg twist during conversion. Moving multiplayer
+attacks combine upper-body firing poses with the current leg cycle. Respawn waits
+for the complete death animation plus a 300 ms final-pose hold.
+
+Evidence: `zig-out/reports/runtime-zig-319/`. Package
+`d529be7652e69d1014f930d301e521c396ef37e1499cf2212d15d5178a56dd18`;
+installation `9695396d351af4d8435b824afd18c0a710eb6c966c54c2e7bb54f1c05e0502de`.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Reference face bakes | Reviewed | `face-edits.md` links the built-in imagegen outputs, exact prompts, final atlases and four-angle mesh reviews. Earlier patchy bakes are retained. Existing facial geometry and painted eyes remain limitations. |
+| Remote attacks, deaths and LAN lifecycle | Passed, sampled scope | `network-final/`: two real UDP clients, all five appearances, stationary/moving attacks, 22–26 distinct death frames reaching the final pose with attack held to request respawn throughout. Respawn, spectator/rejoin, reconnect and restart pass. Captures and `remote-combat.mp4` retain observed timing. No ragdoll or slope-contact acceptance is implied. |
+| Intro practice and restoration | Passed, sampled scope | `intro-final/`: 1920×1080 OpenGL2 playback through shot 36, timed practice poses, close-ups and actual mid-cinematic save/load. Forward knee bends reviewed. Full intro/later performances remain outside this sample. |
+| Companions, carrying and Kage | Passed, sampled scope | `actor-*`: grounded Mikiko, Superfly, carrying and Kage in e1m3b, movement/shadow comparison; companions also save/load. Kage's translucent phase remains. These are presentation fixtures, not full campaign behavior acceptance. |
+| Sword, rifle and pistol attacks | Passed, sampled scope | `held-weapons/`: remotely rendered ready/attack poses for Daikatana, Ion and Glock; hand attachments reviewed. Weapon contact behavior is outside this fixture. |
+| Aggregate checks | Passed | `tests.log`: 52/52 build steps, 417/417 Zig tests and 104 Python checks. Includes planted feet, fixed lengths, extreme folded/twisted input rejection, attack/leg composition and death respawn timing. Native build and package validation pass. |
+
+The animation constraints are offline pose limits, not a physics engine. The
+procedural clips use Quake III naming conventions and contain no imported Quake
+motion data. Full ragdolls, body-part collision and all cinematic performances
+remain unverified/unimplemented as appropriate. Failed driver invocations before
+the UDP run are retained in `network-path-error.log` and `network-combat.log`.
+The default local package and `zig-out/native-dev/play/current` select this revision;
+the preserved installation and saves remain untouched. Visual review is not owner
+acceptance. Existing background geometry/MD3 prop problems are not repaired by
+these character changes.
+
+## Sequence 318 — Hiro eye placement — revised close-ups reviewed
+
+The owner rejected 317's high eyes and downward appearance. The face bake now
+lowers the orbital projection by up to 0.42 mesh units while leaving the nose,
+mouth and forehead registered. A separate generated eye/brow edit reduces brow
+thickness. Its admission mask replaces old dark eyebrow texels instead of
+preserving them as hair, and excludes unwanted generated cheek changes. Lateral
+hanging locks and multiplayer face color remain protected.
+
+Evidence: `zig-out/reports/runtime-zig-318/`. Final package
+`10ab7bc20741d08cfc2bf3d10d6805b30733d7407bc083d4a3fcdb205adaa08a`;
+installation `6ded2e0b902f93357213c4d37343823e6a46bfcea062fefdff1833143bbe67ca`.
+The stage retains the final atlas, bake provenance and face tint mask.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Actual mesh front and sides | Reviewed | `review-detail/`; lower eyes and reduced brows. Earlier `review*` retain failed mask/brow iterations. |
+| OpenGL2 intro and save/load | Passed, sampled scope | `intro-final/`: playback through shot 15 and restored cinematic. Shot 14 and six subsequent camera samples show the reported angle; `intro-face/` is the superseded thick-brow attempt. Visual review is not owner acceptance. |
+| Package and tooling | Passed | 102 Python checks, package validation, and final changed-entry audit. Only 13 Hiro PNG entries and metadata change; models, skeletons, clips and other characters match 317. No native changes; prior motion/runtime evidence remains applicable. |
+
+Built-in imagegen outputs and both exact prompts are linked in local `face-edit.md`.
+The original Hiro head texture was inspected read-only as an additional style
+reference. Eyes remain painted on the existing mesh; facial animation is outside
+this revision. No original installation, saves, or Git state was changed.
+
+## Sequence 317 — reference Hiro face — eye placement rejected by owner
+
+The owner subsequently rejected this revision: eyes sit too high, crowd the brows,
+and appear to look downward. Sequence 318 addresses that defect. The scenario
+results below establish playback and packaging only, not accepted eye placement.
+
+The owner rejected the 316 face close-up: oversized eyes, soft features and a pale
+jaw patch. The replacement uses the selected local `neural_experimental_assets/hiro.png`
+identity reference, front/side skin projections, and a per-texel mask protecting
+hair and multiplayer facial color. The eyes are narrower, the brow heavier and
+the stubble follows the jaw. This remains a texture on the existing head mesh;
+no animated eyes or facial morphs are introduced.
+
+Evidence: `zig-out/reports/runtime-zig-317/`. Package
+`fb2955550b41241213a4a9af622a8eecb60f682b0f838eb0b4880922e42df6ce`;
+installation `60b7710b30a16609f5e20bb8cf3ac77cc7f006908906d5b9ea5d8e0d33f03395`.
+Exactly thirteen Hiro texture entries and package metadata changed; all model,
+animation, shader and other-character hashes match 316. That motion evidence
+is unaffected. The new atlas/provenance/tint mask are retained in the staged mesh
+folder so subsequent full builds retain this revision.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Front and both side mesh views | Reviewed | Four fixed orthographic views in `review-final`; earlier mask failures retained in `review*`. |
+| Actual intro close-ups and save/load | Passed, sampled scope | `intro-face`: 1920×1080 OpenGL2 captures through shot 15 and restoration. Shot 14 reproduces the owner's reported angle; shots 6/13 show front and opposite side. `intro-closeups` adds camera-motion samples through shot 9. Visual review is not owner acceptance or full cinematic qualification. |
+| Asset/tool checks | Passed | 102 Python tests; includes unchanged protected face pixels across all eleven tinted variants while armor still changes. Package validation and the changed-entry audit pass. Native code is unchanged; the 316 Zig results remain applicable. |
+
+The three exact built-in imagegen prompts, selected projection outputs and baked
+atlas are recorded in `face-edit.md` and `prompts.json` in the local report.
+Blender's local OCIO data/runtime version mismatch required a report-local profile
+override; system files were not modified. No original assets or user saves changed.
+
+## Sequence 316 — skeletal motion and face repair — focused scenarios passed
+
+The owner rejected 315's animation quality: floating swords, slow multiplayer
+motion and Hiro's missing eyes. This pass replaces all five experimental skeletons
+and weights with reviewed anatomical rigs, authors new fixed-length IK clips, and
+keeps loop cadence independent of the old vertex-animation frame count. The client
+interpolates clips and blends sequence changes; gameplay/contact clocks stay on
+the server. Held props use hand transforms, split cinematic sword pieces share one
+grip, and the gameplay sword has a measured handle offset. Hiro's local atlas now
+contains a repaired face with visible eyes; facial morphs remain unsupported.
+
+Local package `281e53a5ceb65913d2224b88f320a30641c435801707b957bc9246f388fe4d2a`
+contains 94 replacements and two additional multiplayer bodies, with 60 skins.
+All 96 IQMs have finite animation channels and normalized weights. Sources and
+converted assets remain local. See [tooling and limits](neural-assets.md).
+
+Evidence is under `zig-out/reports/runtime-zig-316/`. Final native grip build:
+`a429afe57550787fb0066e9fef7dbe362b8c0af3f3227a3ca6ea3ce8b8f99f9a`.
+This build is installed as `zig-out/native-dev/play/current`; the default local
+package is selected by `zig build play`. The prior `84420b…` build has identical
+rigs, timing and cinematic code; only the
+class-owned gameplay sword offset differs. Its unaffected results remain valid.
+
+| Scenario | State | Evidence and scope |
+|---|---|---|
+| Remote gait and LAN lifecycle | Passed | `network-motion`: all five appearances over real UDP. Actual rendered run frames follow 30 Hz / 15-frame loops across 595–732 ms of settled motion per character; captures and `remote-gaits.mp4` retain measured timing. Fire, respawn, spectator/rejoin, reconnect and restart pass. |
+| Cinematic practice and restoration | Passed, sampled scope | `intro-final`: playback through shot 36, 36 timed motion captures, nine shot captures, actual save/load. Practice sword remains hand-attached in reviewed poses; Hiro's face has visible eyes. Full intro and all later performances are not qualified by this sample. |
+| Gameplay weapon grips | Passed, sampled scope | `held-weapons-fixed`: remote sword, Ion and Glock ready/attack captures. Sword handle offset removes the observed gap. These are presentation fixtures, not weapon contact acceptance. |
+| Companions, carrying and Kage | Passed, sampled scope | `actor-*`: grounded Mikiko, Superfly, carried Mikiko and Kage in e1m3b, movement and shadow comparison; companions also save/load. Mikiko replays on OpenGL1. Kage retains his authored translucent phase. This is not full companion/boss behavior acceptance. |
+| Aggregate checks | Passed | `tests.log`: `zig build test --summary all`, 52/52 build steps, 417/417 Zig tests and 101 Python tests. Includes planted-foot/fixed-bone checks across five rigs, clip cadence, released props and split-sword visibility. |
+
+Retained failures: `network-preview` reached a wall before recording enough gait
+samples; `network-final` sampled less than the required settled interval. Combined
+render/diagnostic captures repair the driver without weakening timing assertions.
+`held-weapons` exposed the gameplay sword's offset mesh origin; the class-owned
+handle correction and replay address it. Black/angular background geometry in
+intro/arrival images also occurs without neural assets (315 stock comparison);
+it is not accepted as repaired here.
+
+## Sequence 315 — neural skeletal characters — superseded visual result
+
+The optional skeletal package, native routing, five appearances and shadow bounds
+were implemented. Local load, selected cinematic/companion and LAN lifecycle
+checks passed, but the owner rejected animation and face quality. Successful
+registration and still images did not establish motion acceptance. Sequence 316
+replaces the rig/clip conversion; historical evidence remains under
+`zig-out/reports/runtime-zig-315/`.
+
 Development: `rewrite/native-zig-runtime`. Preserve main
 `e3966c4d40678dbf91619034b5dcb33b763dcbed`, installed playable game, user saves and
 live service. The removed gameplay backend remains disconnected. Complete four-episode
@@ -20,7 +156,7 @@ first-person stair/duck smoothing, pickup rotation/lighting and weapon shine.
 Sequence 312 repairs saved-region loading, worker ZIP cleanup and wet-floor
 robot navigation. Sequence 313 enables model silhouette shadows and makes the
 launcher explicitly select OpenGL2. Sequence 314 gives the multiplayer Load menu
-a local campaign transition. Latest coherent build: `83d6e0…`,
+a local campaign transition. Latest coherent build: `a429af…`,
 protocol 1350; earlier gameplay evidence retains its recorded identity below.
 **Seamless campaign acceptance remains incomplete.** Fresh opening development
 reaches the bridge boss but has not completed the milestone. Ground-controller

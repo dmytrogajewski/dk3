@@ -78,6 +78,7 @@ test {
     _ = @import("domain/actor_audio.zig");
     _ = @import("domain/companion_pose.zig");
     _ = @import("domain/animation.zig");
+    _ = @import("domain/skeletal_animation.zig");
     _ = @import("engine/animation.zig");
     _ = @import("client/interpolation.zig");
     _ = @import("client/sky.zig");

@@ -40,7 +40,7 @@ fn waterWeapon(world: *data.World, entity: ecs.Entity) bool {
 fn voicePath(world: *data.World, entity: ecs.Entity, drowned: bool, buffer: []u8) ![]const u8 {
     // Campaign Hiro has no multiplayer Session. Skin selection applies only to
     // multiplayer players, as it does for their ordinary pain/death voices.
-    const appearance = if (world.get(entity, data.Session) catch null) |session| session.appearance % 3 else 0;
+    const appearance = if (world.get(entity, data.Session) catch null) |session| @import("appearance_catalog").character(session.appearance) else 0;
     const name = if (appearance == 1) "mikiko" else if (appearance == 2) "superfly" else "hiro";
     const sample = if (!drowned) "breathe2.wav" else if (appearance == 1) "waterchoke1.wav" else if (appearance == 2) "waterchoke2.wav" else "waterdeath1.wav";
     return std.fmt.bufPrint(buffer, "{s}/{s}", .{ name, sample });

@@ -152,6 +152,8 @@ pub const Spec = struct {
     /// Pickup and equipped representations have independent contracts.
     equipped: bool = true,
     equipped_frame: c_int = 4,
+    /// Handle centre in the equipped mesh, for attachment to a skeletal palm.
+    skeletal_grip_origin: [3]f32 = .{ 0, 0, 0 },
     animation: Animation = .{},
     muzzle: ?Muzzle = null,
     audio: Audio = .{},

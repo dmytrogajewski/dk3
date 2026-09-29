@@ -4,7 +4,7 @@ const std = @import("std");
 pub const Entry = struct { selection: [:0]const u8, model: [:0]const u8, skin: [:0]const u8, source: [:0]const u8, label: [:0]const u8 };
 pub const entries = blk: {
     @setEvalBranchQuota(30000);
-    var result: [36]Entry = undefined;
+    var result: [60]Entry = undefined;
     var lines = std.mem.tokenizeScalar(u8, @embedFile("appearances.csv"), '\n');
     var count: usize = 0;
     while (lines.next()) |line| {
@@ -18,14 +18,33 @@ pub const entries = blk: {
         result[count] = .{ .selection = values[0], .model = values[1], .skin = values[2], .source = values[3], .label = values[4] };
         count += 1;
     }
-    if (count != result.len) @compileError("appearance catalog count");
+    if (count != 36) @compileError("appearance catalog count");
+    // Optional skeletal appearances retain the established gameplay classes and
+    // fallback skins. Existing saved/network appearance indexes do not move.
+    for (0..12) |color| {
+        for (.{ "mishima", "usagi" }, 0..) |name, kind| {
+            const base = result[color * 3 + kind];
+            result[36 + color * 2 + kind] = .{ .selection = std.fmt.comptimePrint("{s}/{d}", .{ name, color }), .model = base.model, .skin = base.skin, .source = base.source, .label = base.label };
+        }
+    }
     break :blk result;
 };
 pub fn parse(selection: []const u8) ?usize {
     for (entries, 0..) |entry, i| if (std.ascii.eqlIgnoreCase(entry.selection, selection)) return i;
     // Preserve legacy model-only selections as the character's first skin.
     for (entries[0..3], 0..) |entry, i| if (std.ascii.eqlIgnoreCase(entry.selection[0 .. entry.selection.len - 2], selection)) return i;
+    if (std.ascii.eqlIgnoreCase(selection, "mishima")) return 36;
+    if (std.ascii.eqlIgnoreCase(selection, "usagi")) return 37;
     return null;
+}
+pub fn character(index: usize) usize {
+    return if (index < 36) index % 3 else (index - 36) % 2;
+}
+pub fn colorIndex(index: usize) usize {
+    return if (index < 36) index / 3 else (index - 36) / 2;
+}
+pub fn withColor(index: usize, color: usize) usize {
+    return if (index < 36) color * 3 + character(index) else 36 + color * 2 + character(index);
 }
 fn getEntry(index: c_int) Entry {
     return entries[if (index >= 0 and index < entries.len) @intCast(index) else 0];
@@ -48,9 +67,12 @@ export fn DK_AppearanceSkin(index: c_int) callconv(.c) [*:0]const u8 {
 export fn DK_AppearanceLabel(index: c_int) callconv(.c) [*:0]const u8 {
     return getEntry(index).label;
 }
-export fn DK_AppearanceNext(index: c_int, character: c_int) callconv(.c) c_int {
+export fn DK_AppearanceNext(index: c_int, change_character: c_int) callconv(.c) c_int {
     const valid: usize = if (index >= 0 and index < entries.len) @intCast(index) else 0;
-    return @intCast(if (character != 0) (valid / 3) * 3 + (valid + 1) % 3 else (valid + 3) % entries.len);
+    if (change_character == 0) return @intCast(withColor(valid, (colorIndex(valid) + 1) % 12));
+    const kind = if (valid < 36) valid % 3 else 3 + (valid - 36) % 2;
+    const next = (kind + 1) % 5;
+    return @intCast(if (next < 3) colorIndex(valid) * 3 + next else 36 + colorIndex(valid) * 2 + next - 3);
 }
 
 export fn DK_AppearanceChoose(counts: [*c]const c_int, count: c_int) callconv(.c) c_int {

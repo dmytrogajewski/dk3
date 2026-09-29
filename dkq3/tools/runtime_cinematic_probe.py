@@ -13,7 +13,7 @@ import time
 import zipfile
 
 import entities
-from runtime_input import NativeInput, engine_failure, record_identity
+from runtime_input import NativeInput, cinematic_shots, engine_failure, record_identity
 from runtime_probe import client_settings, stage_client_modules, wait
 
 
@@ -39,7 +39,7 @@ def run(args):
     with tempfile.TemporaryDirectory(prefix='dk3-native-cinematic-') as temporary:
         home = Path(temporary)
         stage_client_modules(args.engine, home, installation=args.engine)
-        settings = client_settings(args.engine, home)
+        settings = client_settings(args.engine, home, getattr(args, 'renderer', 'opengl2'))
         settings.update(dk3_cinematics='1', g_spSkill='3', developer='1')
         command = [str(args.engine / 'bin/dk3')]
         for key, value in settings.items():
@@ -62,7 +62,11 @@ def run(args):
                         raise RuntimeError(f'Expected one authored trigger and an available program: {matches}')
                     driver.issue(f'dk3_runtime_activate {matches[0]} player')
                     driver.until(lambda s: s['cinematic'] and s['mode'] == 'frozen', description='actual cinematic start')
+                elif expected:
+                    driver.until(lambda s: s['cinematic'] and s['mode'] == 'frozen', seconds=90,
+                                 description='region admission and actual arrival cinematic start')
                 deadline = time.monotonic() + args.seconds
+                captured = set()
                 while time.monotonic() < deadline:
                     state = driver.observe()
                     if state['map'] != args.map or state['health'] <= 0:
@@ -71,7 +75,15 @@ def run(args):
                         if state['mode'] != 'frozen':
                             raise RuntimeError('Active cinematic did not own player control')
                         shots.add(state['shot'])
+                        if state['shot'] in args.capture_shots and state['shot'] not in captured:
+                            name = f'cinematic-shot-{state["shot"]:03}'
+                            driver.issue(f'screenshotJPEG {name}')
+                            screenshot = home / f'dk3/screenshots/{name}.jpg'
+                            wait(process, log, lambda _: screenshot.is_file() and screenshot.stat().st_size > 0, 5)
+                            shutil.copy2(screenshot, args.report / screenshot.name)
+                            captured.add(state['shot'])
                     elif state['mode'] == 'normal':
+                        shots |= cinematic_shots(driver.text(), inputs, args.map, program, expected)
                         if expected and not set(range(expected)).issubset(shots):
                             raise RuntimeError(f'Incomplete authored playback: {sorted(shots)}/{expected}')
                         break
@@ -109,6 +121,8 @@ if __name__ == '__main__':
     parser.add_argument('--map', required=True)
     parser.add_argument('--program', help='Activate this map-authored cinematic trigger as an isolated diagnostic')
     parser.add_argument('--seconds', type=int, default=240)
+    parser.add_argument('--renderer', default='opengl2')
+    parser.add_argument('--capture-shots', type=lambda text: set(map(int, text.split(','))), default=set())
     args = parser.parse_args()
     args.engine, args.report = args.engine.resolve(), args.report.resolve()
     run(args)

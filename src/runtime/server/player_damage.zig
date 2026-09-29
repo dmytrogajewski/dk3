@@ -37,7 +37,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const newly_dead = health.current <= 0 and !feedback.death_handled;
         if (!newly_dead and feedback.handled_revision == hurt.revision) continue;
         feedback.handled_revision = hurt.revision;
-        const appearance = if (world.get(entity, data.Session) catch null) |session| session.appearance % 3 else 0;
+        const appearance = if (world.get(entity, data.Session) catch null) |session| @import("appearance_catalog").character(session.appearance) else 0;
         const name = ([_][]const u8{ "hiro", "mikiko", "superfly" })[appearance];
         const liquid = (try world.get(entity, data.Character)).liquid;
         var random: data.Random = .{ .state = (try world.persistentId(entity)) *% 1664525 +% hurt.revision *% 1013904223 };

@@ -46,7 +46,8 @@ def checked_assets(directory):
     return manifest
 
 
-def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None):
+def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None,
+            neural_assets=None, neural_assets_fallback=None):
     if not (assets / 'current' / 'manifest.json').is_file():
         raise ValueError(f'no completed asset generation in {assets}; run zig build assets '
                          '-DDK_DATA=/path/to/data -Dasset-profile=retail first, '
@@ -75,6 +76,13 @@ def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None):
             if invalid:
                 raise ValueError(f'{hd}: corrupt texture {invalid}')
         files['share/dk3/zz-dk3-textures-hd.pk3'] = hd
+    neural = neural_assets or prefix / 'neural-assets' / 'dk3-neural.pk3'
+    if not neural_assets and not neural.is_file() and neural_assets_fallback:
+        neural = neural_assets_fallback
+    if neural_assets or neural.is_file():
+        from neural_package import validate_package
+        validate_package(neural, source / 'packages/dk3-models.pk3')
+        files['share/dk3/zz-dk3-neural.pk3'] = neural
     # Canonical package entries ignore ZIP timestamps/compression and native ELF
     # bytes. Approved texture-only overlays do not change gameplay compatibility.
     gameplay = hashlib.sha256()
@@ -86,6 +94,8 @@ def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None):
                 gameplay.update(hashlib.sha256(archive.read(entry)).digest())
     compatibility = json.loads((prefix / 'share/dk3/rules.json').read_text())
     compatibility.update(gameplay=gameplay.hexdigest(), cosmetic='hd-textures-v1' if 'share/dk3/zz-dk3-textures-hd.pk3' in files else 'stock-v1')
+    if 'share/dk3/zz-dk3-neural.pk3' in files:
+        compatibility['cosmetic'] += '+neural-v1'
     compatibility_file = prefix / 'share/dk3/compatibility.json'
     write_json(compatibility_file, compatibility)
     files['share/dk3/compatibility.json'] = compatibility_file
@@ -127,6 +137,8 @@ def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None):
     print(f'play-install: {destination}\nplay-install: independent runtime; campaign gameplay incomplete')
     if 'share/dk3/zz-dk3-textures-hd.pk3' in records:
         print(f'play-install: HD textures enabled from {hd}')
+    if 'share/dk3/zz-dk3-neural.pk3' in records:
+        print(f'play-install: skeletal neural characters enabled from {neural}')
 
 
 def launch(prefix, guard, extra, headless=False):
@@ -158,7 +170,8 @@ def launch(prefix, guard, extra, headless=False):
                '+set', 'fs_homestatepath', str(prefix / 'play' / 'state'),
                '+set', 'vm_game', '0', '+set', 'vm_cgame', '0', '+set', 'vm_ui', '0',
                '+set', 'g_gametype', '2', '+set', 'cl_renderer', 'opengl2',
-               *(['+set', 'r_picmip', '0'] if 'share/dk3/zz-dk3-textures-hd.pk3' in manifest['files'] else []), *extra]
+               *(['+set', 'r_picmip', '0'] if any(name in manifest['files'] for name in
+                 ('share/dk3/zz-dk3-textures-hd.pk3', 'share/dk3/zz-dk3-neural.pk3')) else []), *extra]
     os.execv(command[0], command)
 
 
@@ -170,6 +183,8 @@ def main(argv=None):
     prepare.add_argument('--assets', type=Path, required=True)
     prepare.add_argument('--hd-textures', type=Path, help='optional image-only HD texture package')
     prepare.add_argument('--hd-textures-fallback', type=Path, help='shared local HD package used when the build prefix has none')
+    prepare.add_argument('--neural-assets', type=Path, help='optional validated skeletal character package')
+    prepare.add_argument('--neural-assets-fallback', type=Path, help='shared locally converted skeletal package')
     run = sub.add_parser('launch')
     run.add_argument('--prefix', type=Path, required=True)
     run.add_argument('--dkguard', required=True)
@@ -180,7 +195,8 @@ def main(argv=None):
         if arguments.command == 'install':
             if extra: parser.error('unexpected installation arguments: ' + ' '.join(extra))
             install(prefix, arguments.assets.resolve(), arguments.hd_textures,
-                    hd_textures_fallback=arguments.hd_textures_fallback)
+                    hd_textures_fallback=arguments.hd_textures_fallback,
+                    neural_assets=arguments.neural_assets, neural_assets_fallback=arguments.neural_assets_fallback)
         else:
             launch(prefix, arguments.dkguard, extra[1:] if extra[:1] == ['--'] else extra, arguments.headless)
         return 0

@@ -9,12 +9,14 @@ pub const Material = enum { ordinary, alpha };
 var material_handles: [c.MAX_MODELS][2]c.qhandle_t = @splat(@splat(0));
 var player_skins: [c.MAX_CLIENTS]struct { name: [c.MAX_QPATH]u8 = @splat(0), handle: c.qhandle_t = 0 } = @splat(.{});
 pub fn reset() void {
+    @import("neural_models.zig").reset();
     player_skins = @splat(.{});
     @memset(std.mem.asBytes(&names), 0);
     @memset(&handles, 0);
     material_handles = @splat(@splat(0));
 }
 pub fn register(name: []const u8) !c.qhandle_t {
+    if (try @import("neural_models.zig").model(name)) |handle| return handle;
     var buffer: [c.MAX_QPATH + 5]u8 = undefined;
     const path = try std.fmt.bufPrintZ(&buffer, "{s}{s}", .{ name, if (std.mem.endsWith(u8, name, ".dkm")) @as([]const u8, ".md3") else "" });
     return @intCast(engine.gateway.call(c.CG_R_REGISTERMODEL, .{path.ptr}));

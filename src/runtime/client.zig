@@ -561,6 +561,12 @@ fn draw(now: i32) !void {
         // Converted MD3 surfaces carry ordinary/alpha/bright/alpha-bright
         // variants. Selecting alpha preserves each surface's own authored skin.
         if ((entity.eType == c.ET_GENERAL or entity.eType == c.ET_MISSILE) and rendered.shaderRGBA[3] < 255 and std.mem.endsWith(u8, try engine.config(owner.game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), ".dkm")) rendered.skinNum = if (entity.generic1 == @import("actor_catalog").medusa.stone_tag or (entity.generic1 == @import("item_catalog").chest.render_tag and entity.weapon == 2)) 3 else 1;
+        if (entity.eType == c.ET_PLAYER) {
+            try @import("client/neural_models.zig").player(owner.game, entity.clientNum, &rendered);
+        } else if (entity.modelindex > 0 and entity.modelindex < c.MAX_MODELS) {
+            if (try @import("client/neural_models.zig").material(try engine.config(owner.game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), @intCast(rendered.skinNum))) |skin| rendered.customSkin = skin;
+        }
+        if (entity.modelindex > 0 and entity.modelindex < c.MAX_MODELS) try @import("client/neural_models.zig").animate(try engine.config(owner.game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), entity, now, &rendered);
         try @import("client/events.zig").loop(owner.game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
         if (@as(u32, @bitCast(entity.dk3World)) != resident_worlds.active_id) {
@@ -614,6 +620,7 @@ fn console() isize {
         return 1;
     }
     if (std.mem.eql(u8, name, "dk3_runtime_presentation")) {
+        @import("client/neural_models.zig").diagnostics(presentation.now);
         var message: [512]u8 = undefined;
         engine.print(std.fmt.bufPrintZ(&message, "dk3 view motion: now={d} height={d:.3} offset={d:.3} steps={d} pos={d:.3},{d:.3},{d:.3}\n", .{ presentation.now, camera_height, camera_offset, view_motion.steps, camera_position[0], camera_position[1], camera_position[2] }) catch unreachable);
         engine.print(std.fmt.bufPrintZ(&message, "dk3 weapon presentation: now={d} incarnation={d} weapon={d} phase={s} serial={d} frame={d} oldframe={d} backlerp={d:.4} started={d}\n", .{ weapon_view.presented_ms, weapon_view.state.incarnation orelse 0, weapon_view.state.weapon, @tagName(weapon_view.state.phase), weapon_view.state.fire_serial orelse 0, weapon_view.presented.frame, weapon_view.presented.oldframe, weapon_view.presented.backlerp, weapon_view.started_ms }) catch unreachable);

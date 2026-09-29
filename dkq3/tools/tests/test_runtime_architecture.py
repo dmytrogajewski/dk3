@@ -10,10 +10,13 @@ class RuntimeArchitectureTest(unittest.TestCase):
     def test_pure_layers_do_not_import_runtime_adapters(self):
         root = Path(REPO_ROOT)
         layers = ('src/runtime/domain', 'src/runtime/ecs', 'src/weapons', 'src/items', 'src/actors')
-        allowed = tuple((root / path).resolve() for path in layers)
-        named = {'std', 'inventory_rules', 'weapon_catalog', 'item_catalog', 'actor_catalog'}
+        appearance = (root / 'src/multiplayer/appearance.zig').resolve()
+        allowed = (*((root / path).resolve() for path in layers), appearance)
+        named = {'std', 'inventory_rules', 'weapon_catalog', 'item_catalog', 'actor_catalog', 'appearance_catalog'}
         for layer in allowed:
-            for path in layer.rglob('*.zig'):
+            # Audit the shared pure appearance catalog too; multiplayer engine
+            # adapters remain outside the permitted dependency set.
+            for path in ([layer] if layer.is_file() else layer.rglob('*.zig')):
                 text = path.read_text()
                 self.assertNotIn('@cImport', text, str(path))
                 for dependency in re.findall(r'@import\("([^"]+)"\)', text):

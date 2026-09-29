@@ -1987,14 +1987,23 @@ void R_RenderPshadowMaps(const refdef_t *fd)
 				break;
 				case MOD_IQM:
 				{
-					// FIXME: never actually tested this
 					iqmData_t *data = model->modelData;
 					vec3_t diag;
-					float *framebounds;
-
-					framebounds = data->bounds + 6*ent->e.frame;
-					VectorSubtract( framebounds+3, framebounds, diag );
-					radius = 0.5f * VectorLength( diag );
+					int frames[2] = { ent->e.frame, ent->e.oldframe };
+					int f, axis;
+					if (!data->bounds || data->num_frames <= 0)
+						break;
+					for (f = 0; f < 2; f++) {
+						float *bounds;
+						if (ent->e.renderfx & RF_WRAP_FRAMES)
+							frames[f] %= data->num_frames;
+						if (frames[f] < 0 || frames[f] >= data->num_frames)
+							frames[f] = 0;
+						bounds = data->bounds + 6 * frames[f];
+						for (axis = 0; axis < 3; axis++)
+							diag[axis] = MAX(fabsf(bounds[axis]), fabsf(bounds[axis + 3]));
+						radius = MAX(radius, VectorLength(diag) * scale);
+					}
 				}
 				break;
 

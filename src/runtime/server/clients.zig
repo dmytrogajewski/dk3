@@ -125,7 +125,10 @@ pub const Clients = struct {
         engine.usercmd(@intCast(index), &input);
         if (world.get(entity, data.Session) catch null) |session| {
             const force = engine.integer("g_forcerespawn");
-            if ((try world.get(entity, data.Player)).mode == .dead and (try world.get(entity, data.Hurt)).feedback.death_handled and now >= session.respawn_ms and ((input.buttons & c.BUTTON_ATTACK != 0 or input.upmove > 0) or (force > 0 and now >= session.respawn_ms + @as(i64, force) * 1000))) {
+            // Bots hold attack while dead too. Let the entire death performance
+            // finish before that input can immediately replace the body.
+            const death_end = if (self.poses[@import("appearance_catalog").character(session.appearance)]) |set| set.respawnAt(session.pose, session.respawn_ms) else session.respawn_ms;
+            if ((try world.get(entity, data.Player)).mode == .dead and (try world.get(entity, data.Hurt)).feedback.death_handled and now >= @max(session.respawn_ms, death_end) and ((input.buttons & c.BUTTON_ATTACK != 0 or input.upmove > 0) or (force > 0 and now >= session.respawn_ms + @as(i64, force) * 1000))) {
                 return self.begin(world, slots, projections, states, index, now, null);
             }
         }
@@ -184,13 +187,13 @@ pub const Clients = struct {
         const prior_appearance = session.appearance;
         session.appearance = @intCast(catalog.parse(@import("../engine/info.zig").get(info, "model") orelse "hiro/0") orelse 0);
         if (session.team == .red or session.team == .blue) session.appearance = @import("../domain/multiplayer.zig").appearance(session.appearance, @import("multiplayer.zig").teamColor(world, session.team));
-        if (prior_appearance % 3 != session.appearance % 3) session.pose = .{};
+        if (catalog.character(prior_appearance) != catalog.character(session.appearance)) session.pose = .{};
         const selection = catalog.entries[session.appearance];
-        if (self.poses[session.appearance % 3] == null) {
+        if (self.poses[catalog.character(session.appearance)] == null) {
             var path: [128]u8 = undefined;
             const bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, std.heap.c_allocator, try std.fmt.bufPrintZ(&path, "{s}.anim", .{selection.model}), 1024 * 1024);
             defer std.heap.c_allocator.free(bytes);
-            self.poses[session.appearance % 3] = try @import("../domain/player_pose.zig").Set.read(bytes);
+            self.poses[catalog.character(session.appearance)] = try @import("../domain/player_pose.zig").Set.read(bytes);
         }
         (try world.get(entity, data.Binding)).model = try @import("resources.zig").model(selection.model);
         var text: [c.MAX_INFO_STRING]u8 = undefined;
@@ -203,7 +206,7 @@ pub const Clients = struct {
             clean[length] = byte;
             length += 1;
         }
-        engine.config(c.CS_PLAYERS + @as(i32, @intCast(index)), try std.fmt.bufPrintZ(&text, "\\n\\{s}\\t\\{d}\\model\\{s}\\skin\\{s}", .{ clean[0..length], @intFromEnum(session.team), selection.model, selection.skin }));
+        engine.config(c.CS_PLAYERS + @as(i32, @intCast(index)), try std.fmt.bufPrintZ(&text, "\\n\\{s}\\t\\{d}\\model\\{s}\\skin\\{s}\\appearance\\{s}", .{ clean[0..length], @intFromEnum(session.team), selection.model, selection.skin, selection.selection }));
     }
     pub fn publish(self: *Clients, world: *data.World, projections: []abi.EntityProjection, states: []c.playerState_t, index: usize, now: i64) !void {
         const entity = self.entities[index].?;
@@ -257,7 +260,7 @@ pub const Clients = struct {
         projection.state.apos.trType = c.TR_INTERPOLATE;
         projection.state.apos.trBase = .{ 0, transform.angles[1], 0 };
         if (world.get(entity, data.Session) catch null) |session| {
-            const pose_set = &(self.poses[session.appearance % 3] orelse return error.MissingPlayerAnimation);
+            const pose_set = &(self.poses[@import("appearance_catalog").character(session.appearance)] orelse return error.MissingPlayerAnimation);
             const player = (try world.get(entity, data.Player)).*;
             const weapon = @import("weapon_catalog").find(@intCast(inventory.weapon)) orelse return error.UnknownPlayerWeapon;
             const playback = pose_set.playback(&session.pose, .{ .velocity = velocity.linear, .yaw = transform.angles[1], .ducked = player.ducked, .jumping = player.jump_held and player.ground_entity == c.ENTITYNUM_NONE and player.water_level < 2, .dead = health.current <= 0, .fired_ms = inventory.last_fire_ms }, weapon.spec.player_grip, now);
@@ -269,6 +272,9 @@ pub const Clients = struct {
         projection.state.loopSound = ps.loopSound;
         projection.state.groundEntityNum = ps.groundEntityNum;
         projection.state.weapon = if (health.current <= 0) 0 else ps.weapon;
+        // ET_PLAYER owns time2 as the last admitted fire time for cosmetic
+        // upper-body layering. Other entity classes keep their own semantics.
+        projection.state.time2 = if (health.current > 0) @intCast(inventory.last_fire_ms orelse 0) else 0;
         projection.shared.currentOrigin = transform.position;
         projection.shared.currentAngles = transform.angles;
         projection.shared.mins = body.mins;

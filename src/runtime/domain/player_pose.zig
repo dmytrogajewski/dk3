@@ -57,6 +57,9 @@ pub const Set = struct {
     pub fn frame(self: *const Set, state: *State, input: Input, grip: Grip, now: i64) u16 {
         return self.playback(state, input, grip, now).frame(now);
     }
+    pub fn respawnAt(self: *const Set, state: State, eligible_ms: i64) i64 {
+        return if (state.pose == .dead) @max(eligible_ms, state.started_ms + self.sequence(.dead, state.grip).duration() + 300) else eligible_ms;
+    }
     pub fn playback(self: *const Set, state: *State, input: Input, grip: Grip, now: i64) animation.Playback {
         const moving = @abs(input.velocity[0]) > 1 or @abs(input.velocity[1]) > 1;
         const wanted: Pose = if (input.dead) .dead else if (input.jumping) (if (moving) .moving_jump else .jump) else if (input.ducked) (if (moving) .crouch_walk else .crouch) else if (moving) .run else .idle;
@@ -107,6 +110,8 @@ test "remote pose transitions finish and backward movement reverses authored fra
     input.dead = true;
     _ = set.frame(&state, input, .rifle, 1700);
     try std.testing.expectEqual(@as(u16, 93), set.frame(&state, input, .rifle, 9999));
+    try std.testing.expectEqual(@as(i64, 2400), set.respawnAt(state, 2000));
+    try std.testing.expectEqual(@as(i64, 4000), set.respawnAt(state, 4000));
 }
 
 test "remote attacks require an actual fire timestamp and use the equipped grip and stance" {

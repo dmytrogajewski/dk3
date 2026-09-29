@@ -75,6 +75,11 @@ HD textures are used at full resolution automatically when the local package is
 available in `zig-out/hd-textures` or the build prefix's `hd-textures` directory.
 See [HD texture setup](docs/getting-started.md) for package overrides.
 
+The optional [local neural character package](docs/neural-assets.md) adds skeletal
+Hiro, Mikiko, Superfly, Mishima/Kage and Usagi models, gameplay clips, converted
+cinematic motion and multiplayer appearances. Once generated locally, it is
+included by `play-install` and `play` automatically.
+
 Native New Game, save/load and multiplayer menus are connected; their current
 acceptance is recorded in the matrix. Development uses an isolated prefix/profile
 and does not update the preserved game or saves.

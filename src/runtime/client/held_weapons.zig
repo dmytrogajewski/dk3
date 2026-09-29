@@ -20,9 +20,14 @@ pub fn draw(parent: *const c.refEntity_t, weapon: i32) !void {
     var model = std.mem.zeroes(c.refEntity_t);
     model.reType = c.RT_MODEL;
     model.hModel = handles[index];
-    model.origin = try @import("actor_hardpoints.zig").point(parent, "hp_gun");
+    const grip = try @import("actor_hardpoints.zig").transform(parent, "hp_gun");
+    model.origin = grip.origin;
+    const skeletal = @import("neural_models.zig").isSkeletal(parent.hModel);
+    model.axis = if (skeletal) grip.axis else parent.axis;
+    if (skeletal) for (model.axis, entry.spec.skeletal_grip_origin) |axis, offset| {
+        model.origin = @import("../domain/vector.zig").subtract(model.origin, @import("../domain/vector.zig").scale(axis, offset));
+    };
     model.oldorigin = model.origin;
-    model.axis = parent.axis;
     model.nonNormalizedAxes = parent.nonNormalizedAxes;
     model.frame = entry.spec.equipped_frame;
     model.oldframe = model.frame;

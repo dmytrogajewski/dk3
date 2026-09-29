@@ -420,3 +420,53 @@ on the engine owner. A synthetic locally generated ZIP fixture exercises actual
 bundled minizip and the shared background-read implementation. Reinstating worker
 cleanup in a temporary source copy fails the thread-ownership assertion. Engine
 file hashes are recorded in `engine/DEVELOPMENT.json`.
+
+Sequence 315 reads five explicitly selected local neural experiment outputs as
+data: character GLBs, full-body IQM rigs and their animation manifests. No private
+Python implementation or runtime is imported. An independent Blender stage closes
+the neural shells and bakes their base color onto detailed game meshes; the IQMs
+supply rig weights and procedural clips. The independent NumPy converter
+uses the bundled IQM format and renderer contracts for skeletal storage and fits
+local authored cinematic data to the new skeletons. Generated models and textures
+remain excluded from publication. Their local source hashes and conversion losses
+are recorded inside the optional package. The original source package remains
+unchanged. See [skeletal character tooling](neural-assets.md).
+
+Sequence 316 supersedes those experimental weights and clips. Independent Python
+tooling places anatomically reviewed joints, smooths weights over mesh adjacency,
+and authors fixed-length IK motion. Quake III clip names are retained as a mapping
+convention; no private animation implementation is imported. Cinematic performances
+continue to derive from the selected, local authored model data. The gameplay
+sword handle offset is measured from equipped frame 4 of that local mesh.
+Hiro's repaired face projection was produced with the built-in image generation
+tool from an orthographic source render, then feathered and baked into the existing
+atlas. The local sequence-316 report retains the exact prompt, generated image,
+projection hash and original texture hash. Geometry and generated assets remain
+local; this change does not establish publication rights for them.
+
+Sequence 317 replaces the rejected 316 face projection using the selected local
+`hiro.png` identity reference. Built-in imagegen produced frontal and side edits
+and a skin-only frontal projection; exact prompts and hashes remain in the local
+317 report. The bake protects existing hair per texel and carries that mask into
+multiplayer color variants. Retexturing changes thirteen Hiro texture entries and
+package metadata; every skeletal model and animation entry is byte-identical to
+316. This does not add facial morphs or establish asset publication rights.
+
+Sequence 318 responds to rejected eye placement in 317. The selected original
+`up4x/skins/hiro_head_e1.png` is inspected read-only as a style reference alongside
+the modern Hiro concept. Two built-in imagegen edits supply orbital detail; only
+the eye/brow region of the second output is admitted to the texture bake. The
+independent bake lowers the eye projection and replaces old dark brow texels.
+Exact prompts, selected images, hashes and rejected intermediate previews remain
+in the local 318 report. Only thirteen Hiro textures and package metadata change;
+geometry, skeletons, animation and gameplay code are untouched.
+
+Sequence 319 repairs Mikiko, Superfly, Mishima and Usagi using their selected
+local concept references and orthographic mesh renders. Built-in imagegen supplies
+four frontal projections and one Superfly side projection. Exact prompts, selected
+images, bake hashes and intermediate failures are retained in the local 319 report.
+Hiro retains the accepted 318 texture. Independent Python tooling adds constrained
+leg fitting and newly authored attack/death poses; combined attack/locomotion grids
+contain those poses only. No Quake animation data, other commercial game motion,
+or third-party physics code is imported. Physics-library evaluation is not an
+admitted component or a claim of runtime ragdoll support.

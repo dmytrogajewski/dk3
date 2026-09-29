@@ -16,7 +16,7 @@ pub const Session = struct {
     advancement: ?@import("character.zig").Advancement = null,
 };
 pub fn initialAdvancement(appearance_id: u8) @import("character.zig").Advancement {
-    return .{ .attributes = switch (appearance_id % 3) {
+    return .{ .attributes = switch (@import("appearance_catalog").character(appearance_id)) {
         0 => .{ 0, 1, 0, 1, 0 },
         1 => .{ 0, 1, 1, 0, 0 },
         else => .{ 1, 0, 0, 0, 1 },
@@ -43,7 +43,7 @@ pub fn color(team: Team, supplied: i32) u8 {
 pub fn appearance(selected: u8, team_color: u8) u8 {
     const rows = [8]u8{ 7, 2, 3, 0, 1, 4, 5, 6 };
     std.debug.assert(team_color >= 1 and team_color <= 8);
-    return rows[team_color - 1] * 3 + selected % 3;
+    return @intCast(@import("appearance_catalog").withColor(selected, rows[team_color - 1]));
 }
 pub fn acceptsCapture(flags: u32, team: Team, bomb: bool) bool {
     if (team != .red and team != .blue) return false;
@@ -74,6 +74,10 @@ test "CTF scoring stacks defense conditions and capture pad rules differ from de
     try t.expectEqual(@as(u8, 23), appearance(2, color(.red, 0)));
     try t.expectEqual(@as(u8, 8), appearance(23, color(.blue, 0)));
     try t.expectEqual(@as(u8, 4), appearance(1, color(.red, 5)));
+    try t.expectEqual(@as(u8, 50), appearance(36, color(.red, 0)));
+    try t.expectEqual(@as(u8, 41), appearance(37, color(.blue, 0)));
+    try t.expectEqual(initialAdvancement(0), initialAdvancement(36));
+    try t.expectEqual(initialAdvancement(1), initialAdvancement(37));
 }
 
 pub const Objective = struct {

@@ -9,6 +9,7 @@ import argparse
 from contextlib import ExitStack
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import shutil
@@ -187,6 +188,140 @@ def run(args):
                     raise RuntimeError(f"Unexpected UDP binding for {endpoint.name}")
             (args.report / "admitted-status.log").write_text(status)
             result["initial"] = initial
+            if args.held_weapons:
+                result['scope'] = 'Controlled remote sword, rifle and pistol grips, ready and attack poses over UDP.'
+                result['setup'] = 'Two real clients; server equipment and facing fixtures.'
+                clients[1].issue('con_notifytime 0')
+                offset = server.log.stat().st_size
+                server.issue(f'dk3_runtime_face_target {initial[1]["id"]} 120')
+                wait(server.process, server.log, lambda text: 'dk3 zig combat: fixture player=' in text[offset:], 10)
+                state = until(lambda p: all(p[i]['cmd'] > initial[i]['cmd']+600 for i in range(2)), 'weapon fixture ingested')
+                delta = [state[0]['pos'][i]-state[1]['pos'][i] for i in range(3)]
+                yaw = math.degrees(math.atan2(delta[1], delta[0]))
+                clients[1].issue(f'dk3_look {yaw} 6')
+                clients[0].issue(f'dk3_look {yaw+135} 0')
+                result['held_weapons'] = []
+                for weapon in (8, 2, 21):
+                    server.issue(f'dk3_runtime_equip {weapon}')
+                    start = sample()[0]['cmd']
+                    until(lambda p: p[0]['cmd'] > start+600, 'held weapon ready')
+                    clients[1].capture(args.report, f'held-{weapon}-ready')
+                    clients[0].issue('+attack')
+                    try:
+                        for frame in range(8):
+                            clients[1].capture(args.report, f'held-{weapon}-attack-{frame:03}')
+                    finally:
+                        clients[0].issue('-attack')
+                    result['held_weapons'].append(dict(weapon=weapon, state=sample()))
+                result['status'] = 'passed'
+                return
+            if args.neural:
+                result['scope'] += ' Controlled facing fixture and five skeletal appearance changes, rendered remotely over UDP.'
+                result['neural'] = []
+                clients[0].issue('con_notifytime 0')
+                for selection, appearance in [('hiro/0', 0), ('mikiko/1', 4), ('superfly/2', 8), ('mishima/3', 42), ('usagi/7', 51)]:
+                    clients[1].issue(f'model {selection}')
+                    state = until(lambda p: p[1]['appearance'] == appearance, f'authoritative {selection}')
+                    offset = len(server.log.read_text())
+                    server.issue(f'dk3_runtime_face_target {state[1]["id"]} 160')
+                    wait(server.process, server.log, lambda text: 'dk3 zig combat: fixture player=' in text[offset:], 10)
+                    # Let both clients ingest the fixture's new view offsets
+                    # before dk3_look derives the next command orientation.
+                    until(lambda p: all(p[i]['cmd'] > state[i]['cmd'] + 500 for i in range(2)),
+                          'remote placement snapshot ingested')
+                    until(lambda p: sum((a-b)**2 for a,b in zip(p[0]['pos'], p[1]['pos'])) < 260**2,
+                          'clear remote character view')
+                    state = sample()
+                    delta = [state[1]['pos'][i]-state[0]['pos'][i] for i in range(3)]
+                    clients[0].issue(f'dk3_look {math.degrees(math.atan2(delta[1], delta[0]))} {-math.degrees(math.atan2(delta[2]-14, math.hypot(*delta[:2])))}')
+                    delta = [state[0]['pos'][i]-state[1]['pos'][i] for i in range(3)]
+                    clients[1].issue(f'dk3_look {math.degrees(math.atan2(delta[1], delta[0]))} 0')
+                    # Wait on processed commands before sampling the posed model.
+                    until(lambda p: all(p[i]['cmd'] > state[i]['cmd'] + 300 for i in range(2)),
+                          'posed remote character')
+                    clients[0].capture(args.report, 'neural-' + selection.replace('/', '-'))
+                    text = clients[0].log.read_text()
+                    expected = 'player_' + selection.split('/')[0] if appearance >= 36 else 'm_' + selection.split('/')[0]
+                    assert f'models/neural/{expected}.iqm' in text, expected
+                    result['neural'].append(dict(selection=selection, state=sample()))
+                    if args.neural_motion:
+                        rows, images = [], []
+                        clients[1].issue('+forward')
+                        clients[0].issue('+back')
+                        try:
+                            for frame in range(20):
+                                offset = clients[0].log.stat().st_size
+                                name = f'motion-{selection.replace("/", "-")}-{frame:03}'
+                                source = clients[0].home / f'dk3/screenshots/{name}.jpg'
+                                # Capture and diagnostics in the same render iteration.
+                                # Separate server polling doubled each sample's latency
+                                # and let the players reach a wall before a full cycle.
+                                clients[0].issue(f'dk3_runtime_presentation; screenshotJPEG {name}')
+                                text = wait(clients[0].process, clients[0].log,
+                                            lambda text: 'dk3 presentation:' in text[offset:] and
+                                            source.exists() and source.stat().st_size > 0, 5)[offset:]
+                                for line in text.splitlines():
+                                    if line.startswith('dk3 skeletal presentation: entity=1 '):
+                                        row = dict(re.findall(r'(\w+)=([^ ]+)', line))
+                                        rows.append(row)
+                                shutil.copy2(source, args.report / source.name)
+                                images.append(name+'.jpg')
+                        finally:
+                            clients[1].issue('-forward')
+                            clients[0].issue('-back')
+                        running = [r for r in rows if int(r['rate']) == 30 and
+                                   int(r['clip_last'])-int(r['clip_first']) == 14 and
+                                   int(r['now'])-int(r['started']) > 150]
+                        assert len(running) >= 4, (selection, rows)
+                        for row in running:
+                            phase = (int(row['now'])-int(row['started']))*.03 % 15
+                            assert abs((int(row['frame'])-int(row['clip_first']))-((math.floor(phase)+1) % 15)) < .01, row
+                        assert max(int(r['now']) for r in running)-min(int(r['now']) for r in running) >= 300
+                        result.setdefault('skeletal_motion', {})[selection] = dict(samples=rows, images=images)
+                    if args.neural_combat:
+                        server.issue('dk3_runtime_probe_health 10000')
+                        rows = []
+                        def combat_capture(label):
+                            offset = clients[0].log.stat().st_size
+                            source = clients[0].home / f'dk3/screenshots/{label}.jpg'
+                            clients[0].issue(f'dk3_runtime_presentation; screenshotJPEG {label}')
+                            text = wait(clients[0].process, clients[0].log,
+                                        lambda text: 'dk3 presentation:' in text[offset:] and source.exists() and source.stat().st_size > 0, 5)[offset:]
+                            for line in text.splitlines():
+                                if line.startswith('dk3 skeletal presentation: entity=1 '):
+                                    rows.append(dict(label=label, **dict(re.findall(r'(\w+)=([^ ]+)', line))))
+                            shutil.copy2(source, args.report / source.name)
+                        slug = selection.replace('/', '-')
+                        for moving in (False, True):
+                            clients[1].issue('+attack')
+                            if moving:
+                                clients[1].issue('+forward')
+                                clients[0].issue('+back')
+                            try:
+                                for frame in range(10): combat_capture(f'attack-{slug}-{int(moving)}-{frame:03}')
+                            finally:
+                                clients[1].issue('-attack;-forward')
+                                clients[0].issue('-back')
+                        layered = [r for r in rows if int(r['attack_count']) > 0 and int(r['frame']) >= int(r['attack_first']) and int(r['fired']) > 0]
+                        assert layered, (selection, rows)
+                        clients[1].issue('kill')
+                        until(lambda p: p[1]['health'] <= 0, 'remote death')
+                        # Keep respawn requested throughout playback, reproducing
+                        # the original premature-respawn failure (including bots).
+                        clients[1].issue('+attack')
+                        for frame in range(90):
+                            combat_capture(f'death-{slug}-{frame:03}')
+                            if frame > 3 and rows[-1]['frame'] == rows[-1]['clip_last']: break
+                        dead = [r for r in rows if r['label'].startswith('death-')]
+                        assert len(set(r['frame'] for r in dead)) > 3, dead
+                        assert any(r['frame'] == r['clip_last'] for r in dead), dead
+                        until(lambda p: p[1]['health'] > 0, 'respawn after complete death')
+                        clients[1].issue('-attack')
+                        result.setdefault('neural_combat', {})[selection] = rows
+                clients[0].issue('cg_shadows 0')
+                clients[0].capture(args.report, 'neural-shadows-off')
+                clients[0].issue('cg_shadows 1')
+                clients[0].capture(args.report, 'neural-shadows-on')
             result["movement"] = {}
             for index, client in enumerate(clients):
                 start = sample()[index]
@@ -295,7 +430,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--engine", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument('--neural', action='store_true', help='Exercise all five skeletal remote appearances using controlled facing')
+    parser.add_argument('--neural-motion', action='store_true', help='Capture and verify actual remote skeletal gait cadence')
+    parser.add_argument('--neural-combat', action='store_true', help='Capture moving attacks and complete remote deaths for all five appearances')
+    parser.add_argument('--held-weapons', action='store_true', help='Isolated remote sword/rifle/pistol grip capture with equipment fixtures')
     args = parser.parse_args()
+    if args.neural_motion or args.neural_combat: args.neural = True
     args.engine, args.report = args.engine.resolve(), args.report.resolve()
     run(args)
 

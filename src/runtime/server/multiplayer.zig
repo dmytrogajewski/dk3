@@ -364,7 +364,7 @@ fn project(world: *data.World, projections: []abi.EntityProjection, entity: ecs.
     projection.state.generic1 = if (bomb()) 0 else rules.color(state.team, state.color);
     projection.state.frame = rules.stand_frame;
     if (state.carrier) |id| if (world.find(id)) |player| {
-        projection.state.frame = rules.carry_frames[(try world.get(player, data.Session)).appearance % 3];
+        projection.state.frame = rules.carry_frames[@import("appearance_catalog").character((try world.get(player, data.Session)).appearance)];
     };
     projection.state.dk3Carrier = if (state.carrier) |id| if (world.find(id)) |player| @as(i32, (try world.get(player, data.Binding)).slot) + 1 else 0 else 0;
     projection.state.pos = @import("../engine/trajectory.zig").stationary(pose.position);

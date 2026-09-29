@@ -36,6 +36,8 @@ pub fn draw(game: *const c.gameState_t, objective: c.entityState_t, entities: []
         parent.frame = animation.frame;
         parent.oldframe = animation.oldframe;
         parent.backlerp = animation.backlerp;
+        try @import("neural_models.zig").player(game, carrier.clientNum, &parent);
+        if (carrier.modelindex > 0 and carrier.modelindex < c.MAX_MODELS) try @import("neural_models.zig").animate(try engine.config(game, c.CS_MODELS + @as(usize, @intCast(carrier.modelindex))), carrier, now, &parent);
         parent.origin = @import("../engine/trajectory.zig").evaluate(carrier.pos, now);
         angles = @import("../engine/trajectory.zig").evaluate(carrier.apos, now);
         axes(&parent, angles);

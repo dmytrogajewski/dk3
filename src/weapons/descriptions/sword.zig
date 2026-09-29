@@ -6,6 +6,8 @@ pub const spec: profiles.Spec = .{
     .combat = .melee,
     .campaign_equipment = true,
     .world_model = "models/global/a_daikatana.dkm",
+    // Frame 4's hilt runs from (1.6,-8.2,2.4) to (6.4,-6.3,9.9).
+    .skeletal_grip_origin = .{ 4, -7.2, 6 },
     .audio = .{ .ready = "global/we_swordwhoosha.wav", .away = "global/we_swordwhooshc.wav" },
     .animation = .{
         .view_model = "models/global/w_daikatana.dkm",

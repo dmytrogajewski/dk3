@@ -1,5 +1,6 @@
 """Development installation publishes complete builds and preserves player state."""
 import json
+import hashlib
 import struct
 from pathlib import Path
 import tempfile
@@ -74,6 +75,39 @@ class PlayInstallTest(unittest.TestCase):
             root = Path(temporary)
             with self.assertRaisesRegex(ValueError, 'zig build assets'):
                 play.install(root, root / 'absent')
+
+    def test_neural_overlay_preserves_gameplay_and_rejects_wrong_generation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            prefix, assets = self.fixture(Path(temporary))
+            play.install(prefix, assets)
+            stock = (prefix / 'play/current').resolve()
+            gameplay = json.loads((stock / 'share/dk3/compatibility.json').read_text())['gameplay']
+            package = Path(temporary) / 'neural.pk3'
+            entries = {'dk3/neural-models.cfg': b'models/global/m_hiro.dkm models/neural/hiro.iqm\n',
+                       'models/neural/hiro.iqm': b'fixture'}
+            report = dict(format=1, source_models_sha256=play.digest(assets / 'current/packages/dk3-models.pk3'),
+                          files={k: hashlib.sha256(v).hexdigest() for k, v in entries.items()})
+
+            def write():
+                with zipfile.ZipFile(package, 'w') as archive:
+                    for name, data in entries.items(): archive.writestr(name, data)
+                    archive.writestr('dk3/neural-assets.json', json.dumps(report))
+
+            write()
+            play.install(prefix, assets, neural_assets=package)
+            installed = (prefix / 'play/current').resolve()
+            self.assertEqual((installed / 'share/dk3/zz-dk3-neural.pk3').read_bytes(), package.read_bytes())
+            self.assertEqual(json.loads((installed / 'share/dk3/compatibility.json').read_text())['gameplay'], gameplay)
+            guard = Path(temporary) / 'dkguard'
+            guard.touch()
+            with patch('play.os.execv') as execute:
+                play.launch(prefix, guard, [])
+            self.assertEqual(execute.call_args.args[1][-3:], ['+set', 'r_picmip', '0'])
+            report['source_models_sha256'] = 'wrong'
+            write()
+            with self.assertRaisesRegex(ValueError, 'another model generation'):
+                play.install(prefix, assets, neural_assets=package)
+            self.assertEqual((prefix / 'play/current').resolve(), installed)
 
     def test_shared_hd_default_preserves_gameplay_and_local_overrides(self):
         with tempfile.TemporaryDirectory() as temporary:
