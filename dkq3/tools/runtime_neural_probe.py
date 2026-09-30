@@ -111,7 +111,34 @@ def scene(driver, report, capture):
     expected = {'mikiko': 'm_mikiko', 'superfly': 'm_superfly', 'mikikofly': 'm_mikikofly', 'monster_kage': 'm_kage'}[args.actor]
     assert f'models/neural/{expected}.iqm' in driver.text()
     assert not re.search(r'R_AddIQMSurfaces: no such frame|MissingAuthoredActorHardpoint|R_LoadIQM:', driver.text())
-    return dict(actor=args.actor, id=identity, state=row, restored=restored,
+    physical = []
+    if args.ragdolls:
+        driver.diagnostics(f'dk3_runtime_probe_health 1 {identity}', f'id={identity} health=1')
+        driver.issue('dk3_runtime_equip 21')
+        driver.ready(21)
+        deadline = time.monotonic() + 12
+        while time.monotonic() < deadline:
+            row = actors(driver)[identity]
+            if row['health'] <= 0: break
+            aim_actor(driver, row)
+            driver.fire()
+        else: raise TimeoutError('Skeletal actor did not die from ordinary Glock fire')
+        for frame in range(24):
+            text = driver.diagnostics('dk3_runtime_presentation', 'dk3 presentation:')
+            for line in text.splitlines():
+                if line.startswith('dk3 ragdoll: ') and f'identity={identity} ' in line:
+                    physical.append(dict(re.findall(r'(\w+)=([^ ]+)', line)))
+            capture(f'physical-actor-{frame:03}')
+            driver.elapsed(50)
+        assert physical and max(int(r['contacts']) for r in physical) > 0, physical
+        assert all(int(r['bones']) > 0 for r in physical), physical
+        if restored:
+            driver.load('neural_actor')
+            assert actors(driver)[identity]['health'] > 0
+            text = driver.diagnostics('dk3_runtime_presentation', 'dk3 presentation:')
+            assert not any(f'identity={identity} ' in line for line in text.splitlines() if line.startswith('dk3 ragdoll: '))
+            capture('physical-restored-alive')
+    return dict(actor=args.actor, id=identity, state=row, restored=restored, ragdolls=physical,
                 scope='Controlled, grounded live actor, rendered skeletal poses and shadow comparison, movement; companions also save/restore. Boss survival and save restoration are outside this rendering diagnostic. No authored campaign route or complete cinematic acceptance.')
 
 
@@ -124,6 +151,7 @@ if __name__ == '__main__':
     parser.add_argument('--until-shot', type=int, default=35)
     parser.add_argument('--motion', action='store_true', help='capture timed motion bursts during Hiro practice shots')
     parser.add_argument('--face', action='store_true', help='capture every early intro angle for face texture review')
+    parser.add_argument('--ragdolls', action='store_true', help='kill the grounded skeletal actor with ordinary fire and inspect live physics')
     parser.add_argument('--map', default='e1m3b', help='isolated actor fixture map')
     parser.add_argument('--renderer', default='opengl2')
     args = parser.parse_args()

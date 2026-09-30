@@ -8,6 +8,8 @@ pub const components = @import("domain/components.zig");
 pub const motion = @import("server/motion.zig");
 pub const map = @import("server/map.zig");
 test {
+    _ = @import("domain/ragdoll.zig");
+    _ = @import("domain/bone_matrix.zig");
     _ = @import("domain/map_catalog.zig");
     _ = @import("domain/view_motion.zig");
     _ = @import("domain/world_admission.zig");

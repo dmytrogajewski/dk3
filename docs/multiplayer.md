@@ -10,8 +10,10 @@ remain open. Use matching dk3 clients and servers; stock Quake III assets are no
 
 Set `g_gametype 0` for deathmatch, `4` for CTF, or `8` for deathtag before loading a
 converted map. `e1ctf1` and `e1dt1` are authored objective maps. Use `team red`,
-`team blue`, or `team spectator`; use `addbot <name> <skill 1–5> [red|blue]` on the
-server. `bot_minplayers` maintains a population; `bot_pause` pauses bot commands.
+`team blue`, or `team spectator`; `addbot` adds one bot at the room's skill ladder.
+`bot_minplayers` maintains a population; `dk3_fillSlots` sets the total occupancy and
+`bot_pause` pauses bot commands. Bots see only inside their view cone and play at
+`dk3_bot_skill` 1–10; see [bot skill and sight](bots-zig.md).
 `fraglimit`, `capturelimit`, and `timelimit` use ioquake3's match lifecycle.
 
 CTF carries the opposing flag to an authored capture brush while the home flag is
@@ -31,7 +33,8 @@ route, seek reachable switches, and assign carrier escort/home-flag recovery rol
 never activate a remote relay directly. Both courses have completed; reliable coordination and broader match acceptance remain open.
 
 The Multiplayer menu has host and join flows. Hosting selects a supplied compatible map,
-mode, slot count, bot population/skill and friendly fire. Joining accepts a server address
+mode, slot count, bot population and the shared ten-level bot skill ladder on both the
+LAN and Create Internet room pages, plus friendly fire. Joining accepts a server address
 or uses LAN discovery and the engine's favorites cache. The map catalog comes from supplied
 map entities; it does not embed proprietary map descriptions in source. Running menu checks join a loopback dedicated server by a typed address and host
 Deathtag on e1dt1 with three bots. The catalog distinguishes the authored deathtag

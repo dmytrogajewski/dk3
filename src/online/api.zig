@@ -24,7 +24,8 @@ pub const RoomConfig = struct {
     map: []const u8,
     slots: u8 = 8,
     bots: u8 = 0,
-    skill: u8 = 3,
+    /// Bot ladder 1..10; see docs/bots-zig.md.
+    skill: u8 = 5,
     privacy: Privacy = .public,
     rotation: []const []const u8 = &.{},
     fraglimit: u16 = 20,

@@ -77,7 +77,8 @@ See [HD texture setup](docs/getting-started.md) for package overrides.
 
 The optional [local neural character package](docs/neural-assets.md) adds skeletal
 Hiro, Mikiko, Superfly, Mishima/Kage and Usagi models, gameplay clips, converted
-cinematic motion and multiplayer appearances. Once generated locally, it is
+cinematic motion, multiplayer appearances and physical ragdoll deaths with joint
+limits and world collision. Once generated locally, it is
 included by `play-install` and `play` automatically.
 
 Native New Game, save/load and multiplayer menus are connected; their current

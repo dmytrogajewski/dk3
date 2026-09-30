@@ -7,7 +7,7 @@
       "mode": "dm",
       "maps": ["e1dm1", "e2dm1", "e3dm1", "e4dm1"],
       "players": 16,
-      "skill": 3,
+      "skill": 5,
       "map_minutes": 10,
       "enabled": true
     }

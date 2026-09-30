@@ -975,7 +975,11 @@ static int R_CullIQM( iqmData_t *data, trRefEntity_t *ent ) {
 		return CULL_CLIP;
 	}
 
-	// compute bounds pointers
+	// Live physics bounds supersede stored animation bounds.
+    if (ent->e.dk3BoneCount == data->num_joints && data->num_joints <= 64)
+        return R_CullLocalBox(ent->e.dk3BoneBounds);
+
+    // compute bounds pointers
 	oldBounds = data->bounds + 6*ent->e.oldframe;
 	newBounds = data->bounds + 6*ent->e.frame;
 
@@ -1020,8 +1024,10 @@ int R_ComputeIQMFogNum( iqmData_t *data, trRefEntity_t *ent ) {
 	}
 
 	// FIXME: non-normalized axis issues
-	if (data->bounds) {
-		bounds = data->bounds + 6*ent->e.frame;
+	if (ent->e.dk3BoneCount == data->num_joints && data->num_joints <= 64) {
+        bounds = &ent->e.dk3BoneBounds[0][0];
+    } else if (data->bounds) {
+        bounds = data->bounds + 6*ent->e.frame;
 	} else {
 		bounds = defaultBounds;
 	}
@@ -1294,7 +1300,10 @@ void RB_IQMSurfaceAnim( surfaceType_t *surface ) {
 
 	if ( data->num_poses > 0 ) {
 		// compute interpolated joint matrices
-		ComputePoseMats( data, frame, oldframe, backlerp, poseMats );
+		if (backEnd.currentEntity->e.dk3BoneCount == data->num_poses && data->num_poses <= 64)
+            Com_Memcpy(poseMats, backEnd.currentEntity->e.dk3BoneMatrices, data->num_poses * 12 * sizeof(float));
+        else
+            ComputePoseMats( data, frame, oldframe, backlerp, poseMats );
 
 		// compute vertex blend influence matricies
 		for( i = 0; i < surf->num_influences; i++ ) {

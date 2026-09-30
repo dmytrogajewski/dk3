@@ -437,7 +437,7 @@ fn draw(now: i32) !void {
             try @import("client/objectives.zig").draw(owner.game, entity, display_entities[0..@intCast(snapshot.numEntities)], client_number, now);
             continue;
         }
-        if (entity.eType == c.ET_PLAYER and entity.number == client_number) {
+        if (entity.eType == c.ET_PLAYER and entity.number == client_number and entity.eFlags & c.EF_DEAD == 0) {
             try @import("client/events.zig").loop(owner.game, entity, @import("engine/trajectory.zig").evaluate(entity.pos, now));
             continue;
         }
@@ -567,6 +567,7 @@ fn draw(now: i32) !void {
             if (try @import("client/neural_models.zig").material(try engine.config(owner.game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), @intCast(rendered.skinNum))) |skin| rendered.customSkin = skin;
         }
         if (entity.modelindex > 0 and entity.modelindex < c.MAX_MODELS) try @import("client/neural_models.zig").animate(try engine.config(owner.game, c.CS_MODELS + @as(usize, @intCast(entity.modelindex))), entity, now, &rendered);
+        _ = try @import("client/ragdolls.zig").apply(entity, now, &rendered);
         try @import("client/events.zig").loop(owner.game, entity, rendered.origin);
         _ = engine.gateway.call(c.CG_R_ADDREFENTITYTOSCENE, .{&rendered});
         if (@as(u32, @bitCast(entity.dk3World)) != resident_worlds.active_id) {
@@ -588,6 +589,7 @@ fn draw(now: i32) !void {
         if (entity.eType == c.ET_GENERAL and entity.generic1 == @import("actor_catalog").rotworm.spit_tag) @import("client/venom_spit.zig").draw(entity, now);
         if (entity.eType == c.ET_GENERAL and entity.generic1 > 0 and entity.generic1 <= 1000) try @import("client/status_visuals.zig").frost(rendered, @as(f32, @floatFromInt(entity.generic1)) / 1000);
     }
+    try @import("client/ragdolls.zig").drawDetached(&resident_worlds, now);
     if (snapshot.ps.dk3CameraActive != 0) @import("client/cinematics.zig").audio(ref.vieworg);
     @import("client/impacts.zig").draw(now, &ref);
     @import("client/fx_particles.zig").draw(now, &ref);
@@ -621,6 +623,7 @@ fn console() isize {
     }
     if (std.mem.eql(u8, name, "dk3_runtime_presentation")) {
         @import("client/neural_models.zig").diagnostics(presentation.now);
+        @import("client/ragdolls.zig").diagnostics();
         var message: [512]u8 = undefined;
         engine.print(std.fmt.bufPrintZ(&message, "dk3 view motion: now={d} height={d:.3} offset={d:.3} steps={d} pos={d:.3},{d:.3},{d:.3}\n", .{ presentation.now, camera_height, camera_offset, view_motion.steps, camera_position[0], camera_position[1], camera_position[2] }) catch unreachable);
         engine.print(std.fmt.bufPrintZ(&message, "dk3 weapon presentation: now={d} incarnation={d} weapon={d} phase={s} serial={d} frame={d} oldframe={d} backlerp={d:.4} started={d}\n", .{ weapon_view.presented_ms, weapon_view.state.incarnation orelse 0, weapon_view.state.weapon, @tagName(weapon_view.state.phase), weapon_view.state.fire_serial orelse 0, weapon_view.presented.frame, weapon_view.presented.oldframe, weapon_view.presented.backlerp, weapon_view.started_ms }) catch unreachable);

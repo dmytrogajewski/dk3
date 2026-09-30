@@ -110,7 +110,7 @@ fn begin(action: Action, id: []const u8) !void {
         if (rotation.items.len == 64) return error.InvalidRoom;
         try rotation.append(a, try a.dupe(u8, map_name));
     }
-    const create: api.RoomConfig = .{ .rotation = rotation.items, .name = try textCopy(a, "ui_roomName"), .region = try textCopy(a, "ui_roomRegion"), .mode = mode, .map = try textCopy(a, "ui_roomMap"), .slots = slots, .bots = @intCast(std.math.clamp(c.Cvar_VariableIntegerValue("ui_roomBots"), 0, slots - 1)), .skill = @intCast(std.math.clamp(c.Cvar_VariableIntegerValue("ui_roomSkill"), 1, 5)), .privacy = if (c.Cvar_VariableIntegerValue("ui_roomPrivate") != 0) .private else .public };
+    const create: api.RoomConfig = .{ .rotation = rotation.items, .name = try textCopy(a, "ui_roomName"), .region = try textCopy(a, "ui_roomRegion"), .mode = mode, .map = try textCopy(a, "ui_roomMap"), .slots = slots, .bots = @intCast(std.math.clamp(c.Cvar_VariableIntegerValue("ui_roomBots"), 0, slots - 1)), .skill = @intCast(@import("../runtime/domain/bot_skill.zig").normalize(c.Cvar_VariableIntegerValue("ui_roomSkill"))), .privacy = if (c.Cvar_VariableIntegerValue("ui_roomPrivate") != 0) .private else .public };
     if (action == .create) {
         const body = try std.json.Stringify.valueAlloc(a, create, .{});
         var hash: [32]u8 = undefined;
@@ -262,6 +262,8 @@ export fn DK_OnlinePoll() callconv(.c) void {
             c.Info_SetValueForKey(&row, "mode", @tagName(room.config.mode).ptr);
             c.Info_SetValueForKey(&row, "phase", @tagName(room.phase).ptr);
             c.Info_SetValueForKey(&row, "players", c.va("%d/%d", @as(c_int, room.humans), @as(c_int, room.config.slots)));
+            c.Info_SetValueForKey(&row, "bots", c.va("%d", @as(c_int, room.config.bots)));
+            c.Info_SetValueForKey(&row, "skill", c.va("%d", @as(c_int, room.config.skill)));
             c.Info_SetValueForKey(&row, "compatible", if (room.compatibility.compatible(job.config.compatibility)) "1" else "0");
             c.Info_SetValueForKey(&row, "favorite", if (favorite(room.id)) "1" else "0");
             c.Cvar_Set(c.va("dk3_room%d", @as(c_int, @intCast(room_count))), &row);
@@ -355,7 +357,7 @@ export fn DK_OnlineCommand() callconv(.c) void {
     c.Com_Printf("dk3_online list|create|join <row>|favorite <row>|private|reconnect|cancel\n");
 }
 export fn DK_OnlineInit() callconv(.c) void {
-    for ([_][2][*:0]const u8{ .{ "dk3_coordinator", "" }, .{ "dk3_ca_file", "" }, .{ "dk3_roomFavorites", "" }, .{ "ui_roomName", "My room" }, .{ "ui_roomRegion", "default" }, .{ "ui_roomMap", "e1dm1" }, .{ "ui_roomRotation", "" }, .{ "ui_roomMode", "0" }, .{ "ui_roomSlots", "8" }, .{ "ui_roomBots", "0" }, .{ "ui_roomSkill", "3" }, .{ "ui_roomPrivate", "0" }, .{ "ui_roomFilterMode", "-1" }, .{ "ui_roomFilterRegion", "" }, .{ "ui_roomSearch", "" }, .{ "ui_roomFavoritesOnly", "0" }, .{ "ui_roomAvailableOnly", "1" } }) |entry| _ = c.Cvar_Get(entry[0], entry[1], c.CVAR_ARCHIVE);
+    for ([_][2][*:0]const u8{ .{ "dk3_coordinator", "" }, .{ "dk3_ca_file", "" }, .{ "dk3_roomFavorites", "" }, .{ "ui_roomName", "My room" }, .{ "ui_roomRegion", "default" }, .{ "ui_roomMap", "e1dm1" }, .{ "ui_roomRotation", "" }, .{ "ui_roomMode", "0" }, .{ "ui_roomSlots", "8" }, .{ "ui_roomBots", "0" }, .{ "ui_roomSkill", "5" }, .{ "ui_roomPrivate", "0" }, .{ "ui_roomFilterMode", "-1" }, .{ "ui_roomFilterRegion", "" }, .{ "ui_roomSearch", "" }, .{ "ui_roomFavoritesOnly", "0" }, .{ "ui_roomAvailableOnly", "1" } }) |entry| _ = c.Cvar_Get(entry[0], entry[1], c.CVAR_ARCHIVE);
     _ = c.Cvar_Get("dk3_onlineStatus", "Refresh to find Internet rooms.", c.CVAR_ROM);
     _ = c.Cvar_Get("dk3_roomCount", "0", c.CVAR_ROM);
 }

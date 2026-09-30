@@ -11,6 +11,9 @@ const nav = @import("../domain/navigation.zig");
 const Slots = @import("../engine/slots.zig").Slots;
 const Clients = @import("clients.zig").Clients;
 const routes = @import("bot_routes.zig");
+const skill = @import("../domain/bot_skill.zig");
+/// Search headings relative to travel: a bot sweeps its sides but stays blind behind itself.
+const scan_headings = [_]f32{ 0, 40, -40, 80, -80, 0 };
 const Brain = struct {
     next_ms: i64 = 0,
     goal: u32 = 0,
@@ -27,25 +30,56 @@ const Brain = struct {
     yield_point: ?v.Vec3 = null,
     yield_until: i64 = 0,
     passage: ?struct { route: routes.Passage, teleport_bit: bool, until_ms: i64 } = null,
+    skill: i32 = skill.fallback,
+    step_ms: i64 = 0,
+    /// Persistent identity of the enemy currently in the view cone, or last remembered one.
+    target: u32 = 0,
+    seen_ms: i64 = 0,
+    last_seen: ?v.Vec3 = null,
+    reaction_ready: i64 = 0,
+    shot_ready: i64 = 0,
+    locked_ms: i64 = 0,
+    wobble_ready: i64 = 0,
+    noise_yaw: f32 = 0,
+    noise_pitch: f32 = 0,
+    seed: u32 = 1,
+    scan_index: usize = 0,
+    scan_until: i64 = 0,
+    alert_yaw: ?f32 = null,
+    alert_until: i64 = 0,
+    receipt: u32 = 0,
+    /// Cone actually in force on the last brain step, so the override shows up in evidence.
+    cone: f32 = 0,
 };
 pub const State = struct {
     brains: [c.MAX_CLIENTS]?Brain = @splat(null),
     next_population: i64 = 0,
     serial: usize = 0,
+    ladder: i32 = 0,
     /// Read-only route evidence for normal-input match diagnostics.
-    pub fn report(self: *const State, world: *data.World, slots: *const Slots, clients: *const Clients) !void {
+    pub fn report(self: *const State, world: *data.World, slots: *const Slots, clients: *const Clients, now: i64) !void {
         var buffer: [1024]u8 = undefined;
         for (self.brains, 0..) |maybe, index| if (maybe) |brain| {
             const route = brain.route;
             const waypoint = route.waypoint orelse nav.Waypoint{ .point = @splat(0) };
-            engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 bot route: slot={d} goal={d} avoided={d} destination={d:.2},{d:.2},{d:.2} waypoint={d:.2},{d:.2},{d:.2} valid={d} areas={d},{d} jump={d} crouch={d} ladder={d} blocked={d} progress_ms={d} refresh_ms={d} jump_until={d} control={d} yielding={d} passage={d}\n", .{
-                index,                                                brain.goal,                                     brain.avoided,
-                route.destination[0],                                 route.destination[1],                           route.destination[2],
-                waypoint.point[0],                                    waypoint.point[1],                              waypoint.point[2],
-                @intFromBool(route.waypoint != null),                 waypoint.from_area,                             waypoint.to_area,
-                @intFromBool(waypoint.jump),                          @intFromBool(waypoint.crouch),                  @intFromBool(waypoint.ladder),
-                @intFromBool(route.blocked),                          route.progress_ms,                              route.refresh_ms,
-                brain.jump_until,                                     if (brain.control) |control| control.id else 0, @intFromBool(brain.yield_point != null),
+            // The view is what the cone is measured against, so it must be visible in the evidence.
+            var view_yaw: f32 = std.math.nan(f32);
+            var view_pitch: f32 = std.math.nan(f32);
+            if (clients.entities[index]) |entity| if (world.get(entity, data.Transform) catch null) |pose| {
+                view_yaw = pose.angles[1];
+                view_pitch = pose.angles[0];
+            };
+            engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 bot route: slot={d} skill={d} ({s}) fov={d:.0} view={d:.1},{d:.1} scan={d} alert={d} target={d} seen_ms={d} goal={d} avoided={d} destination={d:.2},{d:.2},{d:.2} waypoint={d:.2},{d:.2},{d:.2} valid={d} areas={d},{d} jump={d} crouch={d} ladder={d} blocked={d} progress_ms={d} refresh_ms={d} jump_until={d} control={d} yielding={d} passage={d}\n", .{
+                index,                                                                        brain.skill,                                    skill.tier(brain.skill),
+                if (brain.cone > 0) brain.cone else skill.profile(brain.skill).field_of_view, view_yaw,                                       view_pitch,
+                scan_headings[brain.scan_index],                                              @intFromBool(now < brain.alert_until),          brain.target,
+                brain.seen_ms,                                                                brain.goal,                                     brain.avoided,
+                route.destination[0],                                                         route.destination[1],                           route.destination[2],
+                waypoint.point[0],                                                            waypoint.point[1],                              waypoint.point[2],
+                @intFromBool(route.waypoint != null),                                         waypoint.from_area,                             waypoint.to_area,
+                @intFromBool(waypoint.jump),                                                  @intFromBool(waypoint.crouch),                  @intFromBool(waypoint.ladder),
+                @intFromBool(route.blocked),                                                  route.progress_ms,                              route.refresh_ms,
+                brain.jump_until,                                                             if (brain.control) |control| control.id else 0, @intFromBool(brain.yield_point != null),
                 if (brain.passage) |passage| passage.route.id else 0,
             }));
             if (route.blocked) if (clients.entities[index]) |entity| try @import("navigation_probe.zig").corridor(world, slots, entity, if (route.waypoint != null) waypoint.point else route.destination);
@@ -58,12 +92,12 @@ pub const State = struct {
         errdefer _ = engine.gateway.call(c.G_BOT_FREE_CLIENT, .{allocated});
         const appearance = @import("appearance_catalog").entries[self.serial * 7 % @import("appearance_catalog").entries.len];
         var info: [512]u8 = undefined;
-        const text = try std.fmt.bufPrintZ(&info, "\\name\\Bot {d}\\model\\{s}\\skill\\3\\dk3_runtime_build\\{s}", .{ self.serial + 1, appearance.selection, @import("../engine/player_state.zig").version });
+        const text = try std.fmt.bufPrintZ(&info, "\\name\\Bot {d} {s}\\model\\{s}\\skill\\{d}\\dk3_runtime_build\\{s}", .{ self.serial + 1, skill.tier(self.ladder), appearance.selection, self.ladder, @import("../engine/player_state.zig").version });
         _ = engine.gateway.call(c.G_SET_USERINFO, .{ allocated, text.ptr });
         try clients.begin(world, slots, projections, states, index, now, null);
         (try world.get(clients.entities[index].?, data.Session)).bot = true;
         projections[index].shared.svFlags |= c.SVF_BOT;
-        self.brains[index] = .{};
+        self.brains[index] = .{ .skill = self.ladder, .step_ms = now, .seed = @as(u32, @truncate(@as(u64, @bitCast(now)) + index * 7919 + 1)) };
         self.serial += 1;
         try clients.userinfo(world, index);
     }
@@ -93,8 +127,25 @@ pub const State = struct {
         _ = router;
         if (!@import("multiplayer.zig").enabled()) return;
         engine.register("bot_minplayers", "0", 0);
+        engine.register("dk3_bot_skill", "5", c.CVAR_SERVERINFO);
+        engine.register("dk3_bot_fov", "0", 0);
+        const level = skill.normalize(engine.integer("dk3_bot_skill"));
         if (now >= self.next_population) {
             self.next_population = now + 1000;
+            if (self.ladder != 0 and self.ladder != level) for (&self.brains) |*maybe| if (maybe.*) |*brain| {
+                brain.skill = level;
+                brain.target = 0;
+                brain.last_seen = null;
+                brain.alert_until = 0;
+            };
+            self.ladder = level;
+            // Multiplayer maps have no other difficulty writer, so the ten-level
+            // ladder also sets the five-level scale used by authored actors here.
+            const actor = skill.singlePlayer(level);
+            if (engine.integer("g_spSkill") != actor) {
+                var scale: [16]u8 = undefined;
+                _ = engine.gateway.call(c.G_CVAR_SET, .{ @as([*:0]const u8, "g_spSkill"), (try std.fmt.bufPrintZ(&scale, "{d}", .{actor})).ptr });
+            }
             const fill = engine.integer("dk3_fillSlots");
             const requested: usize = @intCast(std.math.clamp(if (fill > 0) fill else engine.integer("bot_minplayers"), 0, engine.integer("sv_maxclients")));
             var count: usize = 0;
@@ -129,7 +180,7 @@ pub const State = struct {
             var input = std.mem.zeroes(c.usercmd_t);
             input.serverTime = @intCast(now);
             if (player.mode == .dead) {
-                brain.* = .{ .next_ms = now + 50 };
+                brain.* = .{ .next_ms = now + 50, .skill = brain.skill, .seed = brain.seed, .step_ms = now, .receipt = (try world.get(entity, data.Hurt)).revision };
                 input.buttons = c.BUTTON_ATTACK;
                 _ = engine.gateway.call(c.BOTLIB_USER_COMMAND, .{ @as(isize, @intCast(index)), &input });
                 continue;
@@ -141,8 +192,27 @@ pub const State = struct {
             };
             const loadout = (try world.get(entity, data.Weapons)).*;
             const eye = v.add(pose.position, .{ 0, 0, player.view_height });
+            var policy = skill.profile(brain.skill);
+            // Diagnostic override only: 0 keeps the ladder cone, otherwise clamp to a
+            // real cone so 359 means "see everything" and 1 means "see almost nothing".
+            if (engine.integer("dk3_bot_fov") > 0) policy.field_of_view = std.math.clamp(@as(f32, @floatFromInt(engine.integer("dk3_bot_fov"))), 1, 359);
+            brain.cone = policy.field_of_view;
+            // A bot only knows what is inside its own view cone; it cannot have eyes
+            // behind its head, so an approach from behind stays hidden until it turns.
+            const facing = v.basis(pose.angles).forward;
+            const hurt = (try world.get(entity, data.Hurt)).*;
+            if (hurt.revision != brain.receipt) {
+                brain.receipt = hurt.revision;
+                // Being hit is a cue rather than sight: the bot faces the shooter's
+                // bearing, more accurately the higher its skill.
+                if (hurt.source != 0) if (world.find(hurt.source)) |shooter| if (shooter.index != entity.index) {
+                    const point = (try world.get(shooter, data.Transform)).position;
+                    brain.alert_yaw = skill.yaw(v.subtract(point, eye)) + skill.noise(&brain.seed) * policy.alert_error;
+                    brain.alert_until = now + policy.alert_ms;
+                };
+            }
             var enemy: ?ecs.Entity = null;
-            var nearest: f32 = 1600;
+            var nearest: f32 = std.math.inf(f32);
             for (clients.entities) |candidate| {
                 const other = candidate orelse continue;
                 if (other.index == entity.index or (try world.get(other, data.Health)).current <= 0) continue;
@@ -150,11 +220,24 @@ pub const State = struct {
                 if (member.team == .spectator or @import("../domain/multiplayer.zig").allied(session, member)) continue;
                 const target = v.add((try world.get(other, data.Transform)).position, .{ 0, 0, 12 });
                 const distance = v.length(v.subtract(target, eye));
-                if (distance >= nearest) continue;
+                if (distance >= nearest or !skill.sees(policy, facing, eye, target)) continue;
                 const trace = try engine.collisionService().trace(.{ .start = eye, .end = target, .mins = @splat(0), .maxs = @splat(0), .slot = @intCast(index), .mask = c.MASK_SHOT });
                 if (trace.fraction < 1 and trace.entity != (try world.get(other, data.Binding)).slot) continue;
                 nearest = distance;
                 enemy = other;
+            }
+            if (enemy) |seen| {
+                const identity = try world.persistentId(seen);
+                if (identity != brain.target) {
+                    brain.target = identity;
+                    brain.reaction_ready = now + policy.reaction_ms;
+                    brain.locked_ms = now;
+                }
+                brain.seen_ms = now;
+                brain.last_seen = (try world.get(seen, data.Transform)).position;
+            } else if (now - brain.seen_ms > policy.memory_ms) {
+                brain.target = 0;
+                brain.last_seen = null;
             }
             const selected = @import("../domain/bot_combat.zig").select(loadout, &clients.weapon_table, if (enemy != null) nearest else null);
             input.weapon = selected;
@@ -172,8 +255,8 @@ pub const State = struct {
                 destination = @import("../domain/navigation_input.zig").pickupPoint((try world.get(goal, data.Transform)).position, (try world.get(goal, data.Body)).mins, (try world.get(entity, data.Body)).mins);
             };
             if (destination == null and resupply) destination = objectiveGoal(world, entity);
-            if (destination == null) if (enemy) |other| {
-                destination = (try world.get(other, data.Transform)).position;
+            if (destination == null) if (brain.target != 0) {
+                destination = brain.last_seen;
             };
             var control_aim: ?v.Vec3 = null;
             if (brain.control) |previous| {
@@ -276,14 +359,22 @@ pub const State = struct {
                 }
             }
             var aim = movement;
+            var fighting = false;
+            var precise = false;
+            var sweeping = false;
             if (enemy) |other| {
                 aim = v.subtract(v.add((try world.get(other, data.Transform)).position, .{ 0, 0, 12 }), eye);
-                if (!player.respawned and selected == loadout.weapon and @import("../domain/bot_combat.zig").attack(loadout, &clients.weapon_table, nearest)) input.buttons |= c.BUTTON_ATTACK;
+                fighting = true;
+                if (!player.respawned and selected == loadout.weapon and now >= brain.reaction_ready and now >= brain.shot_ready and @import("../domain/bot_combat.zig").attack(loadout, &clients.weapon_table, nearest)) {
+                    input.buttons |= c.BUTTON_ATTACK;
+                    brain.shot_ready = now + policy.burst_ms;
+                }
             }
             var use_control = false;
             if (brain.control) |control| if (control_aim) |point| {
                 const delta = v.subtract(point, eye);
                 if (control.action != .touch and (control.action == .shoot or v.length(delta) < 144)) {
+                    precise = true;
                     aim = delta;
                     input.buttons &= ~@as(i32, c.BUTTON_ATTACK);
                     const current_forward = v.basis(pose.angles).forward;
@@ -300,9 +391,46 @@ pub const State = struct {
                 }
             };
             if (v.length(aim) < 0.01) aim = v.basis(pose.angles).forward;
-            const angles: v.Vec3 = .{ -std.math.atan2(aim[2], @sqrt(aim[0] * aim[0] + aim[1] * aim[1])) * 180 / std.math.pi, std.math.atan2(aim[1], aim[0]) * 180 / std.math.pi, 0 };
+            // Skill limits how fast the view can travel, so a target outside the cone
+            // can only be acquired by turning, and low skills overshoot while tracking.
+            const step_ms: f32 = @floatFromInt(std.math.clamp(now - brain.step_ms, @as(i64, 1), 250));
+            brain.step_ms = now;
+            const limit = policy.turn_rate * step_ms / 1000;
+            var wanted_yaw = skill.yaw(aim);
+            var wanted_pitch = skill.pitch(aim);
+            // Heading the route wants, independent of where the view is looking.
+            const travel_yaw = wanted_yaw;
+            if (fighting) {
+                if (now >= brain.wobble_ready) {
+                    brain.wobble_ready = now + policy.wobble_ms;
+                    brain.noise_yaw = skill.noise(&brain.seed);
+                    brain.noise_pitch = skill.noise(&brain.seed);
+                }
+                const settle = @min(@as(f32, 1), @as(f32, @floatFromInt(now - brain.locked_ms)) / @as(f32, @floatFromInt(policy.settle_ms)));
+                wanted_yaw += brain.noise_yaw * policy.aim_error * (1 - settle);
+                wanted_pitch += brain.noise_pitch * policy.aim_error * (1 - settle);
+            } else if (!precise) {
+                sweeping = true;
+                // Nothing to look at directly: face the last gunshot, or sweep the
+                // surroundings so an enemy becomes visible instead of remaining behind.
+                if (now < brain.alert_until and brain.alert_yaw != null) {
+                    wanted_yaw = brain.alert_yaw.?;
+                    wanted_pitch = 0;
+                } else {
+                    brain.alert_until = 0;
+                    if (now >= brain.scan_until) {
+                        brain.scan_until = now + policy.scan_period_ms;
+                        brain.scan_index = (brain.scan_index + 1) % scan_headings.len;
+                    }
+                    wanted_yaw += scan_headings[brain.scan_index];
+                }
+            }
+            const angles: v.Vec3 = .{ skill.pitchTurn(pose.angles[0], wanted_pitch, limit), skill.turn(pose.angles[1], wanted_yaw, limit), 0 };
             for (angles, 0..) |angle, axis| input.angles[axis] = @as(i32, @intFromFloat(angle * 65536 / 360)) -% player.delta_angles[axis];
-            const axes = v.basis(.{ 0, angles[1], 0 });
+            // Locomotion follows the route while the view sweeps, so a bot checking
+            // its shoulder walks forward instead of sliding sideways along its own
+            // view. Fighting and control aiming keep the accepted view-relative move.
+            const axes = v.basis(.{ 0, if (sweeping) travel_yaw else angles[1], 0 });
             const direction = v.normalize(.{ movement[0], movement[1], 0 });
             input.forwardmove = @intFromFloat(std.math.clamp(v.dot(direction, axes.forward) * 127, -127, 127));
             input.rightmove = @intFromFloat(std.math.clamp(v.dot(direction, axes.right) * 127, -127, 127));

@@ -324,6 +324,7 @@ pub const Actors = struct {
         const projection = &projections[binding.slot];
         projection.state.number = binding.slot;
         projection.state.eType = c.ET_GENERAL;
+        projection.state.eFlags = (projection.state.eFlags & ~@as(i32, c.EF_DEAD)) | (if (actor.mode == .dead) @as(i32, c.EF_DEAD) else 0);
         projection.state.modelindex = if (actor.gibbed) 0 else binding.model;
         projection.state.angles2 = definition.scale;
         projection.state.generic1 = if (world.get(entity, data.Ailments) catch null) |ailment| @intFromFloat(ailment.freeze_level * 1000) else 0;

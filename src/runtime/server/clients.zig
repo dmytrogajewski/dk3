@@ -250,7 +250,7 @@ pub const Clients = struct {
         projection.state.number = @intCast(index);
         projection.state.clientNum = @intCast(index);
         projection.state.eType = c.ET_PLAYER;
-        projection.state.eFlags = ps.eFlags;
+        projection.state.eFlags = (ps.eFlags & ~@as(i32, c.EF_DEAD)) | (if (health.current <= 0) @as(i32, c.EF_DEAD) else 0);
         projection.state.modelindex = (try world.get(entity, data.Binding)).model;
         projection.state.angles2 = @splat(1);
         projection.state.dk3Team = ps.persistant[c.PERS_TEAM];

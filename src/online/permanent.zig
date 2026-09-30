@@ -8,7 +8,7 @@ pub const Config = struct {
     mode: api.Mode = .dm,
     maps: []const []const u8,
     players: u8 = 16,
-    skill: u8 = 3,
+    skill: u8 = 5,
     map_minutes: u16 = 10,
     enabled: bool = true,
     pub fn room(self: Config) api.RoomConfig {

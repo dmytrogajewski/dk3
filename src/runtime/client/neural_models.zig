@@ -30,6 +30,7 @@ const Blend = struct { model: c.qhandle_t = 0, sequence: usize = 0, frame: i32 =
 var blends: [c.MAX_GENTITIES]Blend = @splat(.{});
 
 pub fn reset() void {
+    @import("ragdolls.zig").reset();
     entries = @splat(.{});
     count = 0;
     loaded = false;
@@ -149,6 +150,7 @@ pub fn model(name: []const u8) !?c.qhandle_t {
     if (entry.handle == 0) {
         entry.handle = @intCast(engine.gateway.call(c.CG_R_REGISTERMODEL, .{&entry.target}));
         if (entry.handle == 0) return error.NeuralModelUnavailable;
+        try @import("ragdolls.zig").register(entry.handle, std.mem.sliceTo(&entry.target, 0));
         var message: [180]u8 = undefined;
         engine.print(try std.fmt.bufPrintZ(&message, "dk3 neural: {s} -> {s}\n", .{ std.mem.sliceTo(&entry.source, 0), std.mem.sliceTo(&entry.target, 0) }));
     }

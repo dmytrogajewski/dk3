@@ -682,3 +682,20 @@ commands during load while keeping current-map readiness validation strict.
 Exact consolidated evidence and limitations live in [native acceptance](native-acceptance.md).
 Portal views, cross-world gameplay, residency eviction and complete campaign
 acceptance remain required work.
+
+## runtime-zig-322 — multiplayer bot ladder and sight
+
+Multiplayer bots previously searched every client regardless of facing, aimed exactly
+on the acquiring tick and ignored the difficulty value they were created with, so every
+match played at maximum strength. One ten-level ladder in
+`src/runtime/domain/bot_skill.zig` now governs view cone, sight range, target memory,
+reaction delay, view turn rate, aim error, burst discipline and gunshot-awareness error,
+and the same value is selected on both hosting pages and carried through the room
+service as `dk3_bot_skill`. Target acquisition is a cone around the bot's own view, the
+commanded view is rate limited, a target-less bot sweeps search headings as it walks, and
+a fresh injury receipt makes it face the shooter rather than see through cover. Authored
+actors keep the five-level scale through the published pairing.
+**Implemented; unverified**: bot-only matches have been sampled at levels 10, 5 and 1
+with the cone, view and navigation telemetry read back, but no human has played a level and
+the balance is unreviewed. See [bot skill and sight](bots-zig.md) and
+[native acceptance](native-acceptance.md).

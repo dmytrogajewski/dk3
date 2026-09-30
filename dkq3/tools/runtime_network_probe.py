@@ -146,7 +146,7 @@ def run(args):
             for index in range(2):
                 home = root / f"client-{index}"
                 stage_client_modules(args.engine, home, installation=args.engine)
-                settings = client_settings(args.engine, home)
+                settings = client_settings(args.engine, home, args.renderer)
                 settings.update(net_enabled=1, net_ip="127.0.0.1", net_port=ports[index + 1],
                                 g_gametype=0, in_nograb=1, name=f"NativeLAN{index}",
                                 cl_allowDownload=0, developer=1)
@@ -220,6 +220,7 @@ def run(args):
                 result['neural'] = []
                 clients[0].issue('con_notifytime 0')
                 for selection, appearance in [('hiro/0', 0), ('mikiko/1', 4), ('superfly/2', 8), ('mishima/3', 42), ('usagi/7', 51)]:
+                    if args.ragdoll_character and selection.split('/')[0] != args.ragdoll_character: continue
                     clients[1].issue(f'model {selection}')
                     state = until(lambda p: p[1]['appearance'] == appearance, f'authoritative {selection}')
                     offset = len(server.log.read_text())
@@ -280,7 +281,8 @@ def run(args):
                         result.setdefault('skeletal_motion', {})[selection] = dict(samples=rows, images=images)
                     if args.neural_combat:
                         server.issue('dk3_runtime_probe_health 10000')
-                        rows = []
+                        rows, physical = [], []
+                        victim_identity = state[1]['id']
                         def combat_capture(label):
                             offset = clients[0].log.stat().st_size
                             source = clients[0].home / f'dk3/screenshots/{label}.jpg'
@@ -288,6 +290,9 @@ def run(args):
                             text = wait(clients[0].process, clients[0].log,
                                         lambda text: 'dk3 presentation:' in text[offset:] and source.exists() and source.stat().st_size > 0, 5)[offset:]
                             for line in text.splitlines():
+                                if line.startswith('dk3 ragdoll: slot=1 '):
+                                    physical_row = dict(label=label, **dict(re.findall(r'(\w+)=([^ ]+)', line)))
+                                    if int(physical_row['identity']) == victim_identity: physical.append(physical_row)
                                 if line.startswith('dk3 skeletal presentation: entity=1 '):
                                     rows.append(dict(label=label, **dict(re.findall(r'(\w+)=([^ ]+)', line))))
                             shutil.copy2(source, args.report / source.name)
@@ -315,9 +320,42 @@ def run(args):
                         dead = [r for r in rows if r['label'].startswith('death-')]
                         assert len(set(r['frame'] for r in dead)) > 3, dead
                         assert any(r['frame'] == r['clip_last'] for r in dead), dead
-                        until(lambda p: p[1]['health'] > 0, 'respawn after complete death')
+                        observer = until(lambda p: p[1]['health'] > 0, 'respawn after complete death')[0]
                         clients[1].issue('-attack')
                         result.setdefault('neural_combat', {})[selection] = rows
+                        if args.ragdolls:
+                            if physical:
+                                point = [float(x) for x in physical[-1]['pelvis'].split(',')]
+                                delta = [point[i]-observer['pos'][i] for i in range(3)]
+                                clients[0].issue(f'dk3_look {math.degrees(math.atan2(delta[1], delta[0]))} {-math.degrees(math.atan2(delta[2]-14, math.hypot(*delta[:2])))}')
+                            for frame in range(120):
+                                combat_capture(f'physical-{slug}-{frame:03}')
+                                if physical and physical[-1]['sleep'] == '1': break
+                            assert physical, (selection, 'no live skeletal physics')
+                            birth = max(int(p['born']) for p in physical)
+                            physical = [p for p in physical if int(p['born']) == birth]
+                            assert max(int(p['contacts']) for p in physical) > 0, physical
+                            assert all(int(p['bones']) > 0 for p in physical), physical
+                            assert physical[-1]['sleep'] == '1', (selection, 'body did not settle', physical[-1])
+                            first = [float(x) for x in physical[0]['pelvis'].split(',')]
+                            last = [float(x) for x in physical[-1]['pelvis'].split(',')]
+                            assert first[2]-last[2] > 6, (selection, first, last)
+                            delta = [last[i]-observer['pos'][i] for i in range(3)]
+                            clients[0].issue(f'dk3_look {math.degrees(math.atan2(delta[1], delta[0]))} {-math.degrees(math.atan2(delta[2]-14, math.hypot(*delta[:2])))}')
+                            command = sample()[0]['cmd']
+                            until(lambda p: p[0]['cmd'] > command + 150, 'corpse inspection angle applied')
+                            clients[0].capture(args.report, f'settled-{slug}')
+                            result.setdefault('ragdolls', {})[selection] = physical
+                if args.ragdolls:
+                    command = sample()[0]['cmd']
+                    clients[0].issue('set cg_ragdolls 0')
+                    until(lambda p: p[0]['cmd'] > command + 200, 'ragdoll disable applied')
+                    offset = clients[0].log.stat().st_size
+                    clients[0].issue('dk3_runtime_presentation')
+                    text = wait(clients[0].process, clients[0].log, lambda text: 'dk3 presentation:' in text[offset:], 5)[offset:]
+                    assert 'dk3 ragdoll:' not in text, text
+                    clients[0].issue('set cg_ragdolls 1')
+                    result['ragdoll_disable_clears_retained_bodies'] = True
                 clients[0].issue('cg_shadows 0')
                 clients[0].capture(args.report, 'neural-shadows-off')
                 clients[0].issue('cg_shadows 1')
@@ -434,7 +472,11 @@ def main():
     parser.add_argument('--neural-motion', action='store_true', help='Capture and verify actual remote skeletal gait cadence')
     parser.add_argument('--neural-combat', action='store_true', help='Capture moving attacks and complete remote deaths for all five appearances')
     parser.add_argument('--held-weapons', action='store_true', help='Isolated remote sword/rifle/pistol grip capture with equipment fixtures')
+    parser.add_argument('--ragdolls', action='store_true')
+    parser.add_argument('--ragdoll-character', choices=('hiro', 'mikiko', 'superfly', 'mishima', 'usagi'))
+    parser.add_argument('--renderer', default='opengl2')
     args = parser.parse_args()
+    if args.ragdolls: args.neural_combat = True
     if args.neural_motion or args.neural_combat: args.neural = True
     args.engine, args.report = args.engine.resolve(), args.report.resolve()
     run(args)

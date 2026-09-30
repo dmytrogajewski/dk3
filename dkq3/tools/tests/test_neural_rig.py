@@ -6,9 +6,42 @@ import numpy as np
 import neural_assets as assets
 import neural_rig as rig
 import skeletal_iqm as sk
+from neural_reweight import patch_weights
 
 
 class RigTest(unittest.TestCase):
+    def test_rigid_sections_and_local_joint_blends_preserve_motion_and_mesh(self):
+        model = self.model()
+        model.names = ['upperarm_l', 'forearm_l', 'hand_l', 'tag_weapon']
+        model.parents = [-1, 0, 1, 2]
+        model.bind = np.repeat(model.bind, 4, axis=0)
+        model.bind[1:3, 0] = 10
+        model.frames = np.repeat(model.bind[None], 2, axis=0)
+        model.frames[1, 1, 3:7] = [0, 0, np.sin(.7), np.cos(.7)]
+        # A rigid upper-arm triangle, including a UV seam duplicate, and
+        # points at the elbow. The old weighting pulls even the mid-arm.
+        model.arrays = {0: np.array([[4., 0, 0], [4, 1, 0], [5, 0, 0], [4, 0, 0], [10, 0, 0], [11, 0, 0], [10, 1, 0]]),
+                        1: np.zeros((7, 2)), 2: np.tile([0., 0, 1], (7, 1)),
+                        4: np.tile([0, 1, 2, 3], (7, 1)),
+                        5: np.tile([150, 100, 5, 0], (7, 1))}
+        model.meshes = [('body', 'body', 0, 7, 0, 2)]
+        model.triangles = np.array([[0, 1, 2], [4, 5, 6]])
+        before = sk.write(model)
+        output, report = patch_weights(before)
+        original, repaired = sk.read(before), sk.read(output)
+        np.testing.assert_array_equal(original.frames, repaired.frames)
+        np.testing.assert_array_equal(original.bind, repaired.bind)
+        for kind in (0, 1, 2): np.testing.assert_array_equal(original.arrays[kind], repaired.arrays[kind])
+        np.testing.assert_array_equal(original.triangles, repaired.triangles)
+        self.assertEqual(report['max_influences'], 2)
+        np.testing.assert_array_equal(repaired.arrays[5][0], repaired.arrays[5][3])
+        self.assertTrue(np.all(repaired.arrays[5][:4, 0] == 255))
+        actual = sk.skin(repaired)
+        np.testing.assert_allclose(actual[:, :3], np.repeat(model.arrays[0][None, :3], 2, axis=0), atol=1e-5)
+        for vertex in range(7):
+            used = repaired.arrays[4][vertex][repaired.arrays[5][vertex] > 0]
+            if len(used) == 2: self.assertTrue(repaired.parents[used[0]] == used[1] or repaired.parents[used[1]] == used[0])
+
     def test_team_colors_preserve_protected_face_and_still_tint_armor(self):
         with tempfile.TemporaryDirectory() as directory:
             texture = Path(directory)/'hiro.png'

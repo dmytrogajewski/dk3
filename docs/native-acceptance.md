@@ -1,5 +1,120 @@
 # Native port acceptance
 
+## Sequence 322 — multiplayer bot skill ladder and field of view — implemented; unverified
+
+Bots in a multiplayer match played at maximum strength: target choice ignored facing,
+the commanded view snapped onto the enemy centre on the acquiring tick, the difficulty
+value written into bot userinfo was never read, and only the LAN page had a control that
+wrote the five-level single-player cvar. One ten-level ladder now defines view cone,
+sight range, proximity radius, target memory, reaction delay, view turn rate, aim error
+and settle, burst interval, search period and gunshot-bearing error. Selection lives on
+both hosting pages, travels in the room configuration and reaches the server as
+`dk3_bot_skill` (1–10, default 5), with `dk3_bot_fov` reserved for diagnosis.
+Definitions, measured turn-to-notice times and the investigation are in
+[bot skill and sight](bots-zig.md).
+
+`zig build test -j1 --summary all`: 52 steps, 427 tests pass. The aggregate check had
+been failing at its `zig fmt --check` step on `src/runtime/server/bots.zig`, not on a test
+abort; the file is formatted and the whole graph runs. Sampled dedicated-match evidence is
+in `zig-out/reports/runtime-zig-322/`, produced by the new
+`dkq3/tools/runtime_bot_skill_probe.py` (parser covered by
+`dkq3/tools/tests/test_bot_skill_probe.py`). Sampling also corrected three things written
+earlier in this sequence: the `dk3_bot_fov` diagnostic wrapped 359° to 0° instead of
+clamping, forward and right movement were projected onto the sweeping view so a bot
+checking its shoulder walked sideways, and the report line printed the ladder cone instead
+of the cone actually in force, so an override was invisible in its own evidence.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Pure ladder policy | Passed | `zig test src/runtime/domain/bot_skill.zig`: monotone 1→10, cone/proximity/range admission, rate-limited turning, an enemy at the bot's back is never visible without turning, bounded reproducible aim noise. Unit coverage only, not gameplay. |
+| Cone acquisition in a real match | Sampled, unverified | e1dm2a FFA, four bots, levels changed live (`zig-out/reports/runtime-zig-322/ladder`): samples holding a target fell 38% → 21% → 12% across levels 10/5/1 with 0 faults. Same map and levels with `dk3_bot_fov 2`: 27% → 2% → 2%. Unscheduled encounters, so the gaps are indicative; the cone geometry itself is pinned by the policy tests. No human client involved. |
+| Look-around search | Sampled, unverified | In every run the commanded view differs from the previous sample on 79–90 of 84–92 reports and the sweep headings {-80,-40,0,40,80} all appear, so the view is never locked forward. Not observed: a specific hidden enemy becoming visible only because a sweep reached it — that still needs a scripted approach from behind. |
+| Difficulty selection while hosting | Unrun | Code path is in place on both pages (`ui_roomSkill` → `dk3_bot_skill` for LAN, `RoomConfig.skill` 1..10 for the coordinator, browser row carries `bots` and `skill`). Needs real menu input on the LAN page and the Create Internet room page to confirm the level reaches the server, the room record and the browser row. |
+| Reaction and burst discipline | Unrun | Timed firefights at levels 1, 5 and 10 against a stationary and a moving human-controlled client are still required; sampled runs only show 1–5 hurt-alert turns per match. |
+| Navigation regression with scanning | Sampled, unverified | Across the sampled runs `blocked` appeared in 0–2 reports per ~90 and 50–59 distinct waypoint edges were traversed, with jumps and ladders still taken. The accepted bot lift and deathtag course replays have not been re-run since the view became rate limited. |
+| Level balance | Unrun | Owner review of playability at each level; not a decision this sequence makes. Encounter frequency on large maps is gated by sight range before the cone, so emptiness on big maps is a sight-range question. |
+
+
+## Sequence 321 — stable skeletal geometry — focused scenarios passed
+
+Ragdoll child anchors now remain connected through the skeleton hierarchy, so
+physics constraint residuals cannot stretch the rendered bone chain. Local neural
+weights are rebuilt around rigid segment targets and joint transitions, relaxed
+on the welded surface to avoid sharp seams. The first strictly rigid/two-bone
+attempt worsened boundary stretch and was rejected (`deformation-preview.log`).
+The accepted candidate uses continuous surface transitions.
+
+Evidence: `zig-out/reports/runtime-zig-321/`. Reviewed local package
+`58a44924f8c91c20dbc86ed54477c2579bcb3d48f2fccecac9ca354a881a505e`.
+`package-invariants.json` verifies 96 IQMs changed only in weights/indices and
+bounds; 504 other entries are identical. Faces, motion bytes and props are retained.
+`deformation-final.log` samples 20 gameplay frames per character: 99th-percentile
+edge-length ratios decrease for all five (Hiro 1.486→1.451, Mikiko 1.808→1.265,
+Superfly 1.614→1.340, Mishima 1.824→1.474, Usagi 2.968→2.170). These are deformation
+diagnostics, not complete visual acceptance; isolated worst-case triangles remain,
+and some maxima increase. Hard joint cuts, topology problems and every cinematic
+performance are not claimed repaired.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Package preservation and weight regression | Passed | Exact byte-range comparison; rigid section, seam and joint-transition unit coverage. |
+| Multiplayer deaths and lifecycle | Passed, sampled scope | `deaths/`: all five characters, stationary/moving attacks, physical falls/settling, retained bodies, disable/reset and complete LAN lifecycle. Rendered anchors follow the connected skeleton. |
+| Cinematic and carrying presentation | Passed, sampled scope | `intro/`: Hiro practice motion bursts, Usagi scene through shot 35, actual save/load; `carry/`: combined Mikiko/Superfly body, movement and restoration. Textures/prop animation bytes are unchanged. Full cinematic catalog remains unverified. |
+| Aggregate checks | Passed | `tests.log`: 52/52 steps, 426 Zig tests, 105 Python tests. Includes concurrent bot-skill unit coverage present when the suite ran. |
+
+`cinematic-deformation.log` adds 24 sampled intro/carry poses: Usagi and carrying
+improve their 99th-percentile edge ratios; Hiro's ratio slightly increases
+(1.310→1.330), while its worst stretch and count above twice rest length decrease.
+This is a targeted stability improvement, not an assertion of distortion-free
+skinning. The initial combined `network/` run walked into blocking geometry before
+its moving-attack assertion; the separate `deaths/` replay passes. Both are retained.
+Only guarded software rendering was exercised for this pass. The old package is
+retained locally as `dk3-neural-320.pk3`; the preserved game/saves were not changed.
+
+The reviewed installation is `79a60df85f2bd04aafc79263deb82fb9d803f38a5e13d6673f4eba890512969a`.
+A later normal rebuild failed in concurrently edited `src/online/worker_main.zig`
+(import outside module root) and `src/runtime/ui/multiplayer.zig` (i32/f32 mismatch).
+Those unrelated edits were preserved. The exact immutable build used by the
+passing scenarios was published to native-dev after verifying every manifest hash
+(`publish-tested.log`); this does not claim the current concurrent source tree
+builds. State/save directories were not modified.
+
+## Sequence 320 — physical skeletal deaths — focused scenarios passed
+
+The native Zig client now simulates articulated ragdolls from the living pose,
+with gravity, inherited movement, joint limits, world collision, friction and
+settling. Both renderers accept owned live IQM skin matrices and physics bounds
+(renderer ABI 13). Players and actors publish an explicit death flag. Retained
+bodies survive multiplayer respawn and clear on presentation reset. No external
+physics implementation or new asset package is admitted.
+
+Evidence: `zig-out/reports/runtime-zig-320/`. The sequence-319 neural package is
+unchanged (`d529be7652e69d1014f930d301e521c396ef37e1499cf2212d15d5178a56dd18`).
+Installed build: `34026a8d5a8ae6664027ac8de7f453615a5a760b6229b767201288848f5c7a3c`.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Multiplayer physical deaths | Passed, sampled scope | `network-final/`: two real UDP clients, all five characters, live skin matrices, falling pelvis, world contacts and sleeping bodies after respawn. Includes e1dm1 stairway landings. Attacks, respawn, spectator/rejoin, reconnect and map restart also pass. |
+| Campaign actor death and restore | Passed, sampled scope | `actor-mikiko/`: ordinary Glock fire kills a grounded Mikiko; physical collapse and sleep render in e1m3b. Loading the earlier save restores her alive and removes the ragdoll. Companion-death flow remains active. Other actor-specific death policies are not exhaustively replayed. |
+| Renderer comparison | Passed, sampled scope | OpenGL2 multiplayer/actor captures and `network-gl1/` Hiro live-pose fall, contacts, settling and retained body. These runs use guarded software rendering, not hardware-GPU acceptance. |
+| Solver terrain and transforms | Passed | Floor and slope settle; descending stair treads/landing reject particle penetration and retain limb lengths. 30/60-Hz presentation produces matching fixed-step results. Bind-matrix inversion and antiparallel limb rotations preserve positions/lengths. |
+| Aggregate checks | Passed | `tests.log`: 52/52 build steps, 421 Zig tests, 104 Python checks. |
+
+This is cosmetic character physics, not a general server physics replacement.
+Classic vertex models and scripted cinematic/carrying models use authored death
+poses. Exact corpse bone positions are not saved or synchronized between clients.
+Collision volumes approximate the body; corpse-to-corpse pushing, post-death
+weapon impulses, moving-platform wakeup and exhaustive campaign acceptance remain
+outside this implementation. See [runtime details](neural-assets.md).
+Earlier sliding/fixture failures remain in the report; `network-framed/` adds
+camera inspection but exposed a probe selecting an older retained body's sleep
+state. The installed replay (`network-installed/`) filters by victim identity and
+explicitly requires all five new bodies to settle; those checks pass. Its final
+disable check used a bare, unregistered cvar command and failed. The corrected
+`set cg_ragdolls 0` check passes separately in `network-toggle/`, together with
+Hiro death/settling and the complete LAN lifecycle on the installed build.
+`ragdolls.mp4` retains the installed fall captures at their sampled timing. Visual review is not owner acceptance.
+
 ## Sequence 319 — character references, leg limits and combat motion — focused scenarios passed
 
 Mikiko, Superfly, Mishima and Usagi receive reference-based face bakes; Hiro keeps
@@ -26,7 +141,7 @@ procedural clips use Quake III naming conventions and contain no imported Quake
 motion data. Full ragdolls, body-part collision and all cinematic performances
 remain unverified/unimplemented as appropriate. Failed driver invocations before
 the UDP run are retained in `network-path-error.log` and `network-combat.log`.
-The default local package and `zig-out/native-dev/play/current` select this revision;
+At sequence 319 the default local package and `zig-out/native-dev/play/current` selected this revision;
 the preserved installation and saves remain untouched. Visual review is not owner
 acceptance. Existing background geometry/MD3 prop problems are not repaired by
 these character changes.

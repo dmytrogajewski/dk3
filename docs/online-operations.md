@@ -126,7 +126,7 @@ Every map must support the selected mode in the worker's approved catalog.
 | `region` | `default` | Enrolled worker region |
 | `mode` | `dm` | `dm`, `ctf`, `deathtag` |
 | `players` | 16 | 2–32 total occupied slots, including connected spectators |
-| `skill` | 3 | Bot skill 1–5 |
+| `skill` | 5 | Bot skill 1–10 ([ladder](bots-zig.md)) |
 | `map_minutes` | 10 | 1–1440 minutes per map |
 | `enabled` | `true` | Disable without deleting the configuration entry |
 
@@ -134,7 +134,7 @@ The dedicated server rotates at the configured elapsed time, wraps to the first
 map, and retains connected humans across the normal map transition. Permanent
 rooms start immediately and do not wait for ready votes. Their frag/capture limits
 are disabled; the server controls the rotation deadline. The provisioned room uses
-`e1dm1 → e2dm1 → e3dm1 → e4dm1`, 16 slots, skill 3 and ten minutes per map.
+`e1dm1 → e2dm1 → e3dm1 → e4dm1`, 16 slots, bot skill 5 and ten minutes per map.
 
 Configuration is read at coordinator startup. Restart `dk3-coordinator` to apply
 edits. Changing, removing or disabling an entry drains its existing allocation,

@@ -64,6 +64,9 @@ can be replaced, so permanent exclusion is not guaranteed.
   in the room. Operators have authenticated audited moderation; no owner immunity.
 - One validated character/skin catalog serves humans, bots and rendering. Rotate
   bots across available combinations; preserve appearance through respawn/reconnect.
+- Bots play on one ten-level skill ladder selected while hosting a LAN or Internet
+  room, and perceive only what is inside their own view cone. Sequence 322 implements
+  this; it is unverified. See [bot skill and sight](bots-zig.md).
 - Separate pickup and equipped weapon models. Gold omits the ordinary Disruptor
   attachment; remove the pickup-model attachment. Review related melee and sword
   presentation, attachment transforms and authored equipped frames.

@@ -140,6 +140,77 @@ def skin_weights(model, name, absolute):
     weights = np.rint(weights/weights.sum(axis=1, keepdims=True)*255).astype(int)
     weights[:, 0] += 255-weights.sum(axis=1)
     model.arrays[4], model.arrays[5] = joints[inverse], weights[inverse]
+    localize_weights(model)
+
+
+def localize_weights(model):
+    """Rigid segment targets with surface-continuous joint transitions.
+
+    Keep the existing anatomical assignment, UV seam agreement and hard prop
+    attachments. Surface smoothing must not spread an elbow/hip influence over
+    the whole limb or couple unrelated bones when the rest mesh is close together.
+    Works on fitted and combined skeletons as well as the source rigs.
+    """
+    absolute = sk.matrices(model.bind, model.parents)
+    points = model.arrays[0]
+    scores = np.zeros((len(points), len(model.names)))
+    for influence in range(4):
+        np.add.at(scores, (np.arange(len(points)), model.arrays[4][:, influence]), model.arrays[5][:, influence]/255)
+    dominant = scores.argmax(axis=1)
+    selected = np.zeros_like(scores)
+    selected[np.arange(len(points)), dominant] = 1
+    best = np.zeros(len(points))
+    def anatomical(name):
+        name = name.removeprefix('mikiko_').removeprefix('superfly_')
+        return not name.startswith(('tag_', 'prop_', 'cloth_'))
+    for child, parent in enumerate(model.parents):
+        if parent < 0 or not anatomical(model.names[child]) or not anatomical(model.names[parent]): continue
+        incoming = absolute[child, :3, 3]-absolute[parent, :3, 3]
+        length = np.linalg.norm(incoming)
+        if length < 1e-5: continue
+        children = [i for i, p in enumerate(model.parents) if p == child and anatomical(model.names[i])]
+        # The next segment supplies the other side of the joint plane. Terminal
+        # joints continue the incoming direction (head, fingertips and toes).
+        outgoing = max((absolute[i, :3, 3]-absolute[child, :3, 3] for i in children), key=np.linalg.norm, default=incoming)
+        next_length = np.linalg.norm(outgoing)
+        normal = incoming/length+outgoing/max(next_length, 1e-5)
+        normal /= max(np.linalg.norm(normal), 1e-5)
+        width = .18*min(length, next_length)
+        signed = (points-absolute[child, :3, 3])@normal
+        band = np.abs(signed)/max(width, 1e-5)
+        eligible = ((dominant == parent) | (dominant == child)) & (scores[:, parent] > 0) & (scores[:, child] > 0) & (band < 1)
+        strength = (scores[:, parent]+scores[:, child])*(1-band)
+        use = eligible & (strength > best)
+        t = np.clip(.5+.5*signed[use]/max(width, 1e-5), 0, 1)
+        blend = t*t*(3-2*t)
+        selected[use] = 0
+        selected[use, parent], selected[use, child] = 1-blend, blend
+        best[use] = strength[use]
+    # The neural surfaces have irregular joint loops. Projecting every vertex
+    # independently would leave sharp weight boundaries across triangles.
+    # Relax the joint transitions on the welded surface, preserving identical
+    # UV-seam weights and constant interiors. Multiway shoulders/hips may need
+    # more than two influences; dropping those creates a visible crease.
+    _, indices, inverse = np.unique(np.round(points, 4), axis=0, return_index=True, return_inverse=True)
+    triangles = inverse[model.triangles]
+    edges = np.unique(np.sort(np.concatenate([triangles[:, [0, 1]], triangles[:, [1, 2]], triangles[:, [2, 0]]]), axis=1), axis=0)
+    counts = np.bincount(edges.ravel(), minlength=len(indices))
+    surface = selected[indices]
+    # Do not relax independently attached props into neighboring body surfaces.
+    protected = np.array([not anatomical(model.names[j]) for j in dominant[indices]])
+    for _ in range(24):
+        neighbors = np.zeros_like(surface)
+        np.add.at(neighbors, edges[:, 0], surface[edges[:, 1]])
+        np.add.at(neighbors, edges[:, 1], surface[edges[:, 0]])
+        averaged = .5*surface+.5*neighbors/np.maximum(counts[:, None], 1)
+        surface[~protected & (counts > 0)] = averaged[~protected & (counts > 0)]
+    selected = np.maximum(surface[inverse]-.01, 0)
+    selected /= selected.sum(axis=1, keepdims=True)
+    joints = np.argsort(-selected, axis=1)[:, :4]
+    weights = np.take_along_axis(selected, joints, axis=1)
+    weights = np.rint(weights/weights.sum(axis=1, keepdims=True)*255).astype(int)
+    weights[:, 0] += 255-weights.sum(axis=1)
+    model.arrays[4], model.arrays[5] = joints, weights
 
 
 def pose(model, absolute, phase, kind='idle', grip='rifle'):
@@ -270,7 +341,7 @@ def build(source, output, name):
     if not (output/f'{name}.png').exists(): shutil.copy2(source/f'{name}.png', output/f'{name}.png')
     provenance = json.loads((source/f'{name}.json').read_text())
     provenance.update(rig_source_sha256=hashlib.sha256(model_path.read_bytes()).hexdigest(),
-                      rig='Anatomical landmarks, surface-smoothed weights, fixed-length IK with pelvis-relative knee planes and joint limits',
+                      rig='Anatomical landmarks, rigid segments and connected joint blend bands, fixed-length IK with pelvis-relative knee planes and joint limits',
                       leg_limits=dict(knee_flexion=[3, 145], hip_pitch=[-50, 110], hip_spread=[-12, 55], ankle_cone=70, toe_cone=35),
                       rig_landmarks=LANDMARKS[name], bones=len(model.names))
     face = output/f'{name}.face.json'

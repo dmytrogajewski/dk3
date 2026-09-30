@@ -30,7 +30,7 @@ pub const Coordinator = struct {
         if (config.admin_token.len < 32 or config.max_rooms == 0 or config.rooms_per_address == 0) return error.InvalidConfig;
         if (config.permanent_rooms.len > config.max_rooms) return error.InvalidConfig;
         for (config.permanent_rooms, 0..) |room, index| {
-            if (!validId(room.id) or !validText(room.name, 64) or std.mem.indexOfAny(u8, room.name, "\\\";+") != null or !validId(room.region) or room.players < 2 or room.players > 32 or room.skill < 1 or room.skill > 5 or room.map_minutes == 0 or room.map_minutes > 1440 or room.maps.len == 0 or room.maps.len > 64) return error.InvalidConfig;
+            if (!validId(room.id) or !validText(room.name, 64) or std.mem.indexOfAny(u8, room.name, "\\\";+") != null or !validId(room.region) or room.players < 2 or room.players > 32 or room.skill < 1 or room.skill > 10 or room.map_minutes == 0 or room.map_minutes > 1440 or room.maps.len == 0 or room.maps.len > 64) return error.InvalidConfig;
             for (room.maps) |map| if (!validId(map)) return error.InvalidConfig;
             for (config.permanent_rooms[0..index]) |prior| if (equal(prior.id, room.id)) return error.InvalidConfig;
         }
@@ -195,7 +195,7 @@ pub const Coordinator = struct {
         if (method == .POST and equal(path, "/v1/rooms")) {
             const session = try self.authenticate(a, bearer, now);
             const request = try parse(api.Create, a, body);
-            if (!validId(request.request_id) or !validText(request.config.name, 64) or std.mem.indexOfAny(u8, request.config.name, "\\\";+") != null or !validId(request.config.region) or !validId(request.config.map) or request.config.slots < 2 or request.config.slots > 32 or request.config.bots >= request.config.slots or request.config.skill < 1 or request.config.skill > 5 or request.config.rotation.len > 64) return error.InvalidRoom;
+            if (!validId(request.request_id) or !validText(request.config.name, 64) or std.mem.indexOfAny(u8, request.config.name, "\\\";+") != null or !validId(request.config.region) or !validId(request.config.map) or request.config.slots < 2 or request.config.slots > 32 or request.config.bots >= request.config.slots or request.config.skill < 1 or request.config.skill > 10 or request.config.rotation.len > 64) return error.InvalidRoom;
             const request_key = try std.fmt.allocPrint(a, "{s}:{s}", .{ session.identity, request.request_id });
             const payload_hash = hash(body);
             if (try self.load(RequestRecord, a, "requests", request_key)) |previous| {

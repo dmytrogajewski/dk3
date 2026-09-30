@@ -119,6 +119,11 @@ typedef struct {
 	float		rotation;
     unsigned int dk3World; /* scene owner; zero captures the selected resident world */
     unsigned int dk3PortalWorld; /* checked resident renderer owner, zero for ordinary portals */
+    /* Native cosmetic skeletal poses are copied with the scene entity. No
+       pointer crosses frontend/backend ownership. Row-major skin matrices. */
+    int dk3BoneCount;
+    float dk3BoneMatrices[64][12];
+    vec3_t dk3BoneBounds[2];
 } refEntity_t;
 
 

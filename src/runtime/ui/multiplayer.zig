@@ -5,6 +5,7 @@ const engine = @import("../engine/ui.zig");
 const c = engine.c;
 const info = @import("../engine/info.zig");
 const maps = @import("../domain/map_catalog.zig");
+const skill = @import("../domain/bot_skill.zig");
 pub const Page = enum { rooms, create, filters, connection, private, lan, player, lobby, maps };
 pub const Field = enum { room_name, region, rotation, coordinator, certificate, search, filter_region, private_id, code, address, player_name };
 const fields = [_]struct { name: [:0]const u8, label: []const u8, initial: [:0]const u8 }{
@@ -34,7 +35,7 @@ pub const Browser = struct {
     pub fn init(self: *Browser) void {
         for (fields) |field| engine.register(field.name, field.initial);
         engine.register("ui_roomMap", "e1dm1");
-        for ([_][2][:0]const u8{ .{ "ui_roomMode", "0" }, .{ "ui_roomSlots", "8" }, .{ "ui_roomBots", "0" }, .{ "ui_roomSkill", "3" }, .{ "ui_roomPrivate", "0" }, .{ "ui_roomFilterMode", "-1" }, .{ "ui_roomFavoritesOnly", "0" }, .{ "ui_roomAvailableOnly", "1" }, .{ "model", "hiro/0" } }) |pair| engine.register(pair[0], pair[1]);
+        for ([_][2][:0]const u8{ .{ "ui_roomMode", "0" }, .{ "ui_roomSlots", "8" }, .{ "ui_roomBots", "0" }, .{ "ui_roomSkill", "5" }, .{ "ui_roomPrivate", "0" }, .{ "ui_roomFilterMode", "-1" }, .{ "ui_roomFavoritesOnly", "0" }, .{ "ui_roomAvailableOnly", "1" }, .{ "model", "hiro/0" } }) |pair| engine.register(pair[0], pair[1]);
         self.loadMaps() catch |err| {
             self.maps = .{};
             var message: [160]u8 = undefined;
@@ -89,6 +90,12 @@ pub const Browser = struct {
         var buffer: [192]u8 = undefined;
         try button(menu, 90, y, 340, try std.fmt.bufPrint(&buffer, "{s}: {d}", .{ title, @as(i32, @intFromFloat(engine.number(variable))) }), action);
     }
+    /// Hosting offers one ten-level bot ladder for LAN and Internet rooms alike.
+    fn skillButton(menu: anytype, y: f32) !void {
+        var buffer: [192]u8 = undefined;
+        const level: i32 = skill.normalize(@intFromFloat(engine.number("ui_roomSkill")));
+        try button(menu, 90, y, 340, try std.fmt.bufPrint(&buffer, "Bot skill: {d} ({s})", .{ level, skill.tier(level) }), .{ .cycle = .skill });
+    }
     pub fn render(self: *Browser, menu: anytype) !void {
         try button(menu, 90, 95, 85, "Rooms", .{ .page = .rooms });
         try button(menu, 180, 95, 85, "Create", .{ .page = .create });
@@ -126,14 +133,14 @@ pub const Browser = struct {
                 try button(menu, 90, 160, 340, try std.fmt.bufPrint(&label, "Mode: {s}", .{maps.mode_names[mode()]}), .{ .cycle = .mode });
                 try valueButton(menu, 190, "Players", "ui_roomSlots", .{ .cycle = .slots });
                 try valueButton(menu, 220, "Bots", "ui_roomBots", .{ .cycle = .bots });
+                try skillButton(menu, 250);
                 if (self.page == .create) {
-                    try self.row(menu, 250, .room_name);
-                    try self.row(menu, 280, .region);
-                    try self.row(menu, 310, .rotation);
-                    try valueButton(menu, 340, "Private room", "ui_roomPrivate", .{ .cycle = .privacy });
-                    try button(menu, 90, 382, 180, "Create Internet room", .create);
+                    try self.row(menu, 280, .room_name);
+                    try self.row(menu, 310, .region);
+                    try self.row(menu, 340, .rotation);
+                    try valueButton(menu, 370, "Private room", "ui_roomPrivate", .{ .cycle = .privacy });
+                    try button(menu, 90, 400, 180, "Create Internet room", .create);
                 } else {
-                    try valueButton(menu, 250, "Bot skill", "ui_roomSkill", .{ .cycle = .skill });
                     try button(menu, 90, 285, 180, "Host LAN game", .host_lan);
                     try self.row(menu, 330, .address);
                     try button(menu, 90, 370, 180, "Join LAN server", .join_lan);
@@ -309,7 +316,7 @@ pub const Browser = struct {
                     .mode => .{ .name = "ui_roomMode", .min = 0, .max = 2 },
                     .slots => .{ .name = "ui_roomSlots", .min = 2, .max = 32 },
                     .bots => .{ .name = "ui_roomBots", .min = 0, .max = @intFromFloat(engine.number("ui_roomSlots") - 1) },
-                    .skill => .{ .name = "ui_roomSkill", .min = 1, .max = 5 },
+                    .skill => .{ .name = "ui_roomSkill", .min = skill.minimum, .max = skill.maximum },
                     .privacy => .{ .name = "ui_roomPrivate", .min = 0, .max = 1 },
                     .filter_mode => .{ .name = "ui_roomFilterMode", .min = -1, .max = 2 },
                     .favorites => .{ .name = "ui_roomFavoritesOnly", .min = 0, .max = 1 },
@@ -334,7 +341,7 @@ pub const Browser = struct {
                 });
                 engine.setNumber("sv_maxclients", std.math.clamp(engine.number("ui_roomSlots"), 2, 32));
                 engine.setNumber("bot_minplayers", std.math.clamp(engine.number("ui_roomBots"), 0, engine.number("sv_maxclients") - 1) + 1);
-                engine.setNumber("g_spSkill", std.math.clamp(engine.number("ui_roomSkill"), 1, 5));
+                engine.setNumber("dk3_bot_skill", @floatFromInt(skill.normalize(@intFromFloat(engine.number("ui_roomSkill")))));
                 engine.set("dk3_public", "0");
                 engine.set("dk3_resume", "0");
                 engine.set("dk3_travel_pending", "0");

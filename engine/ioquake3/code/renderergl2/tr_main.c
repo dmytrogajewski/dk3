@@ -1999,7 +1999,7 @@ void R_RenderPshadowMaps(const refdef_t *fd)
 							frames[f] %= data->num_frames;
 						if (frames[f] < 0 || frames[f] >= data->num_frames)
 							frames[f] = 0;
-						bounds = data->bounds + 6 * frames[f];
+						bounds = ent->e.dk3BoneCount == data->num_joints && data->num_joints <= 64 ? &ent->e.dk3BoneBounds[0][0] : data->bounds + 6 * frames[f];
 						for (axis = 0; axis < 3; axis++)
 							diag[axis] = MAX(fabsf(bounds[axis]), fabsf(bounds[axis + 3]));
 						radius = MAX(radius, VectorLength(diag) * scale);

@@ -62,6 +62,51 @@ within 35 degrees of the foot. These restrict the fitted poses without changing
 bone lengths. They are animation constraints, not runtime ragdoll physics or
 collision between body parts; extreme authored performances still require review.
 
+Sequence 320 adds actual runtime physics for these gameplay skeletons: Hiro,
+Mikiko, Superfly, Mishima/Kage and Usagi. A native Zig position-based solver hands
+the last visible living pose and travel velocity to a 17-particle articulated
+body at death. It runs at 120 Hz with mass-weighted length constraints, knee/elbow
+hinges, hip/ankle limits, self separation, swept world/brush contacts, friction
+and sleep. Both renderers consume scene-owned live skin matrices and updated
+bounds. No new asset conversion or external physics library is required.
+
+The simulation is cosmetic and local to each client; health, hits, respawn timing
+and movement remain server-owned. Up to 32 bodies are retained, with detached
+bodies removed 15 seconds after death. Active dead actors remain visible. Saves
+retain authoritative deaths, not exact simulated bone positions; loading resets
+presentation. `set cg_ragdolls 0` restores authored death playback and clears
+retained bodies. The default is enabled. Scripted cinematic/carrying models and
+classic vertex-animated models retain their authored performances. Collision uses
+joint-sized boxes and approximate self separation, not exact skinned triangles;
+body-to-body pushing, projectile impulses after death and waking sleeping bodies
+on moving platforms are not implemented.
+
+Sequence 321 improves geometry stability in two places. Ragdoll presentation
+reconstructs child anchors through their parent transform; collision solver
+residuals no longer become independent translations that stretch the skin between
+joints. The weight repair starts with rigid anatomical segment assignments and
+connected joint bands, then relaxes the transitions across the welded surface.
+Identical positions across UV seams retain identical weights. Shoulders and hips
+can retain several influences where a strict two-bone split would create creases.
+Hard prop attachments remain protected.
+
+To update an existing local package without regenerating performances or faces:
+
+```sh
+OPENBLAS_NUM_THREADS=1 python3 -B dkq3/tools/neural_reweight.py \
+  --package /path/to/original-neural.pk3 \
+  --base zig-out/native-dev/play/current/share/dk3/dk3-models.pk3 \
+  --out zig-out/neural-assets/dk3-neural-stable-surface.pk3
+```
+
+This patches only IQM vertex weights/indices and conservative animation bounds.
+Animations, bind poses, geometry, triangles, UVs, textures, and other package
+entries retain their bytes. The full rig generator also uses this weighting
+policy. The existing mesh still uses linear blend skinning; tight joint folds,
+merged cloth/armor surfaces and extreme twists can still need manual topology,
+weight painting or corrective shapes. This pass does not make all armor plates
+independent rigid geometry or introduce dual-quaternion skinning.
+
 Moving attacks use precomposed upper-body attack/leg-cycle frame grids. The server
 replicates the actual firing timestamp in the player entity's existing `time2`
 field; the client selects the 30 Hz attack phase while retaining the locomotion

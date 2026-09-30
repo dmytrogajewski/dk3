@@ -372,7 +372,7 @@ fn consoleCommand() isize {
         return 1;
     }
     if (std.mem.eql(u8, command, "dk3_runtime_match")) {
-        active.bots.report(&active.world.?, &active.slots, &active.clients) catch |err| runtimeFailure(err);
+        active.bots.report(&active.world.?, &active.slots, &active.clients, clock.now_ms) catch |err| runtimeFailure(err);
         @import("server/observation.zig").match(&active.world.?, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }

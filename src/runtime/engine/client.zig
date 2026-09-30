@@ -71,6 +71,7 @@ fn trace(raw: *anyopaque, request: collision.Request) !collision.Trace {
         if (@as(u32, @bitCast(entity.dk3World)) != entity_world) continue;
         if (entity.number == request.slot or entity.solid == 0) continue;
         const brush = entity.solid == c.SOLID_BMODEL;
+        if (request.brushes_only and !brush) continue;
         var model: isize = undefined;
         if (brush) model = inlineModel(entity.modelindex) else {
             const width: f32 = @floatFromInt(entity.solid & 255);
