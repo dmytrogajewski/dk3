@@ -52,6 +52,7 @@ test {
     _ = @import("server/spawns.zig");
     _ = @import("server/actor_spawns.zig");
     _ = @import("server/brushes.zig");
+    _ = @import("server/movers.zig");
     _ = @import("domain/navigation.zig");
     _ = @import("domain/navigation_input.zig");
     _ = @import("domain/environment.zig");

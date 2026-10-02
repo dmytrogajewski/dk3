@@ -1464,3 +1464,34 @@ test "flat visited migration removes stale travelers and qualifies overlapping w
     try t.expectEqual(@as(i32, 63), (try loaded.world.get(loaded.world.find(17).?, data.Health)).current);
     try t.expectError(error.InvalidLegacyArchive, migrateVisited(t.allocator, old_bytes, 0, 17));
 }
+
+test "mover archives written before authored audio keep silent defaults" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const older = try parse(data.Mover, arena.allocator(), .{ .name = "mover", .kind = .bytes, .count = 1, .data =
+        \\{"closed":[0,0,0],"opened":[0,0,120],"motion":{"base":[0,0,0],"end":[0,0,0],"start_ms":0,"duration_ms":1,"curve":"linear"},"state":"opening","speed":200,"wait_ms":1000,"group":19,"owner":7}
+    });
+    const t = std.testing;
+    try t.expectEqual(@as(u16, 0), older.use_sound);
+    try t.expectEqual(@as(u16, 0), older.return_sound);
+    try t.expectEqual(@as(u16, 0), older.opening_sound);
+    try t.expectEqual(@as(u16, 0), older.closing_sound);
+    try t.expectEqual(@as(u16, 0), older.opened_sound);
+    try t.expectEqual(@as(u16, 0), older.closed_sound);
+    try t.expect(!older.loop_sounds);
+    try t.expect(older.sound_parameters == null);
+    try t.expectEqual(@as(f32, 200), older.speed);
+    try t.expectEqual(@as(u32, 19), older.group);
+    try t.expectEqual(@import("movers.zig").State.opening, older.state);
+
+    // An archive that does carry motion audio restores it, loops and authored distances included.
+    const loaded = try parse(data.Mover, arena.allocator(), .{ .name = "mover", .kind = .bytes, .count = 1, .data =
+        \\{"closed":[0,0,0],"opened":[0,0,120],"motion":{"base":[0,0,0],"end":[0,0,0],"start_ms":0,"duration_ms":1,"curve":"linear"},"state":"closed","speed":100,"wait_ms":3000,"group":4,"use_sound":3,"return_sound":0,"opening_sound":11,"closing_sound":12,"opened_sound":13,"closed_sound":14,"loop_sounds":true,"sound_parameters":{"volume":0.7,"minimum":300,"maximum":900,"nondirectional":false}}
+    });
+    try t.expectEqual(@as(u16, 11), loaded.opening_sound);
+    try t.expectEqual(@as(u16, 14), loaded.closed_sound);
+    try t.expect(loaded.loop_sounds);
+    try t.expectEqual(@as(f32, 0.7), (loaded.sound_parameters orelse return error.MissingSoundParameters).volume);
+    try t.expectEqual(@as(f32, 900), loaded.sound_parameters.?.maximum);
+    try t.expectEqual(@as(u16, 3), loaded.use_sound);
+}

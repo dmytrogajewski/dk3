@@ -478,8 +478,8 @@ fn consoleCommand() isize {
             const mover = active.world.?.get(entity, component.Mover) catch continue;
             const object = (active.world.?.get(entity, component.MapObject) catch unreachable).*;
             const transform = (active.world.?.get(entity, component.Transform) catch unreachable).*;
-            var message: [320]u8 = undefined;
-            engine.print(std.fmt.bufPrintZ(&message, "zig mover id={d} group={d} class={s} name={s} state={s} pos={d:.1},{d:.1},{d:.1} end={d:.1},{d:.1},{d:.1}\n", .{ active.world.?.persistentId(entity) catch unreachable, mover.group, object.classname, object.targetname, @tagName(mover.state), transform.position[0], transform.position[1], transform.position[2], mover.opened[0], mover.opened[1], mover.opened[2] }) catch unreachable);
+            var message: [352]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "zig mover id={d} group={d} class={s} name={s} state={s} pos={d:.1},{d:.1},{d:.1} end={d:.1},{d:.1},{d:.1} loop_offer={d} carrier={d}\n", .{ active.world.?.persistentId(entity) catch unreachable, mover.group, object.classname, object.targetname, @tagName(mover.state), transform.position[0], transform.position[1], transform.position[2], mover.opened[0], mover.opened[1], mover.opened[2], if (mover.moving() and mover.loop_sounds) (if (mover.state == .opening) mover.opening_sound else mover.closing_sound) else 0, mover.loop_carrier }) catch unreachable);
         }
         return 1;
     }
@@ -501,7 +501,7 @@ fn consoleCommand() isize {
             const train = active.world.?.get(entity, component.Train) catch continue;
             const object = (active.world.?.get(entity, component.MapObject) catch unreachable).*;
             const transform = (active.world.?.get(entity, component.Transform) catch unreachable).*;
-            var message: [320]u8 = undefined;
+            var message: [352]u8 = undefined;
             engine.print(std.fmt.bufPrintZ(&message, "zig train id={d} name={s} phase={s} corner={d} wait={d} due={?d} start={d} duration={d} endz={d:.1} pos={d:.1},{d:.1},{d:.1}\n", .{ active.world.?.persistentId(entity) catch unreachable, object.targetname, @tagName(train.phase), train.destination, train.departure_wait_ms, train.action.at_ms, train.position.start_ms, train.position.duration_ms, train.position.end[2], transform.position[0], transform.position[1], transform.position[2] }) catch unreachable);
         }
         return 1;

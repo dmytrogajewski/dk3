@@ -944,6 +944,9 @@ void S_AddLoopSounds (void) {
 
 		// allocate a channel
 		ch = &loop_channels[numLoopChannels];
+		if ( s_show->integer == 2 ) {
+			Com_Printf( "LOOP %d %d %s\n", left_total, right_total, loop->sfx->soundName );	// TEMP-324
+		}
 		
 		if (left_total > 255) {
 			left_total = 255;

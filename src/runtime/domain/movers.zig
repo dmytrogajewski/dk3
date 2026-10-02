@@ -44,6 +44,24 @@ pub const Binary = struct {
     return_at: Deadline = .{},
     group: u32 = 0,
     owner: u32 = 0,
+    /// Authored press and pop-back audio, registered when the map is admitted so
+    /// the first use cannot be lost to a late sound configstring. Zero is silence.
+    use_sound: u16 = 0,
+    return_sound: u16 = 0,
+    /// Motion audio starts when a transition begins and the arrival pair starts when the
+    /// brush settles at each end. `loop_sounds` decides whether the motion sound rides the
+    /// entity as a loop (authored loop flag, and every platform) or plays once. Zero is
+    /// silence and absent `sound_parameters` leaves the ordinary mixer defaults in force.
+    opening_sound: u16 = 0,
+    closing_sound: u16 = 0,
+    opened_sound: u16 = 0,
+    closed_sound: u16 = 0,
+    loop_sounds: bool = false,
+    sound_parameters: ?@import("audio.zig").Parameters = null,
+    /// Carrier entity holding a looping motion sound at the audible middle of the brush.
+    /// Transient: it is not restored, and a mover caught mid-flight regains one on the
+    /// next frame. Zero means no carrier.
+    loop_carrier: u32 = 0,
     pub fn moving(self: Binary) bool {
         return self.state == .opening or self.state == .closing;
     }

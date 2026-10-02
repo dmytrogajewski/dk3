@@ -156,6 +156,18 @@ fn init(server_message: i32, sequence: i32, client: i32, boundary: i32) !void {
     for ([_][*:0]const u8{ "cin_skip", "dk3_runtime_presentation", "weapon", "weapnext", "weapprev", "attribute", "inventory", "invnext", "invprev", "attribute_next", "attribute_increase", "save", "load", "+scores", "-scores", "say", "say_team", "ready", "team", "callvote", "vote" }) |command_name| _ = engine.gateway.call(c.CG_ADDCOMMAND, .{command_name});
     engine.print("dk3 zig: shared movement prediction initialized\n");
 }
+/// The server pusher carries riders geometrically, which shared movement cannot
+/// see. Returning the ridden brush's own trajectory lets prediction repeat that
+/// positional carry per command instead of re-acquiring the mover once per snapshot.
+/// Rotating parents need the pusher's offset rotation, so they report no carry.
+fn groundCarry(ground: u16, namespace: i32, entities: []const c.entityState_t) ?c.trajectory_t {
+    for (entities) |entity| {
+        if (entity.dk3World != namespace or @as(i32, ground) != entity.number) continue;
+        if (entity.pos.trType == c.TR_STATIONARY or entity.apos.trType != c.TR_STATIONARY) return null;
+        return entity.pos;
+    }
+    return null;
+}
 fn draw(now: i32) !void {
     const prior_collision = engine.gateway.call(c.CG_DK3_COLLISION_CURRENT_V1, .{});
     defer if (prior_collision != 0) {
@@ -267,6 +279,8 @@ fn draw(now: i32) !void {
     transform.* = .{ .position = snapshot.ps.origin, .angles = snapshot.ps.viewangles };
     velocity.linear = snapshot.ps.velocity;
     player.* = bridge.read(&snapshot.ps);
+    const carry = groundCarry(player.ground_entity, snapshot.ps.dk3World, snapshot.entities[0..@intCast(snapshot.numEntities)]);
+    var carry_from: i64 = player.command_ms;
     view_motion.synchronize(.{ .world = snapshot.ps.dk3World, .incarnation = snapshot.ps.persistant[c.PERS_SPAWN_COUNT], .teleport = player.teleport_bit, .camera = snapshot.ps.dk3CameraActive, .mode = snapshot.ps.pm_type }, player.command_ms, now);
     const loadout = try w.get(player_entity, data.Weapons);
     loadout.* = bridge.readWeapons(&snapshot.ps);
@@ -282,6 +296,11 @@ fn draw(now: i32) !void {
         bridge.holdView(player, transform.angles, input);
         const command = bridge.command(input, &player.delta_angles);
         var motion: @import("domain/slide.zig").State = .{ .position = transform.position, .velocity = velocity.linear };
+        if (carry) |path| {
+            const wire = @import("engine/trajectory.zig");
+            motion.position = v.add(motion.position, v.subtract(wire.evaluate(path, @intCast(command.time_ms)), wire.evaluate(path, @intCast(carry_from))));
+        }
+        carry_from = command.time_ms;
         if (ailments.mask & 128 != 0) motion.velocity = @splat(0);
         var events: weapons.Events = .{};
         var weapon_context: weapons.Context = .{ .ps = loadout, .healthy = snapshot.ps.stats[c.STAT_HEALTH] > 0, .single_player = engine.integer("g_gametype") == c.GT_SINGLE_PLAYER, .table = &weapon_table, .events = &events, .service = engine.collisionService(), .slot = @intCast(client_number), .shot_mask = c.MASK_SHOT, .attack_boost = character.attribute(.attack, command.time_ms) };

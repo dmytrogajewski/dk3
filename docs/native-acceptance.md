@@ -1,5 +1,125 @@
 # Native port acceptance
 
+## Sequence 324 — Authored mover motion, settling and looping audio — verified on Solitary
+
+Sequence 323 made the buttons of "Solitary" (e1m3a) audible and stopped them sinking into the
+wall, and recorded the rest of mover audio as unread. This sequence reads that remainder: the
+motion pair `sound_opening`/`sound_closing` and `sound_up`/`sound_down`, the settling pair
+`sound_open_finish`/`sound_close_finish` and `sound_top`/`sound_bottom`, the authored loudness and
+attenuation keys, and the looped form of a motion sound. Across the 84 converted maps 900 brushes
+author `sound_opening`, 622 `sound_closing`, 551 the open-settling key and 508 the close-settling
+key; 23 platforms use the up/down pair and 20 of those the top/bottom pair; the loop spawnflag sits
+on 297 sliding doors, 110 rotating doors and 55 trains. Trains stay silent by authoring intent: no
+reference train source reads any of these keys, so nothing is lost by not reading them here. The
+door family and the platform family share one pair of slots, so a brush needs only the spelling its
+classname uses. Authored `volume`, `min` and `max` reach the mixer when present and the ordinary
+attenuation distances otherwise, which are also the distances the reference uses when a mover
+authors none.
+
+Two defects stood between those keys and the player's ear, and neither was about reading them.
+
+A settling sound was started at the middle of the brush that owns it, which for a sliding panel is
+inside the wall pocket it vanishes into. The server assembles each client's snapshot from the
+potentially-visible set, so an entity outside that set is never transmitted at all, and the event
+disappeared before any client could weigh it: a door closing behind the player, or one whose
+settled position sits in a pocket the player cannot see into, was silent while the same brush's
+start sound, emitted before it moved, came through. Sound events are now broadcast to every client
+and the mixer decides audibility from the emitter distance, which is what the engine's own sound
+entry point did before the native runtime replaced it. The position stays on the event; only the
+visibility test moved to where the listener is. That is also what the reference produced, so a busy
+scene now sends every sound to every client and lets the mixer discard what is too far away: no run
+here came near the snapshot limit, and none reported an overflow.
+
+A looping motion sound cannot ride the brush it belongs to. Compiled inline brushes here keep their
+own world coordinates and leave the entity position at the map origin, so a loop offered on the
+brush entity is heard from the origin of the level, and every looping mover sound in the game was
+inaudible wherever the player actually stood. The reference reaches that same sample through the
+entity's sound origin, which in its build is the middle of the brush. Motion loops now travel on a
+carrier entity of their own, placed at the audible middle of the brush's committed bounds, following
+the brush's own trajectory and withdrawn the frame the brush settles — the convention the authored
+ambient emitters already use. `Mover.loop_carrier` names the carrier and is transient: a mover
+restored in mid-flight simply regains one on the next frame, and a carrier whose mover vanished is
+collected by the ordinary event expiry. The mover diagnostic reports `loop_offer` and `carrier`
+rather than a loop flag on the brush, which is what the numbers below come from; the probes under
+`dkq3/tools` read only the fields ahead of those, so they were unaffected.
+
+`zig build test -j8` exits 0 with 204 runtime checks passing, one new among them: it pins that a
+carrier starts at the middle of its brush, tracks the authored travel, and stops with the settled
+brush rather than drifting past it. That check failed when first written, because the authored
+travel of that brush is its extent minus the lip, not its thickness. Evidence is under
+`zig-out/reports/runtime-zig-324/`, produced by build
+`54ad4da4f8880812bc56e10625082b03d62d8d08f31efb12e105ea73a8ebd9a6` through dkguard with isolated
+profiles; the preserved installation and saves are untouched. The drivers are kept in `tools/`.
+
+Audibility is read from the mixer itself rather than from the sound-start trace: with `s_show 2` the
+engine prints every audible channel each mixing frame, and a local addition (see the deviation row)
+makes it report looping channels too, which stock reporting omits — without it a loop can only be
+shown as submitted, never as heard.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Looping door (loop spawnflag) | Passed in engine | `mixer/mixer.json`, `mixer/mixer-report.txt`: while door 28 travels on button 27, `sounds/doors/e1/hydrolic2loop.wav` is reported as a looping channel on 245 mixing frames, peak 118 against the mixer's 127 master, carried by one entity throughout (`loop_offer=4`, `carrier=770`); `sounds/doors/e1/hydrolic2end.wav` then settles the open end. |
+| One-shot door | Passed in engine | `sounds/doors/e1/celldoor1openloop.wav` mixed on 42 frames and `sounds/doors/e1/celldoor1openend.wav` on 20, with no loop offered and no carrier for door 259 — the unlooped form plays once per transition. |
+| Authored lift platform | Passed in engine | Mover 19 (`func_plat`, height 120, speed 200) cycled closed → opening → open → closing → closed with the player riding it (ground entity 71 throughout): `sounds/doors/e1/lift1loop.wav` as a looping channel on 73 frames, on one carrier for the rise and a second for the fall (`carrier=803`, then `810`), and `sounds/doors/e1/lift1stop.wav` at both ends of the travel. |
+| Settling sounds reach the player | Passed in engine, defect-driven | All three settling sounds above are heard from the settled brush, two of which sit inside their wall pocket. Before the broadcast change none of them reached the client at all, although the same brush's motion sound did. |
+| Sequence 323 regressions | Passed | `sound/sound.json`: press audio still starts for buttons 75, 268 and 435. `travel/travel.json`: all 25 authored buttons match extent-minus-lip, mismatches 0. |
+| Unit coverage | Passed | 204 runtime checks, exit 0, including the new carrier-trajectory check. One stray `failed command:` line still appears beside the ragdoll test's own raw diagnostics. |
+| Engine fork deviation | Implemented, owner review requested | `tools/mixer-probe.diff` adds looping channels to the `s_show 2` debug report in `engine/ioquake3/code/client/snd_dma.c`, three lines, debug output only. Stock reporting cannot show a loop being heard, and a verification aid that is thrown away leaves no reproducible evidence behind. Revert it if the fork should stay closer to upstream. |
+| Authored loudness on a mover | Implemented, not exercised | `volume`/`min`/`max` are resolved and sent on both the one-shot and the carrier path, but the movers driven here author none of them, so the authored values were not heard in engine. `func_train` also ignores them in the reference. |
+| Rotating-door loop flag | Not exercised | The rotating-door loop spelling is read, and maps author it, but no rotating brush with it was driven in this run. |
+| Save during a travel | Not exercised | A mover restored mid-travel resumes its motion but not its loop until the next transition; the carrier itself is never restored, by design. |
+| Channel choice | Differs from reference | Motion and settling sounds use the automatic channel; the reference forces its own override channel, which this engine's sound interface does not offer, so two sounds can now share a brush where the reference would have cut one off. |
+| Secret-door step lengths | Unchanged, approximate | As recorded in sequence 323: the reference drives that brush from an authored distance rather than brush size, and that path was deliberately left alone. |
+
+## Sequence 323 — Solitary mover audio, button travel and ridden-lift camera — two verified, one sampled
+
+Reported while playing the first chapter ("Solitary", e1m3a): wall buttons disappeared when
+used, buttons and wall terminals produced no sound, and standing on a lift that travels
+up or down made the view twitch.
+
+Silence had two independent causes. The authored press and pop-back keys on a button were
+never read anywhere in the runtime, so nothing was registered or started; and even once
+registered, a brush entity's own origin is model-local, so an event placed at the entity
+origin lands at the map origin, while one placed at the brush's audible centre but addressed
+to a listener position is dropped by the audible-set filter — a player standing 56 units in
+front of a panel heard nothing. `src/runtime/server/movers.zig` now resolves those two keys
+through the map sound registry into two fields on the mover component
+(`src/runtime/domain/movers.zig`) and starts them from the centre of the brush's committed
+world bounds on the broadcast path. Archives written before the fields existed stay silent,
+which the new `domain/snapshot` test pins.
+
+The disappearing panels were a travel-distance defect. Mover travel is the brush extent along
+the movement axis minus the authored lip, but that extent was taken from the clipper's hull,
+which widens every inline brush by one unit per side; the reference server state derives its
+mover size by contracting the loaded model hull by exactly that amount so that authored lips
+behave as written. Every one of the 25 buttons on this map therefore pressed two units deeper
+than authored, and six of them are authored with lip equal to their thickness, meaning they
+were built not to move at all — those sank behind the wall surface and vanished. Travel now
+uses the authored extents. `src/runtime/root.zig` also imports `server/movers.zig` for test
+collection, because its checks had never been reachable.
+
+The twitch was a prediction gap, not a mover defect: the server carries a rider positionally,
+but client prediction had no notion of ground-mover motion, so the camera advanced at snapshot
+rate while the ridden brush is trajectory-evaluated every frame. `src/runtime/client.zig` now
+carries the ridden brush's trajectory inside each replayed command.
+
+`zig build test -j8` exits 0; 203 runtime tests pass, including three new ones. Its progress
+output still prints one stray `failed command:` line beside the ragdoll test's own raw
+diagnostics; running that test binary directly reports `All 203 tests passed` with status 0.
+Evidence is under `zig-out/reports/runtime-zig-323/`, produced by build
+`c971f00b83361242f81073cccc435273cc072fcadf6a2147572da96690b80764` through dkguard with
+isolated profiles; the preserved installation and saves are untouched.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Authored press and return audio | Passed in engine | `sound/sound.json` with `s_show 1`: `sounds/global/b_009.wav`, `sounds/doors/e1/button1in.wav` and `sounds/global/b_010.wav` start with the player 56 units in front of buttons 75, 268 and 435, and button 268's `button1out` follows after its dwell. The weapon-fire control line did not appear in the final run, so the channel proof rests on the button lines themselves. |
+| Travel of every authored button on the map | Passed | `travel/travel.json`: all 25 `func_button` movers match the authored extent-minus-lip vector exactly (25/25, mismatches 0), taken from the map's own model bounds. Before the change all 25 were two units deep on the moving axis. |
+| Panel stays visible while pressed | Passed, inspected | `visual/`: before/open/hold/after captures for buttons 27, 47 and 75 plus the pre-fix pair for 27, where the panel was gone. The drawn-brush count stays at 34 and 41 across the use, so the brush is still being drawn rather than culled. |
+| Riding the authored lift | Sampled, not frame-complete | `lift/camera-series.txt`: 90 camera reports across 24 distinct rendered frames, monotone +79.3 units, one zero-motion frame and no reversal beyond two units; the earlier snapshot-rate staircase is absent. One +16.4-unit step at the ride boundary is unexplained — a per-frame comparison against the brush needed a temporary client probe that has since been removed, so no before/after exists on this build. |
+| Unit coverage | Passed | 203 runtime tests, including authored travel from a real hull, a zero-travel button, silent pre-audio archives, and the newly reachable `server/movers.zig` root. |
+| Other authored mover audio | Not implemented | `sound_opening`, `sound_closing`, the open/close finish pair and the train/platform up/top/down/bottom set are still unread, as are looping mover sounds. Buttons are the only class that emits. |
+| Secret-door step lengths | Unchanged, approximate | `func_door_secret` still measures the spread hull, and the reference drives that brush from an authored distance rather than brush size. Left alone deliberately; not re-measured. |
+
 ## Sequence 322 — multiplayer bot skill ladder and field of view — implemented; unverified
 
 Bots in a multiplayer match played at maximum strength: target choice ignored facing,
