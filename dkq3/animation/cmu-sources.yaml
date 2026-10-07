@@ -1,0 +1,21 @@
+version: 1
+license:
+  dataset: CMU Graphics Lab Motion Capture Database
+  publisher: Carnegie Mellon University
+  grant: This dataset of motions is free for all uses.
+  grant_url: https://mocap.cs.cmu.edu/
+  conversion: Bruce Hahne MotionBuilder-friendly BVH (2010)
+  conversion_grant: No additional restrictions; research and commercial use permitted.
+  conversion_terms: READMEFIRST.txt, lines 169–184; preserve this file with the motion data.
+  revision: 09a07f54f3bbb58797325f009282d0b2048a2871
+  attribution: CMU Graphics Lab and Bruce Hahne; data collection supported by NSF grant 0196217.
+files:
+  - name: READMEFIRST.txt
+    url: https://raw.githubusercontent.com/una-dinosauria/cmu-mocap/09a07f54f3bbb58797325f009282d0b2048a2871/READMEFIRST.txt
+    sha256: 8e6fe2e640b3728ef2e43e722cb5ae9cdf0010028c0517c4226ed165f9037930
+  - name: 07_01.bvh
+    url: https://raw.githubusercontent.com/una-dinosauria/cmu-mocap/09a07f54f3bbb58797325f009282d0b2048a2871/data/007/07_01.bvh
+    sha256: f8d82ea6ed1aab0cb7d9ee680f476b65471e2322e1da84add8a8527a2cb0b9a2
+  - name: 09_01.bvh
+    url: https://raw.githubusercontent.com/una-dinosauria/cmu-mocap/09a07f54f3bbb58797325f009282d0b2048a2871/data/009/09_01.bvh
+    sha256: 90641ccca814b9d8d59f63576a548bb5612477364462d142a9f741268fbe3b78

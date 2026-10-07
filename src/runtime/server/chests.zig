@@ -52,7 +52,7 @@ pub fn use(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
 }
 pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, entity: ecs.Entity, now: i64) !void {
     var state = (try world.get(entity, data.WorldControl)).action.chest;
-    if (!try @import("items.zig").settle(world, entity, now, @intCast(@max(0, now - state.stepped_ms)))) {
+    if (!try @import("items.zig").settle(world, slots, entity, now, @intCast(@max(0, now - state.stepped_ms)))) {
         try @import("weapon_entities.zig").remove(world, slots, projections, entity);
         return;
     }

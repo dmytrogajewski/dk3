@@ -33,6 +33,55 @@ pub fn select(loadout: data.Weapons, table: *const weapons.Table, situation: Sit
     };
     return result;
 }
+/// Weapons (bit per id) a companion must not use against an enemy at
+/// `enemy`: any that is no companion weapon of this episode, and those whose
+/// splash or spread the reviewed safety rules keep away from the leader.
+pub fn excluded(world: *data.World, entity: ecs.Entity, episode: u8, enemy: ?v.Vec3) !i32 {
+    const companion = (try world.get(entity, data.Companion)).*;
+    const pose = (try world.get(entity, data.Transform)).position;
+    var owner_distance: f32 = std.math.inf(f32);
+    var owner_enemy_distance: f32 = std.math.inf(f32);
+    if (@import("region_access.zig").find(world, companion.owner)) |owner| {
+        const point = (try owner.get(data.Transform)).position;
+        owner_distance = v.length(v.subtract(pose, point));
+        if (enemy) |target| owner_enemy_distance = v.length(v.subtract(target, point));
+    }
+    return excludedFor(episode, owner_distance, owner_enemy_distance, if (enemy) |target| v.length(v.subtract(target, pose)) else null);
+}
+fn excludedFor(episode: u8, owner_distance: f32, owner_enemy_distance: f32, enemy_distance: ?f32) i32 {
+    var mask: i32 = 0;
+    for (catalog.entries) |entry| {
+        const bit = @as(i32, 1) << entry.id;
+        const policy = entry.spec.companion orelse {
+            mask |= bit;
+            continue;
+        };
+        if (entry.episode != episode) {
+            mask |= bit;
+            continue;
+        }
+        const distance = enemy_distance orelse continue;
+        const unsafe = switch (policy.safety) {
+            .none => false,
+            .spread => owner_distance < 96 or distance > 400,
+            .owner => owner_enemy_distance < 156,
+            .both => owner_enemy_distance < 156 or distance < 156,
+        };
+        if (unsafe) mask |= bit;
+    }
+    return mask;
+}
+/// The authored fallback with no bot choice left: a thrown weapon emptied of
+/// ammunition still strikes up close (discus, venom).
+pub fn emptyMelee(loadout: data.Weapons, table: *const weapons.Table, episode: u8) ?u5 {
+    for (catalog.entries) |entry| {
+        const policy = entry.spec.companion orelse continue;
+        if (entry.episode != episode or !policy.empty_melee or loadout.dk3Inventory & (@as(i32, 1) << entry.id) == 0) continue;
+        if (loadout.ammo[entry.id] >= table.entries[entry.id].ammoCost) continue;
+        return entry.id;
+    }
+    return null;
+}
 pub fn choose(world: *data.World, entity: ecs.Entity, enemy: ?Ref, table: *const weapons.Table, episode: u8) !u5 {
     const companion = (try world.get(entity, data.Companion)).*;
     if (companion.carrying) return 0;
@@ -85,4 +134,34 @@ test "companion weapon selection respects enemy choices and friendly splash dist
     try t.expectEqual(catalog.bolter.id, select(inventory, &table, .{ .episode = 3, .owner_enemy_distance = 100, .enemy_distance = 300 }));
     inventory.ammo[catalog.bolter.id] = 0;
     try t.expectEqual(catalog.silverclaw.id, select(inventory, &table, .{ .episode = 3, .choices = .{ 0, 1, 1 }, .enemy_distance = 500 }));
+}
+test "companion exclusions keep splash away from the leader and other episodes out" {
+    const t = std.testing;
+    const bit = struct {
+        fn of(id: u5) i32 {
+            return @as(i32, 1) << id;
+        }
+    }.of;
+    // Leader beside the target: weapons with leader safety are excluded.
+    const close = excludedFor(3, 300, 100, 300);
+    const far = excludedFor(3, 300, 600, 300);
+    for (catalog.entries) |entry| {
+        const policy = entry.spec.companion orelse {
+            try t.expect(close & bit(entry.id) != 0);
+            continue;
+        };
+        if (entry.episode != 3) {
+            try t.expect(far & bit(entry.id) != 0);
+            continue;
+        }
+        switch (policy.safety) {
+            .owner => {
+                try t.expect(close & bit(entry.id) != 0);
+                try t.expect(far & bit(entry.id) == 0);
+            },
+            .none => try t.expect(close & bit(entry.id) == 0),
+            else => {},
+        }
+    }
+    try t.expect(excludedFor(3, 300, 100, null) & bit(catalog.bolter.id) == 0);
 }

@@ -1,0 +1,18 @@
+version: 1
+source_program: dk3/cinematics/intro.cfg
+source_shots:
+- 15
+- 16
+- 17
+- 18
+- 19
+- 20
+- 21
+- 22
+- 23
+- 24
+- 25
+actors:
+- hiro2
+- tat1
+scene: dojo_dialogue_original

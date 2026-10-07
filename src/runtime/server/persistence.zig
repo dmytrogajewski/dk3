@@ -50,6 +50,7 @@ pub fn prepare(slot: []const u8, previous: bool) !format.Loaded {
 /// Projection rebuilding below is infallible
 /// for the admitted entity families and current map's loaded definitions.
 pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").State) !void {
+    try @import("movers.zig").admit(&loaded.world);
     try systems.cinematics.admit(&loaded.world);
     try systems.scripts.admit(&loaded.world);
     var query = loaded.world.queryAccess(0, 0, 0);
@@ -116,6 +117,7 @@ pub fn admit(loaded: *format.Loaded, systems: *@import("world_systems.zig").Stat
     };
 }
 pub fn project(world: *data.World, slots: *Slots, projections: []abi.EntityProjection, clients: *@import("clients.zig").Clients, states: []c.playerState_t, systems: *const @import("world_systems.zig").State, header: format.Header, now: i64) !void {
+    try @import("movers.zig").restoreSounds(world);
     slots.* = .{};
     clients.entities = @splat(null);
     clients.episode = header.episode;

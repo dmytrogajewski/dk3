@@ -1,0 +1,11 @@
+# Sequence 344 body-only experiment. Geometry is local and unapproved.
+version: 1
+character: hiro-dojo-slim
+body_material: models/neural/hiro-dojo-slim/body
+provenance:
+  origin: DK3-authored gi concept and local TRELLIS.2 reconstruction
+  license: Local generated asset, no third-party game mesh
+  redistribution: Not approved
+  credit: DK3 authoring
+review:
+  status: Unrigged mesh candidate; do not package or install

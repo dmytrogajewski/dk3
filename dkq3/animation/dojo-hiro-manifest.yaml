@@ -1,0 +1,92 @@
+# Copy beside frozen hiro.iqm, dojo-retarget.yaml and capture/; outputs remain local.
+version: 1
+characters:
+- character: hiro
+  source_model: models/cinematic/c_hiro_intr.dkm
+  target_model: models/neural/c_hiro_intr.iqm
+  iqm: hiro.iqm
+  skeleton: dk3_humanoid_v1
+  clips:
+    stance:
+      sequence: ambba
+      source_frames:
+      - 122
+      - 142
+      authority_fps: 10
+      target_frames:
+      - 955
+      - 1017
+      fps: 0
+      loop: true
+      root_motion: preserve
+      motion: capture/stance.npz
+      retarget: dojo-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 62
+        foot_r:
+        - - 0
+          - 62
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_loop_position: 2
+      max_loop_angle: 25
+      max_joint_step: 65
+    look_left:
+      sequence: lftlook
+      source_frames:
+      - 163
+      - 172
+      authority_fps: 10
+      target_frames:
+      - 1018
+      - 1047
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: capture/look_left.npz
+      retarget: dojo-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 29
+        foot_r:
+        - - 0
+          - 29
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+    sad:
+      sequence: lksadb
+      source_frames:
+      - 234
+      - 263
+      authority_fps: 10
+      target_frames:
+      - 1048
+      - 1137
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: capture/sad.npz
+      retarget: dojo-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 89
+        foot_r:
+        - - 0
+          - 89
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+  bind_pose_sha256: 754d81754eabbef544e1e99fe468abf60466acb186b1af98cfdc70774a50eacc
+  provenance:
+    origin: Owner supplied local Daikatana pak3.pak, converted by reviewed DK3 asset
+      pipeline
+    license: Proprietary original game data; local development and owner testing only
+    redistribution: Not granted; original and reconstructed performance data remain
+      local build products
+    credit: Original Daikatana animation performance; DK3 surface reconstruction
+    capture_profile_sha256: d01f02d16b6de454ca77910b6cc017a71ee15a3e8d8e58ea28aeaa04466e942b

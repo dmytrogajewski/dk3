@@ -6,6 +6,7 @@ const Character = @import("character.zig").State;
 pub const Feedback = struct {
     handled_revision: u32 = 0,
     death_handled: bool = false,
+    gibbed: bool = false,
     pain_ready_ms: ?i64 = null,
     hazard_voice_ms: ?i64 = null,
     flash_alpha: f32 = 0,
@@ -20,7 +21,21 @@ pub const Feedback = struct {
         self.flash_ms = now;
     }
 };
-pub const Receipt = struct { source: u32 = 0, at_ms: i64 = -1, revision: u32 = 0, weapon: u5 = 0, amount: i32 = 0, feedback: Feedback = .{} };
+pub const Receipt = struct {
+    source: u32 = 0,
+    at_ms: i64 = -1,
+    revision: u32 = 0,
+    weapon: u5 = 0,
+    amount: i32 = 0,
+    feedback: Feedback = .{},
+    // Cumulative velocity changes survive coalesced network snapshots. Each
+    // presentation applies the difference once, including hits on sleeping bodies.
+    impulse: @import("vector.zig").Vec3 = @splat(0),
+    impulse_point: @import("vector.zig").Vec3 = @splat(0),
+    impulse_serial: u32 = 0,
+    impulse_revision: ?u32 = null,
+    revision_impulse: @import("vector.zig").Vec3 = @splat(0),
+};
 pub const Options = struct { source: u32 = 0, weapon: u5 = 0, bypass_armor: bool = false, bypass_protection: bool = false, environmental: bool = false, self_hazard: bool = false, suppress_flash: bool = false, attacker_class: []const u8 = "" };
 pub const Result = struct { blood: i32 = 0, armor: i32 = 0, killed: bool = false };
 pub fn apply(health: *Health, character: ?Character, amount: i32, now: i64, options: Options) Result {

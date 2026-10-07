@@ -43,7 +43,9 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
     if (now >= actor.think_ms) {
         actor.think_ms = now + 100;
         var enemy = try perceive(world, slots, entity, actor, pose.*, definition, now);
-        if (enemy.enemy) |target| if ((try target.get(data.Player)).water_level == 3) {
+        // A submerged player is out of reach. The enemy may be a companion
+        // (Superfly), which has no player state.
+        if (enemy.enemy) |target| if (target.get(data.Player) catch null) |player| if (player.water_level == 3) {
             actor.threat = 0;
             enemy.enemy = null;
         };

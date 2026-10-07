@@ -1,0 +1,24 @@
+# Bruce Hahne's MotionBuilder-friendly CMU conversion, imported by Blender.
+# The conversion faces +Z/Y-up; Blender's -Z/Y import makes it -Y/Z-up.
+forward: -y
+up: z
+bones:
+  pelvis: Hips
+  spine: Spine
+  chest: Spine1
+  neck: Neck
+  head: Head
+  upperarm_l: LeftArm
+  forearm_l: LeftForeArm
+  hand_l: LeftHand
+  thigh_l: LeftUpLeg
+  shin_l: LeftLeg
+  foot_l: LeftFoot
+  toe_l: LeftToeBase
+  upperarm_r: RightArm
+  forearm_r: RightForeArm
+  hand_r: RightHand
+  thigh_r: RightUpLeg
+  shin_r: RightLeg
+  foot_r: RightFoot
+  toe_r: RightToeBase

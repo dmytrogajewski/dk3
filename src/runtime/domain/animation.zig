@@ -40,8 +40,27 @@ pub const Sequence = struct {
         return self.first + @as(u16, @intCast(if (looping) step % count else @min(step, count - 1)));
     }
 };
+/// Whitespace-separated words; a quoted word may hold spaces (an authored
+/// sequence named "copy of c_swordp").
+const Words = struct {
+    bytes: []const u8,
+    index: usize = 0,
+    fn next(self: *Words) ?[]const u8 {
+        while (self.index < self.bytes.len and std.mem.indexOfScalar(u8, " \t\r\n", self.bytes[self.index]) != null) self.index += 1;
+        if (self.index >= self.bytes.len) return null;
+        if (self.bytes[self.index] == '"') {
+            const start = self.index + 1;
+            const end = std.mem.indexOfScalarPos(u8, self.bytes, start, '"') orelse self.bytes.len;
+            self.index = @min(end + 1, self.bytes.len);
+            return self.bytes[start..end];
+        }
+        const start = self.index;
+        while (self.index < self.bytes.len and std.mem.indexOfScalar(u8, " \t\r\n\"", self.bytes[self.index]) == null) self.index += 1;
+        return self.bytes[start..self.index];
+    }
+};
 pub fn find(bytes: []const u8, name: []const u8) !?Sequence {
-    var words = std.mem.tokenizeAny(u8, bytes, " \t\r\n\"");
+    var words: Words = .{ .bytes = bytes };
     if (!std.mem.eql(u8, words.next() orelse return error.InvalidAnimation, "dk3_animation")) return error.InvalidAnimation;
     if (!std.mem.eql(u8, words.next() orelse return error.InvalidAnimation, "1")) return error.InvalidAnimation;
     const frames = try std.fmt.parseInt(u16, words.next() orelse return error.InvalidAnimation, 10);
@@ -64,4 +83,7 @@ test "animation timing follows elapsed time and death holds its final frame" {
     try std.testing.expectEqual(@as(u16, 12), sequence.frame(10000, false));
     try std.testing.expectEqual(@as(u16, 7), sequence.frame(1000, true));
     try std.testing.expectError(error.InvalidAnimation, find("dk3_animation 1 20 \"diea\" 5 20 10", "diea"));
+    // Authored names may contain spaces (e2m5's cinematic Hiro).
+    const copied = (try find("dk3_animation 1\n30\n\"copy of c_swordp\" 21 21 10\n\"amba\" 0 9 10\n", "amba")).?;
+    try std.testing.expectEqual(@as(u16, 9), copied.last);
 }

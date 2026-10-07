@@ -130,3 +130,107 @@ repairs 704 end points whose previous area lookup differed from the destination.
 The two ledge crossings from area 2881 now end in areas 2824 and 2855. This is
 structural evidence; a running bot crossing and the wider navigation refresh
 remain part of the gameplay repair pass.
+
+## Generic navigation (sequence 340, generic-navigation)
+
+Owner request (2026-10-07): navigation should not depend on per-map waypoints in
+co-op routes; robust generic navigation should take the bot (and multiplayer bots)
+wherever the authored progression allows, with routes stating only what to reach
+and what to do. Status: **implemented; unverified** except where evidence is named.
+
+**Coverage report.** `dk3_runtime_navigation_coverage [grid] [jump]` floods the
+space a player can reach from each map's player starts over static geometry, with
+the native hulls and moves (standing step, crouched step or level crawl, standing
+jump, any drop; brush entities unlinked as BSPC treats doors), and checks every
+floor for an AAS area and an AAS route from the start that reached it. Floors are
+classed routed, *gated* (routable only through a damaging volume), *uncovered* (no
+area) or *unrouted* (no route), and gaps are grouped into regions.
+`dkq3/tools/runtime_navigation_coverage.py` runs it per map in a fresh dedicated
+server (`--overlay` stages a recompiled navigation package under test).
+
+**Compiler fixes** (bundled BSPC, `engine/BSPC-CHANGES.json`), each found with the
+report on e1m3a:
+
+| Defect | Effect | Repair |
+|---|---|---|
+| BSPC's built-in Quake III crouch hull (maxs z 16) and step 19 | every crawlway 28–40 units high missing (e1m3a's vent and pipe room) | `dkq3/tools/dk3-aas.cfg`: native hulls (crouch maxs z 4) and step 18; botlib's crouch presence box likewise in both copies |
+| converted trigger brushes keep solid contents; `trigger_hurt` only added team flags | every hurt volume compiled as a wall | hurt brushes carry only the no-entry team flags and are expanded like liquids |
+| every `trigger_push` compiled as a Quake III jump pad | Daikatana's 40 targetless pushes (draughts, laser shoves) became dead-end areas without walking links | only a targeted push is a jump pad |
+| triggered or toggled `func_wall` compiled solid | cell force fields and walls a scene removes cut routes for good | compiled as mover areas with their model number; non-solid (32) and CTF-only (64) walls left out elsewhere (the variant grouping applies the same flag) |
+| a sideways-sliding thin `func_door` compiled as mover space | bridges and sliding floors had no floor | a door whose model is a thin wide slab is floor in its authored place |
+| no lift links for `func_train` | Daikatana's train lifts unroutable | vertical legs of a train's path get elevator links; the rider floor is found in the train model at a column clear at both stops (a lift may ring a pillar) |
+| elevator exits searched within 12 units, growing across probes | lifts stopping short of their landing unlinked | exits up to 96 units out, reset per probe, each required to stand on floor |
+| a crawl-high gap from a decorated void to the outside leaked with the smaller crouch hull (e2m2c) | compile failure | on a leak, the space joined to the outside is sealed and the entity flood repeated |
+| riser edges split by tiny crouch areas end a tenth of a unit off the riser plane (tolerance 0.1) | step and walk-down links dropped; with the smaller crouch hull e3m2a lost 25,000 floors behind one 16-unit step | when the strict pass finds no pair, edges within half a unit of the plane are compared (only as a fallback: the lowest pair is kept, so a wider pass everywhere let drops displace steps on e3m4a) |
+| train lifts linked only upward; BSPC compiles the shaft empty | the way down was a fall into the shaft, impossible with the lift standing at the top (e1m3a's cell block 2 lift) | each train leg also gets the reversed elevator links; falls of more than 64 units and jumps landing in a train's swept shaft are dropped (the short step onto a lift resting in its pit stays) |
+
+e1m3a, before and after (evidence below): 14,190 reachable floors; uncovered
+245 → 9; unrouted 10,355 → 402; 1,537 floors are gated behind lasers and force
+fields that the level switches off.
+
+**Live gates** (`src/runtime/server/navigation_gates.zig`). The compiled AAS treats
+every dynamic blocker as open; a gate is one such entity with the areas it fills,
+disabled for routing (`AAS_EnableRoutingArea`) while it blocks: a damaging volume
+dealing 10 or more while switched on, a toggled wall while it stands, a door opened
+by an authored control until open, a sliding floor away from its place, a breakable
+until broken. Player routes admit the no-entry team flags, so switched-off hazards
+are routable. Gates are rebuilt per world and shared by every routed player.
+
+**Planner** (`bot_routes.unblock`). When the live route fails, routing with every
+gate open finds the first closed gate on the way; a moving gate means wait;
+otherwise the authored control whose chain opens it (button, trigger, event
+generator, relay; a breakable is shot) is chosen, preferring one reachable as the
+gates stand and otherwise planning the gate in front of that control first. The
+co-op motor asks it whenever navigation has no way to its goal; routes reach it as
+`dk3.plan(goal)`, which `advance`/`progress` try before their nearest-control
+heuristic, waiting for the gate to answer before planning again.
+Multiplayer bots ask it too. A bot whose teammate already fetches the control, or
+whose gate is already moving, waits at the gate's near side (the predicted route's
+last open position before it): e1dt1's lift doors open from a button across the
+map for ten seconds, so whoever crosses must already stand there.
+
+**Lifts.** Navigation waypoints mark lift links and carry the link's entrance.
+The co-op motor boards a lift standing at (or level with) the entrance, operates
+the control that sends it (or calls it down), holds at its middle while it travels
+(trains included) and continues at the far stop; aboard a lift whose route goes on
+far above or below inside its shaft, it sends the lift too. It never waits under
+a raised lift. Lift handling also runs while the planner's control is pending (a
+button the lift carries the player up to); a train control is done once the train
+moves. Only something that lifts (a train, a vertically moving mover) is taken for
+the lift, preferring the one underfoot.
+
+**Objectives by entity.** A `use`/`shoot` objective needs a standing point from
+which it works. Buttons are tried beside each face and corner; a shooter walks out
+along eight directions in 16-unit steps from the target's edge, taking the first
+point with a line to it (decorations are outside the shot mask, so a clear line
+counts), outside half the blast of an explosive target (scenery 100, breakables
+their radius). With no such point reachable as the gates stand, one is chosen as
+if every gate were open and the planner opens the way to it. A short level walk
+needs no route (a control carried on the lift underfoot lies in shaft space the
+area graph leaves empty). Presses of other controls on the way do not count as
+presses of the objective.
+
+**Movement details found on e1m3a.** Waypoints crouch when the current or next
+area is crouch-only (walking links into a crawlway are ordinary walks); the local
+crouch test also tries a ducked step-up (a jammed door's lower half). A blocked
+bot looks for the door ahead with a slim body when its hull grazes the jamb, so a
+door opened only by use (no targetname, no touch flag: e1m3a's hidden door) is
+operated. A breakable's gate takes only the areas centred where a player's hull
+would meet its brush, not a corridor area that merely touches a wall panel.
+
+**Found on the episode-1 chain.** The navigation service skips a route point the
+player already stands on (thin water layers whose entry lies just below the feet:
+e1m1b's ford). Lifts (vertical doors wide both ways) are not gates; multiplayer bots
+ride them through the same `liftStep` as the co-op motor, wait at most 20 s at a
+gate nobody opens, and pursue items while their objective has no route. A volume's
+goal is a walkable point touching it (e1m3b's exit strip lies past the last area);
+an exit another entity fires is never the one to walk into.
+
+Evidence (local, `zig-out/reports/runtime-zig-340/`): with the regenerated
+navigation (`dk3-navigation-340.pk3`, not installed) and the final build, a New Game
+run plays intro → e1m1a → … → e1m2b → e1m3a → e1m3b continuously without a death
+(`coop/final7-newgame/`), e1m3a by its objective route; so does a chain from e1m1a
+(`coop/final7-chain/`). All 84 maps load and report coverage (`coverage/navcov-final/`).
+Multiplayer comparison and remaining limits are in
+[native acceptance](native-acceptance.md#sequence-340--generic-navigation--implemented-partially-verified)
+and the RUN log.

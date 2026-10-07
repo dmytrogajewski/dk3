@@ -28,6 +28,7 @@ pub const State = struct {
     explosive_fragment: bool = false,
     explosion: bool = false,
     gib: ?@import("gibs.zig").State = null,
+    corpse: ?struct { appearance: u8 } = null,
 };
 pub const Definition = struct {
     model: []const u8,

@@ -1,0 +1,61 @@
+# Copy this recipe beside locally extracted hiro.iqm and imported motion NPZs.
+# Target ranges apply to the admitted sequence-333 opening Hiro (955 frames).
+# The authoring build checks the admitted source .anim and frozen IQM contract.
+version: 1
+characters:
+  - character: hiro
+    source_model: models/cinematic/c_hiro_intr.dkm
+    target_model: models/neural/c_hiro_intr.iqm
+    iqm: hiro.iqm
+    skeleton: admitted-humanoid
+    clips:
+      neutral:
+        sequence: ambappa
+        source_frames: [0, 20]
+        authority_fps: 10
+        target_frames: [955, 1017]
+        fps: 30
+        loop: false
+        root_motion: preserve
+        motion: neutral.npz
+        props: {prop_30: {mode: hide}, prop_31: {mode: hide}, prop_32: {mode: hide}}
+      walk:
+        sequence: walka
+        source_frames: [775, 794]
+        authority_fps: 10
+        target_frames: [1018, 1049]
+        fps: 30
+        loop: true
+        root_motion: in_place
+        motion: walk-source.npz
+        input_frames: [100, 230]
+        retarget: cmu-retarget.yaml
+        solve_contacts: true
+        contacts: {foot_l: [[0, 4], [25, 31]], foot_r: [[8, 20]]}
+        max_foot_slide: 0.5
+        max_loop_position: 2
+        max_loop_angle: 25
+        max_joint_step: 65
+        attachments: [{bone: tag_weapon, max_position_step: 10, max_angle_step: 65}]
+        props: {prop_30: {mode: hide}, prop_31: {mode: hide}, prop_32: {mode: hide}}
+      run:
+        # An explicit cosmetic performance for an existing authoritative
+        # sequence; this does not invent a server animation called run.
+        sequence: walkb
+        source_frames: [795, 814]
+        authority_fps: 10
+        target_frames: [1050, 1071]
+        fps: 30
+        loop: true
+        root_motion: in_place
+        motion: run-source.npz
+        input_frames: [10, 98]
+        retarget: cmu-retarget.yaml
+        solve_contacts: true
+        contacts: {foot_l: [[19, 20]], foot_r: [[9, 10]]}
+        max_foot_slide: 0.5
+        max_loop_position: 2
+        max_loop_angle: 25
+        max_joint_step: 65
+        attachments: [{bone: tag_weapon, max_position_step: 10, max_angle_step: 65}]
+        props: {prop_30: {mode: hide}, prop_31: {mode: hide}, prop_32: {mode: hide}}

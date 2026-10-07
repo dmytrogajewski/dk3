@@ -44,6 +44,8 @@ pub const Binary = struct {
     return_at: Deadline = .{},
     group: u32 = 0,
     owner: u32 = 0,
+    /// Zero identifies archives predating authored-hull travel restoration.
+    travel_version: u8 = 0,
     /// Authored press and pop-back audio, registered when the map is admitted so
     /// the first use cannot be lost to a late sound configstring. Zero is silence.
     use_sound: u16 = 0,

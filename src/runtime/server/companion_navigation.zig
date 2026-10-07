@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Party lane yielding and physical, unlocked door use. No catch-up teleport.
+//! Party lane yielding and physical, unlocked door use, plus scripted motion.
+//! No catch-up teleport.
 const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const v = @import("../domain/vector.zig");
@@ -15,6 +16,7 @@ pub fn prepare(world: *data.World, slots: *Slots, projections: []abi.EntityProje
     if (now < companion.yielding_until_ms) {
         actor.mode = .chase;
         actor.threat_position = companion.yield_position;
+        try yieldTo(world, entity, companion.yield_position, now);
         return;
     }
     var yielding_to: ?@import("../domain/world_references.zig").Ref = null;
@@ -32,7 +34,10 @@ pub fn prepare(world: *data.World, slots: *Slots, projections: []abi.EntityProje
         if (hit.fraction < 1) if (@import("region_access.zig").victim(world, slots, hit)) |obstacle| {
             if (obstacle.get(data.Mover) catch null) |mover| {
                 const object = (try obstacle.get(data.MapObject)).*;
-                if ((std.mem.eql(u8, object.classname, "func_door") or std.mem.eql(u8, object.classname, "func_door_rotating")) and object.targetname.len == 0 and !mover.toggle and !mover.moving() and mover.state == .closed and try @import("properties.zig").number(object, "health", 0) <= 0) {
+                // An unnamed door, or one the party opens itself (the reference
+                // node graph walks a sidekick through it and nothing else opens it).
+                const party_door = obstacle.world == world and object.targetname.len != 0 and @import("authored_nodes.zig").partyDoor(world, object, projections[hit.entity].shared.absmin, projections[hit.entity].shared.absmax);
+                if ((std.mem.eql(u8, object.classname, "func_door") or std.mem.eql(u8, object.classname, "func_door_rotate")) and (object.targetname.len == 0 or party_door) and !mover.toggle and !mover.moving() and mover.state == .closed and try @import("properties.zig").number(object, "health", 0) <= 0) {
                     // Companion-owned keys are checked by mover use, just as for
                     // any other activator. Never borrow the player's inventory.
                     if (obstacle.world == world) try @import("movers.zig").use(world, slots, projections, obstacle.entity, try world.persistentId(entity), now) else {
@@ -60,12 +65,25 @@ pub fn prepare(world: *data.World, slots: *Slots, projections: []abi.EntityProje
             actor.route = .{};
             actor.mode = .chase;
             actor.threat_position = point;
+            try yieldTo(world, entity, point, now);
         }
     }
 }
+/// Step aside along a straight, braked line; fighting goes on meanwhile.
+fn yieldTo(world: *data.World, entity: ecs.Entity, point: v.Vec3, now: i64) !void {
+    const companion = try world.get(entity, data.Companion);
+    const flown = @import("companion_pilot.zig").entry(world, try world.persistentId(entity), @intFromEnum(companion.identity), now);
+    flown.intent.destination = point;
+    flown.intent.direct = true;
+    flown.intent.brake = true;
+    flown.intent.close_in = false;
+    flown.intent.leash = null;
+}
 
-/// Reuse native collision/step/swim/ladder physics with supplied class hull and
+/// Scripted motion (an authored performance walking the companion): reuse
+/// native collision/step/swim/ladder physics with supplied class hull and
 /// speed. Routing only submits commands; it never installs a waypoint position.
+/// Ordinary party movement is flown by the shared pilot (companion_pilot).
 pub fn move(world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, body: *data.Body, velocity: *data.Velocity, service: @import("../domain/navigation.zig").Service, definition: @import("../domain/actors.zig").Definition, speed: f32, threat: v.Vec3, slot: u16, now: i64, elapsed: u32) !void {
     const nav = @import("../domain/navigation.zig");
     const movement = @import("../domain/player_move.zig");

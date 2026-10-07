@@ -156,7 +156,9 @@ pub fn fly(actors: *@import("actors.zig").Actors, world: *data.World, slots: *Sl
                 },
                 .hover => {
                     const enemy_pose = (try enemy.get(data.Transform)).*;
-                    const eye = v.add(enemy_pose.position, .{ 0, 0, (try enemy.get(data.Player)).view_height });
+                    // The enemy may be a companion: no player view height.
+                    const view_height: f32 = if (enemy.get(data.Player) catch null) |player| player.view_height else 22;
+                    const eye = v.add(enemy_pose.position, .{ 0, 0, view_height });
                     const aim = try @import("actor_collision.zig").service().trace(.{ .start = eye, .end = v.add(eye, v.scale(v.basis(enemy_pose.angles).forward, 8192)), .mins = @splat(0), .maxs = @splat(0), .slot = (try enemy.get(data.Binding)).slot, .mask = c.MASK_SHOT });
                     // Until native auto-aim is connected, direct crosshair contact
                     // is the narrower compatibility definition of being targeted.

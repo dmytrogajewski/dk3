@@ -9,6 +9,12 @@ pub const Autosave = struct {
     pub fn healthy(current: i32, maximum: i32) bool {
         return maximum > 0 and @as(i64, current) * 10 > @as(i64, maximum) * 9;
     }
+    /// An arrival replaces an existing death checkpoint only with at least
+    /// half health: arriving at 2 health beside a guard post would otherwise
+    /// make every restart a death. It stays pending until then.
+    pub fn arrivalAdmits(current: i32, maximum: i32, existing: bool) bool {
+        return !existing or (maximum > 0 and @as(i64, current) * 2 >= maximum);
+    }
     pub fn due(self: *Autosave, now: i64) bool {
         if (self.next_ms == null) self.completed(now);
         return now >= self.next_ms.? and now >= self.retry_ms;
@@ -48,6 +54,13 @@ test "death recovery waits for input and cannot repeatedly enqueue loads" {
     try t.expect(!state.wantsRestart(false, true, 4200));
     try t.expect(!state.wantsRestart(true, true, 4300));
     try t.expect(!state.wantsRestart(false, true, 4400));
+}
+test "a hurt arrival keeps an existing checkpoint" {
+    const t = @import("std").testing;
+    try t.expect(Autosave.arrivalAdmits(2, 100, false));
+    try t.expect(!Autosave.arrivalAdmits(2, 100, true));
+    try t.expect(!Autosave.arrivalAdmits(49, 100, true));
+    try t.expect(Autosave.arrivalAdmits(50, 100, true));
 }
 test "periodic saving requires strictly more than ninety percent and a completed minute" {
     const t = @import("std").testing;

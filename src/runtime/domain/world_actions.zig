@@ -19,6 +19,17 @@ pub const Destructible = struct {
 };
 pub const Wall = struct { visible: bool = true, toggleable: bool = false, nonsolid: bool = false, used: bool = false };
 pub const Event = struct { target: []const u8, delay_ms: i64 };
+pub fn eventProperty(key: []const u8, value: []const u8, count: usize) !?Event {
+    const std = @import("std");
+    // Completion wiring and ordinary entity fields accompany timed targets.
+    // Their string values are metadata, not event-delay entries.
+    for ([_][]const u8{ "classname", "model", "origin", "angle", "angles", "targetname", "target", "killtarget", "spawnflags", "wait", "sound", "volume", "health", "delay", "_color", "min", "max", "coop", "ctf", "deathtag", "cinetrigger", "cinekill" }) |name| {
+        if (std.ascii.eqlIgnoreCase(key, name)) return null;
+    }
+    const seconds = std.fmt.parseFloat(f32, value) catch return error.InvalidEventDelay;
+    if (!std.math.isFinite(seconds) or seconds < 0 or seconds > 3600 or count >= 128) return error.InvalidEventDelay;
+    return .{ .target = key, .delay_ms = @intFromFloat(seconds * 1000) };
+}
 pub const Sequence = struct {
     events: []const Event = &.{},
     active: bool = false,
@@ -70,4 +81,21 @@ test "timed targets preserve order, consume before dispatch and respect repeat c
     _ = state.next(1000);
     _ = state.next(1000);
     try std.testing.expect(!state.start(8, 5000));
+}
+test "cinematic completion metadata does not become a timed target" {
+    const std = @import("std");
+    try std.testing.expect(try eventProperty("cinetrigger", "e2m2_cinemid", 0) == null);
+    try std.testing.expect(try eventProperty("CINEKILL", "e2m2_cinemid", 0) == null);
+    try std.testing.expect(try eventProperty("target", "killbod", 0) == null);
+    const first = (try eventProperty("lockincin", "0", 0)).?;
+    const later = (try eventProperty("bdeath", "3", 1)).?;
+    var state: Sequence = .{ .events = &.{ first, later } };
+    try std.testing.expect(state.start(7, 100));
+    try std.testing.expectEqualStrings("lockincin", state.next(100).?);
+    try std.testing.expect(state.next(3099) == null);
+    try std.testing.expectEqualStrings("bdeath", state.next(3100).?);
+    try std.testing.expectError(error.InvalidEventDelay, eventProperty("bdeath", "not-a-delay", 0));
+    try std.testing.expectError(error.InvalidEventDelay, eventProperty("bdeath", "-1", 0));
+    try std.testing.expectError(error.InvalidEventDelay, eventProperty("bdeath", "nan", 0));
+    try std.testing.expectError(error.InvalidEventDelay, eventProperty("bdeath", "0", 128));
 }

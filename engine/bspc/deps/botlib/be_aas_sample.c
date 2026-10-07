@@ -75,7 +75,8 @@ void AAS_PresenceTypeBoundingBox(int presencetype, vec3_t mins, vec3_t maxs)
 	int index;
 	//bounding box size for each presence type
 	vec3_t boxmins[3] = {{0, 0, 0}, {-15, -15, -24}, {-15, -15, -24}};
-	vec3_t boxmaxs[3] = {{0, 0, 0}, { 15,  15,  32}, { 15,  15,   8}};
+	//dk3: the native player ducks to maxs z 4 (player_move.zig)
+	vec3_t boxmaxs[3] = {{0, 0, 0}, { 15,  15,  32}, { 15,  15,   4}};
 
 	if (presencetype == PRESENCE_NORMAL) index = 1;
 	else if (presencetype == PRESENCE_CROUCH) index = 2;

@@ -1,0 +1,45 @@
+version: 1
+scene: author_studio
+anchors:
+  entry: [-60, 0, 24]
+  arrival: [60, 0, 24]
+  focus: [0, 0, 48]
+  left_camera: [130, -140, 64]
+  right_camera: [130, -80, 64]
+actors:
+  hiro:
+    class: cine_hiro
+    character: hiro
+    at: entry
+    angles: [0, 0, 0]
+    look_height: 44
+shots:
+  - duration: 8
+    fov: 55
+    camera:
+      interpolation: cubic
+      keys:
+        - {at: 0, position: left_camera, look_at: focus}
+        - {at: 8, position: right_camera, look_at: focus}
+    tracks:
+      hiro:
+        - {at: 0, idle: neutral}
+        - {at: 0, move_to: arrival, mode: walk, clip: walk, duration: 5}
+        - {at: 5.2, look_at: left_camera, duration: 1}
+  - duration: 4
+    fov: 55
+    camera:
+      keys:
+        - {at: 0, position: [170, -40, 62], look_at: [60, 0, 47]}
+    tracks:
+      hiro:
+        - {at: 0, play: neutral, duration: 2.1}
+  - duration: 4
+    fov: 55
+    camera:
+      keys:
+        - {at: 0, position: [-170, -90, 62], look_at: [0, 0, 47]}
+    tracks:
+      hiro:
+        - {at: 0, turn: [0, 180, 0], duration: 0.5}
+        - {at: 0.6, move_to: entry, mode: run, clip: run, duration: 1.8}

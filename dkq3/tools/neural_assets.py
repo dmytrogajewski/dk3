@@ -19,22 +19,102 @@ import dkimg
 import dkm2md3
 import md3
 import skeletal_iqm as sk
-from neural_package import MANIFEST, validate_package
+from neural_package import MANIFEST, NON_CHARACTER_MODELS, validate_package
 
 CHARACTERS = ('hiro', 'mikiko', 'superfly', 'mishima', 'usagi')
+# Additional story identities are generated from this checkout's original models.
+# The five historical identities remain the default for the older standalone tool.
+STORY_CHARACTERS = {
+    'casseti': ('c_casseti_e4m1',), 'charon': ('c_char_e2m1','c_char_e2m2','c_ferryman_e2m1'),
+    'femaleguard': ('c_fmg_e4m3',),
+    'garroth': ('c_ghar_e3m6','c_pghar_e3m6'), 'warriorguard': ('c_mwguard_e4m6',),
+    'ninja': ('c_ninja_intr',), 'osaka': ('c_osaka_intr',),
+    'priest': ('c_priest_e3m1','c_priest_e3m6'),
+    'tatsuo': ('c_tatsuo_e4m4','c_tatsuo_end'), 'toshiro': ('c_tosh_intr',),
+}
 COLORS = ((1, 1, 1), (.25, .85, .35), (.2, .45, 1), (.8, .85, .9), (1, .45, .15),
           (.7, .25, .9), (1, .85, .15), (1, .18, .12), (.15, .25, .65), (1, .7, .15),
           (.55, .12, .2), (.45, .5, .2))
 
+# Measured on the original kneeling model's side and frontal mesh views.
+# A clip with no standing frame cannot infer standing body size from height.
+# Pin the measurements to the entire original vertex animation below.
+CINEMATIC_REFERENCES = {
+    'models/cinematic/c_hiro_end.dkm': dict(
+        points_sha256='819cd7c2bc23d4c94cdcac78885fb7cbbad16c42fe921b1ce1226fe7b7f60fc5', frame=0, scale=.85,
+        landmarks=dict(pelvis=[-1,-5,-13], spine=[-1,-5,-9],
+            chest=[-1,-5,-5], neck=[1,-5,-2], head=[2,-5,1],
+            upperarm_l=[-1,1,-4], forearm_l=[0,3,-10], hand_l=[6,2,-15],
+            upperarm_r=[-1,-11,-4], forearm_r=[0,-13,-10], hand_r=[6,-12,-15],
+            thigh_l=[-1,-1,-14], shin_l=[9,-1,-22], foot_l=[-11,-1,-23], toe_l=[-15,-1,-23],
+            thigh_r=[-1,-9,-14], shin_r=[9,-9,-22], foot_r=[-11,-9,-23], toe_r=[-15,-9,-23])),
+    # The authored punch starts standing. Most frames are crouches/jumps;
+    # their median height cannot define this actor's standing proportions.
+    'models/cinematic/c_ninja_intr.dkm': dict(
+        points_sha256='d63ee69496b0902297e10ea42e9f26e0db56af9e62c0650da16f658f9506edf0',
+        frame=143,
+        landmarks=dict(pelvis=[-2.5,.2,11], spine=[-2.3,.2,17],
+            chest=[-1,.2,24], neck=[-1.5,0,29], head=[-1.2,0,35]),
+        # Measured body vertices after whole-trajectory prop extraction and
+        # first-frame deduplication. The sparse robe previously let a nearby
+        # wrist dominate the spine fit and turn a running torso horizontal.
+        joint_vertices=dict(pelvis=[17,19,21,25,26,27,32,33],
+            spine=[41,58,59,67,75,76,79], chest=[41,58,59,67,75,76,79],
+            neck=[90,91,95,96]))
+}
 
-def character(path):
+# The original ferryman's pole and blade share welded edges with his hands.
+# The source topology/UV receipt pins this reviewed triangle selection; body
+# triangles 147..153 are deliberately excluded from the weapon surface.
+CINEMATIC_PROP_TOPOLOGY = {
+    'models/cinematic/'+stem+'.dkm': dict(
+        sha256='5094fa1f6a72b9a8e5731414af74edea73c9ac66abcaa8ddb1b6932e33dd7792',
+        ranges=((65,147),(154,156)))
+    for stem in ('c_char_e2m1','c_char_e2m2','c_ferryman_e2m1')
+}
+# Two blades and two hilts remain visible throughout this original performance.
+# Their short proportions cannot satisfy the generic long-staff detector.
+CINEMATIC_PROP_TOPOLOGY['models/cinematic/c_fmg_e4m3.dkm'] = dict(
+    sha256='076e2fc9af908ae4519e9ac9e85d0f93c79d0de4a0264208b97669518908fa78',
+    groups=((133,134,137,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154),
+            (135,136,138,139,155,156,157,158,159,160,161,162,163,164,165,166,167,168)))
+
+
+def source_props(surfaces, metadata):
+    receipt=CINEMATIC_PROP_TOPOLOGY.get(metadata.get('model')) if metadata else None
+    if not receipt:return surfaces
+    if len(surfaces)!=1:raise ValueError('Reviewed source weapon topology changed')
+    surface=surfaces[0]
+    digest=hashlib.sha256(surface['tri'].astype('<u4').tobytes()+surface['uv'].astype('<f4').tobytes()).hexdigest()
+    if digest!=receipt['sha256']:raise ValueError('Reviewed source weapon topology changed')
+    groups=receipt.get('groups')
+    if groups is None:groups=(tuple(i for first,last in receipt['ranges'] for i in range(first,last)),)
+    masks=[]
+    for group in groups:
+        mask=np.zeros(len(surface['tri']),bool);mask[list(group)]=True;masks.append(mask)
+    selected=np.logical_or.reduce(masks)
+    result=[]
+    for index,mask in enumerate([~selected]+masks):
+        vertices,remap=np.unique(surface['tri'][mask],return_inverse=True)
+        suffix='' if index==0 else '_weapon' if len(masks)==1 else f'_weapon_{index}'
+        result.append(dict(name=surface['name']+suffix,material=surface['material'],
+            points=surface['points'][:,vertices],normals=surface['normals'][:,vertices],
+            uv=surface['uv'][vertices],tri=remap.reshape(-1,3),prop=index>0))
+    return result
+
+
+def character(path, story=False):
+    if path in NON_CHARACTER_MODELS: return None
     stem = Path(path).stem
+    if story:
+        for name,stems in STORY_CHARACTERS.items():
+            if stem in stems:return name
     if stem in ('m_mikikofly', 'c_mikikofly'): return 'mikikofly'
     if stem in ('m_hiro', 'm_hiro2', 'hiro') or stem.startswith(('c_hiro_', 'c_phiro_', 'c_inshiro_')):
         return 'hiro'
     if stem in ('m_mikiko', 'm_smikiko', 'mikiko', 'd1_mikdead') or stem.startswith(('c_mikiko_', 'c_smikiko_')):
         return 'mikiko'
-    if stem in ('m_superfly', 'superfly', 'd2_superfly', 'd1_supertorture') or stem.startswith('c_super_'):
+    if stem in ('m_superfly', 'superfly', 'd2_superfly') or stem.startswith('c_super_'):
         return 'superfly'
     if stem == 'm_kage' or stem == 'c_kage' or stem.startswith('c_kage_'):
         return 'mishima'
@@ -86,19 +166,37 @@ def clip_name(name):
     return 'LEGS_IDLE'
 
 
-def gameplay(model, metadata, clips, tags=None):
+def gameplay(model, metadata, clips, tags=None, *, regenerate_motion=False):
+    if regenerate_motion:
+        # Animate the admitted geometry and bind rig; never rerig a repaired
+        # head, change its weights or fall back to an earlier character mesh.
+        from neural_rig import clips as author_clips
+        clips = {c['name']: c for c in author_clips(model, sk.matrices(model.bind, model.parents))}
     original = model.frames
     idle = clips['LEGS_IDLE']
     frames = np.repeat(original[idle['first']:idle['first']+1], len(metadata['frames']), axis=0)
-    mapping, appended = [], []
+    mapping, appended, shared = [], [], {}
+    appended_count = 0
+    def append_pose_block(block):
+        nonlocal appended_count
+        # Several authored sequence names select the same locomotion/grip
+        # block. Share exact serialized poses while retaining every authored
+        # frame and each sequence's independent playback interval.
+        key=(block.shape,block.dtype.str,hashlib.sha256(block.tobytes()).digest())
+        if key not in shared:
+            shared[key]=len(frames)+appended_count
+            appended.append(block)
+            appended_count+=len(block)
+        return shared[key]
     for seq in metadata['sequences']['frame_data']:
         name = clip_name(seq['animation_name'])
         grip = 'RIFLE' if seq['animation_name'].endswith('b') else 'PISTOL' if seq['animation_name'].endswith('a') else 'GLOVE'
         if 'atak' in seq['animation_name'] and f'TORSO_ATTACK_{grip}' in clips:
             name = f'TORSO_ATTACK_{grip}'
-        clip = clips[name]
+        specific = f'{name}_{grip}'
+        clip = clips.get(specific, clips[name])
         posed = original[clip['first']:clip['first']+clip['count']].copy()
-        if name.startswith('LEGS_') and name != 'LEGS_SWIM':
+        if name.startswith('LEGS_') and name != 'LEGS_SWIM' and specific not in clips:
             ready = clips.get(f'TORSO_STAND_{grip}', clips['TORSO_STAND'])
             for joint, joint_name in enumerate(model.names):
                 if joint_name.startswith(('clavicle_', 'upperarm_', 'forearm_', 'hand_', 'fingers_', 'thumb_')) or joint_name == 'tag_weapon':
@@ -108,8 +206,7 @@ def gameplay(model, metadata, clips, tags=None):
         lo, hi = np.floor(indices).astype(int), np.ceil(indices).astype(int)
         fraction = (indices-lo)[:, None, None]
         frames[seq['first']:seq['last']+1] = posed[lo]*(1-fraction) + posed[hi]*fraction
-        first = len(frames)+sum(len(a) for a in appended)
-        appended.append(posed)
+        first = append_pose_block(posed)
         mapping.append(dict(sequence=seq['animation_name'], clip=name, first=seq['first'], last=seq['last'],
                             playback_first=first, playback_last=first+len(posed)-1,
                             rate=clip['fps'] if clip.get('loop') else 0))
@@ -123,8 +220,7 @@ def gameplay(model, metadata, clips, tags=None):
             grid = np.tile(posed, (attack['count'], 1, 1))
             for phase in range(attack['count']):
                 grid[phase*len(posed):(phase+1)*len(posed), upper] = original[attack['first']+phase, upper]
-            mapping[-1].update(attack_first=first+len(posed), attack_count=attack['count'])
-            appended.append(grid)
+            mapping[-1].update(attack_first=append_pose_block(grid), attack_count=attack['count'])
     model.frames = np.concatenate([frames, *appended])
     # Gameplay weapons use the rig's grip, with legacy hardpoint names retained.
     add_joint(model, 'hp_gun', model.names.index('tag_weapon'), np.zeros((len(model.frames), 3)))
@@ -197,7 +293,20 @@ def limited_rotation(parent, desired, degrees):
     return parent @ sk.matrices(channels, [-1])[:, 0, :3, :3]
 
 
-def connected_motion(model, fitted):
+def wrist_rotation(neutral, desired, axis, bend=35):
+    """Limit wrist bend separately from forearm pronation and palm roll."""
+    axis = axis / max(np.linalg.norm(axis), 1e-9)
+    a, b = neutral @ axis, desired @ axis
+    swing = align_vectors(a, b)
+    # Roll around the palm's long axis must not turn a forward fist upside
+    # down. Preserve modest authored gestures while rejecting fit inversions.
+    rolled = limited_rotation(neutral, swing.transpose(0, 2, 1) @ desired, 80)
+    limited = limited_rotation(np.tile(np.eye(3), (len(neutral), 1, 1)), swing, bend)
+    return limited @ rolled
+
+
+def connected_motion(model, fitted, temporal_poles=False, cyclic_poles=False,
+                     preserve_observed_poles=False):
     """Fixed lengths and anatomical leg constraints for generated/retargeted motion."""
     chains = {}
     for side in ('l', 'r'):
@@ -207,6 +316,7 @@ def connected_motion(model, fitted):
                 a, b, c = (model.names.index(n) for n in names)
                 chains[a] = b, c
     result, pending = fitted.copy(), {}
+    bind = sk.matrices(model.bind, model.parents)
     for j, parent in enumerate(model.parents):
         if parent >= 0:
             result[:, j, :3, 3] = np.einsum('fij,j->fi', result[:, parent, :3, :3], model.bind[j, :3]) + result[:, parent, :3, 3]
@@ -215,6 +325,12 @@ def connected_motion(model, fitted):
             result[:, j, :3, :3] = limited_rotation(result[:, parent, :3, :3], fitted[:, j, :3, :3], 70)
         elif model.names[j].startswith('toe_'):
             result[:, j, :3, :3] = limited_rotation(result[:, parent, :3, :3], fitted[:, j, :3, :3], 35)
+        elif model.names[j].startswith('hand_'):
+            fingers = 'fingers_' + model.names[j][-1]
+            if fingers in model.names:
+                neutral = result[:, parent, :3, :3] @ bind[parent, :3, :3].T @ bind[j, :3, :3]
+                axis = model.bind[model.names.index(fingers), :3]
+                result[:, j, :3, :3] = wrist_rotation(neutral, fitted[:, j, :3, :3], axis)
         if j not in chains: continue
         middle, end = chains[j]
         origin = result[:, j, :3, 3]
@@ -240,11 +356,40 @@ def connected_motion(model, fitted):
             direction = np.einsum('fij,fj->fi', hip, local)
             pole = hip[:, :, 0].copy()
         pole -= direction * (pole*direction).sum(axis=1, keepdims=True)
+        # A measured bent elbow determines its own bending plane. Clamping
+        # that plane to a generic rest-pose cone changes the performance even
+        # when its endpoints and joint angles are anatomically valid.
+        observable = np.linalg.norm(pole, axis=1) > l1 * .08
+        if not leg and not preserve_observed_poles:
+            sign = 1 if model.names[j].endswith('_l') else -1
+            anatomical = result[:, parent, :3, :3] @ np.array([.25, sign*.7, -.6])
+            anatomical -= direction * (anatomical*direction).sum(axis=1, keepdims=True)
+            anatomical /= np.maximum(np.linalg.norm(anatomical, axis=1, keepdims=True), 1e-8)
+            pole /= np.maximum(np.linalg.norm(pole, axis=1, keepdims=True), 1e-8)
+            swing = align_vectors(anatomical, pole)
+            pole = limited_rotation(np.tile(np.eye(3), (len(pole), 1, 1)), swing, 65) @ anatomical[..., None]
+            pole = pole[..., 0]
         weak = np.linalg.norm(pole, axis=1) < 1e-6
         if weak.any():
             axis = np.eye(3)[np.argmin(np.abs(direction[weak]), axis=1)]
             pole[weak] = np.cross(direction[weak], axis)
         pole /= np.maximum(np.linalg.norm(pole, axis=1, keepdims=True), 1e-8)
+        if temporal_poles and not leg:
+            # The elbow plane is unobservable as the arm straightens. Carry
+            # the previous plane along the new aim direction, then approach
+            # the measured plane with a bounded angular change. Endpoints
+            # and segment lengths still come from the same two-bone solve.
+            measured=pole.copy();previous=pole[0].copy()
+            for cycle in range(3 if cyclic_poles else 1):
+                for frame in range(0 if cyclic_poles else 1,len(pole)):
+                    if preserve_observed_poles and observable[frame]:
+                        pole[frame]=measured[frame];previous=pole[frame];continue
+                    prior=previous-direction[frame]*(previous@direction[frame])
+                    if np.linalg.norm(prior)<1e-6:previous=measured[frame];continue
+                    prior/=np.linalg.norm(prior)
+                    swing=align_vectors(prior[None],measured[frame:frame+1])
+                    bounded=limited_rotation(np.eye(3)[None],swing,8)[0]
+                    pole[frame]=bounded@prior;previous=pole[frame]
         along = (l1*l1-l2*l2+distance*distance)/(2*distance)
         height = np.sqrt(np.maximum(0, l1*l1-along*along))
         elbow = direction*along[:, None] + pole*height[:, None]
@@ -252,7 +397,7 @@ def connected_motion(model, fitted):
         for bone, child, goal in ((j, middle, elbow), (middle, end, wrist)):
             # Legs use the pelvis frame and solved thigh frame for roll; a
             # fitted shin rotation must never twist the hinge independently.
-            rotation = (result[:, parent, :3, :3] if bone == j else result[:, j, :3, :3]) if leg else fitted[:, bone, :3, :3]
+            rotation = result[:, parent, :3, :3] if bone == j else result[:, j, :3, :3]
             vector = np.einsum('fij,j->fi', rotation, model.bind[child, :3])
             posed = align_vectors(vector, goal) @ rotation
             if bone == j: result[:, bone, :3, :3] = posed
@@ -264,23 +409,46 @@ def split_hidden_props(surfaces):
     """Extract small collapsing props even when they share the body's material."""
     result = []
     for surface in surfaces:
+        if surface.get('prop'):
+            result.append(surface)
+            continue
         points = surface['points']
-        signature = np.concatenate([points[f] for f in (0, len(points)//2, len(points)-1)], axis=1)
+        # A sword may be hidden at all three conventional sample frames.
+        # Weld on its complete trajectory so a visible blade stays a surface.
+        signature = points.transpose(1,0,2).reshape(points.shape[1],-1)
         _, welded = np.unique(signature, axis=0, return_inverse=True)
-        parents = list(range(int(welded.max())+1))
+        parents = list(range(len(surface['tri'])))
         def root(i):
             while parents[i] != i: i = parents[i]
             return i
-        for tri in welded[surface['tri']]:
-            for index in tri[1:]: parents[root(index)] = root(tri[0])
+        edges={}
+        for index,tri in enumerate(welded[surface['tri']]):
+            for a,b in ((tri[0],tri[1]),(tri[1],tri[2]),(tri[2],tri[0])):
+                if a==b:continue
+                edge=tuple(sorted((int(a),int(b))))
+                if edge in edges:parents[root(index)]=root(edges[edge])
+                else:edges[edge]=index
         groups = {}
-        for index, tri in enumerate(welded[surface['tri']]):
-            groups.setdefault(root(tri[0]), []).append(index)
+        for index in range(len(surface['tri'])):
+            groups.setdefault(root(index), []).append(index)
         hidden, retained = [], []
         for triangles in groups.values():
             vertices = np.unique(surface['tri'][triangles])
             extent = np.ptp(points[:, vertices], axis=1).max(axis=1)
-            if len(triangles) < 64 and extent.min() < .1 and extent.max() > 1:
+            # Compressed original vertices retain a small quantization box
+            # when a staff is hidden. It need not collapse to an exact point.
+            collapsing=len(triangles)<128 and extent.min()<max(.2,extent.max()*.005) and extent.max()>1
+            elongated=False
+            if not collapsing and len(triangles)<128 and len(vertices)>=4:
+                reference=int(np.argmax(extent));rest=points[reference,vertices]
+                axes=np.linalg.svd(rest-rest.mean(0),compute_uv=False)
+                long=axes[0]>max(axes[1],1e-8)*8 and extent.max()>np.median(np.ptp(points[:,:,2],axis=1))*.3
+                if long:
+                    sample=points[::max(1,len(points)//32),vertices]
+                    transform=rigid_fit(rest,sample,np.ones(len(vertices)))
+                    predicted=np.einsum('fij,vj->fvi',transform[:,:3,:3],rest)+transform[:,None,:3,3]
+                    elongated=float(np.max(np.sqrt(np.mean((predicted-sample)**2,axis=(1,2)))))<max(.08,float(extent.max())*.003)
+            if collapsing or elongated:
                 hidden.append(triangles)
             else: retained += triangles
         if not hidden:
@@ -350,16 +518,26 @@ def carried_reference(model, bind, anchors):
     return result
 
 
-def cinematic(model, surfaces, tags, *, carried=False, calibrate=True):
-    surfaces = split_hidden_props(surfaces)
+def cinematic(model, surfaces, tags, *, carried=False, calibrate=True, metadata=None):
+    reference_pose = CINEMATIC_REFERENCES.get(metadata.get('model')) if metadata else None
+    if reference_pose:
+        digest=hashlib.sha256(np.concatenate([s['points'] for s in surfaces],axis=1).astype('<f8').tobytes()).hexdigest()
+        if digest!=reference_pose['points_sha256']:
+            raise ValueError('Cinematic reference landmarks belong to different source geometry')
+    surfaces = split_hidden_props(source_props(surfaces,metadata))
     visible = [s for s in surfaces if s['material'] != dkm2md3.NODRAW_SHADER]
     props = [s for s in visible if s.get('prop') or any(word in s['material'] for word in ('daikatana', 'purifier', 'w_', 'sword'))]
     body = [s for s in visible if not any(s is p for p in props)]
     if not body: raise ValueError('cinematic has no character body')
     source = np.concatenate([s['points'] for s in body], axis=1)
+    regions = np.concatenate([np.full(len(s['uv']),
+        'head' if 'head' in s['material'] or 'head' in s['name'].lower() else
+        'lower' if 'legs' in s['name'].lower() else
+        'upper' if 'torso' in s['name'].lower() else 'body') for s in body])
     # UV seams duplicate vertices; remove duplicates consistently on all frames.
     _, unique = np.unique(source[0], axis=0, return_index=True)
     source = source[:, unique]
+    regions = regions[unique]
     target = model.arrays[0].astype(float)
     # Choose the most upright, neutral available pose. Actual frame ordering,
     # including one-frame holds and authored root motion, is retained below.
@@ -369,6 +547,29 @@ def cinematic(model, surfaces, tags, *, carried=False, calibrate=True):
     typical_height = np.median(height)
     candidates = np.flatnonzero((height >= typical_height * .92) & (height <= typical_height * 1.08))
     if not len(candidates): candidates = np.arange(len(source))
+    # Prefer authored neutral holds over an unrelated action frame whose
+    # silhouette happens to resemble the generated A pose.
+    if metadata and not carried:
+        neutral=[]
+        for clip in metadata['sequences']['frame_data']:
+            label=clip['animation_name'].lower()
+            if ('standamb' in label or label in ('amb','amba','ambb','ambba','ambbb','oamba','oambb')):
+                neutral.extend(range(clip['first'],clip['last']+1))
+        if neutral:
+            preferred=np.intersect1d(candidates,neutral)
+            if len(preferred):candidates=preferred
+    if not carried:
+        # Source models use their initial upright pose as the local facing
+        # basis. Picking a later turned gesture loses that constant rotation
+        # when its motion is applied to a forward-facing replacement.
+        upright_zero=height[0]>=height.max()*.85
+        if upright_zero:candidates=np.array([0])
+        elif metadata:
+            standing=[clip['first'] for clip in metadata['sequences']['frame_data']
+                      if clip['animation_name'].lower().startswith(('walka','standamb','c_standamb'))
+                      and clip['first'] in candidates]
+            if standing:candidates=np.array([standing[0]])
+    if reference_pose:candidates=np.array([reference_pose['frame']])
     # A carried body or a one-frame corpse may have no upright reference pose.
     # Align the bind body's long axis before fitting its local bone motion.
     extent = np.ptp(source, axis=1)
@@ -376,6 +577,10 @@ def cinematic(model, surfaces, tags, *, carried=False, calibrate=True):
     rotation = np.eye(3)
     if not carried and longest != 2 and height.max() < extent[:, longest].max() * .7:
         rotation = np.array([[0., 0, 1], [0, 1, 0], [-1, 0, 0]]) if longest == 0 else np.array([[1., 0, 0], [0, 0, 1], [0, -1, 0]])
+    elif not carried:
+        # A kneeling or wide stance can be wider than it is tall. Its width
+        # does not define the scale of an upright generated skeleton.
+        longest=2
     target = target @ rotation.T
     target_extent = np.ptp(target, axis=0)
     best = None
@@ -389,6 +594,7 @@ def cinematic(model, surfaces, tags, *, carried=False, calibrate=True):
         best = 0, 0, scale, offset
     for f in ([] if carried else candidates[::max(1, len(candidates)//100)]):
         scale = extent[f, longest] / target_extent[longest] if calibrate else 1.
+        if reference_pose and 'scale' in reference_pose:scale=reference_pose['scale']
         offset = (source[f].min(axis=0)+source[f].max(axis=0))/2 - (target.min(axis=0)+target.max(axis=0))*scale/2
         fitted = target * scale + offset
         # Symmetric cloud distance prevents a bent arm from winning by density.
@@ -421,15 +627,70 @@ def cinematic(model, surfaces, tags, *, carried=False, calibrate=True):
     for j, name in enumerate(model.names):
         if name.startswith('hand_'): anchors[j, 2] = lo[2]+body_height*.44
         elif name.startswith('forearm_'): anchors[j, 2] = lo[2]+body_height*.62
+    if not carried:
+        # Measure the reference end effectors on the original mesh. A hand
+        # already raised in the source reference is not a hand at hip height.
+        # Feet use their own low surface, so a backward foot cannot be fitted
+        # to the nearer shin of an upright replacement.
+        for side in ('l','r'):
+            hand, elbow, shoulder, foot, knee = (model.names.index(n+'_'+side)
+                if n+'_'+side in model.names else -1
+                for n in ('hand','forearm','upperarm','foot','shin'))
+            sign=np.sign(anchors[hand,1]-center[1]) if hand>=0 else 0
+            lateral=(canonical[:,1]-center[1])*sign
+            arm=(lateral>body_height*.10)&(canonical[:,2]>lo[2]+body_height*.33)&(canonical[:,2]<lo[2]+body_height*.86)&(regions!='head')&(regions!='lower')
+            if hand>=0 and arm.sum()>=8:
+                points=canonical[arm]
+                distance=np.linalg.norm(points-anchors[hand],axis=1)
+                anchors[hand]=points[np.argsort(distance)[:min(12,len(points))]].mean(axis=0)
+                if elbow>=0 and shoulder>=0:
+                    midpoint=(anchors[shoulder]+anchors[hand])/2
+                    points=canonical[arm&(canonical[:,2]>min(anchors[hand,2],anchors[shoulder,2]))]
+                    if len(points)>=4:
+                        distance=np.linalg.norm(points-midpoint,axis=1)
+                        anchors[elbow]=points[np.argsort(distance)[:min(8,len(points))]].mean(axis=0)
+            sole=(lateral>body_height*.025)&(canonical[:,2]<lo[2]+body_height*.08)&(regions!='head')&(regions!='upper')
+            if foot>=0 and sole.sum()>=4:
+                anchors[foot]=canonical[sole].mean(axis=0)
+                if knee>=0:
+                    points=canonical[(lateral>body_height*.04)&(canonical[:,2]>lo[2]+body_height*.18)&(canonical[:,2]<lo[2]+body_height*.38)&(regions!='upper')&(regions!='head')]
+                    if len(points)>=4:
+                        distance=np.linalg.norm(points-anchors[knee],axis=1)
+                        anchors[knee]=points[np.argsort(distance)[:min(12,len(points))]].mean(axis=0)
     source_bind[:, :3, 3] = anchors @ rotation.T
     if carried:
         source_bind = carried_reference(model, bind, carried_anchors(body))
     else:
+        if reference_pose and reference_pose.get('landmarks'):
+            measured={n:np.array(p,float) for n,p in reference_pose['landmarks'].items()}
+            for j,name in enumerate(model.names):
+                if name in measured:source_bind[j,:3,3]=measured[name]
+            for j,name in enumerate(model.names):
+                if name not in measured:continue
+                children=[c for c,p in enumerate(model.parents) if p==j and model.names[c] in measured]
+                other=children[0] if children else model.parents[j]
+                if other<0:continue
+                a=bind[other,:3,3]-bind[j,:3,3]
+                b=source_bind[other,:3,3]-source_bind[j,:3,3]
+                source_bind[j,:3,:3]=align_vectors(a[None],b[None])[0]@bind[j,:3,:3]
+        # Calibrate each source limb's reference orientation as well as its
+        # location. The rigid motion is a delta from this pose, not from the
+        # generated body's A pose.
+        for j,name in enumerate(model.names):
+            if not name.startswith(('upperarm_','forearm_','hand_','thigh_','shin_')):continue
+            children=[c for c,p in enumerate(model.parents) if p==j and not model.names[c].startswith('tag_')]
+            other=model.parents[j] if name.startswith('hand_') else (children[0] if children else model.parents[j])
+            if other<0:continue
+            a=bind[other,:3,3]-bind[j,:3,3]
+            b=source_bind[other,:3,3]-source_bind[j,:3,3]
+            if np.linalg.norm(a)>1e-6 and np.linalg.norm(b)>1e-6:
+                source_bind[j,:3,:3]=align_vectors(a[None],b[None])[0]@bind[j,:3,:3]
         for j, name in enumerate(model.names):
             if name.startswith(('fingers_', 'thumb_')):
                 parent = model.parents[j]
                 source_bind[j, :3, 3] += source_bind[parent, :3, 3]-bind[parent, :3, 3]
     weights = np.zeros((len(rest), len(model.names)))
+    distances = np.full_like(weights,np.inf)
     for j, name in enumerate(model.names):
         if name.startswith(('tag_', 'fingers_', 'thumb_', 'cloth_')): continue
         children = [c for c, parent in enumerate(model.parents) if parent == j and not model.names[c].startswith('tag_')]
@@ -444,12 +705,40 @@ def cinematic(model, surfaces, tags, *, carried=False, calibrate=True):
         delta = end-start
         t = np.clip((rest-start) @ delta / max(float(delta@delta), 1e-8), 0, 1)
         distance = ((rest-(start+t[:, None]*delta))**2).sum(axis=1)
+        distances[:,j]=distance
         weights[:, j] = 1/(distance+1)**2
+    # Far-away source parts must not rotate a head or wrist. Keep regional
+    # support compact, and honor the original model's explicit head/torso/leg
+    # surfaces when it supplies them.
+    nearest=distances.min(axis=1)
+    weights[distances>nearest[:,None]+(body_height*.045)**2]=0
+    lower=np.array([n=='pelvis' or n.startswith(('thigh_','shin_','foot_','toe_')) for n in model.names])
+    upper=np.array([n in ('pelvis','chest','neck') or n.startswith(('upperarm_','forearm_','hand_')) for n in model.names])
+    weights[np.ix_(regions=='lower',~lower)]=0
+    weights[np.ix_(regions=='upper',~upper)]=0
+    distances[np.ix_(regions=='lower',~lower)]=np.inf
+    distances[np.ix_(regions=='upper',~upper)]=np.inf
+    head_region=regions=='head'
+    if not head_region.any():
+        head_region=(canonical[:,2]>hi[2]-body_height*.18)&(np.abs(canonical[:,1]-center[1])<body_height*.12)
+    if head_region.sum()>=12 and 'head' in model.names:
+        head_joint=model.names.index('head')
+        weights[~head_region,head_joint]=0
+        distances[~head_region,head_joint]=np.inf
+        weights[head_region]=0
+        weights[head_region,head_joint]=1
+    empty=weights.sum(axis=1)==0
+    weights[empty,np.argmin(distances[empty],axis=1)]=1
     weights /= weights.sum(axis=1, keepdims=True)
     absolute = np.tile(bind, (len(source), 1, 1, 1))
     residual = []
     for j in range(len(model.names)):
         w = weights[:, j]
+        support=(reference_pose or {}).get('joint_vertices',{}).get(model.names[j])
+        if support is not None:
+            if len(set(support))<4 or min(support)<0 or max(support)>=len(rest):
+                raise ValueError('Cinematic anatomical support changed')
+            w=np.zeros(len(rest));w[support]=1
         if np.count_nonzero(w > .01) < 4:
             parent = model.parents[j]
             if parent >= 0:
@@ -479,17 +768,22 @@ def cinematic(model, surfaces, tags, *, carried=False, calibrate=True):
         for joint, parent in enumerate(model.parents):
             if parent < 0: model.frames[start:end, joint, 2] += height_offset
     for name, positions in tags.items(): add_joint(model, name, -1, positions)
-    attach_props(model, props, absolute)
+    attach_props(model, props, absolute, reference_frame=reference)
     return dict(reference_frame=reference, scale=float(scale), fit_rms_mean=float(np.mean(residual)),
+                regional_support='Compact source segment support; explicit source head, torso and leg surfaces; geometric head fallback',
+                source_head_vertices=int(head_region.sum()),
+                reference_landmarks=bool(reference_pose and reference_pose.get('landmarks')),
+                source_reference_pinned=reference_pose is not None,
+                source_anatomical_support=(reference_pose or {}).get('joint_vertices',{}),
                 fit_rms_max=float(max(residual)), props=[s['name'] for s in props])
 
 
-def combined(sources, surfaces, tags):
+def combined(sources, surfaces, tags, metadata=None):
     models, details = [], []
     for name, material in (('mikiko', 'miko_'), ('superfly', 'sfly_')):
         model = copy.deepcopy(sources[name][0])
         body = [s for s in surfaces if material in s['material']]
-        details.append(cinematic(model, body, {}, carried=name == 'mikiko', calibrate=False))
+        details.append(cinematic(model, body, {}, carried=name == 'mikiko', calibrate=False,metadata=metadata))
         model.names = [name+'_'+n for n in model.names]
         model.meshes = [(name+'_'+n, m, *r) for n, m, *r in model.meshes]
         models.append(model)
@@ -507,7 +801,7 @@ def combined(sources, surfaces, tags):
     return first, dict(characters=details)
 
 
-def attach_props(model, props, source_pose):
+def attach_props(model, props, source_pose, reference_frame=None):
     """Keep authored held props rigidly in a real hand, including split swords.
 
     Original free motion is retained when a prop leaves both hands. Geometry
@@ -520,32 +814,49 @@ def attach_props(model, props, source_pose):
     hands = [model.names.index(n) for n in ('hand_l', 'hand_r') if n in model.names]
     for group in groups.values():
         points = np.concatenate([p['points'] for p in group], axis=1)
-        visibility = [np.ptp(p['points'], axis=1).max(axis=1) >= .1 for p in group]
+        visibility = [prop_visibility(p['points']) for p in group]
         visible = np.logical_or.reduce(visibility)
         together = np.logical_and.reduce(visibility)
         if len(group) > 1 and not together.any():
             # Separately appearing objects share no pose in which their
             # geometry can be assembled. Give each its own reference grip.
-            for prop in group: attach_props(model, [prop], source_pose)
+            for prop in group: attach_props(model, [prop], source_pose,reference_frame)
             continue
         if not visible.any() or not hands:
             for prop in group: append_prop(model, prop)
             continue
         point_visible = np.concatenate([np.repeat(v[:, None], len(p['uv']), axis=1) for p, v in zip(group, visibility)], axis=1)
-        distances = np.array([np.where(point_visible, np.linalg.norm(points-source_pose[:, None, hand, :3, 3], axis=-1), np.inf).min(axis=1) for hand in hands])
+        triangles=np.concatenate([p['tri']+sum(len(q['uv']) for q in group[:i]) for i,p in enumerate(group)])
+        triangle_visible=np.concatenate([np.repeat(v[:,None],len(p['tri']),axis=1) for p,v in zip(group,visibility)],axis=1)
+        grips=[closest_surface_point(points,triangles,source_pose[:,hand,:3,3],triangle_visible) for hand in hands]
+        distances=np.array([np.linalg.norm(p-source_pose[:,hand,:3,3],axis=-1) for p,hand in zip(grips,hands)])
+        distances[:,~visible]=np.inf
         references = distances.copy()
         references[:, ~together] = np.inf
+        # A globally closest frame may put a fallen actor's wrist against the
+        # bottom of a staff. Use the body's measured reference grip when the
+        # prop is visible there; keep that physical point along the shaft.
+        if reference_frame is not None and together[reference_frame] and distances[:,reference_frame].min()<12:
+            references[:,:]=np.inf
+            references[:,reference_frame]=distances[:,reference_frame]
         hand_number, reference = np.unravel_index(np.argmin(references), references.shape)
         hand = hands[hand_number]
         if distances[hand_number, reference] > 12:
             for prop in group: append_prop(model, prop)
             continue
-        wrist = source_pose[reference, hand, :3, 3]
-        nearest = np.argsort(np.linalg.norm(points[reference]-wrist, axis=1))[:min(8, points.shape[1])]
-        grip = points[reference, nearest].mean(axis=0)
+        grip = grips[hand_number][reference]
         actual = sk.matrices(model.frames, model.parents)[:, hand]
-        relative = np.linalg.inv(actual[reference])
-        relative[:3, 3] = np.array([1.5, 0, -1.8])-relative[:3, :3]@grip
+        authored=np.tile(np.eye(4),(len(points),1,1))
+        # A hidden blade collapses to a point. Fit each visibility pattern
+        # against only its visible pieces, so it cannot turn the visible hilt.
+        patterns,inverse=np.unique(point_visible,axis=0,return_inverse=True)
+        for pattern_index,mask in enumerate(patterns):
+            frames=np.flatnonzero(inverse==pattern_index)
+            if mask.sum()<3:continue
+            authored[frames]=rigid_fit(points[reference,mask],points[frames][:,mask],np.ones(mask.sum()))
+        relative=np.linalg.inv(actual)@authored
+        # Preserve authored blade rotation, anchored at the actual new wrist.
+        relative[:,:3,3]=np.array([1.5,0,-1.8])-np.einsum('fij,j->fi',relative[:,:3,:3],grip)
         held = visible & (distances[hand_number] < 20)
         for prop in group: append_prop(model, prop, attachment=(hand, relative, held, actual), reference=int(reference))
         suffix = model.names[hand][-1]
@@ -554,6 +865,29 @@ def attach_props(model, props, source_pose):
                 q = np.zeros(4)
                 q[axis], q[3] = np.sin(angle/2), np.cos(angle/2)
                 model.frames[held, model.names.index(name), 3:7] = q
+
+
+def closest_surface_point(points,triangles,query,visible):
+    """Batched nearest mesh point, including long shafts with sparse vertices."""
+    a,b,c=(points[:,triangles[:,i]] for i in range(3))
+    ab,ac=b-a,c-a;d=query[:,None]-a
+    aa=(ab*ab).sum(-1);bb=(ac*ac).sum(-1);xy=(ab*ac).sum(-1)
+    da=(d*ab).sum(-1);db=(d*ac).sum(-1);den=aa*bb-xy*xy
+    u=(da*bb-db*xy)/np.maximum(den,1e-12);v=(db*aa-da*xy)/np.maximum(den,1e-12)
+    projection=a+u[...,None]*ab+v[...,None]*ac
+    candidates=[projection];valid=[visible&(den>1e-12)&(u>=0)&(v>=0)&(u+v<=1)]
+    for first,last in ((a,b),(b,c),(c,a)):
+        edge=last-first
+        t=np.clip(((query[:,None]-first)*edge).sum(-1)/np.maximum((edge*edge).sum(-1),1e-12),0,1)
+        candidates.append(first+t[...,None]*edge);valid.append(visible)
+    candidates=np.concatenate(candidates,axis=1);valid=np.concatenate(valid,axis=1)
+    distance=np.where(valid,((candidates-query[:,None])**2).sum(-1),np.inf)
+    return candidates[np.arange(len(points)),distance.argmin(axis=1)]
+
+
+def prop_visibility(points):
+    extent=np.ptp(points,axis=1).max(axis=1)
+    return extent>=max(.2,float(extent.max())*.005)
 
 
 def append_prop(model, prop, attachment=None, reference=None):
@@ -570,9 +904,9 @@ def append_prop(model, prop, attachment=None, reference=None):
     if attachment:
         _, relative, held, actual = attachment
         transform = np.linalg.inv(actual) @ transform
-        transform[held] = relative
+        transform[held] = relative[held]
     model.frames[:, index] = sk.channels(transform[:, None], [-1])[:, 0]
-    hidden = extent < .1
+    hidden = ~prop_visibility(prop['points'])
     model.frames[hidden, index, 7:10] = 0
     if not attachment: model.frames[hidden, index, :3] = prop['points'][hidden].mean(axis=1)
     model.bind[index] = sk.channels(np.linalg.inv(sk.matrices(model.bind, model.parents)[parent])[None], [-1])[0] if attachment else [0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
@@ -610,25 +944,43 @@ def texture_files(name, texture):
     return files
 
 
-def build(source, assets, output, meshes=None):
+def build(source, assets, output, meshes=None, characters=CHARACTERS):
     root = (assets / 'current').resolve() if (assets / 'current').exists() else assets.resolve()
     base = root / 'packages/dk3-models.pk3'
     sources, files, report, lines, shader = {}, {}, [], [], []
-    provenance = {}
-    for name in CHARACTERS:
+    provenance, extra_motion = {}, []
+    for name in characters:
         directory = source / 'out' / name
         iqm_file = meshes / f'{name}.iqm' if meshes else directory / f'models/players/{name}/{name}.iqm'
         manifest_path = meshes/f'{name}.clips.json' if meshes and (meshes/f'{name}.clips.json').exists() else directory/'manifest.json'
         manifest = json.loads(manifest_path.read_text())
         model = sk.read(iqm_file.read_bytes())
         material = f'models/neural/{name}/body'
-        model.meshes = [(n, material, *rest) for n, _, *rest in model.meshes]
+        has_head = any(label.endswith('/head') for _, label, *_ in model.meshes)
+        head_material = f'models/neural/{name}/head'
+        model.meshes = [(n, head_material if label.endswith('/head') else material, *rest)
+                        for n, label, *rest in model.meshes]
         sources[name] = model, {c['name']: c for c in manifest['animations']}
         texture = meshes / f'{name}.png' if meshes else directory / f'models/players/{name}/{name}.png'
         provenance[name] = dict(iqm_sha256=hashlib.sha256(iqm_file.read_bytes()).hexdigest(),
                                 texture_sha256=hashlib.sha256(texture.read_bytes()).hexdigest())
         if meshes: provenance[name]['mesh'] = json.loads((meshes / f'{name}.json').read_text())
         files.update(texture_files(name, texture))
+        if has_head:
+            head_texture = meshes / f'{name}.head.png' if meshes else texture.with_name('head.png')
+            files[head_material + '.png'] = head_texture.read_bytes()
+            provenance[name]['head_texture_sha256'] = hashlib.sha256(head_texture.read_bytes()).hexdigest()
+            head_receipt = meshes / f'{name}.head.json' if meshes else texture.with_name('head-reconstruction.json')
+            provenance[name]['head_reconstruction'] = json.loads(head_receipt.read_text())
+            # Dense head charts retain their painted texels; whole-atlas mip
+            # reduction otherwise mixes small skin charts with empty gutters.
+            head_stanzas = (f'{head_material}\n{{\n nomipmaps\n cull none\n {{\n'
+                            f' map {head_material}.png\n rgbGen lightingDiffuse\n }}\n}}\n')
+            head_stanzas += dkm2md3.variant_stanzas(head_material, head_material + '.png', False)
+            for suffix in dkm2md3.RENDER_VARIANTS:
+                if suffix:
+                    head_stanzas = head_stanzas.replace(head_material + suffix + '\n{', head_material + suffix + '\n{\n nomipmaps')
+            shader.append(head_stanzas)
         face_report = texture.with_suffix('.face.json')
         if face_report.exists(): provenance[name]['face_repair'] = json.loads(face_report.read_text())
         shader.append(dkm2md3.variant_stanzas(material, material+'.png', False))
@@ -637,16 +989,18 @@ def build(source, assets, output, meshes=None):
         for entry in sorted(archive.namelist()):
             if not entry.endswith('.dkm.json'): continue
             metadata = json.loads(archive.read(entry))
-            name, path = character(metadata['model']), metadata['model']
+            name, path = character(metadata['model'],story=any(n in STORY_CHARACTERS for n in characters)), metadata['model']
             if name is None: continue
+            if name == 'mikikofly' and not {'mikiko', 'superfly'} <= sources.keys(): continue
+            if name not in sources and name!='mikikofly':continue
             surfaces, tags = read_md3(archive.read(path+'.md3'))
             cinematic_model = '/cinematic/' in path or '/characters/' in path or '/d1_' in path or '/d2_' in path or name == 'mikikofly'
             if name == 'mikikofly':
-                model, detail = combined(sources, surfaces, tags)
+                model, detail = combined(sources, surfaces, tags,metadata)
             else:
                 model, clips = sources[name]
                 model = copy.deepcopy(model)
-                detail = cinematic(model, surfaces, tags) if cinematic_model else gameplay(model, metadata, clips, tags)
+                detail = cinematic(model, surfaces, tags,metadata=metadata) if cinematic_model else gameplay(model, metadata, clips, tags, regenerate_motion=True)
             key = Path(path).stem
             destination = f'models/neural/{key}.iqm'
             if destination in files: raise ValueError('duplicate neural model key')
@@ -656,26 +1010,35 @@ def build(source, assets, output, meshes=None):
                 files[destination+f'.{variant}.skin'] = ''.join(f'{n},{m}{suffix}\n' for n, m, *_ in model.meshes).encode()
             if path in ('models/global/m_hiro.dkm', 'models/global/m_mikiko.dkm', 'models/global/m_superfly.dkm'):
                 for color in range(12):
-                    files[f'models/neural/{name}/{color}.skin'] = ''.join(f'{n},models/neural/{name}/color{color}\n' for n, *_ in model.meshes).encode()
+                    files[f'models/neural/{name}/{color}.skin'] = ''.join(
+                        f'{n},{m if m.endswith("/head") else f"models/neural/{name}/color{color}"}\n'
+                        for n, m, *_ in model.meshes).encode()
             report.append(dict(source=path, character=name, target=destination, frames=len(model.frames),
                                joints=len(model.names), method='cinematic-fit' if cinematic_model else 'q3-clips', conversion=detail))
             print(f'neural: {path}: {len(model.frames)} skeletal frames', flush=True)
         # The two additional multiplayer appearances use Hiro/Mikiko gameplay
         # rules and timelines. Their model and material selection is cosmetic.
         for name, original in (('mishima', 'hiro'), ('usagi', 'mikiko')):
+            if name not in sources: continue
             model, clips = sources[name]
             model = copy.deepcopy(model)
             metadata = json.loads(archive.read(f'models/global/m_{original}.dkm.json'))
-            gameplay(model, metadata, clips)
+            detail = gameplay(model, metadata, clips, regenerate_motion=True)
+            extra_motion.append(dict(source='player/'+name, conversion=detail))
             destination = f'models/neural/player_{name}.iqm'
             files[destination] = sk.write(model)
             for color in range(12):
-                files[f'models/neural/{name}/{color}.skin'] = ''.join(f'{n},models/neural/{name}/color{color}\n' for n, *_ in model.meshes).encode()
+                files[f'models/neural/{name}/{color}.skin'] = ''.join(
+                    f'{n},{m if m.endswith("/head") else f"models/neural/{name}/color{color}"}\n'
+                    for n, m, *_ in model.meshes).encode()
             lines.append(f'player/{name} {destination}')
     files[MANIFEST] = ('\n'.join(lines)+'\n').encode()
     files['dk3/neural-animations.cfg'] = ''.join(
         f'{row["source"]} {clip["first"]} {clip["last"]} {clip["playback_first"]} {clip["playback_last"]} {clip["rate"]} {clip.get("attack_first", 0)} {clip.get("attack_count", 0)}\n'
-        for row in report if row['method'] == 'q3-clips' for clip in row['conversion']).encode()
+        for row in [*[r for r in report if r['method'] == 'q3-clips'], *extra_motion] for clip in row['conversion']).encode()
+    if any(name in STORY_CHARACTERS for name in characters):
+        files['dk3/neural-physics.cfg']=''.join(f'{row["target"]} humanoid\n' for row in report
+                                             if row['character'] in STORY_CHARACTERS).encode()
     files['scripts/dk3-neural.shader'] = '\n'.join(shader).encode()
     document = dict(format=1, source_models_sha256=hashlib.sha256(base.read_bytes()).hexdigest(),
                     inputs=provenance, models=report, files={k:hashlib.sha256(v).hexdigest() for k,v in files.items()},

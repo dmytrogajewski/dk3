@@ -106,6 +106,29 @@ pub fn use(actors: *Actors, world: *data.World, slots: *Slots, projections: []ab
     used.uses += 1;
     used.ready_ms = now + used.wait_ms;
 }
+/// A reference sidekick teleport node (see sidekick_nodes): each living
+/// companion is moved to `point` as by an authored teleport and goes on with
+/// its order; the node carries no line or animation here.
+pub fn teleportParty(world: *data.World, owner: ecs.Entity, point: v.Vec3) !void {
+    for ([_]policy.Identity{ .mikiko, .superfly }) |identity| {
+        const follower = party.find(world, identity) orelse continue;
+        if ((try world.get(follower, data.Health)).current <= 0) continue;
+        const state = try world.get(follower, data.Companion);
+        state.owner = try world.persistentId(owner);
+        state.authored = .teleport;
+        state.stopped = false;
+        state.destination = point;
+        state.target = 0;
+        state.collecting = 0;
+        state.collect_forced = false;
+        state.yielding_until_ms = 0;
+        state.animation_until = null;
+        state.after_teleport = state.order;
+        const actor = try world.get(follower, data.Actor);
+        actor.mode = .idle;
+        actor.scripted_pose = null;
+    }
+}
 /// Reference search envelope with a checked failure result. An occupied destination
 /// leaves the action pending instead of consuming uninitialized coordinates.
 pub fn clearSpot(world: *data.World, entity: ecs.Entity, origin: v.Vec3) !?v.Vec3 {
@@ -160,6 +183,8 @@ pub fn advance(world: *data.World, entity: ecs.Entity, actor: *data.Actor, pose:
             actor.route = .{};
             state.order = state.after_teleport;
             state.authored = .none;
+            // Nothing planned on the far side of the jump still holds.
+            @import("companion_pilot.zig").forget(try world.persistentId(entity));
         },
     }
     return true;

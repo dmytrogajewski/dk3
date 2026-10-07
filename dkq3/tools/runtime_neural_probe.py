@@ -113,6 +113,11 @@ def scene(driver, report, capture):
     assert not re.search(r'R_AddIQMSurfaces: no such frame|MissingAuthoredActorHardpoint|R_LoadIQM:', driver.text())
     physical = []
     if args.ragdolls:
+        # Following the movement/save fixture can leave the companion behind
+        # an authored pillar. Establish a grounded, collision-checked shot lane
+        # before testing ordinary damage; actor aim points are weapon origins.
+        driver.diagnostics(f'dk3_runtime_face_target {identity} 160', f'target={identity}')
+        driver.stop_forward(settle_vertical=True)
         driver.diagnostics(f'dk3_runtime_probe_health 1 {identity}', f'id={identity} health=1')
         driver.issue('dk3_runtime_equip 21')
         driver.ready(21)
@@ -120,7 +125,7 @@ def scene(driver, report, capture):
         while time.monotonic() < deadline:
             row = actors(driver)[identity]
             if row['health'] <= 0: break
-            aim_actor(driver, row)
+            aim_actor(driver, dict(row, aim=(row['pos'][0], row['pos'][1], row['pos'][2]+8)))
             driver.fire()
         else: raise TimeoutError('Skeletal actor did not die from ordinary Glock fire')
         for frame in range(24):
@@ -151,10 +156,12 @@ if __name__ == '__main__':
     parser.add_argument('--until-shot', type=int, default=35)
     parser.add_argument('--motion', action='store_true', help='capture timed motion bursts during Hiro practice shots')
     parser.add_argument('--face', action='store_true', help='capture every early intro angle for face texture review')
+    parser.add_argument('--face-size',type=int,nargs=2,default=(1920,1080),metavar=('WIDTH','HEIGHT'),help='face capture dimensions; use the normal 960 540 software fixture size when checking the standard renderer path')
     parser.add_argument('--ragdolls', action='store_true', help='kill the grounded skeletal actor with ordinary fire and inspect live physics')
     parser.add_argument('--map', default='e1m3b', help='isolated actor fixture map')
     parser.add_argument('--renderer', default='opengl2')
     args = parser.parse_args()
+    if any(value<=0 for value in args.face_size):parser.error('--face-size dimensions must be positive')
     args.engine, args.report = args.engine.resolve(), args.report.resolve()
     args.start_map, args.scenario, args.developer = 'intro' if args.scene == 'intro' else args.map, 'neural', True
     args.cinematics = args.scene == 'intro'

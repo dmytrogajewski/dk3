@@ -78,7 +78,7 @@ test "level awards accrue points; spending and boosts respect the attribute cap"
     try std.testing.expect(state.spend(.speed));
     try std.testing.expectEqual(@as(i32, 2), state.points);
     try std.testing.expect(state.boost(.speed, 100));
-    try std.testing.expectEqual(@as(i32, 2), state.attribute(.speed, 30099));
+    try std.testing.expectEqual(@as(i32, 5), state.attribute(.speed, 30099));
     try std.testing.expectEqual(@as(i32, 1), state.attribute(.speed, 30100));
     state.attributes[2] = 5;
     try std.testing.expect(!state.boost(.speed, 40000));
@@ -86,4 +86,17 @@ test "level awards accrue points; spending and boosts respect the attribute cap"
     var ailments: Ailments = .{ .mask = 7 | 128, .freeze_level = 0.8 };
     ailments.cure();
     try std.testing.expectEqual(@as(u32, 128), ailments.mask);
+}
+test "every boost fills the bar and expires back to earned points" {
+    for (0..5) |attribute_index| for (0..5) |base| {
+        var state: State = .{ .points = 3 };
+        state.attributes[attribute_index] = @intCast(base);
+        const which: Attribute = @enumFromInt(attribute_index);
+        try std.testing.expect(state.boost(which, 1000));
+        try std.testing.expectEqual(@as(i32, 5), state.attribute(which, 1001));
+        try std.testing.expectEqual(@as(i32, 5), state.attribute(which, 30999));
+        try std.testing.expectEqual(@as(i32, @intCast(base)), state.attribute(which, 31000));
+        try std.testing.expectEqual(@as(i32, @intCast(base)), state.attributes[attribute_index]);
+        try std.testing.expectEqual(@as(i32, 3), state.points);
+    };
 }

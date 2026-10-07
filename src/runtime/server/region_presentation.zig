@@ -99,10 +99,31 @@ pub const State = struct {
         for (active.slots.occupants, 0..) |maybe, slot| if (maybe) |entity| {
             active.projection[slot].state.dk3World = @bitCast(active.network_id);
             active.projection[slot].state.dk3Identity = @bitCast(try active.world.?.persistentId(entity));
+            const out = &active.projection[slot].state;
+            out.dk3ParentIdentity = if (active.world.?.get(entity, data.Attachment) catch null) |parent| @bitCast(parent.parent_id) else 0;
+            if (out.dk3ParentIdentity == 0) if (active.world.?.get(entity, data.ItemMotion) catch null) |motion| if (motion.ground) |ground| if (ground < c.ENTITYNUM_WORLD) if (active.slots.occupants[ground]) |parent| {
+                out.dk3ParentIdentity = @bitCast(try active.world.?.persistentId(parent));
+            };
+            if (active.world.?.get(entity, data.Hurt) catch null) |hurt| {
+                out.dk3BodyImpulse = hurt.impulse;
+                out.dk3BodyImpulsePoint = hurt.impulse_point;
+                out.dk3BodyImpulseSerial = @bitCast(hurt.impulse_serial);
+                out.dk3BodyFlags = @intFromBool(hurt.feedback.gibbed);
+                if (active.world.?.get(entity, data.Actor) catch null) |actor| if (actor.gibbed) {
+                    out.dk3BodyFlags = 1;
+                };
+            }
         };
     }
     pub fn publish(self: *State, active: *Context, now: i64) !void {
         try tag(active);
+        // Primary snapshots use the same definition barrier as foreign views.
+        // Keep this transport flag separate from publisher-owned visibility.
+        for (active.slots.occupants, 0..) |maybe, slot| if (maybe != null) {
+            const projection = &active.projection[slot];
+            projection.shared.svFlags &= ~@as(i32, c.SVF_DK3_CONFIG_PENDING);
+            if (!active.configuration.available(projection.state)) projection.shared.svFlags |= c.SVF_DK3_CONFIG_PENDING;
+        };
         const region = access.region orelse return;
         const map = region.manifest.find(std.mem.sliceTo(&active.map_name, 0)) orelse return;
         const hero = active.clients.entities[0] orelse return;
@@ -139,9 +160,7 @@ pub const State = struct {
             for (destination.slots.occupants, 0..) |maybe, slot| if (maybe) |entity| {
                 const projection = &destination.projection[slot];
                 if (projection.shared.linked == 0 or projection.shared.svFlags & c.SVF_NOCLIENT != 0) continue;
-                if (projection.state.modelindex > 0 and destination.configuration.waiting(c.CS_MODELS + @as(usize, @intCast(projection.state.modelindex)))) continue;
-                if (projection.state.loopSound > 0 and destination.configuration.waiting(c.CS_SOUNDS + @as(usize, @intCast(projection.state.loopSound)))) continue;
-                if (projection.state.eType == c.ET_EVENTS + c.EV_GENERAL_SOUND and destination.configuration.waiting(c.CS_SOUNDS + @as(usize, @intCast(projection.state.eventParm)))) continue;
+                if (!destination.configuration.available(projection.state)) continue;
                 const position = projection.shared.currentOrigin;
                 if (projection.shared.svFlags & c.SVF_BROADCAST == 0 and !engine.inPvs(entry, position) and !engine.inPhs(entry, position)) continue;
                 const identity = try destination.world.?.persistentId(entity);

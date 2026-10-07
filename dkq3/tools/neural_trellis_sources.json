@@ -1,0 +1,44 @@
+[
+  {
+    "archive": "trellis2.tar.gz",
+    "url": "https://codeload.github.com/microsoft/TRELLIS.2/tar.gz/75fbf0183001ed9876c8dbb35de6b68552ee08bd",
+    "directory": "TRELLIS.2-75fbf0183001ed9876c8dbb35de6b68552ee08bd",
+    "sha256": "65729b2e0d6a96b429379e4cf04c67be38880fcca57e4673e94f300854e75389"
+  },
+  {
+    "archive": "utils3d.tar.gz",
+    "url": "https://codeload.github.com/EasternJournalist/utils3d/tar.gz/9a4eb15e4021b67b12c460c7057d642626897ec8",
+    "directory": "utils3d-9a4eb15e4021b67b12c460c7057d642626897ec8",
+    "sha256": "15a6f943e5b8b5e29988f91db028f3ee0dc7f0b3ae7817f9ce39f73cd7149cc7"
+  },
+  {
+    "archive": "nvdiffrast.tar.gz",
+    "url": "https://codeload.github.com/NVlabs/nvdiffrast/tar.gz/v0.4.0",
+    "directory": "nvdiffrast-0.4.0",
+    "sha256": "8b22d518a8cffb794ca1cf3bd959200215c2a2e1fab6092afcc3bcbf1e4e5857"
+  },
+  {
+    "archive": "nvdiffrec.tar.gz",
+    "url": "https://codeload.github.com/JeffreyXiang/nvdiffrec/tar.gz/renderutils",
+    "directory": "nvdiffrec-renderutils",
+    "sha256": "502f38245379a2cbf40daf75119c3042c7c8dc7e45f5845b46302d7186415430"
+  },
+  {
+    "archive": "flexgemm.tar.gz",
+    "url": "https://codeload.github.com/JeffreyXiang/FlexGEMM/tar.gz/main",
+    "directory": "FlexGEMM-main",
+    "sha256": "81a05cbb2b7681a03b0c23987644092ff3d6b1f3fec777a8a50fd3892a05ae36"
+  },
+  {
+    "archive": "cumesh.tar.gz",
+    "url": "https://codeload.github.com/JeffreyXiang/CuMesh/tar.gz/main",
+    "directory": "CuMesh-main",
+    "sha256": "cc6f74d1640594ed38a3521695ec8e8fe6b89ae75a6ddead7b1fd9771eaa1bed"
+  },
+  {
+    "archive": "cubvh.tar.gz",
+    "url": "https://codeload.github.com/JeffreyXiang/cubvh/tar.gz/trellis.2",
+    "directory": "cubvh-trellis.2",
+    "sha256": "3403099c7d7b430bd517f2819329c374f4963bae73348f9c7e0744c0fb1a6a58"
+  }
+]

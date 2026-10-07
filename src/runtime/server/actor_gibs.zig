@@ -35,13 +35,14 @@ pub fn burst(world: *data.World, slots: *Slots, projections: []abi.EntityProject
     var random = (try world.get(entity, data.Random)).*;
     const away = v.normalize(v.subtract(pose.position, origin));
     const angles: v.Vec3 = .{ -std.math.atan2(away[2], @sqrt(away[0] * away[0] + away[1] * away[1])) * 180 / std.math.pi, std.math.atan2(away[1], away[0]) * 180 / std.math.pi, 0 };
-    const requested = policy.count(body.mass, @import("multiplayer.zig").enabled());
+    const player_body = (world.get(entity, data.Player) catch null) != null or (if (world.get(entity, data.Scenery) catch null) |state| state.corpse != null else false);
+    const requested = if (player_body) @as(usize, 6) else policy.count(body.mass, @import("multiplayer.zig").enabled());
     const available = 100 - @min(100, total(world));
     const extent = v.subtract(body.maxs, body.mins);
     const length = @max(extent[0], extent[2]);
     for (0..@min(requested, available)) |index| {
         var offset: v.Vec3 = .{ random.next() * extent[0], random.next() * extent[1], random.next() * extent[2] };
-        offset[if (extent[2] > extent[0]) @as(usize, 2) else 0] = @as(f32, @floatFromInt(index + 3)) * length / @as(f32, @floatFromInt(requested));
+        offset[if (extent[2] > extent[0]) @as(usize, 2) else 0] = (@as(f32, @floatFromInt(index)) + 0.5) * length / @as(f32, @floatFromInt(requested));
         const horizontal = @max(0.038, random.next() * 0.06) * std.math.clamp(body.mass, 128, 300) / 10;
         const vertical = @max(0.038, random.next() * (if (robotic) @as(f32, 0.06) else 0.05)) * std.math.clamp(body.mass, 128, 300) / 10;
         const direction = v.basis(v.add(angles, .{ (random.next() * 2 - 1) * 45, (random.next() * 2 - 1) * 45, 0 })).forward;

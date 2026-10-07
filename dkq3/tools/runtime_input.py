@@ -152,10 +152,10 @@ class NativeInput:
         return self.until(lambda s: s["cmd"] >= start + milliseconds,
                           seconds=milliseconds / 1000 + 5, description="processed command time")
 
-    def diagnostics(self, command, marker):
+    def diagnostics(self, command, marker, seconds=5):
         before = len(self.text())
         self.issue(command)
-        text = wait(self.process, self.log, lambda text: marker in text[before:], 5)[before:]
+        text = wait(self.process, self.log, lambda text: marker in text[before:], seconds)[before:]
         self.inputs.append({"diagnostic": command, "result": text})
         return text
 

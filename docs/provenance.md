@@ -12,6 +12,7 @@ the initial tools release with the bundled engines, runtime, converters and buil
 | QVM build orchestration | Retain independent tooling | `build/qvm.zig`; compiler code is bundled upstream, optional targets only |
 | Upstream LCC compiler | Preserve separate terms; qualification open | `engine/ioquake3/code/tools/lcc/COPYRIGHT` restricts sale; do not describe all bundled third-party code as GPL or declare the open-source-only release complete |
 | Published dkguard and PAK/WAL/PK3 tools | Retain | Initial reviewed tools publication; existing synthetic fixtures |
+| Bundled Lua 5.4.7 (`engine/lua`) | Admit unmodified, MIT notice retained | `engine/LUA-UPSTREAM.json` pins the lua.org archive SHA-256 and every file hash; only the core, auxiliary library and base/coroutine/string/table/math/utf8 libraries link into the server module for the scripted co-op bot ([coop-bot](coop-bot.md)); io/os/package/debug, `lua.c` and `luac.c` are not built |
 | Offline asset converters and transitive imports | Admit reviewed format handling with replacements | `build/ASSET-SOURCES.json`; only Python/NumPy, local game data and ffmpeg inputs |
 | Renderer-derived conversion routines and embedded patterns | Replaced/removed on admission | Independent background-color propagation, shelf lightmap packing and iterative intersection; original checker/lightstyle samples; removed translated font-width routines |
 | Native dk3 world, menus, glyphs and build/install orchestration | Original implementation | `src/game`, `src/ui`, `src/cgame`, `src/shared`, `build/game.zig`, asset/install scripts; no Gold interfaces |
@@ -470,3 +471,15 @@ leg fitting and newly authored attack/death poses; combined attack/locomotion gr
 contain those poses only. No Quake animation data, other commercial game motion,
 or third-party physics code is imported. Physics-library evaluation is not an
 admitted component or a claim of runtime ragdoll support.
+
+Sequence 340 (generic-navigation) changes only the bundled GPL BSPC and botlib and
+the project's own Zig, Lua and Python code; upstream notices remain intact. BSPC
+compiles with `dkq3/tools/dk3-aas.cfg` (botlib's Quake III defaults except the
+native crouched hull and step), seals a leak through space joined to the outside,
+compares riser edges within half a unit when none lies on the plane, links train
+lifts both ways and drops falls into their shafts; the changed files and hashes are
+in `engine/BSPC-CHANGES.json`. botlib's crouch presence box and the out-of-range
+`AAS_AreaInfo` report (now under `bot_developer`, as `AAS_EnableRoutingArea` already
+was) are recorded in `engine/DEVELOPMENT.json`. Navigation packages are regenerated
+locally from the supplied converted maps and stay local; nothing from the private
+reference workspace or other games is imported.

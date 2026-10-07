@@ -373,6 +373,7 @@ int SV_RateMsec(client_t *client);
 // sv_init.c
 //
 void SV_SetConfigstring( int index, const char *val );
+void SV_SetWorldConfigstring( int index, const char *val );
 void SV_GetConfigstring( int index, char *buffer, int bufferSize );
 void SV_UpdateConfigstrings( client_t *client );
 

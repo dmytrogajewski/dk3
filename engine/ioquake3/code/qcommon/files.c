@@ -260,7 +260,7 @@ static	cvar_t		*fs_basepath;
 static	cvar_t		*fs_basegame;
 static	cvar_t		*fs_gamedirvar;
 static	searchpath_t	*fs_searchpaths;
-static	int			fs_readCount;			// total bytes read
+static	uint64_t	fs_readCount;			// total bytes read; HD media exceeds 2 GiB during ordinary reloads
 static	int			fs_loadCount;			// total files read
 static	int			fs_loadStack;			// total files in memory
 static	int			fs_packFiles = 0;		// total number of files in packs
@@ -1508,7 +1508,9 @@ int FS_Read( void *buffer, int len, fileHandle_t f ) {
 	}
 
 	buf = (byte *)buffer;
-	fs_readCount += len;
+	if ( len > 0 ) {
+		fs_readCount += (uint64_t)len;
+	}
 
 	if (fsh[f].zipFile == qfalse) {
 		remaining = len;

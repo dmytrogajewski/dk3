@@ -34,19 +34,28 @@ pub const Profile = struct {
     alert_error: f32,
     /// How long gunfire keeps the bot facing its shooter instead of scanning.
     alert_ms: i64,
+    /// Steps out of incoming shots and forecast splash (and strafes while
+    /// holding a fight). Off at the bottom of the ladder.
+    evasion: bool = true,
+    /// Share of a projectile's flight time the aim leads a moving target by.
+    lead: f32 = 1,
+    /// Fire only once the view is this close to the aim point (cosine of the
+    /// tolerated angle): looser low on the ladder, so a bot still settling
+    /// its aim shoots anyway, and misses.
+    discipline: f32 = 0.995,
 };
 /// skill 1 is the least dangerous and skill 10 keeps the previous perfect-play behaviour.
 const profiles = [_]Profile{
-    .{ .field_of_view = 80, .peripheral_range = 128, .sight_range = 512, .memory_ms = 400, .reaction_ms = 700, .turn_rate = 140, .aim_error = 9, .settle_ms = 1400, .wobble_ms = 420, .burst_ms = 500, .scan_period_ms = 1100, .alert_error = 60, .alert_ms = 4000 },
-    .{ .field_of_view = 90, .peripheral_range = 144, .sight_range = 640, .memory_ms = 500, .reaction_ms = 560, .turn_rate = 180, .aim_error = 7.5, .settle_ms = 1250, .wobble_ms = 380, .burst_ms = 400, .scan_period_ms = 1000, .alert_error = 52, .alert_ms = 3600 },
-    .{ .field_of_view = 100, .peripheral_range = 160, .sight_range = 768, .memory_ms = 600, .reaction_ms = 450, .turn_rate = 220, .aim_error = 6, .settle_ms = 1100, .wobble_ms = 340, .burst_ms = 320, .scan_period_ms = 950, .alert_error = 44, .alert_ms = 3200 },
-    .{ .field_of_view = 110, .peripheral_range = 176, .sight_range = 900, .memory_ms = 700, .reaction_ms = 360, .turn_rate = 280, .aim_error = 4.5, .settle_ms = 950, .wobble_ms = 300, .burst_ms = 260, .scan_period_ms = 900, .alert_error = 36, .alert_ms = 2800 },
-    .{ .field_of_view = 120, .peripheral_range = 192, .sight_range = 1024, .memory_ms = 800, .reaction_ms = 290, .turn_rate = 340, .aim_error = 3.5, .settle_ms = 800, .wobble_ms = 260, .burst_ms = 200, .scan_period_ms = 850, .alert_error = 30, .alert_ms = 2500 },
-    .{ .field_of_view = 130, .peripheral_range = 208, .sight_range = 1152, .memory_ms = 1000, .reaction_ms = 230, .turn_rate = 420, .aim_error = 2.5, .settle_ms = 650, .wobble_ms = 220, .burst_ms = 160, .scan_period_ms = 800, .alert_error = 24, .alert_ms = 2200 },
-    .{ .field_of_view = 140, .peripheral_range = 224, .sight_range = 1280, .memory_ms = 1200, .reaction_ms = 180, .turn_rate = 520, .aim_error = 1.8, .settle_ms = 520, .wobble_ms = 180, .burst_ms = 120, .scan_period_ms = 750, .alert_error = 18, .alert_ms = 2000 },
-    .{ .field_of_view = 150, .peripheral_range = 240, .sight_range = 1400, .memory_ms = 1600, .reaction_ms = 140, .turn_rate = 640, .aim_error = 1.2, .settle_ms = 400, .wobble_ms = 150, .burst_ms = 90, .scan_period_ms = 700, .alert_error = 12, .alert_ms = 1800 },
-    .{ .field_of_view = 160, .peripheral_range = 256, .sight_range = 1536, .memory_ms = 2000, .reaction_ms = 110, .turn_rate = 800, .aim_error = 0.7, .settle_ms = 300, .wobble_ms = 120, .burst_ms = 60, .scan_period_ms = 650, .alert_error = 8, .alert_ms = 1600 },
-    .{ .field_of_view = 170, .peripheral_range = 288, .sight_range = 1792, .memory_ms = 2600, .reaction_ms = 60, .turn_rate = 2400, .aim_error = 0.2, .settle_ms = 200, .wobble_ms = 100, .burst_ms = 30, .scan_period_ms = 600, .alert_error = 4, .alert_ms = 1400 },
+    .{ .field_of_view = 80, .peripheral_range = 128, .sight_range = 512, .memory_ms = 400, .reaction_ms = 700, .turn_rate = 140, .aim_error = 9, .settle_ms = 1400, .wobble_ms = 420, .burst_ms = 500, .scan_period_ms = 1100, .alert_error = 60, .alert_ms = 4000, .evasion = false, .lead = 0, .discipline = 0.96 },
+    .{ .field_of_view = 90, .peripheral_range = 144, .sight_range = 640, .memory_ms = 500, .reaction_ms = 560, .turn_rate = 180, .aim_error = 7.5, .settle_ms = 1250, .wobble_ms = 380, .burst_ms = 400, .scan_period_ms = 1000, .alert_error = 52, .alert_ms = 3600, .evasion = false, .lead = 0, .discipline = 0.965 },
+    .{ .field_of_view = 100, .peripheral_range = 160, .sight_range = 768, .memory_ms = 600, .reaction_ms = 450, .turn_rate = 220, .aim_error = 6, .settle_ms = 1100, .wobble_ms = 340, .burst_ms = 320, .scan_period_ms = 950, .alert_error = 44, .alert_ms = 3200, .evasion = false, .lead = 0.25, .discipline = 0.97 },
+    .{ .field_of_view = 110, .peripheral_range = 176, .sight_range = 900, .memory_ms = 700, .reaction_ms = 360, .turn_rate = 280, .aim_error = 4.5, .settle_ms = 950, .wobble_ms = 300, .burst_ms = 260, .scan_period_ms = 900, .alert_error = 36, .alert_ms = 2800, .evasion = false, .lead = 0.4, .discipline = 0.975 },
+    .{ .field_of_view = 120, .peripheral_range = 192, .sight_range = 1024, .memory_ms = 800, .reaction_ms = 290, .turn_rate = 340, .aim_error = 3.5, .settle_ms = 800, .wobble_ms = 260, .burst_ms = 200, .scan_period_ms = 850, .alert_error = 30, .alert_ms = 2500, .evasion = true, .lead = 0.55, .discipline = 0.98 },
+    .{ .field_of_view = 130, .peripheral_range = 208, .sight_range = 1152, .memory_ms = 1000, .reaction_ms = 230, .turn_rate = 420, .aim_error = 2.5, .settle_ms = 650, .wobble_ms = 220, .burst_ms = 160, .scan_period_ms = 800, .alert_error = 24, .alert_ms = 2200, .evasion = true, .lead = 0.65, .discipline = 0.985 },
+    .{ .field_of_view = 140, .peripheral_range = 224, .sight_range = 1280, .memory_ms = 1200, .reaction_ms = 180, .turn_rate = 520, .aim_error = 1.8, .settle_ms = 520, .wobble_ms = 180, .burst_ms = 120, .scan_period_ms = 750, .alert_error = 18, .alert_ms = 2000, .evasion = true, .lead = 0.75, .discipline = 0.988 },
+    .{ .field_of_view = 150, .peripheral_range = 240, .sight_range = 1400, .memory_ms = 1600, .reaction_ms = 140, .turn_rate = 640, .aim_error = 1.2, .settle_ms = 400, .wobble_ms = 150, .burst_ms = 90, .scan_period_ms = 700, .alert_error = 12, .alert_ms = 1800, .evasion = true, .lead = 0.85, .discipline = 0.99 },
+    .{ .field_of_view = 160, .peripheral_range = 256, .sight_range = 1536, .memory_ms = 2000, .reaction_ms = 110, .turn_rate = 800, .aim_error = 0.7, .settle_ms = 300, .wobble_ms = 120, .burst_ms = 60, .scan_period_ms = 650, .alert_error = 8, .alert_ms = 1600, .evasion = true, .lead = 0.95, .discipline = 0.993 },
+    .{ .field_of_view = 170, .peripheral_range = 288, .sight_range = 1792, .memory_ms = 2600, .reaction_ms = 60, .turn_rate = 2400, .aim_error = 0.2, .settle_ms = 200, .wobble_ms = 100, .burst_ms = 30, .scan_period_ms = 600, .alert_error = 4, .alert_ms = 1400, .evasion = true, .lead = 1, .discipline = 0.995 },
 };
 pub fn normalize(skill: i32) i32 {
     return std.math.clamp(skill, minimum, maximum);
@@ -178,4 +187,14 @@ test "aim noise is bounded and repeats for one seed" {
     for (first) |value| try t.expectApproxEqAbs(value, noise(&seed), 0.0001);
     seed = 0;
     try t.expect(noise(&seed) >= -1 and noise(&seed) <= 1);
+}
+test "the ladder's handling knobs keep level 10 exact and grow monotonically" {
+    try std.testing.expect(!profile(4).evasion and profile(5).evasion);
+    try std.testing.expectEqual(@as(f32, 1), profile(10).lead);
+    try std.testing.expectEqual(@as(f32, 0.995), profile(10).discipline);
+    var level: i32 = minimum + 1;
+    while (level <= maximum) : (level += 1) {
+        try std.testing.expect(profile(level).lead >= profile(level - 1).lead);
+        try std.testing.expect(profile(level).discipline > profile(level - 1).discipline);
+    }
 }

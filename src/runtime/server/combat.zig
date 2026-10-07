@@ -63,6 +63,12 @@ pub fn fire(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
                 if (try damage.hurt(target.world, target.entity, owner_id, shot.weapon, amount, now, false)) if (policy.inertial) try damage.shove(target.world, target.entity, owner_id, direction, amount, now);
             };
             try @import("impacts.zig").contact(world, slots, projections, shot.weapon, last, .{}, now);
+            // The reference kicks the firing player back along the view
+            // (weapon_kick, twice per shot): fired at the floor in a jump it
+            // carries the player over a fence.
+            if (policy.recoil > 0) if ((world.get(owner, data.Player) catch null) != null) if (world.get(owner, data.Velocity) catch null) |velocity| {
+                velocity.linear = v.subtract(velocity.linear, v.scale(forward, policy.recoil));
+            };
             if (engine.integer("developer") > 0) {
                 var text: [128]u8 = undefined;
                 engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig pellets: weapon={d} pellets={d} victims={d}\n", .{ shot.weapon, policy.count, hits.used }));

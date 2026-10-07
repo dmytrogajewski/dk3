@@ -132,6 +132,8 @@ pub const Definition = struct {
     medusa_spit: catalog.weapon.Tuning = .{},
     vermin_rocket: catalog.weapon.Tuning = .{},
     vermin_has_leap: bool = false,
+    /// The satyr model supplies its side-change transition poses (optional).
+    satyr_has_transitions: bool = false,
     rat_poison: catalog.weapon.Tuning = .{},
     knight_ranged: catalog.knights.Weapon = .{},
     laser: catalog.laser.Tuning = .{},

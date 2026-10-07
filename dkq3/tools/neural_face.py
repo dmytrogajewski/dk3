@@ -13,13 +13,19 @@ import sys
 
 import bpy
 import numpy as np
+from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import dkimg
 import skeletal_iqm as sk
+from neural_face_registration import fit as registration_fit,project as registration_project
 
 
-def bake(mesh_path, texture_path, projection, output, side_projection=None, eye_projection=None, character='hiro'):
+def bake(mesh_path, texture_path, projection, output, side_projection=None, eye_projection=None, character='hiro',plan=None):
+    if plan and plan.get('projections'):
+        from neural_projection_bake import bake as registered_bake
+        return registered_bake(mesh_path, texture_path, projection, output, plan)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     model = sk.read(mesh_path.read_bytes())
     mesh = bpy.data.meshes.new('face projection target')
@@ -41,6 +47,18 @@ def bake(mesh_path, texture_path, projection, output, side_projection=None, eye_
     mask = mesh.color_attributes['face_mask']
     orbit = mesh.color_attributes['orbit_mask']
     side_mix = mesh.color_attributes['side_mix']
+    visibility = None
+    registration=registration_fit(plan['registration']) if plan and plan.get('registration') else None
+    if plan:
+        tree = BVHTree.FromPolygons(model.arrays[0].tolist(), model.triangles.tolist(), all_triangles=True)
+        visibility = np.ones(len(mesh.loops), dtype=float)
+        plane = float(model.arrays[0][:,0].max()) + 10*plan['scale']
+        for polygon in mesh.polygons:
+            center = np.asarray(polygon.center)
+            for index in polygon.loop_indices:
+                point = .98*model.arrays[0][mesh.loops[index].vertex_index] + .02*center
+                hit, _, _, _ = tree.ray_cast(Vector((plane,point[1],point[2])), Vector((-1,0,0)))
+                visibility[index] = float(hit is not None and hit.x-point[0] < .035*plan['scale'])
     for i, loop in enumerate(mesh.loops):
         vertex = loop.vertex_index
         x, y, z = model.arrays[0][vertex]
@@ -83,15 +101,29 @@ def bake(mesh_path, texture_path, projection, output, side_projection=None, eye_
             # Per-character admission bounds measured on the fixed orthographic
             # previews. Replace dark eye texels too; Hiro's hair-color exclusion
             # is inappropriate for bald/dark-skinned or helmeted faces.
-            low, high, width, front = {
+            low, high, width, front = (plan['bounds'] if plan else {
                 'mikiko': (21.8, 28.5, 2.5, -.2),
                 'superfly': (23.4, 33., 3.5, -3.8 if side_projection else -.4),
                 'mishima': (18.5, 24.7, 2.1, 2.),
                 'usagi': (21., 28.7, 2.6, .0),
-            }[character]
+            }[character])
             amount = float(np.clip((z-low)/.7, 0, 1)*np.clip((high-z)/.5, 0, 1)
                            *np.clip((width-abs(y))/.45, 0, 1)*np.clip((x-front)/.6, 0, 1))
             mask.data[i].color = amount, amount, amount, 1
+        if plan:
+            # New meshes use their reviewed projection camera and admission
+            # bounds; the historical per-character offsets do not apply.
+            origin=np.asarray(plan['origin']);scale=plan['scale']
+            px,py,pz=(model.arrays[0][vertex]-origin)/scale
+            low,high,width,front=plan['bounds']
+            center=plan['camera']['center'];span=plan['camera']['ortho_scale']
+            face.data[i].uv=.5+(py-center[1])/span,.5+(pz-center[2])/span
+            if registration:
+                face.data[i].uv=registration_project(face.data[i].uv[:],registration).tolist()
+            amount=float(np.clip((pz-low)/.7,0,1)*np.clip((high-pz)/.5,0,1)*
+                         np.clip((width-abs(py))/.45,0,1)*np.clip((px-front)/.6,0,1))
+            amount *= visibility[i]
+            mask.data[i].color=amount,amount,amount,1
     mesh.uv_layers.active_index = 0
     material = bpy.data.materials.new('projected albedo')
     material.use_nodes = True
@@ -169,29 +201,44 @@ def bake(mesh_path, texture_path, projection, output, side_projection=None, eye_
     scene = bpy.context.scene
     scene.render.engine = 'CYCLES'
     scene.cycles.device, scene.cycles.samples = 'CPU', 1
-    bpy.ops.object.bake(type='EMIT', margin=8)
+    # Dense existing islands cannot accept an eight-pixel expansion without
+    # stamping unrelated hair/armor colors across adjacent surfaces.
+    bpy.ops.object.bake(type='EMIT', margin=0 if plan else 8)
     pixels = np.empty(len(baked.pixels), np.float32)
     baked.pixels.foreach_get(pixels)
     pixels = np.clip(pixels.reshape(height, width, 4)[::-1, :, :3]*255, 0, 255).astype(np.uint8)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_bytes(dkimg.encode_png(pixels))
     # Preserve face colors in multiplayer variants using the same UV coverage.
     links.new(coverage_factor, emission.inputs['Color'])
     protected = bpy.data.images.new('face tint protection', width=width, height=height, alpha=False)
     destination.image = protected
-    bpy.ops.object.bake(type='EMIT', margin=8)
+    bpy.ops.object.bake(type='EMIT', margin=0 if plan else 8)
     coverage = np.empty(len(protected.pixels), np.float32)
     protected.pixels.foreach_get(coverage)
     coverage = np.clip(coverage.reshape(height, width, 4)[::-1, :, :3]*255, 0, 255).astype(np.uint8)
+    if plan:
+        # A bounded UV bake must retain the original atlas byte values outside
+        # its actual coverage, rather than resampling every body island again.
+        original_pixels = np.empty(len(images[0].image.pixels), np.float32)
+        images[0].image.pixels.foreach_get(original_pixels)
+        original = np.rint(original_pixels.reshape(height,width,4)[::-1,:,:3]*255).clip(0,255).astype(np.uint8)
+        if original.shape != pixels.shape:raise ValueError('Registered face bake requires matching atlas resolution')
+        pixels[coverage[:,:,0] == 0] = original[coverage[:,:,0] == 0]
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_bytes(dkimg.encode_png(pixels))
     mask_path = output.with_suffix('.face-mask.png')
     mask_path.write_bytes(dkimg.encode_png(coverage))
     provenance = dict(
-        character=character,
+        character=plan.get('character',character) if plan else character,
         mesh_sha256=hashlib.sha256(mesh_path.read_bytes()).hexdigest(),
         original_texture_sha256=hashlib.sha256(texture_path.read_bytes()).hexdigest(),
         projection_sha256=hashlib.sha256(projection.read_bytes()).hexdigest(),
         tint_mask_sha256=hashlib.sha256(mask_path.read_bytes()).hexdigest(),
         method='Orthographic face projection, anatomical feather mask, baked to existing UVs')
+    if plan: provenance['reviewed_projection']=plan
+    if plan:
+        provenance.update(visibility='Frontmost surface only; hidden cheeks retain original albedo',
+                          atlas_scope='Original texels retained exactly outside nonzero baked coverage',
+                          margin=0, occluded_corners=int((visibility==0).sum()))
     if side_projection:
         provenance.update(side_projection_sha256=hashlib.sha256(side_projection.read_bytes()).hexdigest(),
                           method='Frontal and mirrored 60-degree side projections, skin and anatomical masks, existing UVs')
@@ -209,5 +256,7 @@ if __name__ == '__main__':
     parser.add_argument('--side-projection', type=Path, help='matching -60 degree orthographic face projection')
     parser.add_argument('--eye-projection', type=Path, help='frontal orbital detail with socket-aligned eye remapping')
     parser.add_argument('--character', choices=('hiro', 'mikiko', 'superfly', 'mishima', 'usagi'), default='hiro')
+    parser.add_argument('--plan',type=Path,help='reviewed camera, bounds and mesh identity for a newly generated master')
     args = parser.parse_args(sys.argv[sys.argv.index('--')+1:])
-    bake(args.mesh, args.texture, args.projection, args.out, args.side_projection, args.eye_projection, args.character)
+    bake(args.mesh, args.texture, args.projection, args.out, args.side_projection, args.eye_projection, args.character,
+         json.loads(args.plan.read_text()) if args.plan else None)

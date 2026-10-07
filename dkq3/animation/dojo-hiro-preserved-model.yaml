@@ -1,0 +1,107 @@
+version: 1
+character: hiro-dojo
+body_material: models/neural/hiro-dojo-preserved/body
+texture_policy: per_texel_generated_atlas
+head:
+  material: models/neural/hiro/head
+  neck_cut: 23.0
+  minimum_z: 23.25
+  neck_blend: [20.5, 23.5]
+  translation: [2.55, -0.08, 0.75]
+  join_center: [0.33, -3.66]
+  collar_blend: [18, 21]
+  texture_sha256: dd7cd7fb0fae33b2fd2e9c2670c45de9c9333c361b26f0045e5e99191c0ba6d1
+head_ownership:
+  neck_min_z: 21.5
+  head_min_z: 24.5
+  half_width: 4.0
+template_sha256: d4ccbb8b6954e0aabe6ed1857da7fb9aebf94c676d730e3a2405c3e30ca3f8d0
+rig:
+  torso:
+  - - 0
+    - 0
+    - 4
+  - - 0
+    - 0
+    - 11
+  - - 0
+    - 0
+    - 18
+  - - 0
+    - 0
+    - 23
+  - - 0
+    - 0
+    - 27
+  arm_l:
+  - - 0
+    - 7
+    - 20
+  - - 0
+    - 12
+    - 12
+  - - 0
+    - 15.5
+    - 5
+  arm_r:
+  - - 0
+    - -7
+    - 20
+  - - 0
+    - -12
+    - 12
+  - - 0
+    - -15.5
+    - 5
+  leg:
+  - - 0
+    - 3.5
+    - 3
+  - - 0
+    - 5
+    - -9
+  - - 0
+    - 6.5
+    - -21
+  toe:
+  - 4
+  - 6.5
+  - -23
+generation:
+  image_tool: built-in image_gen
+  mesh_tool: microsoft/TRELLIS.2-4B
+  source_revision: 75fbf0183001ed9876c8dbb35de6b68552ee08bd
+  resolution: 1536_cascade
+  texture_size: 4096
+  mesh_policy: newly generated gi body; retain the approved Hiro head; no original body triangles or UVs
+  export_policy: Coherent voxel surface; local topology cleanup before per-texel PBR
+    sampling; preserve exported UV atlas through rigging
+  prompt: dojo-hiro-generation.txt
+  surface_extraction:
+    band: 3.0
+    projection: 0.0
+    triangles: 100000
+    texture_size: 4096
+    source_sha256: ef51a1ba0f2748ffb4c265b47d382cee956f23c6a52d0f3587e6d8beccb7e54a
+    checkpoint_sha256: c5748bb6f0a79cab9c5327a65111b71c7d7da8e80ece4d2357b7ae33204e6809
+references:
+  costume: original c_hiro_intr white dojo gi, opening shots 15-25
+  identity: previously generated neutral Hiro portrait
+motion:
+  capture_profile: dojo-hiro-dialogue-capture.yaml
+  retarget_profile: dojo-hiro-neutral-retarget.yaml
+  root_motion: in_place
+  authority: original animation identifiers, timing and server movement
+provenance:
+  origin: Owner-requested new gi body with the exact previously approved Hiro head
+  license: Local generated asset; reference costume is owner-local retail content
+  redistribution: No publication or redistribution approval
+  credit: Ion Storm character/costume reference; DK3 authoring tools
+review:
+  status: Failed native visual acceptance; approved face restored but head pose and body acting remain wrong
+  rejected_predecessor: cinematic-body-339 global surface closure, vertex-color rebake
+    and head graft
+material_authoring: per_texel_generated_atlas
+head_reference_basis: neutral
+skin_transform_policy: anatomical
+closed_fists: true

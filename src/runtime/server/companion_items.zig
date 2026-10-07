@@ -55,7 +55,13 @@ fn length(service: nav.Service, position: v.Vec3, destination: v.Vec3, slot: u16
     }
     return null;
 }
-pub fn choose(world: *data.World, collector: ecs.Entity, table: *const weapons.Table, episode: u8, service: nav.Service, now: i64) !u32 {
+pub const Choice = struct {
+    /// Mid-fight: only a weapon is worth the trip.
+    weapons_only: bool = false,
+    /// How far a missing weapon is fetched (other items: 256 units).
+    weapon_reach: f32 = 256,
+};
+pub fn choose(world: *data.World, collector: ecs.Entity, table: *const weapons.Table, episode: u8, service: nav.Service, now: i64, choice: Choice) !u32 {
     const companion = (try world.get(collector, data.Companion)).*;
     const pose = (try world.get(collector, data.Transform)).position;
     const body = (try world.get(collector, data.Body)).*;
@@ -72,9 +78,24 @@ pub fn choose(world: *data.World, collector: ecs.Entity, table: *const weapons.T
         if (id == companion.avoided_item and now < companion.avoid_until_ms) continue;
         const goal = @import("../domain/navigation_input.zig").pickupPoint(target.position, target_body.mins, body.mins);
         const distance = v.length(v.subtract(goal, pose));
-        if (distance >= 256 or !try allows(world, collector, entity, table, episode, false, now)) continue;
-        const hit = try engine.collisionService().trace(.{ .start = pose, .end = target.position, .mins = @splat(0), .maxs = @splat(0), .slot = binding.slot, .mask = c.MASK_SHOT });
-        if (hit.start_solid or (hit.fraction < 1 and hit.entity != target_binding.slot)) continue;
+        const wanted_weapon = switch (pickup.kind) {
+            .weapon => |weapon| inventory.dk3Inventory & (@as(i32, 1) << weapon) == 0,
+            else => false,
+        };
+        if (choice.weapons_only and !wanted_weapon) continue;
+        const reach: f32 = if (wanted_weapon) @max(256, choice.weapon_reach) else 256;
+        if (distance >= reach or !try allows(world, collector, entity, table, episode, false, now)) continue;
+        // Walls and doors hide an item; bodies standing (or lying) in the
+        // way do not.
+        const hit = try engine.collisionService().trace(.{ .start = pose, .end = target.position, .mins = @splat(0), .maxs = @splat(0), .slot = binding.slot, .mask = c.MASK_SOLID });
+        // An item resting in a shallow recess (its origin a little inside
+        // the floor or a lip) still counts as in view when the line ends at it.
+        const reaches = hit.fraction == 1 or hit.entity == target_binding.slot or v.length(v.subtract(hit.end, target.position)) < 24;
+        // A gun it is missing is searched for (out of sight, by route) when
+        // the companion has only a close-quarters weapon; anything else it
+        // takes only when it sees it.
+        const searched = wanted_weapon and choice.weapon_reach > 256;
+        if (hit.start_solid or (!reaches and !searched)) continue;
         const rank: u8 = switch (pickup.kind) {
             .health => if (health.current * 2 < health.maximum) 0 else 4,
             .weapon => |weapon| if (inventory.dk3Inventory & (@as(i32, 1) << weapon) == 0) 1 else 6,
@@ -84,7 +105,7 @@ pub fn choose(world: *data.World, collector: ecs.Entity, table: *const weapons.T
             else => continue,
         };
         if (rank > priority) continue;
-        const path = if (try @import("actor_motion.zig").direct(pose, goal, body, binding.slot)) distance else try length(service, pose, goal, binding.slot, 256) orelse continue;
+        const path = if (try @import("actor_motion.zig").direct(pose, goal, body, binding.slot)) distance else try length(service, pose, goal, binding.slot, reach) orelse continue;
         if (rank == priority and path >= nearest) continue;
         nearest = path;
         priority = rank;

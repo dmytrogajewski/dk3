@@ -258,6 +258,20 @@ preparations; historical gameplay state remains mandatory. Final native failure,
 A/B save/death and six-world cinematic restoration pass on `d3db13…`. These are
 controlled regressions, not the complete connected campaign milestone.
 
+Sequence 342 keeps only the neighbourhood live. A resident map outside the
+current region and the regions one exit away becomes *dormant*: its gameplay
+state is captured in the region-member record form, its server world, context
+and client publication are released, and its namespace stays reserved so no
+other world reuses its identities. A dormant map wakes when prefetch, travel or
+a diagnostic requests it, through the same saved-state admission a restore uses,
+and every save writes dormant maps back unchanged. Restoring a save admits only
+the saved map's own region before play; the rest start dormant and the next
+regions wake in the background. On an e1m4a save carrying twelve other maps the
+load waits for four instead of twelve (17.4 s to 9.6 s), and a woken map's actors
+match a full restore exactly, also after a save/load round trip. The client keeps
+its render worlds for released maps until the next map change: it has no release
+call yet.
+
 ## Remaining implementation, in dependency order
 
 1. Resolve actual seam geometry and portal transforms from the connection inventory

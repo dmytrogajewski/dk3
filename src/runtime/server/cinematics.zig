@@ -21,6 +21,11 @@ const Definition = struct {
     fn sequence(self: Definition, name: []const u8) !?@import("../domain/animation.zig").Sequence {
         return try @import("../domain/animation.zig").find(self.metadata orelse return null, name);
     }
+    fn locomotion(self: Definition, running: bool, fallback: @import("../domain/animation.zig").Sequence) !@import("../domain/animation.zig").Sequence {
+        const names: []const []const u8 = if (running) &.{ "runa", "run", "runb" } else &.{ "walka", "walk", "walkb" };
+        for (names) |name| if (try self.sequence(name)) |value| return value;
+        return fallback;
+    }
 };
 pub const State = struct {
     allocator: std.mem.Allocator = undefined,
@@ -330,7 +335,8 @@ pub const State = struct {
                             }
                         },
                         .move, .move_turn => {
-                            performer.animation = if (task.animation.len > 0) try definition_value.sequence(task.animation) orelse performer.movement else performer.movement;
+                            const movement = try definition_value.locomotion(performer.running, performer.movement);
+                            performer.animation = if (task.animation.len > 0) try definition_value.sequence(task.animation) orelse movement else movement;
                             performer.animation_ms = now;
                         },
                         .wait => performer.due_ms = now + @as(i64, @intFromFloat(@max(0, task.attribute) * 1000)),
@@ -372,6 +378,7 @@ pub const State = struct {
                         pose.position = task.destination;
                         pose.angles = task.angles;
                         performer.velocity = @splat(0);
+                        performer.ground_entity = c.ENTITYNUM_NONE;
                         projections[(try world.get(entity, data.Binding)).slot].state.eFlags ^= c.EF_TELEPORT_BIT;
                     },
                     .use => {
@@ -386,9 +393,15 @@ pub const State = struct {
                                 }
                             };
                         }
+                        // e23_timestream's last shot uses "changelevel", a name no
+                        // entity carries: the trigger_changelevel that started the
+                        // cinematic travels when it ends. A use with no target does nothing.
                         if (target) |found| {
                             try router.activate(world, slots, projections, found, try world.persistentId(viewer), now);
-                        } else return error.MissingCinematicUseTarget;
+                        } else if (engine.integer("developer") >= 1) {
+                            var text: [160]u8 = undefined;
+                            engine.print(std.fmt.bufPrintZ(&text, "dk3 cinematic: use target \"{s}\" not found\n", .{task.use[0..@min(task.use.len, 64)]}) catch "");
+                        }
                     },
                     .idle, .none => {},
                     .run => performer.running = true,
@@ -425,6 +438,7 @@ pub const State = struct {
             const floor = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(performer.velocity, dt)), .mins = .{ -12, -12, -24 }, .maxs = .{ 12, 12, 30 }, .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SOLID });
             pose.position = floor.end;
             if (floor.fraction < 1) performer.velocity = @splat(0);
+            performer.ground_entity = if (floor.fraction < 1 and floor.normal[2] > 0.7) floor.entity else c.ENTITYNUM_NONE;
             (try world.get(entity, data.Performer)).* = performer;
             (try world.get(entity, data.Transform)).* = pose;
             try publish(world, entity, projections, now);
@@ -565,21 +579,38 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     const pose = (try world.get(entity, data.Transform)).*;
     const binding = (try world.get(entity, data.Binding)).*;
     const projection = &projections[binding.slot];
+    const body = (try world.get(entity, data.Body)).*;
     const teleport_flag = projection.state.eFlags & c.EF_TELEPORT_BIT;
     projection.* = std.mem.zeroes(abi.EntityProjection);
     projection.state.number = binding.slot;
     projection.state.eType = c.ET_GENERAL;
     projection.state.eFlags = teleport_flag;
     projection.state.modelindex = binding.model;
+    projection.state.groundEntityNum = performer.ground_entity;
     @import("../engine/animation.zig").publish(&projection.state, .{ .sequence = performer.animation, .started = performer.animation_ms, .looping = performer.count == 0 or (performer.started and now >= performer.due_ms) }, now);
     projection.state.angles2 = performer.scale;
     projection.state.pos = @import("../engine/trajectory.zig").interpolated(pose.position);
     projection.state.apos = @import("../engine/trajectory.zig").interpolated(pose.angles);
     projection.shared.currentOrigin = pose.position;
     projection.shared.currentAngles = pose.angles;
+    projection.shared.mins = body.mins;
+    projection.shared.maxs = body.maxs;
     projection.shared.ownerNum = c.ENTITYNUM_NONE;
     projection.shared.svFlags = c.SVF_BROADCAST;
     engine.link(projection);
+}
+
+pub fn diagnostics(world: *data.World, now: i64) !void {
+    var query = world.queryAccess(data.World.mask(.{ data.Performer, data.Transform }), 0, 0);
+    defer query.deinit();
+    var count: usize = 0;
+    while (query.next()) |view| for (view.entities(), view.read(data.Performer), view.read(data.Transform)) |entity, performer, pose| {
+        var text: [320]u8 = undefined;
+        engine.print(try std.fmt.bufPrintZ(&text, "dk3 performer: id={d} unique={s} class={s} ground={d} queued={d} pos={d:.3},{d:.3},{d:.3} angles={d:.3},{d:.3},{d:.3}\n", .{ try world.persistentId(entity), performer.unique, performer.classname, performer.ground_entity, performer.count, pose.position[0], pose.position[1], pose.position[2], pose.angles[0], pose.angles[1], pose.angles[2] }));
+        count += 1;
+    };
+    var text: [96]u8 = undefined;
+    engine.print(try std.fmt.bufPrintZ(&text, "dk3 performers: now={d} count={d}\n", .{ now, count }));
 }
 
 test "intro Osaka queue alias resolves by class without duplicating spawn or removal" {

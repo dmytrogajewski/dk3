@@ -15,6 +15,9 @@ MODES = ('dm', 'easy', 'normal', 'hard', 'ctf', 'deathtag')
 # Omitting those sides as BSP splitters extends solid regions beyond the actual
 # brush, creating phantom floors and unreachable barrier jumps in AAS.
 COMPILER_OPTIONS = ('-threads', '1', '-forcesidesvisible', '-optimize')
+# The dk3 player's hulls and step (BSPC's built-in Quake III crouch hull is 12
+# units taller and its step one unit higher than the native player's).
+CONFIG = Path(__file__).resolve().with_name('dk3-aas.cfg')
 # Brush classes considered by BSPC AAS_ValidEntity. Weather, scenery and breakables
 # do not create static AAS brushes, so their spawn flags cannot require a variant.
 NAVIGATION_BRUSHES = frozenset(('func_wall', 'func_static', 'func_door', 'func_door_rotating',
@@ -39,7 +42,10 @@ def navigation_variants(source):
         signature = tuple(index for index, entity in brushes
                           if not (int(entity.get('spawnflags') or '0') & excluded)
                           and all(key not in entity or (int(entity[key] or '0') != 0) == value
-                                  for key, value in enabled.items()))
+                                  for key, value in enabled.items())
+                          # A func_wall flagged 64 stands only in CTF (BSPC applies the same).
+                          and not (entity.get('classname') == 'func_wall' and int(entity.get('spawnflags') or '0') & 64
+                                   and mode != 'ctf'))
         if signature not in groups:
             groups[signature] = (source.stem if mode == 'dm' else source.stem + '-' + mode, mode)
         selected[mode] = groups[signature][0]
@@ -82,6 +88,7 @@ def main(argv=None):
             raise ValueError(f'{args.maps}: no converted maps')
         entries = []
         compiler_hash = hashlib.sha256(Path(args.bspc).read_bytes()).hexdigest()
+        config_hash = hashlib.sha256(CONFIG.read_bytes()).hexdigest()
         for source in maps:
             variants, selected = navigation_variants(source)
             source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
@@ -90,7 +97,7 @@ def main(argv=None):
                 log = args.out / (stem + '.log')
                 record = args.out / (stem + '.json')
                 identity = dict(bspc=compiler_hash, source=source_hash, mode=mode,
-                                options=list(COMPILER_OPTIONS))
+                                options=list(COMPILER_OPTIONS), config=config_hash)
                 if record.is_file() and target.is_file():
                     previous = json.loads(record.read_text())
                     if previous.get('inputs') == identity and previous.get('sha256') == hashlib.sha256(target.read_bytes()).hexdigest():
@@ -103,7 +110,7 @@ def main(argv=None):
                 product = work / (source.stem + '.aas')
                 product.unlink(missing_ok=True)
                 command = [args.dkguard, '--mem', '6G', '--timeout', '1800', '--', args.bspc,
-                           *COMPILER_OPTIONS, '-dk3-mode', mode, '-bsp2aas', str(source.resolve()),
+                           *COMPILER_OPTIONS, '-cfg', str(CONFIG), '-dk3-mode', mode, '-bsp2aas', str(source.resolve()),
                            '-output', str(work.resolve())]
                 with log.open('wb') as output:
                     result = subprocess.run(command, cwd=work, stdout=output, stderr=subprocess.STDOUT, check=False)

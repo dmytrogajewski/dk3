@@ -99,3 +99,20 @@ test "companion hull and authored jump survive crouch stand and water sampling" 
     try std.testing.expectEqual(@as(u2, 3), motor.water_level);
     try std.testing.expectEqual(@as(u32, c.CONTENTS_WATER), motor.water_type);
 }
+
+test "support catching a stationary falling player cannot turn overclip into a jump" {
+    var context: u8 = 0;
+    defer water_surface = null;
+    water_surface = null;
+    const service: collision.Collision = .{ .context = &context, .trace_fn = trace, .contents_fn = contents };
+    for ([_]f32{ -79, -240 }) |fall_speed| {
+        var player: move.Player = .{};
+        var motion: @import("../domain/slide.zig").State = .{ .position = .{ 0, 0, 24.125 }, .velocity = .{ 0, 0, fall_speed } };
+        for (1..11) |step| {
+            _ = try move.run(&player, &motion, .{ .time_ms = @intCast(step * 16), .angles = @splat(0) }, bridge.parameters(0), service);
+            try std.testing.expectEqual(@as(u16, c.ENTITYNUM_WORLD), player.ground_entity);
+            try std.testing.expectEqual(@as(f32, 0), motion.velocity[2]);
+            try std.testing.expectApproxEqAbs(@as(f32, 24.125), motion.position[2], 0.001);
+        }
+    }
+}

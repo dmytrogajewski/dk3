@@ -266,8 +266,12 @@ const Frame = struct {
         if (slick) self.motion.velocity[2] -= self.parameters.gravity * self.delta;
         if (self.ground) |hit| {
             const before = v.length(self.motion.velocity);
+            const tangent = v.subtract(self.motion.velocity, v.scale(hit.normal, v.dot(self.motion.velocity, hit.normal)));
             self.motion.velocity = v.clip(self.motion.velocity, hit.normal);
-            if (self.walking) self.motion.velocity = v.scale(v.normalize(self.motion.velocity), before);
+            // Overclip leaves a tiny outward normal component. A lift catching
+            // a stationary falling player must not normalize that residue back
+            // into the full falling speed and launch the rider upward.
+            if (self.walking) self.motion.velocity = if (v.length(tangent) < 0.001) @splat(0) else v.scale(v.normalize(self.motion.velocity), before);
         }
         if (self.walking and self.motion.velocity[0] == 0 and self.motion.velocity[1] == 0) return;
         try self.slideMove(!self.walking, true);

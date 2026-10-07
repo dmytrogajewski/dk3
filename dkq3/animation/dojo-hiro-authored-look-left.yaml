@@ -1,0 +1,36 @@
+# First designed opening action: Hiro notices movement and turns toward it.
+# This is an independent cosmetic performance, not a retargeted MD3 pose.
+version: 1
+fps: 30
+frames: 30
+loop: false
+provenance: DK3 original authoring; alert glance and guarded arm pose
+keys:
+  - frame: 0
+    root: [0, 0, 0]
+    spine: [0, 0, 0]
+    chest: [0, 0, 0]
+    neck: [0, 0, 0]
+    head: [0, 0, 0]
+    hand_l: [2, -2, 3]
+    elbow_l: [0, -0.5, 1]
+    hand_r: [4, 3, 5]
+    elbow_r: [0, 1, 1]
+    palm_l: [0, -10, 0]
+    palm_r: [0, 10, 0]
+  - frame: 9
+    chest: [0, 0, -4]
+    neck: [0, 0, -10]
+    head: [0, 0, -30]
+    hand_l: [2.5, -2, 3.4]
+    hand_r: [4.7, 3, 5.4]
+  - frame: 21
+    chest: [0, 0, -4]
+    neck: [0, 0, -10]
+    head: [0, 0, -30]
+  - frame: 29
+    chest: [0, 0, -2]
+    neck: [0, 0, -5]
+    head: [0, 0, -15]
+    hand_l: [2, -2, 3]
+    hand_r: [4, 3, 5]

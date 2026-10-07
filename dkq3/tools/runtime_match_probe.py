@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -41,6 +42,9 @@ def run(args):
     with tempfile.TemporaryDirectory(prefix="dk3-native-match-") as temporary:
         home = Path(temporary)
         stage_client_modules(args.prefix, home, installation=None if args.diagnostic_runtime else args.engine)
+        for number, overlay in enumerate(args.overlay):
+            shutil.copy2(overlay, home / f"dk3/zzzz-overlay-{number}.pk3")
+        result["overlays"] = {str(path): hashlib.sha256(path.read_bytes()).hexdigest() for path in args.overlay}
         settings = {"net_enabled": "0", "fs_basepath": str(args.engine / "share"),
                     "fs_homepath": str(home), "fs_homedatapath": str(home),
                     "fs_homestatepath": str(home / "state"), "com_basegame": "dk3",
@@ -136,7 +140,17 @@ def run(args):
                             deadline = time.monotonic() + args.seconds
                             admission_deadline = time.monotonic() + 20
                             continue
-                        result.update(status="passed", evidence=evidence, restarted=restarted)
+                        if now < args.observe * 1000:
+                            # The acceptance set is met and the match is deliberately
+                            # kept running: `--observe` exists because the probe would
+                            # otherwise stop the moment a bot had fired, been hit and
+                            # respawned, which is seconds of play -- far too short to
+                            # say anything about which tier of a map the bots choose
+                            # to spend a match on.
+                            time.sleep(0.2)
+                            continue
+                        result.update(status="passed", evidence=evidence, restarted=restarted,
+                                      observed=now, observed_for=args.observe)
                         break
                     # This controls observation load only. Success always requires
                     # the authoritative events/state above, never elapsed sleep.
@@ -181,7 +195,12 @@ def main():
     parser.add_argument("--map")
     parser.add_argument("--bots", type=int, choices=range(2, 9), default=4)
     parser.add_argument("--seconds", type=int, default=300)
+    parser.add_argument("--observe", type=int, default=0,
+                        help="keep sampling until this much match time has been seen, even"
+                             " after every requirement is met (bounded by --seconds)")
     parser.add_argument("--restart", action="store_true", help="Repeat natural match requirements after a fast restart")
+    parser.add_argument("--overlay", type=Path, action="append", default=[],
+                        help="package staged ahead of the installed ones (e.g. recompiled navigation under test)")
     args = parser.parse_args()
     args.engine = args.engine.resolve()
     args.prefix, args.report = (args.prefix or args.engine).resolve(), args.report.resolve()

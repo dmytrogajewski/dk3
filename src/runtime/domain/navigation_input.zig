@@ -32,7 +32,18 @@ pub fn crouch(service: collision.Collision, position: v.Vec3, destination: v.Vec
     var low = standing;
     low[2] = 4;
     const ducked = try service.trace(.{ .start = position, .end = end, .mins = mins, .maxs = low, .slot = slot, .mask = mask });
-    return !ducked.start_solid and !ducked.all_solid and ducked.fraction == 1;
+    if (ducked.start_solid or ducked.all_solid) return false;
+    if (ducked.fraction == 1) return true;
+    // A low gap may start a step up (a jammed door's lower half): ducked,
+    // rise by a step and go on, where a standing player could not.
+    const rise = try service.trace(.{ .start = position, .end = v.add(position, .{ 0, 0, 18 }), .mins = mins, .maxs = low, .slot = slot, .mask = mask });
+    if (rise.start_solid or rise.all_solid) return false;
+    const lifted = rise.end;
+    const across = v.add(end, .{ 0, 0, lifted[2] - position[2] });
+    const stepped = try service.trace(.{ .start = lifted, .end = across, .mins = mins, .maxs = low, .slot = slot, .mask = mask });
+    if (stepped.start_solid or stepped.all_solid or stepped.fraction < 1) return false;
+    const tall = try service.trace(.{ .start = lifted, .end = across, .mins = mins, .maxs = standing, .slot = slot, .mask = mask });
+    return tall.start_solid or tall.all_solid or tall.fraction < 1;
 }
 
 /// Qualify a short ordinary walk through an AAS gap. Every hull sweep and

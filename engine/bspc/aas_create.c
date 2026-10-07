@@ -1082,9 +1082,31 @@ void AAS_Create(char *aasfile)
 	} //end if
 	else
 	{
-		LeakFile(tree);
-		Error("**** leaked ****\n");
-		return;
+		/* dk3: with the native crouched hull a crawl-high gap can join some
+		   entity's space (decorations placed beyond the playable rooms) to
+		   the outside. Flood from the outside first and seal everything it
+		   reaches, then flood from the entities again: those beyond the seal
+		   are left out, every other space is kept. */
+		void ClearOccupied_r(node_t *node);
+		void SealOccupied_r(node_t *node);
+		void FloodPortals(node_t *firstnode);
+		ClearOccupied_r(tree->headnode);
+		tree->outside_node.occupied = 0;
+		tree->outside_node.occupant = NULL;
+		FloodPortals(&tree->outside_node);
+		SealOccupied_r(tree->headnode);
+		tree->outside_node.occupied = 0;
+		if (FloodEntities(tree))
+		{
+			Log_Print("dk3: sealed the space joined to the outside after a leak\n");
+			FillOutside(tree->headnode);
+		} //end if
+		else
+		{
+			LeakFile(tree);
+			Error("**** leaked ****\n");
+			return;
+		} //end else
 	} //end else
 	//create AAS from the BSP tree
 	//==========================================

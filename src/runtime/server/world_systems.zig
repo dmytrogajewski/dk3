@@ -14,7 +14,9 @@ pub const State = struct {
     scripts: @import("scripts.zig").State = .{},
     actors: @import("actors.zig").Actors = .{},
     navigation: @import("../engine/navigation.zig").Navigation = .{},
+    gates: @import("navigation_gates.zig").State = .{},
     pub fn deinit(self: *State, restart: bool) void {
+        self.gates.deinit();
         self.navigation.deinit(restart);
     }
     pub fn spawn(self: *State, allocator: @import("std").mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8, table: *const @import("../domain/weapons.zig").Table, restart: bool, resident: bool) !void {
@@ -44,7 +46,7 @@ pub const State = struct {
         try @import("fireflies.zig").spawn(world, slots, projections, now);
         try @import("wisps.zig").spawn(world, slots, projections, now);
         try @import("scenery.zig").spawn(allocator, world, slots, projections, now);
-        try @import("attachments.zig").spawn(world);
+        try @import("attachments.zig").spawn(world, projections);
         try self.multiplayer.spawn(world, slots, projections, episode, now);
         try self.cinematics.spawn(allocator, world);
         try self.scripts.init(allocator, world);
@@ -107,6 +109,7 @@ pub const State = struct {
         try @import("monitors.zig").step(world, slots, now);
         try self.navigation.frame(now);
         self.navigation.sync(projections);
+        if (self.navigation.started) try self.gates.step(world, projections);
         if (!@import("cinematics.zig").active(world)) try self.actors.step(world, slots, projections, targets, self.navigation.service(), now, elapsed);
         if (!@import("cinematics.zig").active(world)) try @import("actor_audio.zig").step(&self.actors, world, slots, projections, now);
         if (!@import("cinematics.zig").active(world)) try @import("companions.zig").combat(&self.actors, world, slots, projections, table, now, elapsed);

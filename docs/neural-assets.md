@@ -1,5 +1,49 @@
 # Local skeletal characters
 
+The [sequence-344 neutral cinematic diagnostic](cinematic-neutral-slice.md)
+tests independently authored Hiro motion on a generated white-gi body with
+the exact approved face. It remains local and visually unapproved; original
+cinematic assets are still the default and are used for unmapped sequences.
+
+[Animation authoring](animation-authoring.md) adds strict clip/cinematic recipes,
+licensed BVH/FBX import and retargeting, serialized contact/joint/loop checks,
+explicit prop policies, material-correct Blender reviews and native studio video
+capture. Sequence 334 qualifies three isolated Hiro clips on the admitted rig;
+the ordinary sequence-333 installation remains selected. Its
+[scoped acceptance](native-acceptance.md) retains unresolved original performances
+and later head/facial/layer migrations.
+
+The current rebuild uses source photos → detailed A-pose concepts → local TRELLIS.2
+→ anatomical IQM masters → existing gameplay/cinematic variant construction.
+It includes the five established identities, remaining story characters and all
+episode-one monsters. See [the pipeline and protected prisoners](neural-monsters.md).
+The experimental meshes and sequence evidence described below are historical;
+their capabilities are preserved in the rebuilt package, not their old geometry.
+The rebuilt faces use projections registered to each new mesh and its own camera
+plan; historical Hiro eye offsets below must not be applied to a different mesh.
+Sequence 328 completed 35 new masters plus two protected prisoners and installed
+132 runtime IQM variants in the separate `zig-out/neural-monsters-dev` prefix.
+The final master/gallery receipts and [scoped native acceptance](native-acceptance.md)
+cover skeletal motion, attachments, carry, multiplayer appearances, deaths and
+restoration. The historical experimental meshes are no longer the masters of that
+package. Its retained source archives, model weights and dependency licenses are
+documented with [the local TRELLIS.2 deployment](neural-monsters.md).
+Sequence 327 also adds localized post-death weapon impulses, wake behavior and
+fragment retirement; older physics limitations below describe their earlier state.
+
+Sequence 329 completes the subsequent close-up repair: 19 closed surfaces and
+registered face atlases, 41 nonfolded measured front/side registrations, exact
+skeleton/frame preservation, and refreshed serialized-pose/lit-face reviews.
+The 132-model isolated package passes 11 scoped native groups, with both software
+renderers represented, and one aggregate of 442 Zig/130 Python tests plus C
+contracts. [Native acceptance](native-acceptance.md) retains failed higher-load
+software profiles and their command-overflow/drop-cleanup limitation. Full campaign
+and hardware rendering remain unqualified. The owner-authorized installation now
+selects that exact package in the normal native development prefix and `dk3`
+launcher; previous immutable installations and saves remain preserved. The local
+default package selector uses the rebuilt episode package for `zig build play`.
+Installation proof is `zig-out/reports/runtime-zig-328/texture-user-install.json`.
+
 Sequences 315–316 integrate the local experimental Hiro, Mikiko, Superfly, Mishima
 (Kage), and Usagi meshes with the native runtime. The asset generator reads the
 five selected GLBs. The detailed mesh
@@ -37,6 +81,10 @@ optional package keeps the converted source characters.
 
 The client selects skeletal models from an explicit mapping. Animation frame
 numbers, collision, gameplay metadata, and server timing remain authoritative.
+After the failed dojo native visual review, cinematic source paths default to
+their original vertex-model presentation even when this optional package is
+installed. Explicit authoring previews can set `cg_neuralCinematics 1` before
+loading the map; see [the paired review and 3D pose stage](cinematic-performance-pivot.md).
 Gameplay uses independently authored skeletal clips with Quake III clip names.
 Loops retain their own cadence (a run cycle is 15 frames at 30 Hz), independent
 of the old vertex animation's frame count. One-shot clips retain authoritative
@@ -80,6 +128,26 @@ classic vertex-animated models retain their authored performances. Collision use
 joint-sized boxes and approximate self separation, not exact skinned triangles;
 body-to-body pushing, projectile impulses after death and waking sleeping bodies
 on moving platforms are not implemented.
+
+Sequence 343 (`ragdoll-joint-limits`) replaces the old hip/toe limits with
+anatomical cones in the torso frame. Hips flex −25–120 degrees with −20–50 degrees
+of spread. Shoulders swing −55–200 degrees with −35–90 degrees of spread. The head
+nods −35–50 degrees and leans ±30 degrees on the chest; the head-to-shoulder links
+are gone. A stop turns the whole limb about its joint, and the rest of the body takes
+the reaction by mass, so a limb pinned by the floor rolls the body over instead of
+staying bent backwards. Knee and elbow bend planes follow the limb, not the trunk.
+Hands, elbows and feet stay outside a pelvis–chest capsule. Static friction holds
+back only free motion, never a joint correction. A stop met hard (more than about
+1 degree past it in one 120 Hz step) is inelastic: both sides lose half that step's
+motion, so landings do not bounce. Resting on a stop costs nothing, so shots still
+shove a settled body.
+
+The offline harness for this pass covered 180 falls on floors, slopes and walls.
+Time spent outside range dropped as follows: shoulders 36% → 0.01%, elbows
+31% → 0.01%, hips 24% → 4.6%, neck 20% → 0, knees 18% → 0.06%. Pelvis rebound
+after landing fell from median 3.7 / maximum 45.8 units to median 1.3 / maximum
+8.6. A thigh tucked to the chest may still settle up to about 25 degrees past hip
+flexion. Robot and creature bodies (`creature_body.zig`) are unchanged.
 
 Sequence 321 improves geometry stability in two places. Ragdoll presentation
 reconstructs child anchors through their parent transform; collision solver

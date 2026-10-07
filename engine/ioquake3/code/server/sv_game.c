@@ -402,6 +402,9 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
         return SV_ActivateWorld(args[1]);
     case G_DK3_WORLD_CURRENT_V1:
         return SV_CurrentWorld();
+    case G_DK3_WORLD_CONFIGSTRING_V1:
+        SV_SetWorldConfigstring(args[1], VMA(2));
+        return 0;
     case G_DK3_WORLD_BYTES_V1:
         return CM_WorldBytes(args[1]);
     case G_DK3_WORLD_TRACE_V1: {

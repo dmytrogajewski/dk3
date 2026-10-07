@@ -4,7 +4,7 @@ const std = @import("std");
 const animation = @import("animation.zig");
 const Grip = @import("weapon_catalog").PlayerGrip;
 const v = @import("vector.zig");
-pub const Pose = enum { idle, run, crouch, crouch_walk, jump, moving_jump, stop, crouch_in, crouch_out, dead };
+pub const Pose = enum { idle, run, crouch, crouch_walk, jump, moving_jump, stop, crouch_in, crouch_out, dead, walk };
 pub const State = struct {
     pose: Pose = .idle,
     grip: Grip = .glove,
@@ -12,7 +12,7 @@ pub const State = struct {
     reverse: bool = false,
     initialized: bool = false,
 };
-pub const Input = struct { velocity: v.Vec3, yaw: f32, ducked: bool, jumping: bool, dead: bool, fired_ms: ?i64 = null };
+pub const Input = struct { velocity: v.Vec3, yaw: f32, ducked: bool, jumping: bool, dead: bool, fired_ms: ?i64 = null, walk_speed: f32 = 208 };
 pub const Set = struct {
     frames: [3][std.meta.fields(Pose).len]animation.Sequence,
     attacks: [3][2]animation.Sequence,
@@ -23,6 +23,7 @@ pub const Set = struct {
             const base = switch (pose) {
                 .idle => "aamb",
                 .run => "run",
+                .walk => "walk",
                 .crouch => "camb",
                 .crouch_walk => "cwalk",
                 .jump => "ajump",
@@ -62,15 +63,16 @@ pub const Set = struct {
     }
     pub fn playback(self: *const Set, state: *State, input: Input, grip: Grip, now: i64) animation.Playback {
         const moving = @abs(input.velocity[0]) > 1 or @abs(input.velocity[1]) > 1;
-        const wanted: Pose = if (input.dead) .dead else if (input.jumping) (if (moving) .moving_jump else .jump) else if (input.ducked) (if (moving) .crouch_walk else .crouch) else if (moving) .run else .idle;
+        const speed = v.length(.{ input.velocity[0], input.velocity[1], 0 });
+        const wanted: Pose = if (input.dead) .dead else if (input.jumping) (if (moving) .moving_jump else .jump) else if (input.ducked) (if (moving) .crouch_walk else .crouch) else if (moving) (if (speed <= input.walk_speed) .walk else .run) else .idle;
         const yaw = std.math.atan2(input.velocity[1], input.velocity[0]) * 180 / std.math.pi;
         const backwards = moving and @abs(@mod(yaw - input.yaw + 180, 360) - 180) >= 145;
-        const reverse = backwards and (wanted == .run or wanted == .crouch_walk);
+        const reverse = backwards and (wanted == .run or wanted == .walk or wanted == .crouch_walk);
         const transitioning = state.pose == .stop or state.pose == .crouch_in or state.pose == .crouch_out;
         const target: Pose = if (state.pose == .crouch_in) .crouch else .idle;
         const running_transition = transitioning and wanted == target and grip == state.grip and now - state.started_ms < self.sequence(state.pose, state.grip).duration();
         if (!running_transition and (!state.initialized or wanted != state.pose or grip != state.grip or reverse != state.reverse)) {
-            const transition: ?Pose = if (!state.initialized or grip != state.grip) null else if (state.pose == .run and wanted == .idle) .stop else if (state.pose == .idle and wanted == .crouch) .crouch_in else if (state.pose == .crouch and wanted == .idle) .crouch_out else null;
+            const transition: ?Pose = if (!state.initialized or grip != state.grip) null else if ((state.pose == .run or state.pose == .walk) and wanted == .idle) .stop else if (state.pose == .idle and wanted == .crouch) .crouch_in else if (state.pose == .crouch and wanted == .idle) .crouch_out else null;
             state.* = .{ .pose = transition orelse wanted, .grip = grip, .started_ms = now, .reverse = reverse, .initialized = true };
         }
         const sequence_value = self.sequence(state.pose, state.grip);
@@ -97,7 +99,7 @@ test "remote pose transitions finish and backward movement reverses authored fra
         value.* = .{ .first = @intCast(i * 10), .last = @intCast(i * 10 + 3) };
     };
     var state: State = .{};
-    var input: Input = .{ .velocity = .{ -100, 0, 0 }, .yaw = 0, .ducked = false, .jumping = false, .dead = false };
+    var input: Input = .{ .velocity = .{ -320, 0, 0 }, .yaw = 0, .ducked = false, .jumping = false, .dead = false };
     try std.testing.expectEqual(@as(u16, 13), set.frame(&state, input, .rifle, 1000));
     try std.testing.expectEqual(@as(u16, 12), set.frame(&state, input, .rifle, 1100));
     input.velocity = @splat(0);
@@ -132,4 +134,27 @@ test "remote attacks require an actual fire timestamp and use the equipped grip 
     try std.testing.expectEqual(@as(u16, 132), set.frame(&state, input, .pistol, 1200));
     input.dead = true;
     try std.testing.expect(set.frame(&state, input, .pistol, 1300) < 100);
+}
+
+test "remote locomotion distinguishes walking from running for every weapon grip" {
+    var set: Set = undefined;
+    for (&set.frames) |*poses| for (poses, 0..) |*sequence_value, i| {
+        sequence_value.* = .{ .first = @intCast(i * 10), .last = @intCast(i * 10 + 3) };
+    };
+    for ([_]Grip{ .glove, .pistol, .rifle, .shoulder }) |grip| {
+        var state: State = .{};
+        var input: Input = .{ .velocity = .{ 160, 0, 0 }, .yaw = 0, .ducked = false, .jumping = false, .dead = false };
+        _ = set.frame(&state, input, grip, 1000);
+        try std.testing.expectEqual(Pose.walk, state.pose);
+        input.velocity[0] = 320;
+        _ = set.frame(&state, input, grip, 2000);
+        try std.testing.expectEqual(Pose.run, state.pose);
+        input.velocity[0] = -160;
+        _ = set.frame(&state, input, grip, 3000);
+        try std.testing.expectEqual(Pose.walk, state.pose);
+        try std.testing.expect(state.reverse);
+        input.velocity = @splat(0);
+        _ = set.frame(&state, input, grip, 4000);
+        try std.testing.expectEqual(Pose.stop, state.pose);
+    }
 }

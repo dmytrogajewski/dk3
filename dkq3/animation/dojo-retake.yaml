@@ -1,0 +1,44 @@
+# A separately named three-shot reconstruction, not a truncated intro override.
+version: 1
+scene: dojo_retake
+anchors:
+  # Settled floor transform measured in the original native recording.
+  hiro_start: [-3488.375, -3356.875, -757.875]
+  hiro_chest: [-3488.375, -3360, -742]
+  hiro_face: [-3488.375, -3360, -734]
+actors:
+  hiro1:
+    class: cine_hiro
+    character: hiro
+    at: hiro_start
+    angles: [0, 0.0604248047, 0]
+shots:
+  - duration: 5
+    fov: 55
+    camera:
+      keys:
+        - {at: 0, position: [-3408, -3310, -725], look_at: hiro_chest}
+        - {at: 5, position: [-3420, -3318, -728], look_at: hiro_chest}
+    tracks:
+      hiro1:
+        - {at: 0, idle: stance}
+        - {at: 2, play: look_left}
+        - {at: 3, idle: stance}
+  - duration: 5
+    fov: 50
+    camera:
+      keys:
+        - {at: 0, position: [-3426, -3360, -734], look_at: hiro_face}
+        - {at: 5, position: [-3432, -3360, -734], look_at: hiro_face}
+    events:
+      - {at: 4.5, sound: voices/hiro/e1m1_hiro_04.mp3, channel: 2}
+  - duration: 6
+    fov: 55
+    camera:
+      keys:
+        - {at: 0, position: [-3458, -3310, -724], look_at: hiro_chest}
+        - {at: 6, position: [-3448, -3324, -728], look_at: hiro_chest}
+    tracks:
+      hiro1:
+        - {at: 0, play: sad}
+        - {at: 3, idle: stance}

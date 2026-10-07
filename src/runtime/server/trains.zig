@@ -44,6 +44,15 @@ fn corner(world: *data.World, name: []const u8) !?ecs.Entity {
     if (!std.mem.eql(u8, (try world.get(entity, data.MapObject)).classname, "path_corner_train")) return null;
     return entity;
 }
+/// A stopped train's corner and the one it leaves for next: a rider tells a
+/// stop part-way along a run from the end of it.
+pub fn stops(world: *data.World, entity: ecs.Entity) !?struct { at: @import("../domain/vector.zig").Vec3, next: @import("../domain/vector.zig").Vec3 } {
+    const train = world.get(entity, data.Train) catch return null;
+    if (train.phase == .moving or train.phase == .teleporting) return null;
+    const at = world.find(train.destination) orelse return null;
+    const next = try corner(world, train.next_target) orelse return null;
+    return .{ .at = (try world.get(at, data.Transform)).position, .next = (try world.get(next, data.Transform)).position };
+}
 pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.EntityProjection) !void {
     const transform = (try world.get(entity, data.Transform)).*;
     const train = (try world.get(entity, data.Train)).*;

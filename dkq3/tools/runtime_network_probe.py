@@ -147,6 +147,9 @@ def run(args):
                 home = root / f"client-{index}"
                 stage_client_modules(args.engine, home, installation=args.engine)
                 settings = client_settings(args.engine, home, args.renderer)
+                if getattr(args,'capture_size',None):
+                    width,height=args.capture_size
+                    settings.update(r_customwidth=str(width),r_customheight=str(height))
                 settings.update(net_enabled=1, net_ip="127.0.0.1", net_port=ports[index + 1],
                                 g_gametype=0, in_nograb=1, name=f"NativeLAN{index}",
                                 cl_allowDownload=0, developer=1)
@@ -219,8 +222,20 @@ def run(args):
                 result['scope'] += ' Controlled facing fixture and five skeletal appearance changes, rendered remotely over UDP.'
                 result['neural'] = []
                 clients[0].issue('con_notifytime 0')
-                for selection, appearance in [('hiro/0', 0), ('mikiko/1', 4), ('superfly/2', 8), ('mishima/3', 42), ('usagi/7', 51)]:
+                for appearance_index, (selection, appearance) in enumerate([('hiro/0', 0), ('mikiko/1', 4), ('superfly/2', 8), ('mishima/3', 42), ('usagi/7', 51)]):
                     if args.ragdoll_character and selection.split('/')[0] != args.ragdoll_character: continue
+                    if args.isolate_appearances and appearance_index:
+                        # Qualify each cosmetic rig from the same authored
+                        # spawn. Respawn otherwise rotates through stair/ledge
+                        # starts and changes the physical fixture per model.
+                        server_offset = server.log.stat().st_size
+                        client_offsets = [client.log.stat().st_size for client in clients]
+                        server.issue('map_restart 0')
+                        wait(server.process, server.log, lambda text: 'dk3 zig: isolated bootstrap' in text[server_offset:], 20)
+                        for client, offset in zip(clients, client_offsets):
+                            wait(client.process, client.log, lambda text: 'dk3 zig client: restoration applied' in text[offset:], 15)
+                        restarted = until(lambda p: len(p) == 2 and all(row['health'] > 0 and row['mode'] == 'normal' for row in p.values()), 'appearance fixture restart')
+                        result.setdefault('appearance_restarts', []).append(dict(selection=selection, state=restarted))
                     clients[1].issue(f'model {selection}')
                     state = until(lambda p: p[1]['appearance'] == appearance, f'authoritative {selection}')
                     offset = len(server.log.read_text())
@@ -245,14 +260,17 @@ def run(args):
                     expected = 'player_' + selection.split('/')[0] if appearance >= 36 else 'm_' + selection.split('/')[0]
                     assert f'models/neural/{expected}.iqm' in text, expected
                     result['neural'].append(dict(selection=selection, state=sample()))
-                    if args.neural_motion:
+                    if args.neural_motion or args.neural_walk:
+                        if args.neural_walk:
+                            clients[0].issue('+speed')
+                            clients[1].issue('+speed')
                         rows, images = [], []
                         clients[1].issue('+forward')
                         clients[0].issue('+back')
                         try:
                             for frame in range(20):
                                 offset = clients[0].log.stat().st_size
-                                name = f'motion-{selection.replace("/", "-")}-{frame:03}'
+                                name = f'{"walk" if args.neural_walk else "motion"}-{selection.replace("/", "-")}-{frame:03}'
                                 source = clients[0].home / f'dk3/screenshots/{name}.jpg'
                                 # Capture and diagnostics in the same render iteration.
                                 # Separate server polling doubled each sample's latency
@@ -270,13 +288,17 @@ def run(args):
                         finally:
                             clients[1].issue('-forward')
                             clients[0].issue('-back')
+                            if args.neural_walk:
+                                clients[0].issue('-speed')
+                                clients[1].issue('-speed')
+                        gait_frames = 24 if args.neural_walk else 15
                         running = [r for r in rows if int(r['rate']) == 30 and
-                                   int(r['clip_last'])-int(r['clip_first']) == 14 and
+                                   int(r['clip_last'])-int(r['clip_first']) == gait_frames-1 and
                                    int(r['now'])-int(r['started']) > 150]
                         assert len(running) >= 4, (selection, rows)
                         for row in running:
-                            phase = (int(row['now'])-int(row['started']))*.03 % 15
-                            assert abs((int(row['frame'])-int(row['clip_first']))-((math.floor(phase)+1) % 15)) < .01, row
+                            phase = (int(row['now'])-int(row['started']))*.03 % gait_frames
+                            assert abs((int(row['frame'])-int(row['clip_first']))-((math.floor(phase)+1) % gait_frames)) < .01, row
                         assert max(int(r['now']) for r in running)-min(int(r['now']) for r in running) >= 300
                         result.setdefault('skeletal_motion', {})[selection] = dict(samples=rows, images=images)
                     if args.neural_combat:
@@ -290,7 +312,9 @@ def run(args):
                             text = wait(clients[0].process, clients[0].log,
                                         lambda text: 'dk3 presentation:' in text[offset:] and source.exists() and source.stat().st_size > 0, 5)[offset:]
                             for line in text.splitlines():
-                                if line.startswith('dk3 ragdoll: slot=1 '):
+                                # Respawn moves the retained corpse into an
+                                # ordinary entity slot; its identity persists.
+                                if line.startswith('dk3 ragdoll: '):
                                     physical_row = dict(label=label, **dict(re.findall(r'(\w+)=([^ ]+)', line)))
                                     if int(physical_row['identity']) == victim_identity: physical.append(physical_row)
                                 if line.startswith('dk3 skeletal presentation: entity=1 '):
@@ -300,13 +324,15 @@ def run(args):
                         for moving in (False, True):
                             clients[1].issue('+attack')
                             if moving:
-                                clients[1].issue('+forward')
-                                clients[0].issue('+back')
+                                # Retrace the gait path instead of continuing
+                                # into the wall reached by the preceding run.
+                                clients[1].issue('+back')
+                                clients[0].issue('+forward')
                             try:
                                 for frame in range(10): combat_capture(f'attack-{slug}-{int(moving)}-{frame:03}')
                             finally:
-                                clients[1].issue('-attack;-forward')
-                                clients[0].issue('-back')
+                                clients[1].issue('-attack;-forward;-back')
+                                clients[0].issue('-back;-forward')
                         layered = [r for r in rows if int(r['attack_count']) > 0 and int(r['frame']) >= int(r['attack_first']) and int(r['fired']) > 0]
                         assert layered, (selection, rows)
                         clients[1].issue('kill')
@@ -470,14 +496,18 @@ def main():
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument('--neural', action='store_true', help='Exercise all five skeletal remote appearances using controlled facing')
     parser.add_argument('--neural-motion', action='store_true', help='Capture and verify actual remote skeletal gait cadence')
+    parser.add_argument('--neural-walk', action='store_true', help='Use ordinary slow-movement input and verify distinct remote walk clips')
     parser.add_argument('--neural-combat', action='store_true', help='Capture moving attacks and complete remote deaths for all five appearances')
     parser.add_argument('--held-weapons', action='store_true', help='Isolated remote sword/rifle/pistol grip capture with equipment fixtures')
     parser.add_argument('--ragdolls', action='store_true')
     parser.add_argument('--ragdoll-character', choices=('hiro', 'mikiko', 'superfly', 'mishima', 'usagi'))
+    parser.add_argument('--isolate-appearances', action='store_true', help='restart the authored map between appearance fixtures to use the same spawn for each rig')
     parser.add_argument('--renderer', default='opengl2')
+    parser.add_argument('--capture-size',type=int,nargs=2,metavar=('WIDTH','HEIGHT'),help='explicit software-rendered capture dimensions for both UDP clients')
     args = parser.parse_args()
+    if args.capture_size and any(value<=0 for value in args.capture_size):parser.error('--capture-size dimensions must be positive')
     if args.ragdolls: args.neural_combat = True
-    if args.neural_motion or args.neural_combat: args.neural = True
+    if args.neural_motion or args.neural_walk or args.neural_combat: args.neural = True
     args.engine, args.report = args.engine.resolve(), args.report.resolve()
     run(args)
 

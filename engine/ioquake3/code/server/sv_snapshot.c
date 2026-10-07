@@ -415,7 +415,7 @@ static void SV_AddEntitiesVisibleFromPoint( vec3_t origin, clientSnapshot_t *fra
 		}
 
 		// entities can be flagged to explicitly not be sent to the client
-		if ( ent->r.svFlags & SVF_NOCLIENT ) {
+		if ( ent->r.svFlags & ( SVF_NOCLIENT | SVF_DK3_CONFIG_PENDING ) ) {
 			continue;
 		}
 

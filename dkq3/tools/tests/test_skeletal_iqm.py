@@ -46,7 +46,8 @@ class SkeletalTest(unittest.TestCase):
         source = np.concatenate((model.arrays[0], [[2.2, .1, 1]]))
         poses = np.repeat(source[None], 10, axis=0)
         poses[5, 1, 2] = 9  # A single raised limb, not a taller body.
-        detail = neural_assets.cinematic(model, [dict(material='skins/body', points=poses,
+        detail = neural_assets.cinematic(model, [dict(name='body', material='skins/body', points=poses,
+                                                     uv=np.zeros((len(source),2)),
                                                      tri=np.array([[0, 1, 2], [0, 1, 3], [0, 2, 3], [1, 2, 3]]))], {})
         self.assertNotEqual(detail['reference_frame'], 5)
         self.assertAlmostEqual(detail['scale'], 1.)
@@ -132,6 +133,7 @@ class SkeletalTest(unittest.TestCase):
             points = np.array([[x, y, z] for x in (low[0], high[0])
                                for y in (low[1], high[1]) for z in (low[2], high[2])], float)
             surfaces.append(dict(name=name, material='skins/body', points=np.stack((points, points+[3, 0, 2])),
+                                 uv=np.zeros((len(points),2)),
                                  tri=np.array([[0, 1, 2], [2, 3, 4], [4, 5, 6], [6, 7, 0]])))
         detail = neural_assets.cinematic(model, surfaces, {}, carried=True)
         self.assertEqual(detail['scale'], 1.)

@@ -115,8 +115,8 @@ test "character projections round-trip and use integer speed with float jump sca
     writeCharacter(&ps, character, .{});
     try std.testing.expectEqualDeep(character, readCharacter(&ps));
     const boosted = characterParameters(0, character, .{}, 999);
-    try std.testing.expectEqual(@as(f32, 345), boosted.speed);
-    try std.testing.expectApproxEqAbs(@as(f32, 291.6), boosted.jump_speed, 0.001);
+    try std.testing.expectEqual(@as(f32, 448), boosted.speed);
+    try std.testing.expectApproxEqAbs(@as(f32, 378), boosted.jump_speed, 0.001);
     try std.testing.expectEqual(@as(f32, 320), characterParameters(0, character, .{}, 1000).speed);
     character.attributes[2] = 5;
     try std.testing.expectEqual(@as(f32, 448), characterParameters(0, character, .{}, 1000).speed);

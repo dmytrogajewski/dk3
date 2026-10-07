@@ -1,0 +1,721 @@
+{
+  "derivation": {
+    "licences": {
+      "avoided": "FLUX.1-dev is licensed for research/non-commercial use only, so it is not used for anything shipped with this map",
+      "derivation": "structure drawn per material by craft_textures.py; height/normal from the painted periodic height field; specular from albedo luminance plus the painter's per-texel weight; glow from the painter's own light image; sky cube faces reprojected from an elevation-authored panorama",
+      "generator": "Stable Diffusion XL base 1.0 (CreativeML Open RAIL++-M) and xinsir controlnet-tile-sdxl-1.0 (same licence), both loaded from ~/dk_models; madebyollin sdxl-vae-fp16-fix (MIT) for decoding",
+      "generator_2": "ComfyUI 0.38 + ComfyUI-GGUF driving abenzerps/Qwen-Image-2.1-Uncensored-GGUF (Q8_0 single-file diffusion model, Qwen3-VL-8B int8 text encoder, bf16 VAE), sampled euler/simple at cfg 1 -- the uncensored variant is the owner's personal copy, used for personal work on the owner's instruction; the base model is Apache-2.0, and no weight is shipped with the map",
+      "machine": "RTX 5090, python3.14, numpy 1.26 / scipy / PIL 11.3; ComfyUI 0.38 venv",
+      "role_2": "renders detail plates and the ad-board artwork only; every albedo LEVEL is still set by craft_textures.grade(), and structural materials take only the plate's relative microstructure"
+    },
+    "normal": "tangent space, Fourier derivatives of the painted height field",
+    "specular": "albedo luminance plus the painter's per-texel wetness/scratch weight",
+    "structure": "drawn per material by dkq3/tools/craft_textures.py"
+  },
+  "images": {
+    "japandm/ad_board": {
+      "alpha": false,
+      "glow": true,
+      "grade": null,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "normal": 0.0,
+      "paint": "ad_board",
+      "seam": {
+        "_g": 0.027,
+        "diffuse": 0.087
+      },
+      "sha256": {
+        "_g": "9818f1ca7785e370",
+        "diffuse": "85420137b5107d55"
+      },
+      "size": 1024,
+      "spec": false
+    },
+    "japandm/asphalt": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.19
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.0,
+      "paint": "asphalt",
+      "seam": {
+        "_n": 1.035,
+        "_s": 1.022,
+        "diffuse": 1.016
+      },
+      "sha256": {
+        "_n": "8b2a9ec495fcf8ca",
+        "_s": "20f5481d1aaa1416",
+        "diffuse": "82afe440283006e7"
+      },
+      "size": 1024,
+      "spec": true
+    },
+    "japandm/cloth": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.165
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.5,
+      "paint": "cloth",
+      "seam": {
+        "_n": 1.0,
+        "_s": 1.076,
+        "diffuse": 0.789
+      },
+      "sha256": {
+        "_n": "5946076068981423",
+        "_s": "2353fb533d75e741",
+        "diffuse": "fccf8ad27ddcd700"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/concrete_panel": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.25
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.4,
+      "paint": "concrete_panel",
+      "seam": {
+        "_n": 0.863,
+        "_s": 2.11,
+        "diffuse": 2.145
+      },
+      "sha256": {
+        "_n": "c357a76a556c53d0",
+        "_s": "5bb31fa7b59b26cc",
+        "diffuse": "cb2c3bae01e7ca48"
+      },
+      "size": 1024,
+      "spec": true
+    },
+    "japandm/crate": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.245
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.7,
+      "paint": "crate",
+      "seam": {
+        "_n": 1.063,
+        "_s": 0.96,
+        "diffuse": 1.026
+      },
+      "sha256": {
+        "_n": "7614aec1d641afe3",
+        "_s": "809c9a6f12cd9c47",
+        "diffuse": "ddad3ee1fc0b2040"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/foliage": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.215
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.8,
+      "paint": "plant",
+      "seam": {
+        "_n": 0.939,
+        "_s": 0.816,
+        "diffuse": 0.786
+      },
+      "sha256": {
+        "_n": "269fdc42f3f84d27",
+        "_s": "47bff6a8437afd8e",
+        "diffuse": "8139794b4f5a68b9"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/glass": {
+      "alpha": true,
+      "glow": false,
+      "grade": [
+        0.09
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 0.4,
+      "paint": "glass",
+      "seam": {
+        "_n": 0.927,
+        "_s": 1.128,
+        "diffuse": 1.017
+      },
+      "sha256": {
+        "_n": "b1dbf1c5f5d9e6f9",
+        "_s": "34cb14263d74f91d",
+        "diffuse": "1a8ec6664f90f802"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/grate": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.255
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.7,
+      "paint": "grate",
+      "seam": {
+        "_n": 0.891,
+        "_s": 0.358,
+        "diffuse": 0.389
+      },
+      "sha256": {
+        "_n": "42396a105890b3ac",
+        "_s": "307e12c074b6bae8",
+        "diffuse": "95c82d30767a6ba1"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/holo_pool": {
+      "alpha": false,
+      "glow": true,
+      "grade": null,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "normal": 0.0,
+      "paint": "holo_pool",
+      "seam": {
+        "_g": 0.931,
+        "diffuse": 0.947
+      },
+      "sha256": {
+        "_g": "957766d2a9d8405f",
+        "diffuse": "3df573c00b78789f"
+      },
+      "size": 1024,
+      "spec": false
+    },
+    "japandm/lacquer_red": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.2
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.2,
+      "paint": "lacquer_red",
+      "seam": {
+        "_n": 1.074,
+        "_s": 1.038,
+        "diffuse": 0.871
+      },
+      "sha256": {
+        "_n": "52d3de7545fcfa9b",
+        "_s": "0dc93c5334a99d05",
+        "diffuse": "f28ed1ff49e4d396"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/light_strip": {
+      "alpha": false,
+      "glow": true,
+      "grade": null,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "normal": 0.0,
+      "paint": "light_strip",
+      "seam": {
+        "_g": 0.543,
+        "diffuse": 0.41
+      },
+      "sha256": {
+        "_g": "2bf789aee2d3f73f",
+        "diffuse": "7540bad8675dd4ab"
+      },
+      "size": 256,
+      "spec": false
+    },
+    "japandm/metal_column": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.3
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 0.55,
+      "paint": "metal_column",
+      "seam": {
+        "_n": 1.102,
+        "_s": 1.026,
+        "diffuse": 1.082
+      },
+      "sha256": {
+        "_n": "79e0ee813b7fdbf5",
+        "_s": "1e98c183b03ae6d4",
+        "diffuse": "0127b523fda23bff"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/metal_deck": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.25
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.05,
+      "paint": "metal_deck",
+      "seam": {
+        "_n": 1.333,
+        "_s": 1.04,
+        "diffuse": 1.045
+      },
+      "sha256": {
+        "_n": "a790e27585b6dd10",
+        "_s": "d2c09f5028f3d0ee",
+        "diffuse": "34160e27c2344bf9"
+      },
+      "size": 1024,
+      "spec": true
+    },
+    "japandm/neon_a": {
+      "alpha": false,
+      "glow": true,
+      "grade": null,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "normal": 0.0,
+      "paint": "neon",
+      "seam": {
+        "_g": 0.017,
+        "diffuse": 0.155
+      },
+      "sha256": {
+        "_g": "c683f08dddcb6bc8",
+        "diffuse": "ac8cb8d166c268d6"
+      },
+      "size": 512,
+      "spec": false
+    },
+    "japandm/neon_b": {
+      "alpha": false,
+      "glow": true,
+      "grade": null,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "normal": 0.0,
+      "paint": "neon",
+      "seam": {
+        "_g": 0.029,
+        "diffuse": 0.168
+      },
+      "sha256": {
+        "_g": "def3c577706ae0a2",
+        "diffuse": "f39f4d61c7a8ecaa"
+      },
+      "size": 512,
+      "spec": false
+    },
+    "japandm/plant": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.185
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.8,
+      "paint": "plant",
+      "seam": {
+        "_n": 0.939,
+        "_s": 0.773,
+        "diffuse": 0.789
+      },
+      "sha256": {
+        "_n": "269fdc42f3f84d27",
+        "_s": "cc831f3346dee9a5",
+        "diffuse": "c1507fd0ba021698"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/plaza_stone": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.25
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.7,
+      "paint": "plaza_stone",
+      "seam": {
+        "_n": 0.952,
+        "_s": 1.164,
+        "diffuse": 1.304
+      },
+      "sha256": {
+        "_n": "80b00c0affb0c5e2",
+        "_s": "6be3efce2cab46da",
+        "diffuse": "f4a353c2235b425e"
+      },
+      "size": 1024,
+      "spec": true
+    },
+    "japandm/prop_canvas": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.4
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.4,
+      "paint": "cloth",
+      "seam": {
+        "_n": 1.0,
+        "_s": 0.971,
+        "diffuse": 1.001
+      },
+      "sha256": {
+        "_n": "2a40e0bc69bb4b38",
+        "_s": "ae4aece4f4d940e8",
+        "diffuse": "4325d3ad8a6414dd"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/prop_concrete": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.44
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.2,
+      "paint": "concrete_panel",
+      "seam": {
+        "_n": 1.013,
+        "_s": 0.984,
+        "diffuse": 1.077
+      },
+      "sha256": {
+        "_n": "e026ec754e8ea3b8",
+        "_s": "416add397125958a",
+        "diffuse": "18a433621fbb929e"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/prop_paint_cyan": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.42
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.1,
+      "paint": "lacquer_red",
+      "seam": {
+        "_n": 1.075,
+        "_s": 1.147,
+        "diffuse": 0.963
+      },
+      "sha256": {
+        "_n": "1ddd688343f4e1d8",
+        "_s": "c7563333973bc233",
+        "diffuse": "d9d17c8d1eae08ab"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/prop_paint_red": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.44
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.1,
+      "paint": "lacquer_red",
+      "seam": {
+        "_n": 1.075,
+        "_s": 1.18,
+        "diffuse": 1.145
+      },
+      "sha256": {
+        "_n": "1ddd688343f4e1d8",
+        "_s": "d2619b9fd85e5948",
+        "diffuse": "7f98462371f92adf"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/prop_rubber": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.2
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 0.9,
+      "paint": "asphalt",
+      "seam": {
+        "_n": 0.992,
+        "_s": 0.925,
+        "diffuse": 0.925
+      },
+      "sha256": {
+        "_n": "ea43a44b991a7e0a",
+        "_s": "80574efb03bd4136",
+        "diffuse": "77b57acd94c08837"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/prop_steel": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.46
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 0.8,
+      "paint": "metal_column",
+      "seam": {
+        "_n": 1.09,
+        "_s": 1.031,
+        "diffuse": 1.085
+      },
+      "sha256": {
+        "_n": "8cf17f3646007a88",
+        "_s": "b311d07b2ea36778",
+        "diffuse": "99e20edc8d6e66fe"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/prop_wood": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.38
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.6,
+      "paint": "crate",
+      "seam": {
+        "_n": 1.064,
+        "_s": 1.003,
+        "diffuse": 1.009
+      },
+      "sha256": {
+        "_n": "79f62d57dc8d8761",
+        "_s": "e46e4fae8eb56b5c",
+        "diffuse": "a084c646a6cb6c0e"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/roof_gravel": {
+      "alpha": false,
+      "glow": false,
+      "grade": [
+        0.225
+      ],
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.5,
+      "paint": "roof_gravel",
+      "seam": {
+        "_n": 0.975,
+        "_s": 0.822,
+        "diffuse": 0.809
+      },
+      "sha256": {
+        "_n": "196771446cf900ec",
+        "_s": "497e03ec7bfd014e",
+        "diffuse": "5882f25222b94d5c"
+      },
+      "size": 512,
+      "spec": true
+    },
+    "japandm/tower_front": {
+      "alpha": false,
+      "glow": true,
+      "grade": [
+        0.17
+      ],
+      "maps": [
+        "_g",
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "normal": 1.3,
+      "paint": "tower_front",
+      "seam": {
+        "_g": 0.002,
+        "_n": 0.111,
+        "_s": 1.834,
+        "diffuse": 1.693
+      },
+      "sha256": {
+        "_g": "3e76e8e656fd035a",
+        "_n": "69065935c117a17b",
+        "_s": "30ad8a129f71f91a",
+        "diffuse": "70f286d88b62ed42"
+      },
+      "size": 1024,
+      "spec": true
+    },
+    "japandm/vend_face": {
+      "alpha": false,
+      "glow": true,
+      "grade": null,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "normal": null,
+      "paint": "vend_face",
+      "seam": {
+        "_g": 0.0,
+        "diffuse": 0.345
+      },
+      "sha256": {
+        "_g": "88e8febdd68ad200",
+        "diffuse": "539208372189feec"
+      },
+      "size": 512,
+      "spec": false
+    }
+  },
+  "sky": {
+    "ambient": [
+      0.0587,
+      0.0569,
+      0.0894
+    ],
+    "panorama": [
+      4096,
+      2048
+    ],
+    "sha256": {
+      "bk": "762e16f7f541a800",
+      "dn": "7b158c1bf47acef3",
+      "ft": "fa656736ffb31c01",
+      "lf": "44ce055ae5d5f048",
+      "rt": "25e3d4151f2300e4",
+      "up": "7fbf3f47e7aed689"
+    },
+    "sides": [
+      "rt",
+      "bk",
+      "lf",
+      "ft",
+      "up",
+      "dn"
+    ],
+    "size": 1024,
+    "sky_light_hint": 16.77
+  }
+}

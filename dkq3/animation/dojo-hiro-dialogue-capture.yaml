@@ -1,0 +1,392 @@
+version: 1
+source_model: models/cinematic/c_hiro_intr.dkm
+source_md3_sha256: 0c0372e2d01e616ca20d51d4cfe194060d9e82f77da831633d42b7e71ca91a32
+surface: Auto_2_part0
+reference_frame: 122
+regularization: 0.002
+markers:
+  pelvis:
+    parent: null
+    anchor:
+    - -2
+    - -3.5
+    - 3
+    vertices:
+    - 255
+    - 265
+    - 266
+    - 59
+    - 238
+    - 346
+    - 348
+  spine:
+    parent: pelvis
+    anchor:
+    - -2
+    - -3.5
+    - 11
+    vertices:
+    - 20
+    - 24
+    - 284
+    - 17
+    - 21
+    - 26
+  chest:
+    parent: spine
+    anchor:
+    - -1.5
+    - -3.5
+    - 18
+    vertices:
+    - 4
+    - 159
+    - 36
+    - 6
+    - 32
+    - 152
+    - 412
+    - 408
+  neck:
+    parent: chest
+    anchor:
+    - -1
+    - -3.5
+    - 22
+    vertices:
+    - 408
+    - 161
+    - 166
+    - 355
+    - 236
+  head:
+    parent: neck
+    anchor:
+    - -0.5
+    - -3.5
+    - 26
+    vertices:
+    - 224
+    - 425
+    - 237
+    - 450
+    - 384
+    - 223
+    - 386
+    - 226
+    - 405
+    - 376
+    reference_axes:
+      left:
+      - - 231
+      - - 389
+      up:
+      - - 393
+      - - 397
+  upperarm_l:
+    parent: chest
+    anchor:
+    - -2
+    - 3.7
+    - 20
+    vertices:
+    - 34
+    - 163
+    - 33
+    - 155
+    - 148
+    - 130
+    - 150
+  forearm_l:
+    parent: upperarm_l
+    anchor:
+    - 0
+    - 6
+    - 13
+    vertices:
+    - 206
+    - 198
+    - 133
+    - 132
+    - 215
+    - 201
+    - 134
+    - 130
+    - 199
+    - 212
+    - 200
+  hand_l:
+    parent: forearm_l
+    anchor:
+    - 5.2
+    - 7.3
+    - 7
+    vertices:
+    - 52
+    - 191
+    - 49
+    - 188
+    - 192
+    - 194
+    - 185
+    - 51
+    - 175
+    - 172
+  thigh_l:
+    parent: pelvis
+    anchor:
+    - -2
+    - 1.5
+    - 0
+    vertices:
+    - 63
+    - 59
+    - 269
+    - 64
+    - 238
+    - 57
+    - 65
+    - 349
+    - 350
+  shin_l:
+    parent: thigh_l
+    anchor:
+    - 0
+    - 3.5
+    - -12
+    vertices:
+    - 278
+    - 335
+    - 282
+    - 280
+    - 277
+    - 275
+    - 273
+    - 272
+  foot_l:
+    parent: shin_l
+    anchor:
+    - 2
+    - 4
+    - -22
+    vertices:
+    - 326
+    - 323
+    - 329
+    - 324
+    - 327
+    - 331
+    - 313
+    - 319
+    - 321
+    - 318
+  toe_l:
+    parent: foot_l
+    anchor:
+    - 5
+    - 4
+    - -22
+    vertices:
+    - 328
+    - 323
+    - 325
+    - 312
+    - 329
+    - 313
+    - 331
+    - 319
+    - 321
+    - 314
+  upperarm_r:
+    parent: chest
+    anchor:
+    - 0.8
+    - -10.7
+    - 19.5
+    vertices:
+    - 140
+    - 137
+    - 142
+    - 145
+  forearm_r:
+    parent: upperarm_r
+    anchor:
+    - -2
+    - -14
+    - 11
+    vertices:
+    - 114
+    - 103
+    - 117
+    - 67
+    - 120
+    - 119
+    - 122
+    - 116
+  hand_r:
+    parent: forearm_r
+    anchor:
+    - 2
+    - -14
+    - 5
+    vertices:
+    - 92
+    - 81
+    - 78
+    - 85
+    - 45
+    - 73
+    - 72
+    - 90
+    - 77
+    - 84
+    - 96
+    - 74
+    - 71
+    - 48
+    - 94
+    - 47
+    - 93
+  thigh_r:
+    parent: pelvis
+    anchor:
+    - -2
+    - -8.5
+    - 0
+    vertices:
+    - 241
+    - 248
+    - 243
+    - 338
+    - 348
+    - 246
+    - 56
+  shin_r:
+    parent: thigh_r
+    anchor:
+    - -2
+    - -11
+    - -12
+    vertices:
+    - 309
+    - 247
+    - 308
+    - 259
+    - 250
+    - 262
+    - 260
+    - 306
+    - 307
+  foot_r:
+    parent: shin_r
+    anchor:
+    - 0
+    - -11
+    - -22
+    vertices:
+    - 297
+    - 306
+    - 294
+    - 287
+    - 298
+    - 296
+    - 303
+    - 301
+    - 286
+    - 291
+  toe_r:
+    parent: foot_r
+    anchor:
+    - 3
+    - -11
+    - -22
+    vertices:
+    - 301
+    - 298
+    - 286
+    - 300
+    - 303
+    - 288
+    - 306
+    - 294
+    - 297
+    - 287
+clips:
+  stance:
+    sequence: ambba
+    source_frames:
+    - 122
+    - 142
+  look_left:
+    sequence: lftlook
+    source_frames:
+    - 163
+    - 172
+  sad:
+    sequence: lksadb
+    source_frames:
+    - 234
+    - 263
+  ambb:
+    sequence: ambb
+    source_frames:
+    - 99
+    - 121
+  walka:
+    sequence: walka
+    source_frames:
+    - 775
+    - 794
+  tka:
+    sequence: tka
+    source_frames:
+    - 582
+    - 601
+  tkb:
+    sequence: tkb
+    source_frames:
+    - 602
+    - 631
+  tkc:
+    sequence: tkc
+    source_frames:
+    - 632
+    - 661
+  tkd:
+    sequence: tkd
+    source_frames:
+    - 662
+    - 681
+  tke:
+    sequence: tke
+    source_frames:
+    - 682
+    - 712
+  tkea:
+    sequence: tkea
+    source_frames:
+    - 713
+    - 728
+  tkeb:
+    sequence: tkeb
+    source_frames:
+    - 729
+    - 753
+provenance:
+  origin: Owner supplied local Daikatana pak3.pak, converted by reviewed DK3 asset
+    pipeline
+  license: Proprietary original game data; local development and owner testing only
+  redistribution: Not granted; original and reconstructed performance data remain
+    local build products
+  credit: Original Daikatana animation performance; DK3 surface reconstruction
+max_marker_rms: 1
+props:
+  prop_30:
+    surface: Auto_2_part1
+    reference_frame: 0
+  prop_31:
+    surface: Auto_2_part2
+    reference_frame: 0
+  prop_32:
+    surface: Auto_2_part3
+    reference_frame: 0

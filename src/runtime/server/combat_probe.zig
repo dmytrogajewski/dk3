@@ -182,6 +182,33 @@ pub fn command(name: []const u8, world: *data.World, slots: *Slots, projections:
         engine.print(try std.fmt.bufPrintZ(&output, "dk3 probe health: id={d} health={d}\n", .{ try owner.id(), value }));
         return true;
     }
+    if (std.mem.eql(u8, name, "dk3_runtime_spawn_item")) {
+        const owner = player orelse return error.MissingPlayer;
+        var buffer: [64]u8 = undefined;
+        const classname = engine.argv(1, &buffer);
+        if (@import("../domain/items.zig").classify(classname) == null) return error.UnknownItemClass;
+        const owned_name = try world.allocator.dupe(u8, classname);
+        const pose = (try world.get(owner, data.Transform)).*;
+        const position = v.add(pose.position, v.scale(v.basis(pose.angles).forward, 48));
+        const item = try @import("items.zig").spawnDynamic(world, slots, projections, owned_name, .{ .position = position }, now, 1);
+        engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 fixture item: id={d}\n", .{try world.persistentId(item)}));
+        return true;
+    }
+    if (std.mem.eql(u8, name, "dk3_runtime_corpses")) {
+        var buffer: [384]u8 = undefined;
+        for (slots.occupants) |maybe| {
+            const entity = maybe orelse continue;
+            const health = world.get(entity, data.Health) catch continue;
+            if (health.current > 0) continue;
+            const retained = if (world.get(entity, data.Scenery) catch null) |state| state.corpse != null else false;
+            if (!retained and (world.get(entity, data.Player) catch null) == null) continue;
+            const hurt = (try world.get(entity, data.Hurt)).*;
+            const point = (try world.get(entity, data.Transform)).position;
+            engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 corpse: id={d} slot={d} retained={d} health={d} gibbed={d} impulse={d} pos={d:.3},{d:.3},{d:.3}\n", .{ try world.persistentId(entity), (try world.get(entity, data.Binding)).slot, @intFromBool(retained), health.current, @intFromBool(hurt.feedback.gibbed), hurt.impulse_serial, point[0], point[1], point[2] }));
+        }
+        engine.print("dk3 corpses complete\n");
+        return true;
+    }
     if (std.mem.eql(u8, name, "dk3_runtime_shot_lanes")) {
         const owner = player orelse return error.MissingPlayer;
         const slot = (try world.get(owner, data.Binding)).slot;

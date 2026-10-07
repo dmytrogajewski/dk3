@@ -100,10 +100,13 @@ pub fn guard(world: *data.World, slots: *Slots, projections: []abi.EntityProject
         target[2] += (actor.guard.fraction() * 2 - 1) * definition.spread[1];
         const direction = v.normalize(v.add(target, v.scale(start, -1)));
         const hit = try trace(start, v.add(start, v.scale(direction, definition.range)), slot, c.MASK_SHOT);
-        if (access.victim(world, slots, hit)) |victim| {
+        // Reference ai_fire_bullet: a round that meets a body hurts it only
+        // past the skill's chance (half the time on the easiest skill).
+        const admitted = @import("actor_catalog").rockgat.damageAdmitted(@intCast(std.math.clamp(engine.integer("g_spSkill"), 1, 5)), actor.guard.fraction());
+        if (access.victim(world, slots, hit)) |victim| if (admitted) {
             const amount = definition.damage + actor.guard.fraction() * definition.random_damage;
             _ = try @import("damage.zig").apply(victim.world, victim.entity, @intFromFloat(@ceil(amount)), now, .{ .source = owner_id });
-        }
+        };
 
         if (engine.integer("developer") != 0) {
             var buffer: [160]u8 = undefined;

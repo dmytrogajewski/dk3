@@ -1,0 +1,24 @@
+# Original surface markers already use +X forward and +Z up.
+bones:
+  pelvis: pelvis
+  spine: spine
+  chest: chest
+  neck: neck
+  head: head
+  upperarm_l: upperarm_l
+  forearm_l: forearm_l
+  hand_l: hand_l
+  thigh_l: thigh_l
+  shin_l: shin_l
+  foot_l: foot_l
+  toe_l: toe_l
+  upperarm_r: upperarm_r
+  forearm_r: forearm_r
+  hand_r: hand_r
+  thigh_r: thigh_r
+  shin_r: shin_r
+  foot_r: foot_r
+  toe_r: toe_r
+forward: x
+up: z
+rotation_bones: [head, hand_l, hand_r]

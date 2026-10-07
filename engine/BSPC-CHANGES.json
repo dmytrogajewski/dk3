@@ -1,9 +1,13 @@
 {
   "base": "BSPC-UPSTREAM.json",
-  "description": "Bundled GPL BSPC integration: submodels, consistent bounded paths, winding sizes, partition candidates and nine-bit AAS mover indices; fixed-width MD4 words for x86-64 BSP checksums; traced clearance for authored teleporter destinations; elevator reachabilities for authored vertical doors; distinguish lethal trigger brushes from carrier-safe liquids; recover AAS ladder contents from converted SURF_LADDER faces; explicit dk3 difficulty and mode brush filtering; supported step crossings checked against BSP/static-model collision with the runtime floor lookup tolerance; equal-floor portal endpoints use bounded insets inside their destination areas",
+  "description": "Bundled GPL BSPC integration: submodels, consistent bounded paths, winding sizes, partition candidates and nine-bit AAS mover indices; fixed-width MD4 words for x86-64 BSP checksums; traced clearance for authored teleporter destinations; elevator reachabilities for authored vertical doors; distinguish lethal trigger brushes from carrier-safe liquids; recover AAS ladder contents from converted SURF_LADDER faces; explicit dk3 difficulty and mode brush filtering; supported step crossings checked against BSP/static-model collision with the runtime floor lookup tolerance; equal-floor portal endpoints use bounded insets inside their destination areas; dk3 player hulls and step from a supplied configuration and a matching crouch presence box; damaging trigger volumes compiled as no-entry areas instead of solid; only a targeted trigger_push compiles as a jump pad; triggered or toggled func_wall as mover areas, non-solid and CTF-only walls left out elsewhere; thin sideways-sliding func_door floors compiled as floor in place; func_train lift elevators from vertical path legs with the rider floor found in the train model; elevator exits searched up to 96 units out and required to stand on floor; a map leaking only through space joined to the outside is sealed there and flooded again; when no ground edge pair lies on the riser plane, edges within half a unit are compared for steps; train lifts also link downward from beside the upper landing, and falls of more than 64 units into a train shaft are dropped",
   "files": {
+    "aas_create.c": {
+      "current_sha256": "f673a90fa5e2162f9893ec71f8a900a6c81452f7779341cbd2df77966f7a12ac",
+      "upstream_sha256": "f8719c67249473f31174ea4d55875c7b623ea08e1929735a2ff15e9cb76526a6"
+    },
     "aas_map.c": {
-      "current_sha256": "46b1a92d523605858946369b7ae8a16a54fc4371b8c0fb6ac451f153ebaa4a98",
+      "current_sha256": "ec5684f118b6ae86729ae48ef08987cd1ab6f1ee56f370d31eb1a59651f531d6",
       "upstream_sha256": "8b42d65639c9f06486fad7e146baf5142ef89a959618f4dbb2a6680f7525643f"
     },
     "aas_map.h": {
@@ -15,7 +19,7 @@
       "upstream_sha256": "da4758de528881d55ce983e3e2886d6b796a69d7de3972f0c9d835ba564e48d2"
     },
     "be_aas_bspc.c": {
-      "current_sha256": "f96efc738d154e874699c2982b7faec81fefad288474e6201cce38ea95df9c84",
+      "current_sha256": "79c0d21782aa8c0bb4c2da09288e39fce124da869c3312419c9d62bf45a39e77",
       "upstream_sha256": "4f6e0b7e8cd36accc9353317c1fd243fe37fb40492d12dc70bc2fa4c25434e3b"
     },
     "be_aas_bspc.h": {
@@ -39,8 +43,12 @@
       "upstream_sha256": "20ab43f09df8a52cc25fc3c796f61d2266c70e2c4e69f0e11e7f24790f6a1d6a"
     },
     "deps/botlib/be_aas_reach.c": {
-      "current_sha256": "5f1e35cf406d18606177a0184b0b3246223fa675f4cddcfb42237e088bf0624c",
+      "current_sha256": "e5ec32e575dbb6125a0d933f2d951ff62c6727a8da4982006c778c6a053fd498",
       "upstream_sha256": "3f534570bb2d3a31782014b44039ad2352222a2bf73a1e1c0b14debe45f7e2b3"
+    },
+    "deps/botlib/be_aas_sample.c": {
+      "current_sha256": "b0d4a2296f3fe7eb9a851ed019edde2d36643bcd66afeff3410ebeb49f9bf132",
+      "upstream_sha256": "dad3fd753f1189012500b9b1f4af7f90b027f5e4af56d7f9a3c2dfa538dc04a5"
     },
     "deps/botlib/l_precomp.h": {
       "current_sha256": "48a7f5bd1cd95899c392cdc9207e64ea9c56b93279d877ed67f367bc022f0584",
@@ -89,6 +97,10 @@
     "map_q3.c": {
       "current_sha256": "4704624eeaa704d84f674d3bc005e20898beb6ba9dd11855c11af16df0e14147",
       "upstream_sha256": "1e75e851ab1de8cad9d6dd08a0715054ed167813881bfa960c4ea8469bb31dab"
+    },
+    "portals.c": {
+      "current_sha256": "d09c05c38b8315b1535747fb0afcd05d1d6ab3b1daaeeb9068454b02d1c80bd0",
+      "upstream_sha256": "9871a5aaacdba786910bb56875dc3029821d8174f8d9755fea4e561aef755718"
     }
   }
 }

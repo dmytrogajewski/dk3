@@ -20,13 +20,31 @@ pub fn selection(bytes: []const u8, wanted: Mode) ![]const u8 {
     }
     return result orelse error.MissingNavigationMode;
 }
-pub const Waypoint = struct { point: v.Vec3, jump: bool = false, crouch: bool = false, ladder: bool = false, from_area: i32 = 0, to_area: i32 = 0 };
-pub const Request = struct { player: bool = false, allow_slime_escape: bool = false, position: v.Vec3, destination: v.Vec3, slot: u16 };
+/// `entrance`: where the next reachability starts (for a lift link, beside
+/// or on the lift at its lower stop; `point` is then its far end).
+pub const Waypoint = struct { point: v.Vec3, jump: bool = false, crouch: bool = false, ladder: bool = false, elevator: bool = false, drop: bool = false, entrance: v.Vec3 = @splat(0), from_area: i32 = 0, to_area: i32 = 0 };
+/// `lifts`: false leaves lift links out (a lift away that the traveller
+/// cannot call, while a way round it exists).
+pub const Request = struct { player: bool = false, allow_slime_escape: bool = false, lifts: bool = true, position: v.Vec3, destination: v.Vec3, slot: u16 };
 pub const Service = struct {
     context: *anyopaque,
     next_fn: *const fn (*anyopaque, Request) anyerror!?Waypoint,
+    /// Optional whole-route prediction for diagnostics: fills `points` with
+    /// successive route positions and returns how many were written.
+    predict_fn: ?*const fn (*anyopaque, Request, []v.Vec3) anyerror!usize = null,
+    /// Optional remaining route length (in units at running pace) from the
+    /// request's position to its destination; null without a route.
+    travel_fn: ?*const fn (*anyopaque, Request) anyerror!?f32 = null,
     pub fn next(self: Service, request: Request) !?Waypoint {
         return self.next_fn(self.context, request);
+    }
+    pub fn travel(self: Service, request: Request) !?f32 {
+        const travel_fn = self.travel_fn orelse return null;
+        return travel_fn(self.context, request);
+    }
+    pub fn predict(self: Service, request: Request, points: []v.Vec3) !usize {
+        const predict_fn = self.predict_fn orelse return 0;
+        return predict_fn(self.context, request, points);
     }
 };
 pub const State = struct {
@@ -39,7 +57,8 @@ pub const State = struct {
     fleeing: bool = false,
     pub fn update(self: *State, service: Service, request: Request, now: i64) !?Waypoint {
         const changed = v.length(v.subtract(request.destination, self.destination)) > 48;
-        if (v.length(v.subtract(request.position, self.progress_position)) > 8 or changed) {
+        // Horizontal: hopping in place against an obstruction is no progress.
+        if (horizontalDistance(request.position, self.progress_position) > 8 or changed) {
             self.progress_position = request.position;
             self.progress_ms = now;
             self.blocked = false;

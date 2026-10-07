@@ -32,6 +32,57 @@ fn travelDistance(direction: v.Vec3, size: v.Vec3, lip: f32) f32 {
     for (0..3) |axis| distance += @abs(direction[axis]) * size[axis];
     return distance;
 }
+fn directionFor(object: data.MapObject) !v.Vec3 {
+    const yaw = try prop.number(object, "angle", 0);
+    const angles = if (prop.text(object, "angles")) |text| try @import("map.zig").vector(text) else v.Vec3{ 0, yaw, 0 };
+    return if (yaw == -1) .{ 0, 0, 1 } else if (yaw == -2) .{ 0, 0, -1 } else v.basis(angles).forward;
+}
+fn remapPoint(point: v.Vec3, old_closed: v.Vec3, old_opened: v.Vec3, closed: v.Vec3, opened: v.Vec3) v.Vec3 {
+    const old_delta = v.subtract(old_opened, old_closed);
+    const length = v.dot(old_delta, old_delta);
+    const fraction = if (length > 0) v.dot(v.subtract(point, old_closed), old_delta) / length else 0;
+    return v.add(point, v.add(v.subtract(closed, old_closed), v.scale(v.subtract(v.subtract(opened, closed), old_delta), fraction)));
+}
+/// Upgrade only the recognized spread-hull formula. Archives made after the
+/// original fix lack a version too; their already-correct endpoints stay intact.
+/// Remap mid-travel poses without changing state, deadlines or target delivery.
+fn restoreTravel(object: data.MapObject, body: data.Body, mover: *data.Mover, transform: *data.Transform) !void {
+    if (mover.travel_version != 0) return;
+    defer mover.travel_version = 1;
+    if (mover.angular) return;
+    const button = eq(object.classname, "func_button");
+    const lip = try prop.number(object, "lip", if (button) 4 else 8);
+    const hull = v.subtract(body.maxs, body.mins);
+    const old_closed = mover.closed;
+    const old_opened = mover.opened;
+    const delta = v.subtract(old_opened, old_closed);
+    var closed = old_closed;
+    var opened = old_opened;
+    if (mover.platform) {
+        if (prop.text(object, "height") != null or @abs(delta[2] - (hull[2] - lip)) > 0.01) return;
+        closed[2] = opened[2] - (hull[2] - 2 - lip);
+    } else {
+        const direction = try directionFor(object);
+        const old_distance = travelDistance(direction, hull, lip);
+        if (@abs(v.length(delta) - @abs(old_distance)) > 0.01 or old_distance == 0) return;
+        // The saved axis includes start-open reversal and parent rotation.
+        const axis = v.scale(delta, 1 / old_distance);
+        opened = v.add(closed, v.scale(axis, travelDistance(direction, authoredExtents(body), lip)));
+    }
+    transform.position = remapPoint(transform.position, old_closed, old_opened, closed, opened);
+    mover.motion.base = remapPoint(mover.motion.base, old_closed, old_opened, closed, opened);
+    mover.motion.end = remapPoint(mover.motion.end, old_closed, old_opened, closed, opened);
+    mover.closed = closed;
+    mover.opened = opened;
+}
+/// Pure staged admission, shared by active, resident and visited save worlds.
+pub fn admit(world: *data.World) !void {
+    var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.Body, data.Mover, data.Transform }), 0, data.World.mask(.{ data.Mover, data.Transform }));
+    defer query.deinit();
+    while (query.next()) |view| for (view.read(data.MapObject), view.read(data.Body), view.write(data.Mover), view.write(data.Transform)) |object, body, *mover, *transform| {
+        try restoreTravel(object, body, mover, transform);
+    };
+}
 /// Authored press/pop-back audio is registered while the map is admitted so the
 /// first use cannot wait on a late sound configstring. Missing means silent.
 fn authoredSound(object: data.MapObject, key: []const u8) !u16 {
@@ -66,6 +117,35 @@ fn authoredParameters(object: data.MapObject) !?audio.Parameters {
 fn loopsWhileMoving(classname: []const u8, flags: u32, platform: bool) bool {
     return platform or flags & 128 != 0 or (eq(classname, "func_door_rotate") and flags & 2048 != 0);
 }
+fn bindSounds(object: data.MapObject, mover: *data.Mover) !void {
+    const button = eq(object.classname, "func_button");
+    mover.use_sound = if (button) try authoredSound(object, "sound_use") else 0;
+    mover.return_sound = if (button) try authoredSound(object, "sound_return") else 0;
+    mover.opening_sound = if (button) 0 else try authoredMotion(object, "sound_opening", "sound_up");
+    mover.closing_sound = if (button) 0 else try authoredMotion(object, "sound_closing", "sound_down");
+    mover.opened_sound = if (button) 0 else try authoredMotion(object, "sound_open_finish", "sound_top");
+    mover.closed_sound = if (button) 0 else try authoredMotion(object, "sound_close_finish", "sound_bottom");
+    mover.loop_sounds = loopsWhileMoving(object.classname, object.flags, mover.platform);
+    mover.sound_parameters = if (button) null else try authoredParameters(object);
+}
+/// Resolve authored audio after the saved resource prefix has been installed.
+/// Missing old fields cannot suppress the current map's immutable sound keys.
+pub fn restoreSounds(world: *data.World) !void {
+    var query = world.queryAccess(data.World.mask(.{ data.MapObject, data.Mover }), 0, data.World.mask(.{data.Mover}));
+    defer query.deinit();
+    while (query.next()) |view| for (view.read(data.MapObject), view.write(data.Mover)) |object, *mover| {
+        try bindSounds(object, mover);
+        mover.loop_carrier = 0;
+    };
+}
+/// Where a sliding mover's brush was authored, before spawn moved it to its
+/// closed end (a platform rests low; a START_OPEN door swaps its ends);
+/// null for a rotating door, whose position spawn leaves alone.
+pub fn authoredPosition(object: data.MapObject, mover: data.Mover) ?v.Vec3 {
+    if (mover.angular) return null;
+    const swapped = object.flags & 1 != 0 and !eq(object.classname, "func_button");
+    return if (mover.platform != swapped) mover.opened else mover.closed;
+}
 pub fn spawn(world: *data.World, slots: *const Slots, projections: []abi.EntityProjection) !void {
     for (slots.occupants) |occupant| {
         const entity = occupant orelse continue;
@@ -86,22 +166,13 @@ pub fn spawn(world: *data.World, slots: *const Slots, projections: []abi.EntityP
         } else if (platform) {
             closed[2] -= try prop.number(object, "height", size[2] - lip);
         } else {
-            const yaw = try prop.number(object, "angle", 0);
-            const angles = if (prop.text(object, "angles")) |text| try @import("map.zig").vector(text) else v.Vec3{ 0, yaw, 0 };
-            const direction: v.Vec3 = if (yaw == -1) .{ 0, 0, 1 } else if (yaw == -2) .{ 0, 0, -1 } else v.basis(angles).forward;
+            const direction = try directionFor(object);
             opened = v.add(closed, v.scale(direction, travelDistance(direction, size, lip)));
         }
         if (object.flags & 1 != 0 and !button) std.mem.swap(v.Vec3, &closed, &opened);
         const speed = try prop.number(object, "speed", if (button) 40 else 100);
-        const loop_sounds = loopsWhileMoving(object.classname, object.flags, platform);
-        const sound_parameters = if (button) null else try authoredParameters(object);
-        const opening_sound = if (button) 0 else try authoredMotion(object, "sound_opening", "sound_up");
-        const closing_sound = if (button) 0 else try authoredMotion(object, "sound_closing", "sound_down");
-        const opened_sound = if (button) 0 else try authoredMotion(object, "sound_open_finish", "sound_top");
-        const closed_sound = if (button) 0 else try authoredMotion(object, "sound_close_finish", "sound_bottom");
-        const use_sound = if (button) try authoredSound(object, "sound_use") else 0;
-        const return_sound = if (button) try authoredSound(object, "sound_return") else 0;
-        const mover: data.Mover = .{ .closed = closed, .opened = opened, .motion = .{ .base = closed, .end = closed, .curve = if (try prop.number(object, "boing", 0) != 0) .bounce else if (try prop.number(object, "accelerate", 0) != 0) .accelerate else .linear }, .angular = rotating, .platform = platform, .speed = if (speed > 0) speed else if (button) 40 else 100, .wait_ms = try prop.milliseconds(object, "wait", if (button) 1 else 3), .delay_ms = if (std.mem.startsWith(u8, object.classname, "func_door")) @max(0, try prop.milliseconds(object, "delay", 0)) else 0, .toggle = object.flags & (8 | 32) != 0, .return_both = object.flags & 64 != 0, .force = (try prop.number(object, "forcemove", 0) != 0) or (!rotating and object.flags & 512 != 0), .damage = @intFromFloat(try prop.number(object, "damage", try prop.number(object, "dmg", 2))), .group = try world.persistentId(entity), .use_sound = use_sound, .return_sound = return_sound, .opening_sound = opening_sound, .closing_sound = closing_sound, .opened_sound = opened_sound, .closed_sound = closed_sound, .loop_sounds = loop_sounds, .sound_parameters = sound_parameters };
+        var mover: data.Mover = .{ .closed = closed, .opened = opened, .travel_version = 1, .motion = .{ .base = closed, .end = closed, .curve = if (try prop.number(object, "boing", 0) != 0) .bounce else if (try prop.number(object, "accelerate", 0) != 0) .accelerate else .linear }, .angular = rotating, .platform = platform, .speed = if (speed > 0) speed else if (button) 40 else 100, .wait_ms = try prop.milliseconds(object, "wait", if (button) 1 else 3), .delay_ms = if (std.mem.startsWith(u8, object.classname, "func_door")) @max(0, try prop.milliseconds(object, "delay", 0)) else 0, .toggle = object.flags & (8 | 32) != 0, .return_both = object.flags & 64 != 0, .force = (try prop.number(object, "forcemove", 0) != 0) or (!rotating and object.flags & 512 != 0), .damage = @intFromFloat(try prop.number(object, "damage", try prop.number(object, "dmg", 2))), .group = try world.persistentId(entity) };
+        try bindSounds(object, &mover);
         try world.put(entity, mover);
         const actual = try world.get(entity, data.Transform);
         if (rotating) actual.angles = closed else {
@@ -258,6 +329,16 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             count += 1;
         }
         if (try pusher.push(world, slots, projections, moves[0..count], now, elapsed)) |blocker| {
+            // Daikatana's button_blocked does nothing: a pressed button neither
+            // hurts nor gives way; it waits until whatever holds it has moved
+            // (e1m3b's worker typing at the console a button is set in).
+            if (eq((try world.get(entity, data.MapObject)).classname, "func_button")) continue;
+            if (engine.integer("developer") >= 2) {
+                var text: [160]u8 = undefined;
+                const blocker_pose = world.get(blocker, data.Transform) catch null;
+                const at: data.Vec3 = if (blocker_pose) |pose| pose.position else @splat(0);
+                engine.print(std.fmt.bufPrintZ(&text, "dk3 zig mover blocked: id={d} blocker={d} at={d:.0},{d:.0},{d:.0} state={s}\n", .{ try world.persistentId(entity), try world.persistentId(blocker), at[0], at[1], at[2], @tagName(master.state) }) catch "");
+            }
             _ = try @import("damage.zig").apply(world, blocker, master.damage, now, .{});
             if (!master.force and master.moving()) try start(world, slots, projections, master.group, master.state == .closing, now, false);
         }
@@ -316,6 +397,43 @@ pub fn finish(world: *data.World, slots: *Slots, projections: []abi.EntityProjec
     // arrival sound starts on the same tick.
     for (settling[0..settling_count]) |sound| try emit(world, slots, projections, sound.entity, sound.index, now, sound.parameters);
     return arrivals;
+}
+
+test "old saved button travel is repaired without replaying targets or resetting dwell" {
+    const t = std.testing;
+    const object: data.MapObject = .{ .classname = "func_button", .properties = &.{ .{ .key = "angle", .value = "180" }, .{ .key = "lip", .value = "3" } } };
+    const body: data.Body = .{ .mins = .{ -1001, -9, -9 }, .maxs = .{ -995, 9, 9 } };
+    var mover: data.Mover = .{ .closed = @splat(0), .opened = .{ -3, 0, 0 }, .motion = .{ .base = .{ -1.5, 0, 0 }, .end = .{ -3, 0, 0 }, .start_ms = 1000, .duration_ms = 150 }, .state = .opening, .return_at = .{ .at_ms = 3000 }, .owner = 433, .group = 75 };
+    var pose: data.Transform = .{ .position = .{ -2.25, 0, 0 } };
+    try restoreTravel(object, body, &mover, &pose);
+    try t.expectApproxEqAbs(@as(f32, -1), mover.opened[0], 0.001);
+    try t.expectApproxEqAbs(@as(f32, -0.75), pose.position[0], 0.001);
+    try t.expectApproxEqAbs(@as(f32, -0.5), mover.motion.base[0], 0.001);
+    try t.expectEqual(@as(i64, 1000), mover.motion.start_ms);
+    try t.expectEqual(@as(i32, 150), mover.motion.duration_ms);
+    try t.expectEqual(@as(?i64, 3000), mover.return_at.at_ms);
+    try t.expectEqual(@as(u32, 433), mover.owner);
+    try t.expectEqual(@import("../domain/movers.zig").State.opening, mover.state);
+    const once = mover;
+    try restoreTravel(object, body, &mover, &pose);
+    try t.expectEqualDeep(once, mover);
+    // A corrected archive from sequence 323 has no marker either.
+    mover.travel_version = 0;
+    try restoreTravel(object, body, &mover, &pose);
+    try t.expectEqualDeep(once, mover);
+}
+
+test "saved flush panel returns to its face while keeping the used latch" {
+    const t = std.testing;
+    const object: data.MapObject = .{ .classname = "func_button" };
+    const body: data.Body = .{ .mins = .{ 0, 0, 0 }, .maxs = .{ 6, 18, 18 } };
+    var mover: data.Mover = .{ .closed = @splat(0), .opened = .{ 2, 0, 0 }, .motion = .{ .base = @splat(0), .end = .{ 2, 0, 0 } }, .state = .open, .wait_ms = -1000 };
+    var pose: data.Transform = .{ .position = .{ 2, 0, 0 } };
+    try restoreTravel(object, body, &mover, &pose);
+    try t.expectEqual(v.Vec3{ 0, 0, 0 }, pose.position);
+    try t.expectEqual(v.Vec3{ 0, 0, 0 }, mover.opened);
+    try t.expectEqual(@import("../domain/movers.zig").State.open, mover.state);
+    try t.expectEqual(@as(i32, -1000), mover.wait_ms);
 }
 
 test "shallow button travel keeps the authored lip proud of the wall" {

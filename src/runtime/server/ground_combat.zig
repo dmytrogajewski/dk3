@@ -110,7 +110,7 @@ pub fn think(routes: *const @import("air_routes.zig").Routes, world: *data.World
             .column => catalog.column.select(perceived.distance, definition.range),
             else => unreachable,
         };
-        const transition = if (kind == .satyr) catalog.satyr.transition(actor.melee.pose, chosen) else null;
+        const transition = if (kind == .satyr and definition.satyr_has_transitions) catalog.satyr.transition(actor.melee.pose, chosen) else null;
         actor.melee.begin(transition orelse chosen, now);
         actor.melee.next_pose = if (transition != null) chosen else null;
         actor.melee.moving = (kind == .femgang and chosen == 1) or (kind == .skeleton and chosen == catalog.skeleton.chase_pose) or (kind == .satyr and chosen == catalog.satyr.chase_pose) or (kind == .column and chosen == 1) or (kind == .dwarf and chosen == 1) or (kind == .lycanthir and chosen == 3);

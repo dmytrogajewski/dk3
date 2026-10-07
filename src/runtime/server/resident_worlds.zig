@@ -20,8 +20,14 @@ const Entry = struct {
     saved: ?*@import("../domain/snapshot.zig").Loaded = null,
     migrated: ?*snapshot.Loaded = null,
 };
+/// A resident map outside the live neighbourhood: its saved state in the
+/// region-member record form, its namespace still reserved so no other world
+/// takes its identities. Woken (decoded and admitted) when wanted again;
+/// written back unchanged by every save.
+const Dormant = struct { name: [64]u8 = @splat(0), namespace: u7, bytes: []u8 };
 pub const State = struct {
     entries: [127]?Entry = @splat(null),
+    dormant: [127]?Dormant = @splat(null),
     cursor: usize = 0,
     initial_namespace: u7 = 0,
     legacy_archives: []const snapshot.Archive = &.{},
@@ -54,7 +60,87 @@ pub const State = struct {
             if (!admitted and !context.activated and entry.saved == null and entry.migrated == null) continue;
             if (context != active) try result.append(allocator, try context.capture(allocator));
         };
+        for (&self.dormant) |*maybe| if (maybe.*) |*member| {
+            try result.append(allocator, .{ .map = std.mem.sliceTo(&member.name, 0), .bytes = member.bytes });
+        };
         return result.items;
+    }
+    /// A restored region needs only the saved map's own seamless region
+    /// before play: every other saved resident stays dormant, its state kept,
+    /// until travel or prefetch wants it.
+    pub fn retainRegion(self: *State, saved: *snapshot.Loaded, manifest: *const @import("../domain/campaign_regions.zig").Manifest) !void {
+        const seed = manifest.find(saved.map) orelse return;
+        const wanted = manifest.region(seed);
+        var kept: usize = 0;
+        for (saved.residents, 0..) |*member, index| {
+            const place = manifest.find(member.map);
+            if (place != null and wanted[place.?]) {
+                if (kept != index) saved.residents[kept] = member.*;
+                kept += 1;
+                continue;
+            }
+            try self.stash(member.map, member.header.namespace orelse return error.MissingWorldNamespace, &member.world, member.header, member.skill);
+            var message: [160]u8 = undefined;
+            engine.print(try std.fmt.bufPrintZ(&message, "dk3 resident: map={s} dormant=restore namespace={d}\n", .{ member.map, member.header.namespace.? }));
+            member.deinit(std.heap.c_allocator);
+        }
+        saved.residents = saved.residents[0..kept];
+    }
+    /// Release prepared worlds outside the current region and the regions one
+    /// exit away, keeping their state dormant (a client publication under way
+    /// is cancelled). The current world, worlds whose gameplay is still being
+    /// prepared, and non-campaign maps stay.
+    pub fn demote(self: *State, manifest: *const @import("../domain/campaign_regions.zig").Manifest, current: []const u8, active: *Context) !usize {
+        const seed = manifest.find(current) orelse return 0;
+        var wanted = manifest.region(seed);
+        for (&wanted, manifest.ahead(seed)) |*keep, near| keep.* = keep.* or near;
+        var released: usize = 0;
+        for (&self.entries) |*maybe| if (maybe.*) |*entry| {
+            const name = std.mem.sliceTo(&entry.name, 0);
+            const place = manifest.find(name) orelse continue;
+            if (wanted[place] or !entry.gameplay or !entry.ready) continue;
+            const context = entry.context orelse continue;
+            if (context == active) continue;
+            // A preparation nobody entered has no history: drop it outright.
+            const history = context.activated or entry.saved != null or entry.migrated != null;
+            if (history) {
+                var scratch = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+                defer scratch.deinit();
+                const archive = try context.capture(scratch.allocator());
+                try self.stashBytes(name, entry.namespace, archive.bytes);
+            }
+            var message: [160]u8 = undefined;
+            engine.print(try std.fmt.bufPrintZ(&message, "dk3 resident: map={s} dormant={s} namespace={d}\n", .{ name, if (history) "left-region" else "dropped", entry.namespace }));
+            release(entry);
+            maybe.* = null;
+            released += 1;
+        };
+        return released;
+    }
+    pub fn dormantCount(self: *const State) usize {
+        var count: usize = 0;
+        for (self.dormant) |maybe| count += @intFromBool(maybe != null);
+        return count;
+    }
+    fn stash(self: *State, map: []const u8, namespace: u7, world: *@import("../domain/components.zig").World, header: snapshot.Header, skill: u8) !void {
+        const storage = try std.heap.c_allocator.alloc(u8, snapshot.world_limit);
+        defer std.heap.c_allocator.free(storage);
+        var scratch = std.heap.ArenaAllocator.init(std.heap.c_allocator);
+        defer scratch.deinit();
+        try self.stashBytes(map, namespace, try snapshot.capture(scratch.allocator(), storage, world, map, skill, header));
+    }
+    fn stashBytes(self: *State, map: []const u8, namespace: u7, bytes: []const u8) !void {
+        if (!snapshot.validName(map) or map.len >= 64) return error.InvalidWorldName;
+        for (self.dormant) |maybe| if (maybe) |member| {
+            if (std.mem.eql(u8, std.mem.sliceTo(&member.name, 0), map) or member.namespace == namespace) return error.DuplicateDormantWorld;
+        };
+        for (&self.dormant) |*slot| if (slot.* == null) {
+            var member: Dormant = .{ .namespace = namespace, .bytes = try std.heap.c_allocator.dupe(u8, bytes) };
+            @memcpy(member.name[0..map.len], map);
+            slot.* = member;
+            return;
+        };
+        return error.ResidentWorldLimit;
     }
     pub fn restorationReady(self: *State, saved: *@import("../domain/snapshot.zig").Loaded) !bool {
         self.initial_namespace = saved.header.namespace orelse 0;
@@ -104,16 +190,18 @@ pub const State = struct {
         return error.WorldNotRequested;
     }
     pub fn deinit(self: *State) void {
-        for (&self.entries) |*maybe| if (maybe.*) |*entry| {
-            if (entry.publication) |*publication| publication.deinit(entry.handle);
-            if (entry.context) |context| context.destroy();
-            if (entry.migrated) |saved| {
-                saved.deinit(std.heap.c_allocator);
-                std.heap.c_allocator.destroy(saved);
-            }
-            _ = worlds.release(entry.handle);
-        };
+        for (&self.entries) |*maybe| if (maybe.*) |*entry| release(entry);
+        for (self.dormant) |maybe| if (maybe) |member| std.heap.c_allocator.free(member.bytes);
         self.* = .{};
+    }
+    fn release(entry: *Entry) void {
+        if (entry.publication) |*publication| publication.deinit(entry.handle);
+        if (entry.context) |context| context.destroy();
+        if (entry.migrated) |saved| {
+            saved.deinit(std.heap.c_allocator);
+            std.heap.c_allocator.destroy(saved);
+        }
+        _ = worlds.release(entry.handle);
     }
     pub fn request(self: *State, name: []const u8, gameplay: bool) !void {
         try self.requestSaved(name, gameplay, null);
@@ -128,22 +216,40 @@ pub const State = struct {
         };
         if (active >= 4) return error.WorldReaderLimit;
         for (&self.entries) |*slot| if (slot.* == null) {
+            // A dormant resident of this map wakes with its own saved state
+            // and keeps the namespace it has reserved.
+            var waking: ?usize = null;
+            if (saved == null and gameplay) for (self.dormant, 0..) |maybe, index| if (maybe) |member| {
+                if (std.mem.eql(u8, std.mem.sliceTo(&member.name, 0), name)) waking = index;
+            };
             var occupied: [128]bool = @splat(false);
             occupied[self.initial_namespace] = true;
             for (self.entries) |maybe| if (maybe) |entry| {
                 occupied[entry.namespace] = true;
             };
-            const namespace = if (saved) |value| value.header.namespace orelse return error.MissingWorldNamespace else blk: {
-                for (occupied, 0..) |used, i| if (!used) break :blk @as(u7, @intCast(i));
-                return error.WorldNamespaceCapacity;
+            for (self.dormant, 0..) |maybe, index| if (maybe) |member| if (waking != index) {
+                occupied[member.namespace] = true;
             };
-            if (occupied[namespace]) return error.DuplicateWorldNamespace;
             var migrated: ?*snapshot.Loaded = null;
             errdefer if (migrated) |value| {
                 value.deinit(std.heap.c_allocator);
                 std.heap.c_allocator.destroy(value);
             };
-            if (saved == null and gameplay) for (self.legacy_archives) |archive| {
+            if (waking) |index| {
+                const value = try std.heap.c_allocator.create(snapshot.Loaded);
+                value.* = snapshot.decodeResident(std.heap.c_allocator, self.dormant[index].?.bytes) catch |err| {
+                    std.heap.c_allocator.destroy(value);
+                    return err;
+                };
+                migrated = value;
+                if (value.header.namespace != self.dormant[index].?.namespace or !std.mem.eql(u8, value.map, name)) return error.InvalidResident;
+            }
+            const namespace = if (saved orelse migrated) |value| value.header.namespace orelse return error.MissingWorldNamespace else blk: {
+                for (occupied, 0..) |used, i| if (!used) break :blk @as(u7, @intCast(i));
+                return error.WorldNamespaceCapacity;
+            };
+            if (occupied[namespace]) return error.DuplicateWorldNamespace;
+            if (saved == null and gameplay and migrated == null) for (self.legacy_archives) |archive| {
                 if (!std.mem.eql(u8, archive.map, name)) continue;
                 const value = try std.heap.c_allocator.create(snapshot.Loaded);
                 value.* = snapshot.migrateVisited(std.heap.c_allocator, archive.bytes, namespace, self.traveler_id) catch |err| {
@@ -156,6 +262,12 @@ pub const State = struct {
             var entry: Entry = .{ .handle = try worlds.request(name), .gameplay = gameplay, .namespace = namespace, .saved = if (migrated) |value| value else saved, .migrated = migrated };
             @memcpy(entry.name[0..name.len], name);
             slot.* = entry;
+            if (waking) |index| {
+                std.heap.c_allocator.free(self.dormant[index].?.bytes);
+                self.dormant[index] = null;
+                var message: [160]u8 = undefined;
+                engine.print(try std.fmt.bufPrintZ(&message, "dk3 resident: map={s} woken namespace={d}\n", .{ name, namespace }));
+            }
             return;
         };
         return error.ResidentWorldLimit;
@@ -318,3 +430,27 @@ pub const State = struct {
         return error.InvalidResidentCommand;
     }
 };
+
+test "a dormant resident keeps its state and reserved namespace until it wakes" {
+    const t = std.testing;
+    const data = @import("../domain/components.zig");
+    var state: State = .{};
+    defer state.deinit();
+    var world = data.World.initNamespaced(t.allocator, 16, 5);
+    defer world.deinit();
+    const first = world.id_first;
+    _ = try world.create(first + 6, .{data.Transform{ .position = .{ 64, -32, 8 } }});
+    world.next_id = first + 7;
+    const header: snapshot.Header = .{ .at_ms = 1000, .next_id = world.next_id, .player_id = 0, .episode = 1, .namespace = 5, .activated = true };
+    try state.stash("e1m2a", 5, &world, header, 3);
+    try t.expectEqual(@as(usize, 1), state.dormantCount());
+    try t.expectError(error.DuplicateDormantWorld, state.stashBytes("e1m2a", 9, "x"));
+    try t.expectError(error.DuplicateDormantWorld, state.stashBytes("e1m2b", 5, "x"));
+    var woken = try snapshot.decodeResident(t.allocator, state.dormant[0].?.bytes);
+    defer woken.deinit(t.allocator);
+    try t.expectEqualStrings("e1m2a", woken.map);
+    try t.expectEqual(@as(?u7, 5), woken.header.namespace);
+    try t.expectEqual(@as(u8, 3), woken.skill);
+    const entity = woken.world.find(first + 6) orelse return error.TestUnexpectedResult;
+    try t.expectEqual(@as(f32, -32), (try woken.world.get(entity, data.Transform)).position[1]);
+}

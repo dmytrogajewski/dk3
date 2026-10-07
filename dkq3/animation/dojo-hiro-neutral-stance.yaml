@@ -1,0 +1,130 @@
+version: 1
+fps: 30
+frames: 63
+loop: true
+provenance: DK3 independent neutral-rig authoring; outward hand clearance and relaxed
+  wrists
+keys:
+- frame: 0
+  root:
+  - 0
+  - 0
+  - 0
+  spine:
+  - 0
+  - 0
+  - 0
+  chest:
+  - 0
+  - 0
+  - 0
+  neck:
+  - 0
+  - 0
+  - 0
+  head:
+  - 0
+  - 0
+  - 0
+  hand_l: &id001
+  - 0.7
+  - 1.0
+  - 0.8
+  elbow_l:
+  - 0.2
+  - 0
+  - 0.3
+  hand_r: &id002
+  - 1.2
+  - -1.0
+  - 1.0
+  elbow_r:
+  - 0.3
+  - 0
+  - 0.4
+  palm_l:
+  - 0
+  - 0
+  - 0
+  palm_r:
+  - 0
+  - 0
+  - 0
+- frame: 16
+  root:
+  - 0
+  - 0
+  - 0.12
+  chest:
+  - 0
+  - 0
+  - 1.5
+  head:
+  - 0
+  - 0
+  - -4
+  hand_l:
+  - 0.7
+  - 1.0
+  - 0.8
+  hand_r:
+  - 1.2
+  - -1.0
+  - 1.0
+- frame: 31
+  root:
+  - 0
+  - 0
+  - 0
+  chest:
+  - 0
+  - 0
+  - 0
+  head:
+  - 0
+  - 0
+  - 2
+  hand_l:
+  - 0.7799999999999999
+  - 1.0
+  - 0.8700000000000001
+  hand_r:
+  - 1.28
+  - -1.0
+  - 1.07
+- frame: 47
+  root:
+  - 0
+  - 0
+  - -0.08
+  chest:
+  - 0
+  - 0
+  - -1
+  head:
+  - 0
+  - 0
+  - 4
+  hand_l:
+  - 0.7799999999999999
+  - 1.0
+  - 0.8700000000000001
+  hand_r:
+  - 1.28
+  - -1.0
+  - 1.07
+- frame: 62
+  root:
+  - 0
+  - 0
+  - 0
+  chest:
+  - 0
+  - 0
+  - 0
+  head:
+  - 0
+  - 0
+  - 0
+  hand_l: *id001
+  hand_r: *id002

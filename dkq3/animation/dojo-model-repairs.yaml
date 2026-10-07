@@ -1,0 +1,7 @@
+version: 1
+repairs:
+- directory: hiro-master
+  target: models/neural/c_hiro_intr.iqm
+  texture: hiro-original.png
+- directory: ebihara-master-observed
+  target: models/neural/c_tosh_intr.iqm

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 const std = @import("std");
+const v = @import("../domain/vector.zig");
 const data = @import("../domain/components.zig");
 const ecs = @import("../ecs/world.zig");
 const rules = @import("../domain/items.zig");
@@ -122,18 +123,54 @@ fn updateProjection(world: *data.World, entity: ecs.Entity, projections: []abi.E
     return projection;
 }
 /// Shared tossed-item collision; a false result means an authored no-drop volume.
-pub fn settle(world: *data.World, entity: ecs.Entity, now: i64, elapsed: u32) !bool {
+pub fn settle(world: *data.World, slots: *const Slots, entity: ecs.Entity, now: i64, elapsed: u32) !bool {
     const motion = try world.get(entity, data.ItemMotion);
-    if (motion.ground != null) return true;
     const transform = try world.get(entity, data.Transform);
+    if (world.get(entity, data.Attachment) catch null) |attachment| if (world.find(attachment.parent_id)) |parent| {
+        motion.base = transform.position;
+        motion.velocity = @splat(0);
+        motion.ground = (try world.get(parent, data.Binding)).slot;
+        return true;
+    };
+    if (motion.ground) |ground| {
+        if (ground < c.ENTITYNUM_WORLD) if (slots.occupants[ground]) |parent| {
+            const current = (try world.get(parent, data.Transform)).*;
+            const parent_pose: @import("../domain/poses.zig").Pose = .{ .position = current.position, .angles = current.angles };
+            if (motion.support_pose) |before| transform.position = @import("../domain/poses.zig").point(transform.position, before, parent_pose);
+            motion.support_pose = parent_pose;
+            motion.base = transform.position;
+            return true;
+        };
+        return true;
+    }
     const body = (try world.get(entity, data.Body)).*;
     const slot = (try world.get(entity, data.Binding)).slot;
     var trace = try engine.collisionService().trace(.{ .start = transform.position, .end = motion.sample(now), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+    if (trace.start_solid or trace.all_solid) {
+        // Authored origins can put a converted model hull inside the floor.
+        // Find the nearest clear start, then sweep back to its support plane.
+        for ([_]f32{ 1, 2, 4, 8, 16, 32, 64 }) |height| {
+            const raised = v.add(transform.position, .{ 0, 0, height });
+            const clear = try engine.collisionService().trace(.{ .start = raised, .end = raised, .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+            if (clear.start_solid or clear.all_solid) continue;
+            trace = try engine.collisionService().trace(.{ .start = raised, .end = motion.sample(now), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
+            break;
+        }
+        if (trace.start_solid or trace.all_solid) {
+            motion.base = transform.position;
+            motion.velocity = @splat(0);
+            motion.ground = c.ENTITYNUM_WORLD;
+            return true;
+        }
+    }
     transform.position = trace.end;
-    if (trace.start_solid) trace.fraction = 0;
     if (trace.fraction < 1) {
         if (try engine.collisionService().contents(transform.position, slot) & c.CONTENTS_NODROP != 0) return false;
         transform.position = motion.impact(trace, now, elapsed);
+        if (motion.ground) |ground| if (ground < c.ENTITYNUM_WORLD) if (slots.occupants[ground]) |parent| {
+            const pose = (try world.get(parent, data.Transform)).*;
+            motion.support_pose = .{ .position = pose.position, .angles = pose.angles };
+        };
     }
     return true;
 }
@@ -153,7 +190,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             pickup.respawn_ms = null;
         };
         const slot = (try world.get(entity, data.Binding)).slot;
-        if (!try settle(world, entity, now, elapsed)) {
+        if (!try settle(world, slots, entity, now, elapsed)) {
             try @import("weapon_entities.zig").remove(world, slots, projections, entity);
             continue;
         }

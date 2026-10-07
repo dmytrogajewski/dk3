@@ -128,6 +128,12 @@ fn parse(comptime T: type, allocator: std.mem.Allocator, field: stream.Field) !T
 pub fn decode(allocator: std.mem.Allocator, bytes: []const u8) !Loaded {
     return decodeWorld(allocator, bytes, true, false);
 }
+/// One resident member's own record (as a region save nests it): its world in
+/// its own namespace, no player, no nested members. A dormant resident is kept
+/// in this form until its map is wanted again.
+pub fn decodeResident(allocator: std.mem.Allocator, bytes: []const u8) !Loaded {
+    return decodeWorld(allocator, bytes, false, true);
+}
 /// Admit one old flat visited archive into a distinct resident namespace. Keep
 /// the original archive cold until requested; no engine or asset work occurs here.
 /// The archived player is a stale copy of the current traveler, not another actor.
@@ -431,7 +437,10 @@ fn validateWorld(snapshot: *Loaded, references: @import("world_references.zig").
             try require(world, entity, .{ data.Transform, data.Velocity, data.Body, data.Binding });
             if (scenery.model.len == 0 or scenery.model.len >= 64 or scenery.sequence.last < scenery.sequence.first or scenery.sequence.fps == 0 or scenery.sequence.fps > 240 or scenery.alpha < 0 or scenery.alpha > 1 or scenery.damage < 0 or scenery.damage > 1000000) return error.InvalidSavedScenery;
             for (scenery.scale) |scale| if (scale <= 0 or scale > 10000) return error.InvalidSavedScenery;
-            if (!scenery.fragment and !scenery.explosion) {
+            if (scenery.corpse) |corpse| {
+                try require(world, entity, .{ data.Health, data.Hurt, data.Random });
+                if (corpse.appearance >= @import("appearance_catalog").entries.len or scenery.movement != .toss or scenery.expires_ms == null or scenery.breakable or scenery.fragment or scenery.explosion or scenery.broken or scenery.gib != null or (try world.get(entity, data.Health)).current > 0 or !(try world.get(entity, data.Hurt)).feedback.death_handled or (world.get(entity, data.Player) catch null) != null or (world.get(entity, data.Session) catch null) != null) return error.InvalidSavedScenery;
+            } else if (!scenery.fragment and !scenery.explosion) {
                 try require(world, entity, .{ data.MapObject, data.Random });
                 if (!@import("scenery.zig").owns((try world.get(entity, data.MapObject)).classname)) return error.InvalidSavedScenery;
             } else if (scenery.breakable or (scenery.expires_ms == null and scenery.gib == null)) return error.InvalidSavedScenery;
@@ -563,7 +572,7 @@ fn validateWorld(snapshot: *Loaded, references: @import("world_references.zig").
         }
         if (world.get(entity, data.Performer) catch null) |performer| {
             try require(world, entity, .{ data.Binding, data.Body });
-            if (performer.count > performer.queue.len or performer.unique.len == 0 or performer.unique.len > 32 or performer.walk_speed < 0 or performer.walk_speed > 2000 or performer.run_speed < 0 or performer.run_speed > 2000 or performer.yaw_speed < 0 or performer.yaw_speed > 360) return error.InvalidSavedPerformer;
+            if (performer.ground_entity > 2047 or performer.count > performer.queue.len or performer.unique.len == 0 or performer.unique.len > 32 or performer.walk_speed < 0 or performer.walk_speed > 2000 or performer.run_speed < 0 or performer.run_speed > 2000 or performer.yaw_speed < 0 or performer.yaw_speed > 360) return error.InvalidSavedPerformer;
             inline for (.{ "animation", "idle", "movement" }) |field| {
                 const sequence = @field(performer, field);
                 if (sequence.last < sequence.first or sequence.fps == 0 or sequence.fps > 240) return error.InvalidSavedPerformerAnimation;
@@ -1018,6 +1027,7 @@ fn validateWorld(snapshot: *Loaded, references: @import("world_references.zig").
         }
         if (world.get(entity, data.Session) catch null) |session| if (session.advancement) |advancement| if (!advancement.valid()) return error.InvalidSavedCharacter;
         if (world.get(entity, data.Hurt) catch null) |hurt| {
+            for (hurt.impulse ++ hurt.impulse_point ++ hurt.revision_impulse) |axis| if (!std.math.isFinite(axis)) return error.InvalidSavedDamage;
             if (!std.math.isFinite(hurt.feedback.flash_alpha) or hurt.feedback.flash_alpha < 0 or hurt.feedback.flash_alpha > 0.75) return error.InvalidSavedDamage;
         }
         if (world.get(entity, data.Ailments) catch null) |ailments| {
@@ -1494,4 +1504,25 @@ test "mover archives written before authored audio keep silent defaults" {
     try t.expectEqual(@as(f32, 0.7), (loaded.sound_parameters orelse return error.MissingSoundParameters).volume);
     try t.expectEqual(@as(f32, 900), loaded.sound_parameters.?.maximum);
     try t.expectEqual(@as(u16, 3), loaded.use_sound);
+}
+
+test "retained player bodies preserve damage impulses and identity across native save admission" {
+    const t = std.testing;
+    var world = data.World.init(t.allocator, 16);
+    defer world.deinit();
+    _ = try world.create(7, .{ data.Transform{}, data.Velocity{}, data.Player{}, data.Body{}, data.Binding{ .slot = 0 }, data.Health{}, data.Hurt{}, data.Weapons{ .weapon = 1 }, data.Character{}, data.Ailments{}, data.Keys{} });
+    _ = try world.create(8, .{ data.Transform{}, data.Velocity{}, data.Body{}, data.Binding{ .slot = 64 }, data.Health{ .current = -18 }, data.Random{ .state = 73 }, data.Hurt{ .weapon = 21, .impulse = .{ 31.5, 0, 36 }, .impulse_point = .{ 1, 2, 3 }, .impulse_serial = 2, .feedback = .{ .death_handled = true } }, data.Scenery{ .model = "models/global/m_hiro.dkm", .movement = .toss, .started_ms = 900, .expires_ms = 15900, .corpse = .{ .appearance = 0 } } });
+    var buffer: [32768]u8 = undefined;
+    const bytes = try capture(t.allocator, &buffer, &world, "e1dm1", 3, .{ .at_ms = 1000, .episode = 1, .player_id = 7, .next_id = world.next_id });
+    var restored = try decode(t.allocator, bytes);
+    defer restored.deinit(t.allocator);
+    const retained = restored.world.find(8).?;
+    try t.expectEqual(@as(u8, 0), (try restored.world.get(retained, data.Scenery)).corpse.?.appearance);
+    try t.expectEqual(@as(data.Vec3, .{ 31.5, 0, 36 }), (try restored.world.get(retained, data.Hurt)).impulse);
+    try t.expectEqual(@as(u32, 2), (try restored.world.get(retained, data.Hurt)).impulse_serial);
+    try t.expect((restored.world.get(retained, data.Session) catch null) == null);
+    try restored.rebase(5000);
+    try t.expectEqual(@as(?i64, 19900), (try restored.world.get(retained, data.Scenery)).expires_ms);
+    (try restored.world.get(retained, data.Health)).current = 1;
+    try t.expectError(error.InvalidSavedScenery, validate(&restored));
 }

@@ -12,44 +12,33 @@ const Slots = @import("../engine/slots.zig").Slots;
 const Clients = @import("clients.zig").Clients;
 const routes = @import("bot_routes.zig");
 const skill = @import("../domain/bot_skill.zig");
-/// Search headings relative to travel: a bot sweeps its sides but stays blind behind itself.
-const scan_headings = [_]f32{ 0, 40, -40, 80, -80, 0 };
+const pilot = @import("bot_pilot.zig");
 const Brain = struct {
     next_ms: i64 = 0,
+    /// Pickup being fetched, until when it is reconsidered, and one let be.
     goal: u32 = 0,
     goal_ms: i64 = 0,
-    route: nav.State = .{},
-    jump_until: i64 = 0,
-    jump_ready: i64 = 0,
-    use_ready: i64 = 0,
-    control: ?routes.Control = null,
-    control_until: i64 = 0,
-    seek_ms: i64 = 0,
     avoided: u32 = 0,
     avoid_until: i64 = 0,
-    yield_point: ?v.Vec3 = null,
-    yield_until: i64 = 0,
-    passage: ?struct { route: routes.Passage, teleport_bit: bool, until_ms: i64 } = null,
-    skill: i32 = skill.fallback,
-    step_ms: i64 = 0,
-    /// Persistent identity of the enemy currently in the view cone, or last remembered one.
-    target: u32 = 0,
-    seen_ms: i64 = 0,
+    /// The objective (or the carrier escorted) has no route even past every
+    /// gate: pursue items and enemies meanwhile.
+    objective_skip_until: i64 = 0,
+    /// Where the enemy fought was last seen (chased when nothing else calls).
     last_seen: ?v.Vec3 = null,
-    reaction_ready: i64 = 0,
-    shot_ready: i64 = 0,
-    locked_ms: i64 = 0,
-    wobble_ready: i64 = 0,
-    noise_yaw: f32 = 0,
-    noise_pitch: f32 = 0,
-    seed: u32 = 1,
-    scan_index: usize = 0,
-    scan_until: i64 = 0,
-    alert_yaw: ?f32 = null,
-    alert_until: i64 = 0,
-    receipt: u32 = 0,
+    /// Where the current firing stand began (a held fight in deathmatch).
+    stand: ?v.Vec3 = null,
+    skill: i32 = skill.fallback,
+    /// Locomotion, perception, aim and fire: the shared bot pilot.
+    pilot: pilot.Pilot = .{},
+    report: pilot.Report = .{},
     /// Cone actually in force on the last brain step, so the override shows up in evidence.
     cone: f32 = 0,
+    fn reset(self: *Brain, now: i64) void {
+        var fresh = self.pilot;
+        fresh.reset();
+        fresh.receipt = null;
+        self.* = .{ .next_ms = now + 50, .skill = self.skill, .pilot = fresh };
+    }
 };
 pub const State = struct {
     brains: [c.MAX_CLIENTS]?Brain = @splat(null),
@@ -60,7 +49,7 @@ pub const State = struct {
     pub fn report(self: *const State, world: *data.World, slots: *const Slots, clients: *const Clients, now: i64) !void {
         var buffer: [1024]u8 = undefined;
         for (self.brains, 0..) |maybe, index| if (maybe) |brain| {
-            const route = brain.route;
+            const route = brain.pilot.route;
             const waypoint = route.waypoint orelse nav.Waypoint{ .point = @splat(0) };
             // The view is what the cone is measured against, so it must be visible in the evidence.
             var view_yaw: f32 = std.math.nan(f32);
@@ -70,18 +59,19 @@ pub const State = struct {
                 view_pitch = pose.angles[0];
             };
             engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 bot route: slot={d} skill={d} ({s}) fov={d:.0} view={d:.1},{d:.1} scan={d} alert={d} target={d} seen_ms={d} goal={d} avoided={d} destination={d:.2},{d:.2},{d:.2} waypoint={d:.2},{d:.2},{d:.2} valid={d} areas={d},{d} jump={d} crouch={d} ladder={d} blocked={d} progress_ms={d} refresh_ms={d} jump_until={d} control={d} yielding={d} passage={d}\n", .{
-                index,                                                                        brain.skill,                                    skill.tier(brain.skill),
-                if (brain.cone > 0) brain.cone else skill.profile(brain.skill).field_of_view, view_yaw,                                       view_pitch,
-                scan_headings[brain.scan_index],                                              @intFromBool(now < brain.alert_until),          brain.target,
-                brain.seen_ms,                                                                brain.goal,                                     brain.avoided,
-                route.destination[0],                                                         route.destination[1],                           route.destination[2],
-                waypoint.point[0],                                                            waypoint.point[1],                              waypoint.point[2],
-                @intFromBool(route.waypoint != null),                                         waypoint.from_area,                             waypoint.to_area,
-                @intFromBool(waypoint.jump),                                                  @intFromBool(waypoint.crouch),                  @intFromBool(waypoint.ladder),
-                @intFromBool(route.blocked),                                                  route.progress_ms,                              route.refresh_ms,
-                brain.jump_until,                                                             if (brain.control) |control| control.id else 0, @intFromBool(brain.yield_point != null),
-                if (brain.passage) |passage| passage.route.id else 0,
+                index,                                                                        brain.skill,                                          skill.tier(brain.skill),
+                if (brain.cone > 0) brain.cone else skill.profile(brain.skill).field_of_view, view_yaw,                                             view_pitch,
+                pilot.sweep_headings[brain.pilot.sweep_index],                                @intFromBool(now < brain.pilot.alert_until),          brain.pilot.target,
+                brain.pilot.seen_ms,                                                          brain.goal,                                           brain.avoided,
+                route.destination[0],                                                         route.destination[1],                                 route.destination[2],
+                waypoint.point[0],                                                            waypoint.point[1],                                    waypoint.point[2],
+                @intFromBool(route.waypoint != null),                                         waypoint.from_area,                                   waypoint.to_area,
+                @intFromBool(waypoint.jump),                                                  @intFromBool(waypoint.crouch),                        @intFromBool(waypoint.ladder),
+                @intFromBool(route.blocked),                                                  route.progress_ms,                                    route.refresh_ms,
+                brain.pilot.jump_until,                                                       if (brain.pilot.control) |control| control.id else 0, @intFromBool(brain.pilot.yield_point != null),
+                if (brain.pilot.passage) |passage| passage.route.id else 0,
             }));
+            engine.print(try std.fmt.bufPrintZ(&buffer, "dk3 bot pilot: slot={d} hazard={d} dodging={d} stand={d} no_route={d} routeless={d} give_up={d} skip_ms={d}\n", .{ index, brain.report.avoided_exit, @intFromBool(brain.report.dodging), @intFromBool(brain.stand != null), @intFromBool(brain.report.no_route), @intFromBool(brain.report.routeless), brain.report.give_up_ms, @max(0, brain.objective_skip_until - now) }));
             if (route.blocked) if (clients.entities[index]) |entity| try @import("navigation_probe.zig").corridor(world, slots, entity, if (route.waypoint != null) waypoint.point else route.destination);
         };
     }
@@ -97,7 +87,7 @@ pub const State = struct {
         try clients.begin(world, slots, projections, states, index, now, null);
         (try world.get(clients.entities[index].?, data.Session)).bot = true;
         projections[index].shared.svFlags |= c.SVF_BOT;
-        self.brains[index] = .{ .skill = self.ladder, .step_ms = now, .seed = @as(u32, @truncate(@as(u64, @bitCast(now)) + index * 7919 + 1)) };
+        self.brains[index] = .{ .skill = self.ladder, .pilot = .{ .level = self.ladder, .seed = @as(u32, @truncate(@as(u64, @bitCast(now)) + index * 7919 + 1)), .step_ms = now } };
         self.serial += 1;
         try clients.userinfo(world, index);
     }
@@ -115,7 +105,7 @@ pub const State = struct {
             if (index == requester) continue;
             const other = candidate orelse continue;
             const brain = maybe orelse continue;
-            const control = brain.control orelse continue;
+            const control = brain.pilot.control orelse continue;
             if (control.route_obstacle != obstacle) continue;
             if ((world.get(other, data.Health) catch continue).current <= 0) continue;
             const session = (world.get(other, data.Session) catch continue).*;
@@ -123,7 +113,7 @@ pub const State = struct {
         }
         return false;
     }
-    pub fn step(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, clients: *Clients, router: *@import("targets.zig").Router, service: nav.Service, now: i64) !void {
+    pub fn step(self: *State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, states: []c.playerState_t, clients: *Clients, router: *@import("targets.zig").Router, service: nav.Service, gates: *@import("navigation_gates.zig").State, now: i64) !void {
         _ = router;
         if (!@import("multiplayer.zig").enabled()) return;
         engine.register("bot_minplayers", "0", 0);
@@ -134,9 +124,10 @@ pub const State = struct {
             self.next_population = now + 1000;
             if (self.ladder != 0 and self.ladder != level) for (&self.brains) |*maybe| if (maybe.*) |*brain| {
                 brain.skill = level;
-                brain.target = 0;
+                brain.pilot.level = level;
+                brain.pilot.target = 0;
+                brain.pilot.alert_until = 0;
                 brain.last_seen = null;
-                brain.alert_until = 0;
             };
             self.ladder = level;
             // Multiplayer maps have no other difficulty writer, so the ten-level
@@ -177,272 +168,120 @@ pub const State = struct {
             const session = (try world.get(entity, data.Session)).*;
             if (player.mode == .frozen or session.team == .spectator) continue;
             const pose = (try world.get(entity, data.Transform)).*;
-            var input = std.mem.zeroes(c.usercmd_t);
-            input.serverTime = @intCast(now);
             if (player.mode == .dead) {
-                brain.* = .{ .next_ms = now + 50, .skill = brain.skill, .seed = brain.seed, .step_ms = now, .receipt = (try world.get(entity, data.Hurt)).revision };
-                input.buttons = c.BUTTON_ATTACK;
-                _ = engine.gateway.call(c.BOTLIB_USER_COMMAND, .{ @as(isize, @intCast(index)), &input });
+                brain.reset(now);
+                var steering = try brain.pilot.steer(try self.frame(world, slots, projections, clients, service, gates, index, entity, player, session, now), .{ .attack_when_dead = true });
+                // A dead player requests respawn with attack on every step.
+                steering.command.attack = true;
+                @import("bot_input.zig").submit(@intCast(index), steering.command, player.delta_angles, now);
                 continue;
             }
-            if (brain.passage) |passage| if (player.teleport_bit != passage.teleport_bit or now >= passage.until_ms) {
-                if (engine.integer("developer") > 0) engine.print(try std.fmt.bufPrintZ(&message, "dk3 bot passage: slot={d} trigger={d} teleported={d}\n", .{ index, passage.route.id, @intFromBool(player.teleport_bit != passage.teleport_bit) }));
-                brain.passage = null;
-                brain.route = .{};
-            };
+            brain.pilot.level = brain.skill;
+            const fov = engine.integer("dk3_bot_fov");
+            brain.cone = if (fov > 0) std.math.clamp(@as(f32, @floatFromInt(fov)), 1, 359) else skill.profile(brain.skill).field_of_view;
+            const policy = skill.profile(brain.skill);
+            // The enemy fought last step: remembered where it was, then forgotten.
+            if (brain.report.enemy != 0) {
+                if (world.find(brain.report.enemy)) |seen| brain.last_seen = (try world.get(seen, data.Transform)).position;
+            } else if (now - brain.pilot.seen_ms > policy.memory_ms) brain.last_seen = null;
             const loadout = (try world.get(entity, data.Weapons)).*;
-            const eye = v.add(pose.position, .{ 0, 0, player.view_height });
-            var policy = skill.profile(brain.skill);
-            // Diagnostic override only: 0 keeps the ladder cone, otherwise clamp to a
-            // real cone so 359 means "see everything" and 1 means "see almost nothing".
-            if (engine.integer("dk3_bot_fov") > 0) policy.field_of_view = std.math.clamp(@as(f32, @floatFromInt(engine.integer("dk3_bot_fov"))), 1, 359);
-            brain.cone = policy.field_of_view;
-            // A bot only knows what is inside its own view cone; it cannot have eyes
-            // behind its head, so an approach from behind stays hidden until it turns.
-            const facing = v.basis(pose.angles).forward;
-            const hurt = (try world.get(entity, data.Hurt)).*;
-            if (hurt.revision != brain.receipt) {
-                brain.receipt = hurt.revision;
-                // Being hit is a cue rather than sight: the bot faces the shooter's
-                // bearing, more accurately the higher its skill.
-                if (hurt.source != 0) if (world.find(hurt.source)) |shooter| if (shooter.index != entity.index) {
-                    const point = (try world.get(shooter, data.Transform)).position;
-                    brain.alert_yaw = skill.yaw(v.subtract(point, eye)) + skill.noise(&brain.seed) * policy.alert_error;
-                    brain.alert_until = now + policy.alert_ms;
-                };
-            }
-            var enemy: ?ecs.Entity = null;
-            var nearest: f32 = std.math.inf(f32);
-            for (clients.entities) |candidate| {
-                const other = candidate orelse continue;
-                if (other.index == entity.index or (try world.get(other, data.Health)).current <= 0) continue;
-                const member = (try world.get(other, data.Session)).*;
-                if (member.team == .spectator or @import("../domain/multiplayer.zig").allied(session, member)) continue;
-                const target = v.add((try world.get(other, data.Transform)).position, .{ 0, 0, 12 });
-                const distance = v.length(v.subtract(target, eye));
-                if (distance >= nearest or !skill.sees(policy, facing, eye, target)) continue;
-                const trace = try engine.collisionService().trace(.{ .start = eye, .end = target, .mins = @splat(0), .maxs = @splat(0), .slot = @intCast(index), .mask = c.MASK_SHOT });
-                if (trace.fraction < 1 and trace.entity != (try world.get(other, data.Binding)).slot) continue;
-                nearest = distance;
-                enemy = other;
-            }
-            if (enemy) |seen| {
-                const identity = try world.persistentId(seen);
-                if (identity != brain.target) {
-                    brain.target = identity;
-                    brain.reaction_ready = now + policy.reaction_ms;
-                    brain.locked_ms = now;
-                }
-                brain.seen_ms = now;
-                brain.last_seen = (try world.get(seen, data.Transform)).position;
-            } else if (now - brain.seen_ms > policy.memory_ms) {
-                brain.target = 0;
-                brain.last_seen = null;
-            }
-            const selected = @import("../domain/bot_combat.zig").select(loadout, &clients.weapon_table, if (enemy != null) nearest else null);
-            input.weapon = selected;
             var destination: ?v.Vec3 = null;
-            if (objectiveGoal(world, entity)) |goal| destination = goal;
+            var objective = false;
+            if (now >= brain.objective_skip_until) if (objectiveGoal(world, entity)) |goal| {
+                destination = goal;
+                objective = true;
+            };
             const health = (try world.get(entity, data.Health)).*;
             const resupply = health.current * 2 < health.maximum or !@import("../domain/bot_combat.zig").ranged(loadout, &clients.weapon_table);
-            if (resupply) destination = null;
+            if (resupply) {
+                destination = null;
+                objective = false;
+            }
             const old_pickup = if (world.find(brain.goal)) |goal| world.get(goal, data.Pickup) catch null else null;
             if (destination == null and (now >= brain.goal_ms or old_pickup == null or !old_pickup.?.visible)) {
                 brain.goal = try pickupGoal(world, entity, &clients.weapon_table, service, if (now < brain.avoid_until) brain.avoided else 0, resupply, now);
                 brain.goal_ms = now + 5000;
             }
+            var fetching = false;
             if (destination == null) if (world.find(brain.goal)) |goal| {
                 destination = @import("../domain/navigation_input.zig").pickupPoint((try world.get(goal, data.Transform)).position, (try world.get(goal, data.Body)).mins, (try world.get(entity, data.Body)).mins);
+                fetching = true;
             };
             if (destination == null and resupply) destination = objectiveGoal(world, entity);
-            if (destination == null) if (brain.target != 0) {
+            if (destination == null) if (brain.pilot.target != 0) {
                 destination = brain.last_seen;
             };
-            var control_aim: ?v.Vec3 = null;
-            if (brain.control) |previous| {
-                // Keep a remote control goal while the bot makes actual route
-                // progress; a fixed trip deadline abandoned cross-base controls.
-                brain.control_until = @max(brain.control_until, brain.route.progress_ms + 15000);
-                if (routes.completed(world, previous) or now >= brain.control_until) {
-                    if (!routes.completed(world, previous)) {
-                        brain.avoided = previous.id;
-                        brain.avoid_until = now + 10000;
-                    }
-                    brain.control = null;
-                    brain.route = .{};
-                } else {
-                    var control = previous;
-                    control_aim = try routes.aim(world, control);
-                    if (control_aim == null) {
-                        if (try routes.advance(world, slots, projections, entity, control, service, now)) |next| {
-                            control = next;
-                            brain.control = next;
-                            brain.route = .{};
-                            control_aim = try routes.aim(world, next);
-                        }
-                    }
-                    // Delayed relays and moving prerequisite doors retain the
-                    // original route request while no next control is ready.
-                    destination = if (control_aim == null) pose.position else control.point;
-                    if (control.action == .touch and nav.horizontalDistance(pose.position, control.point) < 24 and control_aim != null) destination = control_aim;
-                }
+            var intent: pilot.Intent = .{ .destination = destination, .engage_range = std.math.inf(f32) };
+            // Deathmatch stance: an enemy in sight is fought from a firing
+            // stand, strafing on a short tether; objectives and resupply keep
+            // moving and fight on the way.
+            if (brain.report.enemy != 0 and !objective and !resupply) {
+                if (brain.stand == null) brain.stand = pose.position;
+                intent.destination = null;
+                intent.leash = brain.stand;
+            } else brain.stand = null;
+            const steering = try brain.pilot.steer(try self.frame(world, slots, projections, clients, service, gates, index, entity, player, session, now), intent);
+            brain.report = steering.report;
+            if (steering.report.give_up_ms > 0) brain.objective_skip_until = now + steering.report.give_up_ms;
+            // A pickup the route cannot get closer to is let be for a while.
+            if (fetching and brain.pilot.control == null and steering.report.blocked and now - brain.pilot.route.progress_ms >= 3000) {
+                brain.avoided = brain.goal;
+                brain.avoid_until = now + 10000;
+                brain.goal = 0;
+                brain.goal_ms = now;
             }
-            if (now < brain.yield_until) {
-                destination = brain.yield_point;
-            } else brain.yield_point = null;
-            if (brain.control == null and brain.passage == null) if (destination) |goal| {
-                if (try routes.ridePoint(world, slots, entity, goal)) |point| destination = point;
+            if (fetching and destination != null and v.length(v.subtract(destination.?, pose.position)) < 32) {
+                brain.goal = 0;
+                brain.goal_ms = now;
+            }
+            if (steering.command.use and engine.integer("developer") > 0) if (brain.pilot.control) |control| {
+                engine.print(try std.fmt.bufPrintZ(&message, "dk3 bot control: slot={d} use={d} obstacle={d} route_obstacle={d}\n", .{ index, control.id, control.obstacle, control.route_obstacle }));
             };
-            var movement: v.Vec3 = @splat(0);
-            var crouch = false;
-            var ladder = false;
-            if (destination) |goal| {
-                // Prefer every safe route. If none exists, permit swimming out
-                // of a slime basin; actual contact still applies authored damage.
-                if (brain.passage) |passage| {
-                    movement = v.subtract(passage.route.point, pose.position);
-                } else if (try brain.route.update(service, .{ .position = pose.position, .destination = goal, .slot = @intCast(index), .player = true, .allow_slime_escape = true }, now)) |waypoint| {
-                    movement = v.subtract(waypoint.point, pose.position);
-                    ladder = waypoint.ladder;
-                    const hull = (try world.get(entity, data.Body)).*;
-                    crouch = waypoint.crouch or try @import("../domain/navigation_input.zig").crouch(engine.collisionService(), pose.position, waypoint.point, hull.mins, .{ hull.maxs[0], hull.maxs[1], 32 }, @intCast(index), hull.collision_mask);
-                    if (waypoint.jump and player.ground_entity != c.ENTITYNUM_NONE and now >= brain.jump_ready) {
-                        brain.jump_until = now + 200;
-                        brain.jump_ready = now + 800;
-                    }
-                }
-                // A raised lift can make successive AAS entrances alternate
-                // while the bot still slides sideways at its face. Physical
-                // movement alone is not proof that the next floor is reachable.
-                // Inspect the actual obstructing mover before trying that ascent;
-                // seek still requires a collision and its authored real control.
-                // Descending through a raised platform also requires its real
-                // control; the next lower AAS point can lie inside that floor.
-                const changing_floor = brain.control == null and player.ground_entity != c.ENTITYNUM_NONE and @abs(movement[2]) > 18;
-                if (brain.passage == null and (brain.route.blocked or changing_floor) and now >= brain.seek_ms) {
-                    brain.seek_ms = now + 500;
-                    const toward = if (brain.route.waypoint) |waypoint| waypoint.point else goal;
-                    const passage = if (brain.control == null) try routes.teleportPassage(world, projections, entity, toward, goal, service, now) else null;
-                    if (passage) |route| {
-                        brain.passage = .{ .route = route, .teleport_bit = player.teleport_bit, .until_ms = now + 5000 };
-                        brain.route = .{};
-                        movement = v.subtract(route.point, pose.position);
-                    } else if (try routes.yieldPoint(world, slots, entity, toward)) |point| {
-                        brain.yield_point = point;
-                        brain.yield_until = now + 1000;
-                        brain.route = .{};
-                    } else {
-                        const control = try routes.seek(world, slots, projections, entity, toward, service, now, if (now < brain.avoid_until) brain.avoided else 0);
-                        if (control != null and (brain.control == null or control.?.id != brain.control.?.id)) {
-                            if (brain.control == null and self.assigned(world, clients, index, control.?.route_obstacle)) {
-                                // A teammate fetches the remote control while
-                                // this bot stays available to cross the door.
-                                movement = @splat(0);
-                            } else {
-                                var next = control.?;
-                                if (brain.control) |parent| next.route_obstacle = parent.route_obstacle;
-                                brain.control = next;
-                                brain.control_until = now + 15000;
-                                brain.route = .{};
-                            }
-                        } else if (brain.control == null and now - brain.route.progress_ms >= 3000 and brain.goal != 0) {
-                            brain.avoided = brain.goal;
-                            brain.avoid_until = now + 10000;
-                            brain.goal = 0;
-                            brain.goal_ms = now;
-                        }
-                    }
-                }
-                if (brain.control == null and brain.yield_point == null and v.length(v.subtract(goal, pose.position)) < 32) {
-                    brain.goal = 0;
-                    brain.goal_ms = now;
-                }
-            }
-            var aim = movement;
-            var fighting = false;
-            var precise = false;
-            var sweeping = false;
-            if (enemy) |other| {
-                aim = v.subtract(v.add((try world.get(other, data.Transform)).position, .{ 0, 0, 12 }), eye);
-                fighting = true;
-                if (!player.respawned and selected == loadout.weapon and now >= brain.reaction_ready and now >= brain.shot_ready and @import("../domain/bot_combat.zig").attack(loadout, &clients.weapon_table, nearest)) {
-                    input.buttons |= c.BUTTON_ATTACK;
-                    brain.shot_ready = now + policy.burst_ms;
-                }
-            }
-            var use_control = false;
-            if (brain.control) |control| if (control_aim) |point| {
-                const delta = v.subtract(point, eye);
-                if (control.action != .touch and (control.action == .shoot or v.length(delta) < 144)) {
-                    precise = true;
-                    aim = delta;
-                    input.buttons &= ~@as(i32, c.BUTTON_ATTACK);
-                    const current_forward = v.basis(pose.angles).forward;
-                    if (v.dot(current_forward, v.normalize(delta)) > 0.99) {
-                        const reach: f32 = if (control.action == .use) 96 else @max(96, v.length(delta) + 8);
-                        const hit = try engine.collisionService().trace(.{ .start = eye, .end = v.add(eye, v.scale(current_forward, reach)), .mins = @splat(0), .maxs = @splat(0), .slot = @intCast(index), .mask = c.MASK_SHOT });
-                        if (world.find(control.id)) |target| if (hit.entity == (try world.get(target, data.Binding)).slot) {
-                            if (control.action == .use and now >= brain.use_ready) {
-                                use_control = true;
-                                brain.use_ready = now + 1000;
-                            } else if (control.action == .shoot and !player.respawned and selected == loadout.weapon and @import("../domain/bot_combat.zig").attack(loadout, &clients.weapon_table, v.length(delta))) input.buttons |= c.BUTTON_ATTACK;
-                        };
-                    }
-                }
-            };
-            if (v.length(aim) < 0.01) aim = v.basis(pose.angles).forward;
-            // Skill limits how fast the view can travel, so a target outside the cone
-            // can only be acquired by turning, and low skills overshoot while tracking.
-            const step_ms: f32 = @floatFromInt(std.math.clamp(now - brain.step_ms, @as(i64, 1), 250));
-            brain.step_ms = now;
-            const limit = policy.turn_rate * step_ms / 1000;
-            var wanted_yaw = skill.yaw(aim);
-            var wanted_pitch = skill.pitch(aim);
-            // Heading the route wants, independent of where the view is looking.
-            const travel_yaw = wanted_yaw;
-            if (fighting) {
-                if (now >= brain.wobble_ready) {
-                    brain.wobble_ready = now + policy.wobble_ms;
-                    brain.noise_yaw = skill.noise(&brain.seed);
-                    brain.noise_pitch = skill.noise(&brain.seed);
-                }
-                const settle = @min(@as(f32, 1), @as(f32, @floatFromInt(now - brain.locked_ms)) / @as(f32, @floatFromInt(policy.settle_ms)));
-                wanted_yaw += brain.noise_yaw * policy.aim_error * (1 - settle);
-                wanted_pitch += brain.noise_pitch * policy.aim_error * (1 - settle);
-            } else if (!precise) {
-                sweeping = true;
-                // Nothing to look at directly: face the last gunshot, or sweep the
-                // surroundings so an enemy becomes visible instead of remaining behind.
-                if (now < brain.alert_until and brain.alert_yaw != null) {
-                    wanted_yaw = brain.alert_yaw.?;
-                    wanted_pitch = 0;
-                } else {
-                    brain.alert_until = 0;
-                    if (now >= brain.scan_until) {
-                        brain.scan_until = now + policy.scan_period_ms;
-                        brain.scan_index = (brain.scan_index + 1) % scan_headings.len;
-                    }
-                    wanted_yaw += scan_headings[brain.scan_index];
-                }
-            }
-            const angles: v.Vec3 = .{ skill.pitchTurn(pose.angles[0], wanted_pitch, limit), skill.turn(pose.angles[1], wanted_yaw, limit), 0 };
-            for (angles, 0..) |angle, axis| input.angles[axis] = @as(i32, @intFromFloat(angle * 65536 / 360)) -% player.delta_angles[axis];
-            // Locomotion follows the route while the view sweeps, so a bot checking
-            // its shoulder walks forward instead of sliding sideways along its own
-            // view. Fighting and control aiming keep the accepted view-relative move.
-            const axes = v.basis(.{ 0, if (sweeping) travel_yaw else angles[1], 0 });
-            const direction = v.normalize(.{ movement[0], movement[1], 0 });
-            input.forwardmove = @intFromFloat(std.math.clamp(v.dot(direction, axes.forward) * 127, -127, 127));
-            input.rightmove = @intFromFloat(std.math.clamp(v.dot(direction, axes.right) * 127, -127, 127));
-            if (crouch) input.upmove = -127;
-            if (now < brain.jump_until) input.upmove = 127;
-            if ((ladder or player.water_level >= 2) and @abs(movement[2]) > 8) input.upmove = if (movement[2] > 0) 127 else -127;
-            if (use_control) {
-                if (engine.integer("developer") > 0) engine.print(try std.fmt.bufPrintZ(&message, "dk3 bot control: slot={d} use={d} obstacle={d} route_obstacle={d}\n", .{ index, brain.control.?.id, brain.control.?.obstacle, brain.control.?.route_obstacle }));
-                _ = engine.gateway.call(c.BOTLIB_EA_COMMAND, .{ @as(isize, @intCast(index)), @as([*:0]const u8, "use") });
-            }
-            _ = engine.gateway.call(c.BOTLIB_USER_COMMAND, .{ @as(isize, @intCast(index)), &input });
+            @import("bot_input.zig").submit(@intCast(index), steering.command, player.delta_angles, now);
         }
+    }
+    /// The pilot's view of a bot client: its player state, the engine's
+    /// collision and the client weapon table; enemy players by team, team
+    /// coordination over authored controls, looking around and turning to
+    /// gunfire as the ladder sets.
+    fn frame(self: *const State, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, clients: *Clients, service: nav.Service, gates: *@import("navigation_gates.zig").State, index: usize, entity: ecs.Entity, player: data.Player, session: data.Session, now: i64) !pilot.Frame {
+        const brain = self.brains[index].?;
+        const team = struct {
+            var contexts: [c.MAX_CLIENTS]Team = undefined;
+        };
+        team.contexts[index] = .{ .state = self, .world = world, .clients = clients, .index = index };
+        return .{
+            .world = world,
+            .slots = slots,
+            .projections = projections,
+            .service = service,
+            .collision = engine.collisionService(),
+            .table = &clients.weapon_table,
+            .slot = @intCast(index),
+            .entity = entity,
+            .state = player,
+            .now = now,
+            .gates = gates,
+            .capabilities = .{ .exits = false, .nuisance = false, .alert = true, .sweep = true, .conserve_ammo = false, .yield_to_allies = true, .duck_to_shoot = false },
+            .targets = .{ .players = .{ .entities = &clients.entities, .session = session } },
+            .coordination = .{ .context = &team.contexts[index], .claimed = Team.claimed },
+            .field_of_view = brain.cone,
+            // Objectives sit beside lethal beams (e1dt1's bomb is 28 units
+            // from one): a narrower margin, still clear of contact.
+            .lethal_margin = 16,
+            .label = "bot",
+        };
+    }
+};
+/// A teammate (another bot) already fetching the control that opens a gate.
+const Team = struct {
+    state: *const State,
+    world: *data.World,
+    clients: *const Clients,
+    index: usize,
+    fn claimed(context: *const anyopaque, route_obstacle: u32) bool {
+        const self: *const Team = @ptrCast(@alignCast(context));
+        return self.state.assigned(self.world, self.clients, self.index, route_obstacle);
     }
 };
 fn pickupGoal(world: *data.World, player: ecs.Entity, table: *const @import("../domain/weapons.zig").Table, service: nav.Service, avoided: u32, resupply: bool, now: i64) !u32 {
@@ -564,7 +403,7 @@ test "only a living teammate can reserve an authored control route" {
     const helper = try world.create(2, .{ data.Session{ .team = .red }, data.Health{} });
     clients.entities[1] = helper;
     var state: State = .{};
-    state.brains[1] = .{ .control = .{ .id = 507, .obstacle = 321, .route_obstacle = 110, .point = @splat(0), .action = .use } };
+    state.brains[1] = .{ .pilot = .{ .control = .{ .id = 507, .obstacle = 321, .route_obstacle = 110, .point = @splat(0), .action = .use } } };
     try t.expect(state.assigned(&world, &clients, 0, 110));
     try t.expect(!state.assigned(&world, &clients, 1, 110));
     try t.expect(!state.assigned(&world, &clients, 0, 319));
@@ -574,6 +413,6 @@ test "only a living teammate can reserve an authored control route" {
     (try world.get(helper, data.Session)).team = .blue;
     try t.expect(!state.assigned(&world, &clients, 0, 110));
     (try world.get(helper, data.Session)).team = .red;
-    state.brains[1].?.control = null;
+    state.brains[1].?.pilot.control = null;
     try t.expect(!state.assigned(&world, &clients, 0, 110));
 }

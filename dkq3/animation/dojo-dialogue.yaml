@@ -1,0 +1,495 @@
+# Complete dojo dialogue, original queues/audio, new authored cameras.
+version: 1
+scene: dojo_dialogue
+anchors: {}
+actors:
+  hiro2:
+    class: cine_hiro
+    character: hiro
+    at:
+    - -3644.375
+    - -3294.0
+    - -737.540405
+    angles:
+    - 0.0
+    - 101.414795
+    - 0.0
+    queue_spawn: true
+  tat1:
+    class: cine_toshiro
+    character: ebihara
+    at:
+    - -3685.75
+    - -3051.625
+    - -739.014343
+    angles:
+    - 0.0
+    - -90.0549316
+    - 0.0
+    queue_spawn: true
+shots:
+- duration: 8.0
+  fov: 70
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3668
+      - -3286
+      - -732
+      look_at: &id001
+      - -3674
+      - -3190
+      - -744
+    - at: 8.0
+      position:
+      - -3670
+      - -3262
+      - -734
+      look_at: *id001
+  events:
+  - at: 0.0
+    sound: global/b_009.wav
+    loop: false
+    channel: 3
+  - at: 2.0
+    sound: voices/misc/e1m1_auto_04.mp3
+    loop: false
+    channel: 2
+  - at: 6.0
+    sound: doors/e1/gdoorstop.wav
+    loop: false
+    channel: 3
+  - at: 6.19999981
+    sound: global/e_lightningf.wav
+    loop: false
+    channel: 3
+  - at: 7.19999981
+    sound: voices/hiro/e1m1_hiro_05.mp3
+    loop: false
+    channel: 2
+  tracks:
+    hiro2:
+    - queue: true
+      idle: stance
+    - queue: true
+      move_to:
+      - -3675.25
+      - -3172.5
+      - -759.360352
+      mode: inherit
+      clip: walka
+    - queue: true
+      use: dojodoor1
+    - queue: true
+      play: ambb
+    - at: 8.0
+      clear: true
+    tat1:
+    - queue: true
+      play: tka
+- duration: 3.0
+  fov: 65
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3709
+      - -3024
+      - -738
+      look_at: &id002
+      - -3679.875
+      - -3109.5
+      - -735
+    - at: 3.0
+      position:
+      - -3706
+      - -3027
+      - -738
+      look_at: *id002
+  events: []
+  tracks:
+    hiro2:
+    - queue: true
+      move_to:
+      - -3679.875
+      - -3109.5
+      - -759.384155
+      mode: inherit
+      clip: walka
+    - queue: true
+      play: ambb
+    - at: 3.0
+      clear: true
+    tat1: []
+- duration: 8.0
+  fov: 55
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3707
+      - -3100
+      - -738
+      look_at: &id003
+      - -3685.75
+      - -3051.625
+      - -744
+    - at: 8.0
+      position:
+      - -3704
+      - -3096
+      - -739
+      look_at: *id003
+  events:
+  - at: 0.0
+    sound: voices/ebihara/e1m1_ebi_01.mp3
+    loop: false
+    channel: 2
+  tracks:
+    hiro2: []
+    tat1:
+    - queue: true
+      play: tka
+    - at: 2.0
+      play: tka
+      enqueue: true
+    - at: 4.0
+      play: tkb
+      enqueue: true
+    - at: 6.0
+      play: tka
+      enqueue: true
+    - at: 8.0
+      clear: true
+- duration: 3.29999995
+  fov: 55
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3698
+      - -3082
+      - -742
+      look_at: &id004
+      - -3685.75
+      - -3051.625
+      - -744
+    - at: 3.29999995
+      position:
+      - -3697
+      - -3078
+      - -742
+      look_at: *id004
+  events:
+  - at: 1.5
+    sound: global/e_lightningm.wav
+    loop: false
+    channel: 3
+  tracks:
+    hiro2: []
+    tat1:
+    - queue: true
+      play: tka
+    - at: 2.0
+      play: tka
+      enqueue: true
+    - at: 3.29999995
+      clear: true
+- duration: 7.0
+  fov: 55
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3709
+      - -3026
+      - -737
+      look_at: &id005
+      - -3679.875
+      - -3109.5
+      - -735
+    - at: 7.0
+      position:
+      - -3706
+      - -3030
+      - -736
+      look_at: *id005
+  events:
+  - at: 0.100000001
+    sound: voices/hiro/e1m1_hiro_06.mp3
+    loop: false
+    channel: 2
+  tracks:
+    hiro2:
+    - queue: true
+      play: tkc
+    - queue: true
+      play: tka
+    - at: 3.0
+      play: tkb
+      enqueue: true
+    - queue: true
+      play: tka
+    - queue: true
+      play: tka
+    - at: 7.0
+      clear: true
+    tat1:
+    - at: 7.0
+      clear: true
+- duration: 7.0
+  fov: 55
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3707
+      - -3100
+      - -738
+      look_at: &id006
+      - -3685.75
+      - -3051.625
+      - -744
+    - at: 7.0
+      position:
+      - -3704
+      - -3096
+      - -739
+      look_at: *id006
+  events:
+  - at: 0.0
+    sound: voices/ebihara/e1m1_ebi_02.mp3
+    loop: false
+    channel: 2
+  - at: 1.5
+    sound: global/e_lightningf.wav
+    loop: false
+    channel: 3
+  tracks:
+    hiro2: []
+    tat1:
+    - queue: true
+      play: cough
+    - queue: true
+      play: coughb
+    - at: 2.0
+      play: coughb
+      enqueue: true
+    - at: 3.0
+      play: coughc
+      enqueue: true
+    - queue: true
+      play: tkb
+    - at: 7.0
+      clear: true
+- duration: 3.0
+  fov: 55
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3709
+      - -3026
+      - -737
+      look_at: &id007
+      - -3679.875
+      - -3109.5
+      - -735
+    - at: 3.0
+      position:
+      - -3706
+      - -3030
+      - -736
+      look_at: *id007
+  events:
+  - at: 0.100000001
+    sound: voices/hiro/e1m1_hiro_07.mp3
+    loop: false
+    channel: 2
+  tracks:
+    hiro2:
+    - queue: true
+      play: tkc
+    - queue: true
+      play: tkd
+    - at: 3.0
+      clear: true
+    tat1:
+    - at: 3.0
+      clear: true
+- duration: 8.5
+  fov: 55
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3707
+      - -3100
+      - -738
+      look_at: &id008
+      - -3685.75
+      - -3051.625
+      - -744
+    - at: 8.5
+      position:
+      - -3704
+      - -3096
+      - -739
+      look_at: *id008
+  events:
+  - at: 0.0
+    sound: voices/ebihara/e1m1_ebi_03.mp3
+    loop: false
+    channel: 2
+  tracks:
+    hiro2: []
+    tat1:
+    - queue: true
+      play: tka
+    - at: 1.5
+      play: tkc
+      enqueue: true
+    - queue: true
+      play: tkb
+    - queue: true
+      play: tka
+    - at: 5.0
+      play: tke
+      enqueue: true
+    - queue: true
+      play: tkc
+    - queue: true
+      play: tka
+    - at: 8.5
+      clear: true
+- duration: 3.0
+  fov: 55
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3709
+      - -3026
+      - -737
+      look_at: &id009
+      - -3679.875
+      - -3109.5
+      - -735
+    - at: 3.0
+      position:
+      - -3706
+      - -3030
+      - -736
+      look_at: *id009
+  events:
+  - at: 1.0
+    sound: voices/hiro/e1m1_hiro_08.mp3
+    loop: false
+    channel: 2
+  tracks:
+    hiro2:
+    - at: 1.0
+      play: tke
+      enqueue: true
+    - at: 3.0
+      clear: true
+    tat1:
+    - at: 2.0
+      clear: true
+- duration: 7.0
+  fov: 65
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3710
+      - -3164
+      - -722
+      look_at: &id010
+      - -3683
+      - -3080
+      - -747
+    - at: 7.0
+      position:
+      - -3706
+      - -3157
+      - -724
+      look_at: *id010
+  events:
+  - at: 0.0
+    sound: voices/ebihara/e1m1_ebi_04.mp3
+    loop: false
+    channel: 2
+  - at: 4.0
+    sound: voices/hiro/e1m1_hiro_09.mp3
+    loop: false
+    channel: 2
+  tracks:
+    hiro2:
+    - at: 4.0
+      play: tkea
+      enqueue: true
+    - at: 5.5
+      play: tkeb
+      enqueue: true
+    - at: 7.0
+      clear: true
+    tat1:
+    - queue: true
+      play: tkb
+    - at: 2.0
+      play: tkd
+      enqueue: true
+    - at: 4.0
+      play: tkda
+      enqueue: true
+    - at: 7.0
+      clear: true
+- duration: 7.0
+  fov: 55
+  camera:
+    keys:
+    - at: 0
+      position:
+      - -3698
+      - -3082
+      - -742
+      look_at: &id011
+      - -3685.75
+      - -3051.625
+      - -744
+    - at: 7.0
+      position:
+      - -3697
+      - -3078
+      - -742
+      look_at: *id011
+  events:
+  - at: 0.0
+    sound: voices/ebihara/e1m1_ebi_05.mp3
+    loop: false
+    channel: 2
+  - at: 1.5
+    sound: global/e_lightningj.wav
+    loop: false
+    channel: 3
+  tracks:
+    hiro2:
+    - at: 7.0
+      remove: true
+    tat1:
+    - queue: true
+      play: tkf
+    - at: 1.39999998
+      play: tka
+      enqueue: true
+    - at: 2.79999995
+      play: tka
+      enqueue: true
+    - queue: true
+      play: tkg
+    - queue: true
+      play: tka
+    - at: 7.0
+      remove: true

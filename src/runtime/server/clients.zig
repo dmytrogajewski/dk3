@@ -31,7 +31,7 @@ pub const Clients = struct {
         try self.disconnect(world, slots, projections, index, now);
         const multiplayer = @import("multiplayer.zig").enabled();
         const transform = if (multiplayer) try @import("multiplayer.zig").spawnPose(world, session, @intCast(index), session.deaths + @as(u32, @intCast(index))) else try arrivalPose(world, journey, @intCast(index));
-        const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Hurt{}, data.Keys{}, data.Character{}, data.Ailments{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
+        const entity = try world.create(null, .{ transform, data.Velocity{}, data.Player{ .command_ms = now, .respawned = true }, data.Health{}, data.Hurt{}, data.Random{ .state = @truncate(@as(u64, @bitCast(now)) +% index *% 7919 +% 1) }, data.Keys{}, data.Character{}, data.Ailments{}, data.Body{ .mins = .{ -15, -15, -24 }, .maxs = .{ 15, 15, 32 }, .contents = c.CONTENTS_BODY, .collision_mask = c.MASK_PLAYERSOLID }, data.Binding{ .slot = @intCast(index) }, data.Weapons{} });
         errdefer world.destroy(entity) catch unreachable;
         _ = try slots.acquire(entity, @intCast(index));
         self.entities[index] = entity;
@@ -114,7 +114,11 @@ pub const Clients = struct {
             try @import("weapon_actions.zig").cancel(world, slots, projections, entity);
             engine.unlink(&projections[index]);
             try slots.release(@intCast(index), entity);
-            try world.destroy(entity);
+            const session = world.get(entity, data.Session) catch null;
+            const hurt = (try world.get(entity, data.Hurt)).*;
+            if (session != null and (try world.get(entity, data.Health)).current <= 0 and hurt.feedback.death_handled and !hurt.feedback.gibbed) {
+                try @import("player_corpses.zig").retain(world, slots, projections, entity, projections[index].state, session.?.appearance, now);
+            } else try world.destroy(entity);
             self.entities[index] = null;
         }
     }
@@ -251,19 +255,20 @@ pub const Clients = struct {
         projection.state.clientNum = @intCast(index);
         projection.state.eType = c.ET_PLAYER;
         projection.state.eFlags = (ps.eFlags & ~@as(i32, c.EF_DEAD)) | (if (health.current <= 0) @as(i32, c.EF_DEAD) else 0);
-        projection.state.modelindex = (try world.get(entity, data.Binding)).model;
+        projection.state.modelindex = if ((try world.get(entity, data.Hurt)).feedback.gibbed) 0 else (try world.get(entity, data.Binding)).model;
         projection.state.angles2 = @splat(1);
         projection.state.dk3Team = ps.persistant[c.PERS_TEAM];
         projection.shared.svFlags = if ((try world.get(entity, data.Player)).mode == .spectator or @import("nharre_reaper.zig").frozen(world, entity)) c.SVF_NOCLIENT else 0;
         projection.state.pos.trType = c.TR_INTERPOLATE;
         projection.state.pos.trBase = transform.position;
+        projection.state.pos.trDelta = velocity.linear;
         projection.state.apos.trType = c.TR_INTERPOLATE;
         projection.state.apos.trBase = .{ 0, transform.angles[1], 0 };
         if (world.get(entity, data.Session) catch null) |session| {
             const pose_set = &(self.poses[@import("appearance_catalog").character(session.appearance)] orelse return error.MissingPlayerAnimation);
             const player = (try world.get(entity, data.Player)).*;
             const weapon = @import("weapon_catalog").find(@intCast(inventory.weapon)) orelse return error.UnknownPlayerWeapon;
-            const playback = pose_set.playback(&session.pose, .{ .velocity = velocity.linear, .yaw = transform.angles[1], .ducked = player.ducked, .jumping = player.jump_held and player.ground_entity == c.ENTITYNUM_NONE and player.water_level < 2, .dead = health.current <= 0, .fired_ms = inventory.last_fire_ms }, weapon.spec.player_grip, now);
+            const playback = pose_set.playback(&session.pose, .{ .velocity = velocity.linear, .yaw = transform.angles[1], .ducked = player.ducked, .jumping = player.jump_held and player.ground_entity == c.ENTITYNUM_NONE and player.water_level < 2, .dead = health.current <= 0, .fired_ms = inventory.last_fire_ms, .walk_speed = @as(f32, @floatFromInt(ps.speed)) * 0.65 }, weapon.spec.player_grip, now);
             @import("../engine/animation.zig").publish(&projection.state, playback, now);
         }
         projection.state.generic1 = if (ailments.stone) @import("actor_catalog").medusa.stone_tag else 0;

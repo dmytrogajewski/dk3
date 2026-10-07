@@ -14,7 +14,7 @@ import shutil
 import numpy as np
 
 import skeletal_iqm as sk
-from neural_assets import connected_motion
+from neural_assets import connected_motion, align_vectors
 
 
 # Measured on frontal and side orthographic mesh views, including the actual
@@ -36,6 +36,11 @@ LANDMARKS = {
                   arm=[(-1.2, 6.8, 18.5), (-.9, 9.8, 11.5), (-.5, 11.7, 5.5)],
                   leg=[(-.5, 4.6, 4), (-.7, 6.1, -9), (-1.6, 7.5, -21)], toe=(4.5, 8.3, -23)),
 }
+
+# Closed robes and long panels retain their continuous silhouettes. Their lower
+# surfaces follow pelvis-owned cloth bones rather than competing leg influences.
+CLOTH_MODES = dict(mishima='panels', charon='robe', osaka='robe', priest='robe',
+                   garroth='panels', tatsuo='panels', toshiro='cape')
 
 
 def rotation(axis, angle):
@@ -68,7 +73,7 @@ def skeleton(model, name):
         for n, p, pos in zip(('thigh', 'shin', 'foot'), ('pelvis', 'thigh', 'shin'), config['leg']):
             joint(n+'_'+side, p if p == 'pelvis' else p+'_'+side, np.array(pos)*mirror)
         joint('toe_'+side, 'foot_'+side, np.array(config['toe'])*mirror)
-    if name == 'mishima':
+    if name in CLOTH_MODES:
         joint('cloth_front', 'pelvis', [4, 0, 5])
         joint('cloth_back', 'pelvis', [-3, 0, 5])
     for n, p, offset in (('tag_torso', 'spine', [0, 0, 0]), ('tag_head', 'head', [0, 0, 0]),
@@ -82,7 +87,8 @@ def skeleton(model, name):
     return absolute
 
 
-def skin_weights(model, name, absolute):
+def skin_weights(model, name, absolute, *, landmarks=None, radius_scale=1.):
+    config = LANDMARKS[name] if landmarks is None else landmarks
     points = model.arrays[0]
     # Share weights across UV seams before smoothing over the actual surface.
     positions, indices, inverse = np.unique(np.round(points, 4), axis=0, return_index=True, return_inverse=True)
@@ -93,7 +99,7 @@ def skin_weights(model, name, absolute):
                           (('clavicle', 'upperarm'), ('upperarm', 'forearm'), ('forearm', 'hand'),
                            ('hand', 'fingers'), ('thigh', 'shin'), ('shin', 'foot'), ('foot', 'toe'))})
     for j, bone in enumerate(model.names):
-        if bone.startswith(('tag_', 'cloth_')): continue
+        if bone.startswith(('tag_', 'cloth_', 'hp_', 'hr_')): continue
         a = absolute[j, :3, 3]
         if bone in endpoints:
             b = absolute[model.names.index(endpoints[bone]), :3, 3]
@@ -103,18 +109,33 @@ def skin_weights(model, name, absolute):
         delta = b-a
         amount = np.clip((positions-a)@delta / max(delta@delta, 1e-8), 0, 1)
         distance = ((positions-a-amount[:, None]*delta)**2).sum(axis=1)
-        score = np.exp(-distance/8)
+        score = np.exp(-distance/(8*radius_scale**2))
         if bone.endswith(('_l', '_r')):
             sign = 1 if bone.endswith('_l') else -1
-            score *= np.clip(positions[:, 1]*sign/.8, 0, 1)
+            score *= np.clip(positions[:, 1]*sign/(.8*radius_scale), 0, 1)
         if bone.startswith(('thigh_', 'shin_', 'foot_', 'toe_')):
-            score *= np.clip((LANDMARKS[name]['leg'][0][2]+4-positions[:, 2])/4, 0, 1)
+            score *= np.clip((config['leg'][0][2]+4*radius_scale-positions[:, 2])/(4*radius_scale), 0, 1)
         if bone.startswith(('upperarm_', 'forearm_', 'hand_', 'fingers_', 'thumb_')):
-            score *= np.clip((np.abs(positions[:, 1])-4)/2, 0, 1)
+            score *= np.clip((np.abs(positions[:, 1])-4*radius_scale)/(2*radius_scale), 0, 1)
         scores[:, j] = score
-    if name == 'mishima':
+    if name in CLOTH_MODES:
         # The long central tabard must not acquire weights from both legs.
-        cloth = (positions[:, 2] < 5) & ((np.abs(positions[:, 1]) < 2.8) | (positions[:, 0] < -3.2))
+        mode=CLOTH_MODES[name]
+        below=positions[:,2]<5
+        if mode=='robe':
+            # A closed hem extends to the floor. Giving its final strip to
+            # moving feet tears the skirt open even when the rest is cloth.
+            cloth=below.copy()
+            if name!='charon':
+                feet_y=config['leg'][-1][1]
+                shoes=(positions[:,2]<-22.6)&(positions[:,0]>2.5)&(np.abs(np.abs(positions[:,1])-feet_y)<2.4)
+                cloth &= ~shoes
+        elif mode=='cape': cloth=below & (positions[:,0]<-3.2)
+        else: cloth=below & ((np.abs(positions[:,1])<2.8) | (positions[:,0]<-3.2))
+        # Relaxed A-pose fingers can fall below the robe's waist threshold.
+        # Preserve arm-owned surfaces rather than pinning the hands to cloth.
+        arm={j for j,n in enumerate(model.names) if n.startswith(('clavicle_','upperarm_','forearm_','hand_','fingers_','thumb_'))}
+        cloth &= ~np.isin(scores.argmax(axis=1),list(arm))
         for side, condition in (('front', positions[:, 0] >= 0), ('back', positions[:, 0] < 0)):
             selected = cloth & condition
             scores[selected] = 0
@@ -219,7 +240,11 @@ def pose(model, absolute, phase, kind='idle', grip='rifle'):
     moving = kind in ('walk', 'run', 'back', 'crouch_walk')
     crouch = kind in ('crouch', 'crouch_walk')
     root = np.array([0., 0, -8. if crouch else 0])
-    if moving: root[2] += .45*np.cos(phase*4*np.pi) - (2 if kind == 'run' else .5)
+    flight = 0.
+    if kind == 'run':
+        contact = phase % .5
+        if contact > .4: flight = 2*np.sin((contact-.4)/.1*np.pi)
+    if moving: root[2] += .45*np.cos(phase*4*np.pi) - (2 if kind == 'run' else .5) + flight
     if kind == 'idle': root[2] += .12*np.sin(phase*2*np.pi)
     dying = kind in ('death', 'dead')
     collapse = 1. if kind == 'dead' else phase*phase*(3-2*phase) if dying else 0.
@@ -234,14 +259,14 @@ def pose(model, absolute, phase, kind='idle', grip='rifle'):
         foot_rotation = np.eye(3)
         if moving:
             t = (phase+(0 if side == 'l' else .5)) % 1
-            stance = .5 if kind == 'run' else .62
-            stride = 27 if kind == 'run' else 17
+            stance = .4 if kind == 'run' else .62
+            stride = 32 if kind == 'run' else 17
             if t < stance:
                 ankle[0] += stride*(.5-t/stance)
             else:
                 swing = (t-stance)/(1-stance)
                 ankle[0] += stride*(-.5+swing*swing*(3-2*swing))
-                ankle[2] += (5 if kind == 'run' else 3)*np.sin(swing*np.pi)
+                ankle[2] += (9 if kind == 'run' else 3)*np.sin(swing*np.pi)
                 foot_rotation = rotation(1, -.18*np.sin(swing*np.pi))
             if kind == 'back': ankle[0] = -ankle[0]
         elif kind in ('jump', 'land'):
@@ -252,10 +277,19 @@ def pose(model, absolute, phase, kind='idle', grip='rifle'):
         fitted[index['foot_'+side], :3, 3] = ankle
         fitted[index['foot_'+side], :3, :3] = foot_rotation
         fitted[index['shin_'+side], :3, 3] = ankle+[10, -sign*1.5, 12]
-        if grip == 'pistol':
+        if grip == 'relaxed':
+            shoulder = absolute[index['upperarm_'+side], :3, 3]
+            hand = shoulder+[3, sign*2, -18]
+            if moving:
+                swing = np.sin(phase*2*np.pi)*sign
+                hand += [(9 if kind == 'run' else 5)*swing, 0, 0]
+                if kind == 'run': hand += [4, 0, 7 + 2*np.cos(phase*2*np.pi)]
+        elif grip == 'pistol':
             hand = np.array([11.5, sign*(4 if side == 'r' else 7), 15 if side == 'r' else 9])
         elif grip == 'glove': hand = np.array([8.5, sign*6.2, 14.5])
         else: hand = np.array([12 if side == 'r' else 13, sign*(4 if side == 'r' else 3), 14.5])
+        if moving and grip != 'relaxed':
+            hand += [.6*np.sin(phase*2*np.pi)*sign, 0, .35*np.cos(phase*4*np.pi)]
         if kind == 'attack':
             impulse = np.sin(np.pi*phase)**2
             if grip == 'glove' and side == 'r': hand += [8*impulse, 8*np.sin(phase*2*np.pi), 5*np.sin(phase*2*np.pi)]
@@ -267,7 +301,11 @@ def pose(model, absolute, phase, kind='idle', grip='rifle'):
         hand += root
         fitted[index['hand_'+side], :3, 3] = hand
         fitted[index['forearm_'+side], :3, 3] = hand+[-8, sign*6, -5]
-        fitted[index['hand_'+side], :3, :3] = rotation(1, .12*np.sin(phase*2*np.pi) if kind == 'attack' else 0)
+        # The mesh's palm extends down in the bind pose. Rotate it along the
+        # forearm instead of leaving its world rotation at identity.
+        rest = absolute[index['hand_'+side], :3, 3]-absolute[index['forearm_'+side], :3, 3]
+        aim = hand-fitted[index['forearm_'+side], :3, 3]
+        fitted[index['hand_'+side], :3, :3] = align_vectors(rest[None], aim[None])[0]
     # Lower the pelvis just enough to reach both planted feet. Clamping an
     # overextended leg in IK would lift its foot during the contact interval.
     drop = 0.
@@ -283,9 +321,18 @@ def pose(model, absolute, phase, kind='idle', grip='rifle'):
         fitted[index['hand_'+side], 2, 3] -= drop
         fitted[index['forearm_'+side], 2, 3] -= drop
     result = connected_motion(model, fitted[None])[0]
+    # Weapon model axes retain their established +X forward frame. Correcting
+    # the anatomical palm must not point the attached gun into the floor.
+    world = sk.matrices(result, model.parents)
+    if 'tag_weapon' in index:
+        tag = index['tag_weapon']
+        transform = np.eye(4)
+        transform[:3, :3] = world[index['hand_r'], :3, :3].T
+        transform[:3, 3] = model.bind[tag, :3]
+        result[tag] = sk.channels(transform[None, None], [-1])[0, 0]
     # Curl the real finger region; the wrist remains the weapon grip's parent.
     for side in ('l', 'r'):
-        curl = -.6*(1-collapse)
+        curl = (-.15 if grip == 'relaxed' else -.6)*(1-collapse)
         result[index['fingers_'+side], 3:7] = [0, np.sin(curl), 0, np.cos(curl)]
         result[index['thumb_'+side], 3:7] = [np.sin(.35 if side == 'l' else -.35), 0, 0, np.cos(.35)]
     if kind in ('death', 'dead'):
@@ -313,10 +360,13 @@ def clips(model, absolute):
              ('LEGS_SWIM', 'swim', 1., True), ('BOTH_DEATH1', 'death', .9, False),
              ('BOTH_DEAD1', 'dead', 1/30, False)]
     for label, kind, seconds, loop in specs:
-        count = max(1, round(seconds*30))
-        start = len(frames)
-        frames += [pose(model, absolute, f/(count if loop else max(1, count-1)), kind) for f in range(count)]
-        definitions.append(dict(name=label, first=start, count=count, fps=30, loop=count if loop else 0))
+        for grip in ('glove', 'pistol', 'rifle') if label.startswith('LEGS_') else ('rifle',):
+            count = max(1, round(seconds*30))
+            start = len(frames)
+            stance = 'relaxed' if grip == 'glove' and kind in ('idle', 'walk', 'run', 'back', 'jump', 'land') else grip
+            frames += [pose(model, absolute, f/(count if loop else max(1, count-1)), kind, stance) for f in range(count)]
+            definitions.append(dict(name=f'{label}_{grip.upper()}', first=start, count=count, fps=30, loop=count if loop else 0))
+        definitions.append(dict(definitions[-1], name=label))
     for grip in ('glove', 'pistol', 'rifle'):
         for label, kind, count in (('STAND', 'idle', 1), ('ATTACK', 'attack', 12)):
             start = len(frames)

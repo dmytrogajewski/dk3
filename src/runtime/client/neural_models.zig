@@ -8,6 +8,7 @@ const Entry = struct {
     source: [64:0]u8 = @splat(0),
     target: [64:0]u8 = @splat(0),
     handle: c.qhandle_t = 0,
+    legacy_handle: c.qhandle_t = 0,
     skins: [4]c.qhandle_t = @splat(0),
 };
 var entries: [160]Entry = @splat(.{});
@@ -29,6 +30,23 @@ var animations_loaded = false;
 const Blend = struct { model: c.qhandle_t = 0, sequence: usize = 0, frame: i32 = 0, oldframe: i32 = 0, backlerp: f32 = 0, from: i32 = 0, started: i64 = 0, seen: i64 = 0, animation_started: i32 = 0, fired: i32 = 0 };
 var blends: [c.MAX_GENTITIES]Blend = @splat(.{});
 
+fn legacyFrame(entry: *Entry, state: c.entityState_t, rendered: *c.refEntity_t) !void {
+    // A partial authored clip table must keep every unconverted cinematic
+    // sequence playable from its original converted DKM/MD3 presentation.
+    const source = std.mem.sliceTo(&entry.source, 0);
+    if (!std.mem.startsWith(u8, source, "models/cinematic/") or
+        !std.mem.endsWith(u8, source, ".dkm") or rendered.hModel != entry.handle) return;
+    if (entry.legacy_handle == 0) {
+        var path: [c.MAX_QPATH + 5]u8 = undefined;
+        const converted = try std.fmt.bufPrintZ(&path, "{s}.md3", .{source});
+        entry.legacy_handle = @intCast(engine.gateway.call(c.CG_R_REGISTERMODEL, .{converted.ptr}));
+        if (entry.legacy_handle == 0) return error.LegacyModelUnavailable;
+    }
+    rendered.hModel = entry.legacy_handle;
+    rendered.customSkin = 0;
+    if (state.number >= 0 and state.number < blends.len) blends[@intCast(state.number)] = .{};
+}
+
 pub fn reset() void {
     @import("ragdolls.zig").reset();
     entries = @splat(.{});
@@ -41,7 +59,19 @@ pub fn reset() void {
 }
 
 pub fn animate(name: []const u8, state: c.entityState_t, now: i64, rendered: *c.refEntity_t) !void {
-    if (try find(name) == null or state.dk3AnimationRate <= 0) return;
+    const mapped = try find(name) orelse return;
+    if (state.dk3AnimationRate <= 0) {
+        try legacyFrame(mapped, state, rendered);
+        return;
+    }
+    var animation_model = name;
+    if (state.eType == c.ET_PLAYER) for (entries[0..count]) |entry| {
+        const source = std.mem.sliceTo(&entry.source, 0);
+        if (entry.handle == rendered.hModel and std.mem.startsWith(u8, source, "player/")) {
+            animation_model = source;
+            break;
+        }
+    };
     if (!animations_loaded) {
         animations_loaded = true;
         if (try @import("../engine/files.zig").readOptional(.client, &engine.gateway, std.heap.c_allocator, "dk3/neural-animations.cfg", 256 * 1024)) |bytes| {
@@ -72,7 +102,7 @@ pub fn animate(name: []const u8, state: c.entityState_t, now: i64, rendered: *c.
     const first = @min(state.dk3AnimationFirst, state.dk3AnimationLast);
     const last = @max(state.dk3AnimationFirst, state.dk3AnimationLast);
     for (animations[0..animation_count], 0..) |entry, index| {
-        if (first != entry.first or last != entry.last or !std.mem.eql(u8, std.mem.sliceTo(&entry.source, 0), name)) continue;
+        if (first != entry.first or last != entry.last or !std.mem.eql(u8, std.mem.sliceTo(&entry.source, 0), animation_model)) continue;
         const value = motion.sample(entry.clip, @as(u32, entry.last) - entry.first + 1, @intCast(state.dk3AnimationRate), now - state.dk3AnimationStart, state.dk3AnimationLoop != 0, state.dk3AnimationFirst > state.dk3AnimationLast);
         rendered.frame = value.frame;
         rendered.oldframe = value.oldframe;
@@ -107,6 +137,7 @@ pub fn animate(name: []const u8, state: c.entityState_t, now: i64, rendered: *c.
         }
         return;
     }
+    try legacyFrame(mapped, state, rendered);
 }
 
 pub fn diagnostics(now: i64) void {
@@ -123,6 +154,11 @@ pub fn isSkeletal(handle: c.qhandle_t) bool {
     return false;
 }
 fn find(name: []const u8) !?*Entry {
+    // Reconstructed cinematic performances have not passed native visual
+    // review. Keep the original vertex-model acting even when a general
+    // skeletal gameplay package is installed. Explicit preview runs opt in
+    // before model registration with +set cg_neuralCinematics 1.
+    if (std.mem.startsWith(u8, name, "models/cinematic/") and engine.integer("cg_neuralCinematics") != 1) return null;
     if (!loaded) {
         loaded = true;
         if (try @import("../engine/files.zig").readOptional(.client, &engine.gateway, std.heap.c_allocator, "dk3/neural-models.cfg", 32768)) |bytes| {
@@ -177,7 +213,13 @@ pub fn player(game: *const c.gameState_t, slot: i32, rendered: *c.refEntity_t) !
         return;
     };
     const index = catalog.parse(selection) orelse return error.UnknownPlayerAppearance;
+    try playerAppearance(index, rendered);
+}
+pub fn playerAppearance(index: usize, rendered: *c.refEntity_t) !void {
+    const catalog = @import("appearance_catalog");
+    if (index >= catalog.entries.len) return error.UnknownPlayerAppearance;
     const entry = catalog.entries[index];
+    const selection = entry.selection;
     const slash = std.mem.indexOfScalar(u8, selection, '/') orelse return error.UnknownPlayerAppearance;
     var path: [80]u8 = undefined;
     const key = if (index < 36) entry.model else try std.fmt.bufPrint(&path, "player/{s}", .{selection[0..slash]});

@@ -8,7 +8,9 @@ pub const components = @import("domain/components.zig");
 pub const motion = @import("server/motion.zig");
 pub const map = @import("server/map.zig");
 test {
+    _ = @import("client/attachments.zig");
     _ = @import("domain/ragdoll.zig");
+    _ = @import("domain/creature_body.zig");
     _ = @import("domain/bone_matrix.zig");
     _ = @import("domain/map_catalog.zig");
     _ = @import("domain/view_motion.zig");
@@ -16,6 +18,8 @@ test {
     _ = @import("client/world_admission.zig");
     _ = @import("engine/navigation.zig");
     _ = @import("client/config_patch.zig");
+    _ = @import("client/loading_bar.zig");
+    _ = @import("client/ragdolls.zig");
     _ = @import("domain/campaign_regions.zig");
     _ = @import("domain/portal_trace.zig");
     _ = @import("domain/world_aperture.zig");
@@ -31,6 +35,17 @@ test {
     _ = @import("domain/multiplayer.zig");
     _ = @import("domain/bot_combat.zig");
     _ = @import("server/bots.zig");
+    _ = @import("engine/lua.zig");
+    _ = @import("domain/coop_route.zig");
+    _ = @import("server/coop_bot.zig");
+    _ = @import("server/bot_evasion.zig");
+    _ = @import("server/bot_pilot.zig");
+    _ = @import("server/coop_motor.zig");
+    _ = @import("server/bot_input.zig");
+    _ = @import("server/bot_survival.zig");
+    _ = @import("server/resident_worlds.zig");
+    _ = @import("server/companion_pilot.zig");
+    _ = @import("server/companion_brain.zig");
     _ = @import("server/resources.zig");
     _ = @import("server/bot_routes.zig");
     _ = @import("server/items.zig");
@@ -84,6 +99,7 @@ test {
     _ = @import("domain/skeletal_animation.zig");
     _ = @import("engine/animation.zig");
     _ = @import("client/interpolation.zig");
+    _ = @import("client/ground_motion.zig");
     _ = @import("client/sky.zig");
     _ = @import("domain/checkpoint.zig");
     _ = @import("domain/explosives.zig");

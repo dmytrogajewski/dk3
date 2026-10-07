@@ -69,6 +69,22 @@ pub const State = struct {
         self.held = enabled;
         engine.send(0, if (enabled) "dk3_region_wait 1" else "dk3_region_wait 0");
     }
+    /// Hold for the maps joined to `map` and tell the client how many, so its
+    /// loading bar has a fixed denominator from the start.
+    pub fn holdFor(self: *State, map: []const u8) void {
+        if (self.held) return;
+        self.held = true;
+        var command: [48]u8 = undefined;
+        engine.send(0, std.fmt.bufPrintZ(&command, "dk3_region_wait 1 {d}", .{self.joined(map)}) catch unreachable);
+    }
+    /// Other maps of `map`'s seamless region (those its admission waits for).
+    pub fn joined(self: *const State, map: []const u8) usize {
+        const index = self.manifest.find(map) orelse return 0;
+        const wanted = self.manifest.region(index);
+        var count: usize = 0;
+        for (wanted[0..self.manifest.count], 0..) |selected, other| count += @intFromBool(selected and other != index);
+        return count;
+    }
 };
 
 test "failed lookahead leaves the current region ready but never admits the failed destination" {

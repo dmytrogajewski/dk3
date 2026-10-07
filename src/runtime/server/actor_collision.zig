@@ -70,6 +70,15 @@ pub const Frame = struct {
         if (!hit.all_solid) self.remember(hit.end, hit.world);
         return hit;
     }
+    /// A look-ahead query (a planner's floor or hazard probe) is not a place
+    /// the actor went: it must not vote on the seam owner of the final pose.
+    fn probeTrace(raw: *anyopaque, request: collision.Request) !collision.Trace {
+        const self: *Frame = @ptrCast(@alignCast(raw));
+        const owner = try self.ownerAt(request.start);
+        const context = access.contextFor(self.world) orelse return engine.collisionService().trace(request);
+        const skip = if (request.slot < context.slots.occupants.len) (if (context.slots.occupants[request.slot]) |entity| try self.world.persistentId(entity) else 0) else 0;
+        return geometry.from(owner, request, skip);
+    }
     fn contents(raw: *anyopaque, point: data.Vec3, slot: u16) !u32 {
         const self: *Frame = @ptrCast(@alignCast(raw));
         const context = access.contextFor(self.world) orelse return engine.collisionService().contents(point, slot);
@@ -101,6 +110,11 @@ pub fn ownerAt(world: *data.World, point: data.Vec3) !u32 {
 pub fn service() collision.Collision {
     const frame = active orelse return engine.collisionService();
     return .{ .context = frame, .trace_fn = Frame.trace, .contents_fn = Frame.contents };
+}
+/// Region-aware queries for planning that leave the seam ownership marks alone.
+pub fn probe() collision.Collision {
+    const frame = active orelse return engine.collisionService();
+    return .{ .context = frame, .trace_fn = Frame.probeTrace, .contents_fn = Frame.contents };
 }
 
 test "alternate step probes retain the ownership of the accepted position" {

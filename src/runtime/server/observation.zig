@@ -17,6 +17,7 @@ pub fn match(world: *data.World, now: i64) !void {
             const character = (try world.get(entity, data.Character)).*;
             const position = (try world.get(entity, data.Transform)).position;
             const hurt = (try world.get(entity, data.Hurt)).*;
+            engine.print(try std.fmt.bufPrintZ(&text, "dk3 match attributes: slot={d} base={d},{d},{d},{d},{d} effective={d},{d},{d},{d},{d} points={d}\n", .{ (try world.get(entity, data.Binding)).slot, character.attributes[0], character.attributes[1], character.attributes[2], character.attributes[3], character.attributes[4], character.attribute(.power, now), character.attribute(.attack, now), character.attribute(.speed, now), character.attribute(.acro, now), character.attribute(.vita, now), character.points }));
             engine.print(try std.fmt.bufPrintZ(&text, "dk3 match player: respawned={d} cmd={d} slot={d} id={d} bot={d} team={s} health={d} mode={s} score={d} deaths={d} captures={d} weapon={d} inventory={d} ammo={d} fire={d} event={d} experience={d} level={d} hurt={d} source={d} hit_weapon={d} pos={d:.3},{d:.3},{d:.3} appearance={d}\n", .{
                 @intFromBool(player.respawned), player.command_ms, (try world.get(entity, data.Binding)).slot, try world.persistentId(entity), @intFromBool(session.bot), @tagName(session.team), (try world.get(entity, data.Health)).current, @tagName(player.mode), session.score, session.deaths, session.captures, weapons.weapon, weapons.dk3Inventory, weapons.ammo[@intCast(std.math.clamp(weapons.weapon, 0, 31))], weapons.last_fire_ms orelse -1, weapons.event_sequence, character.experience, character.level, hurt.amount, hurt.source, hurt.weapon, position[0], position[1], position[2], session.appearance,
             }));
@@ -26,7 +27,8 @@ pub fn match(world: *data.World, now: i64) !void {
     {
         defer objectives.deinit();
         while (objectives.next()) |view| for (view.entities(), view.read(data.Objective)) |entity, objective| {
-            engine.print(try std.fmt.bufPrintZ(&text, "dk3 match objective: id={d} team={s} phase={s} carrier={d} deadline={d}\n", .{ try world.persistentId(entity), @tagName(objective.team), @tagName(objective.phase), objective.carrier orelse 0, objective.deadline orelse 0 }));
+            const at = (try world.get(entity, data.Transform)).position;
+            engine.print(try std.fmt.bufPrintZ(&text, "dk3 match objective: id={d} team={s} phase={s} carrier={d} deadline={d} airborne={d} pos={d:.1},{d:.1},{d:.1}\n", .{ try world.persistentId(entity), @tagName(objective.team), @tagName(objective.phase), objective.carrier orelse 0, objective.deadline orelse 0, @intFromBool(objective.airborne), at[0], at[1], at[2] }));
         };
     }
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 match complete: now={d}\n", .{now}));

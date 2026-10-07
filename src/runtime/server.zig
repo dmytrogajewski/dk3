@@ -22,7 +22,10 @@ const checkpoint_rules = @import("domain/checkpoint.zig");
 var checkpoint: checkpoint_rules.State = .{};
 var autosave: checkpoint_rules.Autosave = .{};
 var resident_worlds: @import("server/resident_worlds.zig").State = .{};
+var demote_ms: i64 = 0;
 var progression: @import("server/region_progression.zig").State = .{};
+/// Scripted co-op verification bot; module-global so it survives region travel.
+var coop: @import("server/coop_bot.zig").Driver = .{};
 
 export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
     engine.gateway.bind(callback);
@@ -30,12 +33,15 @@ export fn dllEntry(callback: abi.Syscall) callconv(.c) void {
 fn shutdown(restart: bool) void {
     engine.config_observer = null;
     @import("server/region_access.zig").region = null;
+    @import("server/companion_pilot.zig").reset();
+    demote_ms = 0;
     // Engine bot client slots outlive a fast VM restart. Release their input
     // owners before unloading; the new match population admits fresh bots.
     if (restart) if (active.world) |*value| for (active.bots.brains, 0..) |brain, index| {
         if (brain != null) active.bots.remove(value, &active.slots, &active.projection, &active.clients, index, clock.now_ms) catch |err| runtimeFailure(err);
     };
     if (active.world) |*value| rooms.checkpoint(value, &active.clients) catch |err| runtimeFailure(err);
+    coop.deinit();
     active = &initial_context;
     active.running = false;
     active.configuration.deinit();
@@ -159,20 +165,35 @@ fn init(now: i64, restart: bool) !void {
     }
     try rooms.init();
     if (engine.integer("dk3_runtime_probe") == 2) try progression.init();
-    active.configuration.enabled = true;
+    // A save restores its map's own seamless region before play; the other
+    // maps it carries stay dormant until travel or prefetch wants them.
+    if (active.restore_pending) |*saved| if (progression.manifest.count != 0) try resident_worlds.retainRegion(saved, &progression.manifest);
     // Publish the saved resource registry while the engine is still loading the
     // map. The initial gamestate must contain these identities; replacing them
     // at ClientBegin can overflow reliable commands before any acknowledgement.
-    if (active.restore_pending) |saved| try @import("server/resources.zig").restore(saved.header.resources);
+    // Bounded regional patches start only once the traveler has that gamestate
+    // (beginClient): until then a change is simply part of it, and marking it
+    // pending would hide every entity using it until a patch drained.
+    if (active.restore_pending) |*saved| {
+        try @import("server/resources.zig").restore(saved.header.resources);
+        // Complete immutable mover bindings before the engine sends the first
+        // gamestate. Registering them only during projection can leave an old
+        // save's first press ahead of its sound configstring.
+        try @import("server/movers.zig").restoreSounds(&saved.world);
+    }
     var text: [160]u8 = undefined;
     engine.print(try std.fmt.bufPrintZ(&text, "dk3 zig: isolated bootstrap, {d} map entities, {d} workers; gameplay not qualified\n", .{ active.world.?.count(), jobs }));
+    coop.configure();
 }
 /// Ownership transfers only after all admission/rebasing checks have succeeded.
 fn restore(loaded: *@import("domain/snapshot.zig").Loaded, visit: bool) !void {
+    // Companion planning is transient: a restored party plans afresh.
+    @import("server/companion_pilot.zig").reset();
     // Earlier native schema-1 snapshots predate exit latches. Reconstruct their
     // default from authored metadata without replacing an already saved latch.
     try campaign_module.spawn(&loaded.world);
     try @import("server/monitors.zig").spawn(&loaded.world);
+    try @import("server/attachments.zig").reconcile(&loaded.world);
     try persistence.admit(loaded, &active.systems);
     try loaded.rebase(clock.now_ms);
     var staged_campaign = if (!visit) try campaign_module.State.fromArchives(loaded.visited) else null;
@@ -288,6 +309,7 @@ fn rememberCheckpoint(slot: []const u8, previous: bool) !void {
         try @import("engine/save_storage.zig").write(checkpoint_rules.slot, bytes, false);
     }
     checkpoint.saved();
+    coop.checkpointSaved();
     engine.print("dk3 checkpoint: ready\n");
 }
 fn recovery() !void {
@@ -297,7 +319,9 @@ fn recovery() !void {
     const alive = (try active.world.?.get(entity, component.Health)).current > 0;
     const playable = alive and player.mode == .normal and player.command_ms > 0 and !@import("server/cinematics.zig").active(&active.world.?) and !progression.held;
     const periodic_due = autosave.due(clock.now_ms);
-    if (playable and clock.now_ms >= autosave.retry_ms and (checkpoint.pending or (periodic_due and try @import("server/companions.zig").healthyParty(&active.world.?, entity)))) {
+    const health = (try active.world.?.get(entity, component.Health)).*;
+    const arrival_due = checkpoint.pending and checkpoint_rules.Autosave.arrivalAdmits(health.current, health.maximum, checkpoint.available);
+    if (playable and clock.now_ms >= autosave.retry_ms and (arrival_due or (!checkpoint.pending and periodic_due and try @import("server/companions.zig").healthyParty(&active.world.?, entity)))) {
         const slot = if (checkpoint.pending) checkpoint_rules.arrival_slot else checkpoint_rules.periodic_slot;
         // Advance the deadline only after the atomic write has completed. Failed
         // storage is retried with a bound rather than once per simulation frame.
@@ -387,6 +411,17 @@ fn consoleCommand() isize {
         };
         return 1;
     }
+    if (std.mem.eql(u8, command, "dk3_runtime_navigation_coverage")) {
+        // dk3_runtime_navigation_coverage [grid step] [jump height]
+        var value: [32]u8 = undefined;
+        const step = std.fmt.parseFloat(f32, engine.argv(1, &value)) catch 16;
+        const jump = std.fmt.parseFloat(f32, engine.argv(2, &value)) catch 33;
+        @import("server/navigation_coverage.zig").run(&active.world.?, &active.projection, .{ .step = step, .jump = jump }) catch |err| {
+            var message: [128]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "dk3 navcover: failed {s}\n", .{@errorName(err)}) catch unreachable);
+        };
+        return 1;
+    }
     if (std.mem.eql(u8, command, "dk3_runtime_route_controls")) {
         for (active.clients.entities) |maybe| if (maybe) |entity| {
             const pose = (active.world.?.get(entity, component.Transform) catch continue).*;
@@ -414,6 +449,10 @@ fn consoleCommand() isize {
         }
         if (std.mem.eql(u8, command, "dk3_runtime_actors")) {
             @import("server/actors.zig").diagnostics(&active.systems.actors, &active.world.?, &active.slots, clock.now_ms) catch |err| runtimeFailure(err);
+            return 1;
+        }
+        if (std.mem.eql(u8, command, "dk3_runtime_performers")) {
+            @import("server/cinematics.zig").diagnostics(&active.world.?, clock.now_ms) catch |err| runtimeFailure(err);
             return 1;
         }
         if (@import("server/actor_probe.zig").command(command, active, clock.now_ms) catch |err| blk: {
@@ -446,12 +485,38 @@ fn consoleCommand() isize {
         }
         return 1;
     }
+    if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_config_pending")) {
+        // Entities withheld from snapshots until a configstring they use has
+        // finished bounded publication (invisible to the client meanwhile).
+        var entities: usize = 0;
+        for (active.slots.occupants, 0..) |maybe, slot| if (maybe != null) {
+            if (active.projection[slot].shared.svFlags & c.SVF_DK3_CONFIG_PENDING != 0) entities += 1;
+        };
+        var indices: usize = 0;
+        for (active.configuration.dirty) |dirty| indices += @intFromBool(dirty);
+        var message: [160]u8 = undefined;
+        engine.print(std.fmt.bufPrintZ(&message, "dk3 config pending: entities={d} indices={d} sent={d} acknowledged={d}\n", .{ entities, indices + @intFromBool(active.configuration.pending != null), active.configuration.sent, active.configuration.acknowledged }) catch unreachable);
+        return 1;
+    }
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_damage")) {
-        const entity = active.clients.entities[0] orelse return 1;
+        // Diagnostic: `dk3_runtime_damage <amount> [mikiko|superfly]` hurts the
+        // player, or the named companion of the player's party.
+        const player = active.clients.entities[0] orelse return 1;
         var argument: [64]u8 = undefined;
         const amount = std.fmt.parseInt(i32, engine.argv(1, &argument), 10) catch return 1;
         if (amount <= 0 or amount > 10000) return 1;
-        const result = @import("server/damage.zig").apply(&active.world.?, entity, amount, clock.now_ms, .{}) catch |err| runtimeFailure(err);
+        var who: [32]u8 = undefined;
+        const name = engine.argv(2, &who);
+        var target_world = &active.world.?;
+        var entity = player;
+        if (name.len != 0) {
+            const identity = std.meta.stringToEnum(@import("actor_catalog").companions.Identity, name) orelse return 1;
+            const owner = active.world.?.persistentId(player) catch unreachable;
+            const member = @import("server/companions.zig").member(&active.world.?, identity, owner) orelse return 1;
+            target_world = member.world;
+            entity = member.entity;
+        }
+        const result = @import("server/damage.zig").apply(target_world, entity, amount, clock.now_ms, .{}) catch |err| runtimeFailure(err);
         var message: [128]u8 = undefined;
         engine.print(std.fmt.bufPrintZ(&message, "zig damage blood={d} armor={d} killed={d}\n", .{ result.blood, result.armor, @intFromBool(result.killed) }) catch unreachable);
         return 1;
@@ -459,6 +524,8 @@ fn consoleCommand() isize {
     if (engine.integer("dk3_runtime_probe") == 2 and std.mem.eql(u8, command, "dk3_runtime_character")) {
         const entity = active.clients.entities[0] orelse return 1;
         const state = (active.world.?.get(entity, component.Character) catch unreachable).*;
+        var values: [256]u8 = undefined;
+        engine.print(std.fmt.bufPrintZ(&values, "zig character attributes base={d},{d},{d},{d},{d} effective={d},{d},{d},{d},{d}\n", .{ state.attributes[0], state.attributes[1], state.attributes[2], state.attributes[3], state.attributes[4], state.attribute(.power, clock.now_ms), state.attribute(.attack, clock.now_ms), state.attribute(.speed, clock.now_ms), state.attribute(.acro, clock.now_ms), state.attribute(.vita, clock.now_ms) }) catch unreachable);
         var message: [256]u8 = undefined;
         engine.print(std.fmt.bufPrintZ(&message, "zig character time={d} speed={d} boost_until={d} invincible={d} environment={d} gems={d} level={d} points={d}\n", .{ clock.now_ms, state.attribute(.speed, clock.now_ms), state.boost_until[2], state.invincible_until, state.environment_until, state.save_gems, state.level, state.points }) catch unreachable);
         return 1;
@@ -622,10 +689,37 @@ fn refuseDeparture(request: @import("domain/travel.zig").Request, err: anyerror)
     engine.print(try std.fmt.bufPrintZ(&message, "dk3 travel: exit {d} refused: {s}\n", .{ request.exit, @errorName(err) }));
     if (err == error.RegionPreparationFailed) engine.send(0, "cp \"The next area could not be loaded.\"");
 }
+/// Ordinary client entry. Slot 0 is the single-player traveler: companions,
+/// pending restoration, legacy arrival and initial region admission follow it.
+fn beginClient(arg0: usize) void {
+    if (arg0 == 0) active.configuration.begin();
+    active.clients.begin(&active.world.?, &active.slots, &active.projection, &active.players, arg0, clock.now_ms, if (arg0 == 0 and campaign.arrival != null) campaign.arrival.?.journey else null) catch |err| runtimeFailure(err);
+    if (arg0 == 0 and active.restore_pending == null) @import("server/companions.zig").start(&active.systems.actors, &active.world.?, &active.slots, &active.projection, active.clients.entities[0].?, if (campaign.arrival) |arrival| arrival.journey.spawn else "", if (campaign.arrival) |arrival| if (arrival.journey.kind == .submap) arrival.journey.companions else null else null, clock.now_ms) catch |err| runtimeFailure(err);
+    if (arg0 == 0) if (active.restore_pending) |value| {
+        if (value.residents.len != 0) {
+            var wait_command: [64]u8 = undefined;
+            engine.send(0, std.fmt.bufPrintZ(&wait_command, "dk3_region_wait 1 {d}", .{value.residents.len}) catch unreachable);
+        } else {
+            var saved = value;
+            active.restore_pending = null;
+            restore(&saved, restoring_visit) catch |err| {
+                saved.deinit(std.heap.c_allocator);
+                runtimeFailure(err);
+            };
+        }
+    };
+    if (arg0 == 0) if (campaign.arrival) |arrival| {
+        active.clients.arrive(&active.world.?, &active.slots, &active.projection, &active.players, arrival, &active.systems.actors, clock.now_ms) catch |err| runtimeFailure(err);
+        campaign.arrival = null;
+        restoring_visit = false;
+    };
+    if (arg0 == 0 and progression.initial_pending) progression.holdFor(std.mem.sliceTo(&active.map_name, 0));
+}
 export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: isize, arg4: isize, arg5: isize, arg6: isize, arg7: isize, arg8: isize, arg9: isize, arg10: isize, arg11: isize) callconv(.c) isize {
     _ = .{ arg1, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11 };
     switch (command) {
         c.GAME_INIT => init(arg0, arg2 != 0) catch |err| {
+            if (@errorReturnTrace()) |trace| std.debug.dumpErrorReturnTrace(trace);
             var buffer: [256]u8 = undefined;
             engine.fatal(std.fmt.bufPrintZ(&buffer, "Native Zig runtime: {s}. Isolated development uses dk3_runtime_probe=2; bootstrap diagnostics use 1.", .{@errorName(err)}) catch unreachable);
         },
@@ -640,29 +734,7 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             if (rooms.connect(&active.clients, @intCast(arg0), arg2 != 0) catch |err| runtimeFailure(err)) |reason| return @intCast(@intFromPtr(reason.ptr));
             return 0;
         },
-        c.GAME_CLIENT_BEGIN => {
-            active.clients.begin(&active.world.?, &active.slots, &active.projection, &active.players, @intCast(arg0), clock.now_ms, if (arg0 == 0 and campaign.arrival != null) campaign.arrival.?.journey else null) catch |err| runtimeFailure(err);
-            if (arg0 == 0 and active.restore_pending == null) @import("server/companions.zig").start(&active.systems.actors, &active.world.?, &active.slots, &active.projection, active.clients.entities[0].?, if (campaign.arrival) |arrival| arrival.journey.spawn else "", if (campaign.arrival) |arrival| if (arrival.journey.kind == .submap) arrival.journey.companions else null else null, clock.now_ms) catch |err| runtimeFailure(err);
-            if (arg0 == 0) if (active.restore_pending) |value| {
-                if (value.residents.len != 0) {
-                    var wait_command: [64]u8 = undefined;
-                    engine.send(0, std.fmt.bufPrintZ(&wait_command, "dk3_region_wait 1 {d}", .{value.residents.len}) catch unreachable);
-                } else {
-                    var saved = value;
-                    active.restore_pending = null;
-                    restore(&saved, restoring_visit) catch |err| {
-                        saved.deinit(std.heap.c_allocator);
-                        runtimeFailure(err);
-                    };
-                }
-            };
-            if (arg0 == 0) if (campaign.arrival) |arrival| {
-                active.clients.arrive(&active.world.?, &active.slots, &active.projection, &active.players, arrival, &active.systems.actors, clock.now_ms) catch |err| runtimeFailure(err);
-                campaign.arrival = null;
-                restoring_visit = false;
-            };
-            if (arg0 == 0 and progression.initial_pending) progression.hold(true);
-        },
+        c.GAME_CLIENT_BEGIN => beginClient(@intCast(arg0)),
         c.GAME_CLIENT_USERINFO_CHANGED => active.clients.userinfo(&active.world.?, @intCast(arg0)) catch |err| runtimeFailure(err),
         c.GAME_CLIENT_THINK => if (active.restore_pending == null and !progression.held and !progression.initial_pending) {
             active.clients.think(&active.world.?, &active.slots, &active.projection, &active.players, @intCast(arg0), clock.now_ms) catch |err| runtimeFailure(err);
@@ -682,6 +754,11 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
             };
             if (engine.integer("dk3_runtime_probe") == 2) {
                 if (campaign.departing) return 0;
+                // The co-op bot is a client: it is admitted through the ordinary
+                // begin path and answers publication even while the world is held.
+                if (coop.admit(active.clients.entities[0] != null, clock.now_ms)) |index| beginClient(index);
+                coop.pump();
+                defer coop.finishFrame(&active.projection);
                 if (active.clients.entities[0] == null and engine.integer("g_gametype") == c.GT_SINGLE_PLAYER) return 0;
                 resident_worlds.step(clock.now_ms, &active.clients.weapon_table) catch |err| runtimeFailure(err);
                 if (active.restore_pending) |*pending| {
@@ -704,6 +781,12 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 }
                 _ = progression.ready(&resident_worlds, &initial_context, std.mem.sliceTo(&active.map_name, 0), true) catch |err| runtimeFailure(err);
                 progression.publishPortals() catch |err| runtimeFailure(err);
+                // Maps left behind (beyond the current region and the next
+                // exits) give their memory back and keep their state dormant.
+                if (progression.pending == null and !progression.held and clock.now_ms >= demote_ms) {
+                    demote_ms = clock.now_ms + 2000;
+                    _ = resident_worlds.demote(&progression.manifest, std.mem.sliceTo(&active.map_name, 0), active) catch |err| runtimeFailure(err);
+                }
                 if (progression.pending) |request| {
                     depart(request) catch |err| switch (err) {
                         error.RegionPreparationFailed => refuseDeparture(request, err) catch |failure| runtimeFailure(failure),
@@ -716,7 +799,9 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
                 active.systems.multiplayer.warmup = rooms.warmup_ms != 0;
                 campaign_module.endings(&active.world.?, &active.targets, clock.now_ms) catch |err| runtimeFailure(err);
                 active.systems.cinematics.step(&active.world.?, &active.slots, &active.projection, &active.targets, active.clients.entities[0], clock.now_ms) catch |err| runtimeFailure(err);
-                active.bots.step(&active.world.?, &active.slots, &active.projection, &active.players, &active.clients, &active.targets, active.systems.navigation.service(), clock.now_ms) catch |err| runtimeFailure(err);
+                active.bots.step(&active.world.?, &active.slots, &active.projection, &active.players, &active.clients, &active.targets, active.systems.navigation.service(), &active.systems.gates, clock.now_ms) catch |err| runtimeFailure(err);
+                var coop_map: [64]u8 = undefined;
+                coop.step(&active.world.?, &active.slots, &active.projection, &active.clients, active.systems.navigation.service(), &active.systems.gates, persistence.mapName(&coop_map), clock.now_ms) catch |err| coop.crash(err, clock.now_ms);
                 active.systems.step(&active.world.?, &active.slots, &active.projection, &active.targets, clock.now_ms, elapsed, &active.clients.weapon_table) catch |err| runtimeFailure(err);
                 @import("server/player_damage.zig").step(&active.world.?, &active.slots, &active.projection, active.clients.episode, &active.clients.weapon_table, clock.now_ms) catch |err| runtimeFailure(err);
                 for (active.clients.entities, 0..) |entity, index| if (entity != null) {
@@ -819,7 +904,8 @@ export fn vmMain(command: c_int, arg0: isize, arg1: isize, arg2: isize, arg3: is
     return 0;
 }
 
-fn runtimeFailure(err: anyerror) noreturn {
+// Inline: the caller's error return trace is the one worth printing.
+inline fn runtimeFailure(err: anyerror) noreturn {
     if (@errorReturnTrace()) |trace| std.debug.dumpErrorReturnTrace(trace);
     var message: [160]u8 = undefined;
     engine.fatal(std.fmt.bufPrintZ(&message, "Zig runtime: {s}", .{@errorName(err)}) catch unreachable);

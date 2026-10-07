@@ -180,6 +180,29 @@ void BotImport_Print(int type, char *fmt, ...)
 // Parameter:			-
 // Returns:				-
 // Changes Globals:		-
+/* dk3: the top of the first solid under the given column of an inline model
+   (model space): the floor a rider stands on, also inside a cage. */
+int AAS_Dk3ModelFloor(int modelnum, float x, float y, float *floor)
+{
+	clipHandle_t h = CM_InlineModel(modelnum);
+	vec3_t mins, maxs, point, origin = {0, 0, 0}, angles = {0, 0, 0};
+	float z;
+	int inside = qfalse;
+
+	CM_ModelBounds(h, mins, maxs);
+	for (z = mins[2] - 1; z <= maxs[2] + 1; z += 1)
+	{
+		VectorSet(point, x, y, z);
+		if (CM_TransformedPointContents(point, h, origin, angles) & (CONTENTS_SOLID | CONTENTS_PLAYERCLIP)) inside = qtrue;
+		else if (inside)
+		{
+			*floor = z - 1;
+			return qtrue;
+		}
+	}
+	return qfalse;
+}
+
 //===========================================================================
 void BotImport_BSPModelMinsMaxsOrigin(int modelnum, vec3_t angles, vec3_t outmins, vec3_t outmaxs, vec3_t origin)
 {

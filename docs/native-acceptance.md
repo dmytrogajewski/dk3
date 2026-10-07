@@ -1,5 +1,772 @@
 # Native port acceptance
 
+## Sequence 342 — cinematic-performance-pivot — diagnostic gate implemented; new performance unverified
+
+The default client now uses original vertex-model presentation for cinematic
+source paths even with a skeletal package installed. Explicit native skeletal
+previews use `cg_neuralCinematics 1`. Guarded native records with that package
+present finish all 11 shots in both modes. Fallback yields 140 original frame
+diagnostics and zero skeletal diagnostics. The paired review aligns 140 frames;
+the audit compares actual skinned IQM geometry to original source frames and
+50/50 linked Hiro frames fail on the rejected sequence-341 body. This is a
+rejection gate, not a replacement performance.
+[Data flow, commands and evidence](cinematic-performance-pivot.md).
+`blender-shot-008-lit/` is a headless, hash-pinned 3D authoring stage at the
+failed 51-second pose; it shows the original and actual skinned IQM meshes.
+The integrated build and `test-runtime` pass; consolidated `zig build test
+-Dpython=/usr/bin/python3` passes 318 Python and 453 Zig tests. A stale co-op
+test fixture was fixed after the first broad run.
+
+## Sequence 341 — cinematic-model-identity — failed visual candidate
+
+The generated white-gi Hiro remains **Failed** after the owner inspected the
+native opening scene. The approved facial mesh and texture were restored and
+verified by hash, and all eleven preview shots ran, but head placement, raised
+shoulders, arms and overall acting still look wrong. Passing clip validators
+and package checks do not establish visual acceptance. The sequence-341 archive
+is local diagnostic evidence and must not be installed or selected by default.
+
+The next candidate uses the recorded original performance as a visual
+reference, a newly calibrated character rig and authored skeletal acting.
+Shot timing and choreography may change; dialogue and required story events
+remain. See [cinematic model preservation](cinematic-model-preservation.md).
+
+## Sequence 340 — generic-navigation — implemented; partially verified
+
+Navigation now follows the world as it stands and routes state intent
+([navigation](navigation.md#generic-navigation-sequence-340-generic-navigation),
+[co-op bot](coop-bot.md)). Evidence is local under
+`zig-out/reports/runtime-zig-340/`; the regenerated navigation package (all maps,
+the bundled BSPC of this sequence) is `dk3-navigation-340.pk3` there and is not
+installed into the preserved game.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Every supplied map loads in the native runtime | Passed | `coverage/navcov-final/`: 84/84 maps report (73 before). Fixed: satyr side-change poses optional (the supplied model has none), a map naming scripts without an action program loads (e1m7b), an empty authored `spawnflags` reads as 0 (e4m2a). |
+| Navigation coverage, all maps | Passed (measured) | Same 73 maps as the original navigation: uncovered floors 26,378 → 3,550, unrouted 74,127 → 62,773. e4m4c, e1m2b (a flooded room), e1dm2 and e4m6b still route fewer floors than before. |
+| Gates, planner, lifts, intent objectives | Implemented | Live gates (doors, walls, hazards, sliding floors, breakables; lifts excluded), planner with nested controls, train lift links both ways, lift boarding/operation from the shared `liftStep`, firing positions, touch points, use doors, crouch-only areas. |
+| New Game → intro → e1m1a → e1m1b → e1m1c → e1m2a → e1m2b → e1m3a → e1m3b, continuous (Ronin, candidate navigation) | Passed | `coop/final7-newgame/`: no deaths, 1,719 s of game time to e1m3b (171 s wall); e1m3a played by its objective route. |
+| e1m1a → … → e1m3b, continuous, same build | Passed | `coop/final7-chain/`: no deaths, 1,117 s of game time to e1m3b. Earlier builds in this sequence failed on the way (RUN log); each failure was fixed and the pair rerun. |
+| Episode 1 on the installed (original) navigation | Not claimed | The objective e1m3a route needs this sequence's navigation (the crawlway into the pit, train lift links); with the installed package it stops in its first stage. The candidate package must be installed with the next asset build. |
+| Deathtag e1dt1 with gates | Regression fixed; captures open | `match/mp-long-new/` (bots idle up to 110 s at gated lift doors) → `match/mp-final2/` on the final module: travel 593k vs the original build's 590k, longest stand 18.5 s, one objective carrier (two in `match/mp-final/`, three in the original). No run, the original build included, captures in 600 s. |
+| Game crashes found by the bot | Fixed | A drained health station hit by a bolt (`MissingComponent`, `coop/crash2/` trace, `coop/crash4/` after); a hurt arrival no longer replaces a healthy death checkpoint (death loops at 2 and 10 health). |
+| Build checks | Passed | `zig build test-runtime` (a leftover test print made the step fail although all 225 tests passed) and `zig build test -Dpython=/usr/bin/python3` (293 Python tests; four test modules imported a sibling by bare name). The shell's default `python3` here is an unrelated 3.12 environment without Pillow. |
+| e1m3b onward by the bot | Unverified | e1m3b's planner now has a real goal (touchable exit, touch point), but the map needs route work (big door, laser dam, Superfly). |
+
+## Sequence 339 — cinematic-body — visual acceptance failed
+
+The owner rejected the delivered native result: swollen shoulders, broken neck,
+smeared cloth and lapels, and poor hand geometry. The candidate is **Failed**;
+the numerical and playback receipts below do not qualify its appearance. The
+raw generated model retained better cloth and proportions than the delivered
+repair. Sequence 341 investigates that loss before another cinematic build.
+
+The original-body subdivision was rejected. A new white-gi body and 4096×4096
+atlas are generated and rigged onto the captured cinematic bind. No original
+body triangles or UVs enter it. The independent detailed head is retained with
+an explicit collar cut, and original props/performance remain. See
+[reproduction](generated-dojo-model.md) and the
+[native review](../zig-out/reports/cinematic-body-339/cinematic-review.html).
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| New cosmetic master and frozen clip build | Passed | `package-proof.json`; 148,974 vertices, 108,341 triangles, 44 joints; 23 clips pass. New geometry/materials are admitted explicitly; subsequent clips freeze bind, geometry, weights, normals and UVs. Original body triangles: zero. |
+| Mapping, timing, fallback and variants | Passed within fixture | Source-model mapping, compact clip table and authored scene bytes exact with 338; all entries retained, 931/940 original entries exact; alpha/fullbright variants retained. Actual original-only run excludes the optional archive. |
+| Native GL2/GL1, restore and video | Passed | `owner-native/`, `owner-native-gl1/`, `owner-native-video/`, `native-legacy/`, `native-legacy-video/`; all eleven shots and release, both presentations restore active cinematics; exact recorded runtime/overlay identity replay. GL2 log admits 4096×4096 body/head textures with picmip 0. |
+| Fresh-process reproduction and compilation | Passed | `reproduction-proof.json`: master, receipt and all 28 animation outputs exact. `idempotence-proof.json`: check-only passes; unchanged output retains inode/mtime. |
+| Tooling and current runtime tests | Passed within recorded scope | `python-owner-candidate.log`: 293 tests. `zig-tests.log`: build exit 0, native C contracts and ragdoll debug-stderr warning; direct execution resolves it with 225/225 domain tests in `zig-domain-detail.log`. No runtime edits in this change. |
+| Delivered visual quality | Failed | Owner screenshot retained in `visual-rejection/owner.png`; broken neck, inflated shoulders and smeared cloth were visible in the earlier captures and should have prevented delivery. |
+| Remaining cinematics | Unrun | Facial acting, walking contacts, full opening/campaign reconstruction and campaign handoff remain unqualified. |
+
+Evidence is under `zig-out/reports/cinematic-body-339/`; final local products are
+under `zig-out/cinematic-body-339/reviewed-generated/`. Optional archive SHA-256:
+`8f2abb082266c0af96f2d30ffc0cc5f1190eacee41e6dcef4627189ae87a73d2`.
+Runs use an isolated dereferenced native installation; ordinary selectors,
+retail assets and owner saves remain untouched. Generated binaries remain local.
+
+## Sequence 338 — cinematic-fidelity — original-body candidate rejected; superseded by 339 candidate
+
+The owner’s three review frames expose mismatched arm gestures, sideways sword,
+neck/armor separation and the dojo costume mismatch. Sequence 337's mechanical
+passes are retained; visual performance/model acceptance is **Failed**. Repair
+uses actual source motion and a source-specific dojo replacement rather than
+propagating that candidate into more scenes. Owner frames are retained under
+`zig-out/reports/cinematic-fidelity-338/owner-{1,2,3}.png`.
+
+## Sequence 337 — cinematic-performance — complete dojo block verified; full recreation and artistic acceptance pending
+
+Original opening shots 15–25 are recorded with original models. A separate
+64.8-second, eleven-shot scene preserves the two actors' original queues,
+transforms, dialogue, door use and timing while replacing the camera curves.
+Twelve Hiro and eleven Ebihara clips are reconstructed onto their frozen IQM rigs.
+Measured head axes, hand/finger inheritance, loop-aware elbow poles, grouped prop
+grips, staff orientation/floor contact and skinned boot sole placement are baked
+offline. See [reproduction and limits](cinematic-reconstruction.md) and the
+[interactive review](../zig-out/reports/cinematic-performance-337/cinematic-review.html).
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Original reference and new scene with original models, GL2 | Passed | `original-recording/`, `original-video/`, `final-legacy/`, `final-legacy-video/`; eleven shots, release and active save/load; optional IQM archive actually absent. |
+| Final deterministic IQMs, GL2/GL1 and replay | Passed | `deterministic-skeletal/`, `deterministic-skeletal-gl1/`, `deterministic-skeletal-video/`; eleven shots and camera release, GL2 active save/load; nineteen observed source ranges select declared targets at authoritative-duration-following rate 0. Four other aliases are offline-only. |
+| Original actor/audio/use/timing contract | Passed | `performance-contract-final.json`; consumed fields equal; new camera curves excluded. Original empty negative-time animation is ignored as the runtime does; timed empty requests remain barriers. |
+| Serialized motion and preservation | Passed | `deterministic-package-proof.json`; 23 clips pass unchanged limits; max sole height error 0.32942 (<0.5), grip 0.000801 (<0.02), staff floor 0.000817 (<0.1); 936/940 entries exact, two cinematic IQMs/table/provenance change; geometry, binds, weights, UVs, normals and textures exact. |
+| Fresh-process determinism and unchanged output | Passed | `deterministic-reproduction-proof.json`: all 27 payloads plus receipt byte exact; generated channels canonicalized at twelve decimals to remove 1e-15 residual ranges. `deterministic-scene-proof.json`, `manifest-idempotence-proof.json`: scene program bytes exact; manifest output inode/mtime retained. |
+| Headless inspection and review controls | Passed | `hiro-deterministic-blender/`, `ebihara-deterministic-blender/`: twelve CPU Blender 5.1.2 views; `browser-review.json`: three videos decode, paired seek/play/half speed and all eleven selectors exercised. Every native shot and exact full-body samples technically inspected; human artistic approval pending. |
+| Tooling aggregate / retained runtime contracts | Passed within recorded scope | `python-aggregate-deterministic.log`: 256 tests, including 17 continuation regressions. Sequence 336 `zig-runtime-final.log`: retained 312/312 tests and C contracts; no Zig/runtime changes here, no duplicate broad suite or claim for other concurrent edits. |
+| Rest of opening, other scenes and original campaign handoff | Unrun | Separate scene namespace; no campaign replacement, installation activation or original/save overwrite. Fixture keeps original geometry/control entities and exact rebuilt navigation; it does not prove the campaign's original entry/exit. |
+| Facial/eye, expressive fingers, cloth/deformation, moving contacts | Unverified | Fixed rigs and materials retained. Walking plants are undeclared and unqualified; numerical success does not establish artistic quality. |
+
+Evidence is under `zig-out/reports/cinematic-performance-337/`; final IQM build
+and closed package are under `zig-out/cinematic-performance-337/deterministic/`.
+The separately authored scene package remains `final/dk3-dojo-dialogue.pk3`.
+Optional package SHA-256:
+`907c6f6fcd9bb8e71a65c32577a0f1db4237ee33ec22e1cadef107a6d10622c8`.
+Guarded software runs use immutable generation `0b3f6bbb…`, runtime identity
+`87c4af02a78616375e32d0bb3abf1c86eff356e7e3c78d07c0a1cbc72cf0adef`.
+Original master/installation inputs are hash-verified. Earlier fit, thumb, pole,
+prop/floor/sole and reproduction failures remain retained. No original program,
+normal selector, owner save, network or save representation is modified.
+
+## Sequence 336 — cinematic-reconstruction — verified first slice; artistic and campaign acceptance pending
+
+Original opening shots 12–14 are recorded with converted original models. A
+hash-pinned surface-marker capture reconstructs three Hiro performances onto
+the frozen IQM rig; a new 16-second dojo scene compiles to the existing cinematic
+format and is packed separately. Full opening replacement, other actors, facial
+acting, neutral-head calibration and hand-to-hilt fit remain open. See
+[architecture and reproduction](cinematic-reconstruction.md) and the
+[paired interactive review](../zig-out/reports/cinematic-reconstruction-336/cinematic-review.html).
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Original shot reference, original models, GL2 | Passed | `cinematic-reconstruction-336/original-reference-nav/` and `original-video/`; original cameras/audio/tasks plus checked spawn; all three shots, release and active save/load. |
+| New scene with optional models absent, GL2 | Passed | `retake-original/` and `retake-original-video/`; actual optional archive excluded in a disposable base path; all shots, release and active save/load. |
+| New scene with reconstructed IQM, GL2 and GL1 | Passed | `retake-skeletal-final/`, `retake-skeletal-video/`, `retake-skeletal-gl1/`; GL2 active save/load; all three mapped ranges observed with source-duration-following rate 0. |
+| Capture/serialized motion/package/reproduction | Passed | `package-proof.json`, `reproduction-proof.json`; max marker RMS 0.94482 units, max plant displacement 0.16271; all twelve payloads reproduce; 937/940 package entries exact, only cinematic IQM, clip table and metadata change; geometry/bind/weights/textures exact. |
+| Headless Blender and browser inspection | Passed | `blender-job/result.json`, six CPU full-body views; `browser-review.json`, three videos decode, paired controls/half speed and all capture selectors exercised. Numerical/browser checks do not establish artistic approval. |
+| Python and Zig contracts | Passed | `aggregate-refreshed.log`: 239 tests; `zig-runtime-final.log`: exit 0, 312/312 tests and C contracts (existing ragdoll debug stderr retained). |
+| Full campaign reconstruction and original handoff | Unrun | Fixture substitutes only the BSP entity lump and rebuilds its exact navigation; original 16 geometric lumps stay byte exact. No campaign program, completion target, installation selector or owner save is changed. |
+
+All evidence lives under `zig-out/reports/cinematic-reconstruction-336/`.
+Engine jobs use dkguard software rendering and explicit immutable installation
+`0b3f6bbb325cc304ec1be2254645af17afc34caf2e3273769a7d7ce80fb24b47`,
+runtime identity `87c4af02a78616375e32d0bb3abf1c86eff356e7e3c78d07c0a1cbc72cf0adef`.
+The latest source tests are separate from that installed runtime. Earlier failed
+navigation, contact fitting and SIGTERM capture reports are retained. Local-only
+scene and skeletal products are not activated in the ordinary installation.
+
+## Sequence 335 — coop-bot — implemented; New Game through e1m2b passed headless (Ronin)
+
+A scripted player bot plays the single-player campaign on a dedicated server at
+13–22× real time with exact 50 ms frames (`fixedtime 50`, `timedemo 1`). It is the
+ordinary slot-0 client: user commands, `use`/`save`/`load`/`attribute` client
+commands, and the client's world-publication acknowledgements with digest and
+runtime-identity validation. A sandboxed bundled Lua 5.4.7 route
+(`dkq3/coop/`) chooses actions; staged level bodies resume after death
+checkpoints. See [coop-bot](coop-bot.md). The campaign verification runs at
+Ronin (`--skill 1`): Samurai's extra sludgeminions in e1m2b (authentic 275 hp,
+10–30 per glob at 900 u/s) outlast the bot's ammunition; Samurai still passes
+the opening and e1m2a. e1m3a is partly routed; later maps and episodes 2–4 have
+no authored route yet.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| New Game → full intro → e1m1a → e1m1b → e1m1c → e1m2a → e1m2b arrival, continuous, Samurai | Passed | `zig-out/reports/runtime-zig-335/newgame-e1m2b/` (final code and routes: 0 deaths through the whole of e1m2a, 1208 s game / 100.1 s wall, 12.1×; its saves include the `coop-e1m2b` arrival for route work), earlier `newgame-final/` and `newgame-opening-6/` (963 s game time in 71.3 s wall, 0 deaths, 201 completed actions); all 115 intro shots and every arrival scene played; both e1m1b turret controls destroyed, ford Crox, health trees, Thunderskeet boss killed with Ion fire, plateau drop and river swim; e1m1c pipe climb with running jump, gate, yard, switch and monitor, raised platform, liftmaster descent, authored cut. Module/server/route SHA-256 in `inputs.json`. Ends at e1m2b by design (no route). |
+| Death checkpoint restoration mid-level | Passed | Bridge-stage deaths (e.g. `runs` of e1m1b with 1–4 restorations): the game reloads its checkpoint (full map load), the bot is re-admitted and resumes at the saved stage, skipping actions already reflected in the save. |
+| Region admission and travel by the bot client | Passed | Identity seams, landings and the e1m1c→e1m2a cut all depart and admit with the bot answering `dk3_world_begin/data/patch` (digest-validated) through `BOTLIB_EA_COMMAND`. |
+| Lua sandbox and budgets | Passed (unit) | `engine/lua.zig` tests: io/os/package/debug/load/dofile absent, `string.dump` rejected, instruction budget stops runaway loops, memory cap fails the script. 223/223 runtime tests pass when run directly; the `test-runtime` build step is reported failed by a concurrent work-in-progress `domain/ragdoll.zig` test that prints to stderr. |
+| Runner evidence parsing | Passed (unit) | `dkq3/tools/tests/test_coop_bot.py` 4/4; architecture checks pass. |
+| e1m2a (Sewer System), from its arrival save to the e1m2b exit, Samurai | Passed with restorations | `zig-out/reports/runtime-zig-335/e1m2a-sewers/`: lift, hatch event, flooded drum crossed round its stationary paddles, tube, cart ride to the pump rooms and back (train 123, buttons 125/385), C4 room button 159 opening the drum room's east grate, upper sewer, both leaves of use-door 267/268, pod room button 48 and the ten-second dash over the waterfall walkway through doors 250/251, rockfall slab and the deep canal passage, ladder rungs (button 160) climbed, travel to e1m2b; 6 deaths (upper sewer sludgeminions), each restored from the stage-9 checkpoint; 244 s game / 97 s wall. Runs are stochastic: other replays failed at the same fights before the per-map allowance (`map_deaths`) and the health-gated checkpoints. Continuous New Game through e1m2a: see the next row. |
+| New Game → intro → e1m1a → e1m1b → e1m1c → e1m2a → e1m2b → e1m3a arrival, continuous, Ronin | Passed | `zig-out/reports/runtime-zig-335/ronin-newgame-e1m3a/`: 0 deaths, 1600 s game / 148 s wall (10.8×). e1m2b in full: off the gratings into the water chute (its trigger raises the sluice), over the falls into the flooded tank, under water through the submerged lower level to the control room (window broken with the glove, health packs, drain button), back over the spinning drum fan before the water falls, through the sunken hugedoor and the passage into the pit, up to the valve walkway (worker cleared from the wheel, wheel confirmed open), back over the beams to the timed west doors, the wading channels' sludgeminions fought from chosen spots, the hall, the lift, and the end room's single-player end button with its closing scene. The run then stops in e1m3a, whose old generic body cannot route the prison. |
+| e1m3a (Solitary), from its arrival save | Implemented, unverified | Guard post button (cell block doors), back through the plate-operated hydraulic door, panel shot from the pit beneath it (crouching back out through its crawlway), cell block and stairs to platdoor (button either side), the big platform to the shaft top. Beyond the shaft top the area graph has no route to the e1m3b exit; not yet routed. |
+| e1m3b onward | Unrun | Placeholder `progress` bodies only. |
+
+Runs are not bit-identical: resident-world preparation is paced by the wall clock,
+so encounter timing varies; the opening passed repeatedly only after the motor
+gained the recorded skills (fire discipline, ammunition reserve, threat-forecast
+dodging, ledge/liquid/hazard guards, waypoint commitment, stall hops). Rendering,
+audio and prediction are not exercised by this headless verification.
+
+## Sequence 334 — animation-authoring — verified toolchain and isolated clips; visual acceptance partial
+
+The authoring pass adds strict YAML clip and cinematic sources, a typed
+headless Blender adapter, BVH/FBX motion interchange, directional retargeting to
+the admitted IQM bind rigs, contact cleanup, loop/joint/attachment validators,
+cosmetic packaging and generated native preview maps with demo-to-video capture.
+The source recipes preserve authoritative animation ranges/rates and compile to
+the current `neural-animations.cfg` and `dk3_cinematic 1` formats. Masked runtime
+layers, facial channels and a new deformation rig remain separate migrations.
+
+The [tool guide](animation-authoring.md) documents commands, formats, source
+licenses and limits. Local evidence is under `zig-out/reports/animation-authoring-334/`;
+`animation-review.html` includes the full native video, all GL2 captures, corrected
+body/head material previews, recipes and unresolved source findings.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Licensed sources and motion interchange | Passed within selected-data scope | Pinned CMU 07_01 walk and 09_01 run plus full conversion notice. BVH imports retain actual 317/149-frame action ranges; FBX round-trip retains 317 walk frames, maximum 0.084 source-unit/0.648° error. FreeMoCap footage returns 403; CMU AVI reference downloads fail TLS chain verification and remain unadmitted. |
+| Rig retarget, prop policy and serialized validators | Passed for three aliases | `qualified-build/build.json`: 63 neutral, 32 walk and 22 run frames at 30 Hz on the frozen 33-joint rig. Contact cleanup reduces final walk displacement 2.0204 → 0.4853 units, below 0.5; all declared contact, anatomy, fixed-length, loop and attachment checks pass. Hidden prop channels prevent a floating sword. Neutral remains procedural. |
+| Source-performance audit | Failed for 12 original clips; retained | `source-anatomy-audit.json`: 12 of 42 original Hiro clips exceed the anatomical joint-step limit. Prop rotations are excluded from that body limit. No blanket repair/acceptance of original performances follows from the three new aliases. |
+| Native compiled three-shot studio | Passed within isolated scope | `native-final/` and `native-final-gl1/`: exact final bundle on software GL2/GL1; all shots, measured-speed walk/run arrivals, camera ownership and normal release. `native-final-clip-proof.json` observes actual 30 Hz target ranges; GL2 active save/load resumes and completes. |
+| Engine video and review | Passed | `video-final/`: receipt-matched native demo → AVI → 960×540 30 Hz H.264; `browser-review.json` checks decoded video, all shot/pose selectors and half-speed playback. Ten final Blender samples use separate head/body atlases; earlier single-atlas reviews were defective and remain retained. |
+| Package/input preservation | Passed with measured frame re-encoding | `package-proof.json`: 940 entries, 937 payload hashes exact; one IQM and clip table change, provenance refreshed. Geometry/UVs/normals/weights/triangles/binds/parents/atlases exact. Original 955 frames re-quantize by ≤0.00097 rigid-joint units/0.00278°, scale exact. Original master inputs and installed source PK3 remain exact. |
+| Aggregate and installation isolation | Passed within tooling scope | `aggregate-final.log`: 218 tests including 25 authoring regressions. `final-policy-proof.json` confirms the latest root/FPS handling reproduces every native-qualified payload byte. `qualification.json`: sequence-333 immutable selectors/launcher exact; all saves/runs in disposable profiles through dkguard. No runtime changes, duplicate native suite, installation activation or campaign acceptance. |
+
+The separate candidate is `zig-out/animation-authoring/dk3-neural-qualified.pk3`,
+SHA-256 `5bb319d0b57183aea2690b3b49b62b39c1af91a1a50ecba13ba9dd07fd216162`.
+The reviewed normal generation remains `6ac17090…`. Early import dependencies,
+padded holds, floating props, material assignment, missing studio navigation/trigger,
+headless-X collision and fixture syntax failures retain their original reports;
+affected runs and the invalid aggregate are refreshed after repairs.
+
+The native task called `head` rotates the whole performer. The compiler correctly
+emits absolute angles, smooth look curves and native yaw-rate compensation; no
+independent head/eye layer is claimed. Open: original source failures, full story
+and campaign visual playback, contact/acting quality beyond selected clips,
+hardware rendering, masked layers, facial channels, new rigs and footage reconstruction.
+
+## Sequence 333 — human-arms-locomotion — verified motion repairs; visual acceptance partial
+
+The reported opening gate walk is reproduced in fresh authored shot 26. Hiro's
+left wrist now follows the forearm instead of flipping upward; the elbow stays
+beside the body. Cinematic fitting derives connected arm rotation from the solved
+chain, constrains elbow planes, and bounds wrist bend separately from forearm
+roll. Generated human palms follow the forearms while held weapons retain their
+established axes. Gameplay retains full per-grip arm motion. Running has bent
+elbows, opposed arm swing and a flight phase; player publication distinguishes
+walk/run using character-relative horizontal speed. Cinematic movement selects a
+run sequence when running is queued, retaining explicit authored animations and
+fallback for classes without that sequence. Mishima and Usagi use their actual
+rendered model's playback ranges. Five human NPCs receive refreshed idle/locomotion
+on their admitted bind rigs; original authority intervals and events remain.
+
+Evidence is local under `zig-out/reports/runtime-zig-333/`. The
+`human-motion-review.html` page includes the owner's screenshot, the matching
+rear gate capture, all five walk/run recordings, held weapons and paired model
+contact sheets. The complete 102-model cinematic review inspects 206 paired
+samples; five NPCs add 15. This is sampled deformation review, not full visual
+acceptance of every clip or story scene.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Full opening and arrival | Passed within authored playback scope | `opening-gl2/result.json`: all 115 intro shots, seven e1m1a arrival shots, completed save/load and normal control on the final runtime. Ordinary dkguard software GL2. |
+| Reported gate walk | Passed within sampled visual scope | `gate-walk-native/`: fresh opening, actual authored walking cameras; shot 26 at 8,000 ms matches the owner's rear view and shows the repaired wrist/elbow. `gate-replay-native/` and `gate-pan-native/` separately inspect restored gate dialogue and a complete camera pan. |
+| Five multiplayer walk/run appearances | Passed within LAN scope | `network-run/` and `network-walk-fixed/`: Hiro, Mikiko, Superfly, Mishima and Usagi rendered remotely over UDP. Twenty samples each per mode; 24-frame walk and 15-frame run cycles at 30 Hz. Ordinary movement, fire, death/respawn, reconnect and restart checks also pass. Public-room acceptance is outside these runs. |
+| Held sword/rifle/pistol | Passed within controlled grip scope | `held-weapons/`: real two-client remote ready and attack captures for Daikatana, Ion rifle and Glock. |
+| Companion and five human NPCs | Passed within diagnostic scope | `companion-motion/` exercises live Superfly movement/save/load. `npc-native/` and `npc-dry-native/` exercise class-owned grounded fixtures and save/load for Cryotech, Mishima Guard, Fatworker, Skinnyworker and Surgeon; native loop mappings play at 30 Hz. Continuous campaign chase/navigation and every attack remain unqualified. |
+| Asset preservation | Passed | `package-proof.json`: all 132 serialized IQMs compared; 115 motion outputs change, 17 remain exact. Vertex arrays, UVs, normals, weights, triangles, bind joints and parents stay exact for all 132. All textures, skins and model/physics mappings remain exact; all 15 character master inputs stay exact. |
+| Aggregate checks | Passed | `aggregate-final.log`: 54/54 steps, 446/446 Zig tests, 193 Python tests and engine C contracts, including 21 anatomical/prop rig checks. |
+| Reviewed installation | Passed | `install-final.json`: exact tested immutable generation active in native-dev and neural-monsters-dev, all 25 manifest files per prefix verified, 106 latest owner-state hashes exact, loose JapanDM preserved, launcher/main/online/previous generations exact. |
+
+The installed development generation is
+`6ac170908fc2ddd0a3b0536218b6349eb5e524857b49f8fc7a119cf9595c2825`;
+the tested runtime identity is
+`a9d6bbbc5a28a620d0e0bec883be5fbcaf955040513e1ba10c1b0fbd2893c5d0`.
+The classic ZIP32 episode archive is 2,196,041,740 bytes, SHA-256
+`59854041cfb853cc787a079efe593a13c0b87be33fdc3863dd66142604b3f564`.
+Both development selectors use that exact tested generation; previous generations
+and current owner state are preserved. An independently running launcher changed
+the native selector and 14 save files during this pass; `concurrent-launcher.json`
+records that change and the refreshed preservation baseline. Its dropped loose
+JapanDM archive is restored in the installed native generation. Both canonical
+install builds pass 43/43 steps, but picked up concurrent unrelated native/Lua
+source edits and produced generation `8d61f363…`. `reviewed-activation.json`
+records the locked atomic selection of the already staged, exact tested `6ac17090…`
+generation. Concurrent source/build products and that unqualified generation stay
+preserved. This sequence's aggregate/runtime evidence belongs to the tested
+generation and does not qualify those unrelated later edits.
+
+Earlier failed walk-driver filtering and the unavailable Python interpreter's
+Pillow import remain recorded; the corrected walk probe and explicit system
+Python aggregate pass. A rejected 34-unit run stride exceeded Superfly's existing
+hip bound; the admitted 32-unit stride retains the flight phase and passes the
+rig checks. No duplicate broad suite follows the valid final aggregate.
+
+Open: Charon task/camera timing; cloth and extreme rolled/death pose fidelity;
+Osaka/Casseti/Mikiko visual repair; full visual playback of every story scene,
+hardware rendering and connected campaign completion. No facial morphs are added.
+
+## Sequence 332 — cinematic-motion-publication — verified playback repairs installed; visual acceptance partial
+
+The opening's reliable-command failures came from primary-world configstrings
+bypassing the bounded regional publication stream. Primary updates now use that
+stream too; repeated lightstyles coalesce and the four-command acknowledgement
+window remains enforced. The engine retains the actual world registry for
+gamestate/reconnection without also broadcasting ordinary `cs` commands.
+Snapshots defer entities whose model or sound definition is still being published.
+The separate transport flag preserves publisher visibility and collision links.
+The actual server registry/broadcast C contract and native publication contracts
+cover these boundaries. A fresh Superfly map exposed the missing primary snapshot
+barrier; its original `InvalidSoundPath` failure is retained.
+
+Two cinematic fits change. Ninja scale uses reviewed standing frame 143 rather
+than a crouched reference. SHA-pinned anatomical source vertices keep torso
+rotation from following the wrist during running/jumping. The female guard's
+36 original short-blade triangles are recovered from the connected body and
+attached as two independent weapons. Six ninja and four female-guard paired
+frames were visually inspected against the original and exact serialized IQMs.
+The final package contains those exact candidates; all 130 other IQMs, all master
+geometry/atlases, both prisoners and model/physics mappings remain exact.
+The 100 unchanged cinematic models retain sequence 330's sampled inspection.
+Original frame/clip order and the approved artwork remain the input contract.
+
+Cinematic performers now publish floor contact and ride moving brushes, including
+borrowed actors. Pushing uses the cinematic rider's configured collision mask
+instead of adding player-only clip geometry. A retained Charon trace records 511
+blocked pushes before that correction; the final boat proceeds beyond the former
+stall. Event-generator `cinetrigger`/`target` metadata no longer gets parsed as a
+numeric timer; real custom delay fields remain strictly validated.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Complete opening and destination arrival | Passed within authored playback scope | `opening-final-runtime-gl2/`: final runtime, all 115 opening shots, actual handoff to e1m1a, all seven destination arrival shots, completed save/load and normal control. Ordinary guarded software GL2, without GDB. `opening-resource-barrier-gl2/` retains the earlier successful publication candidate replay. |
+| Opening ninja performance | Passed within sampled visual scope | `opening-ninja-motion-gl2/`: eight in-shot captures spanning shots 95–100; paired review covers frames 12/46/85/143/150/162. Upright running torso/standing size repaired; cloth and legs still approximate the original. |
+| Superfly full authored scene | Passed within diagnostic scope | `superfly-final-runtime-gl2/`: fresh map, diagnostic activation of the actual authored trigger, all 13 shots, cleanup and completed save/load. `superfly-resource-barrier-gl2/shots-contact.jpg` inspected. Copied historical active-save completion is separately retained; continuous rescue/current owner save acceptance is not claimed. |
+| Copied historical active Superfly save | Passed within restoration scope | `superfly-historical-final-runtime-gl2/`: final runtime restores cursor 1, completes all remaining shots 1–12 and restores the completed scene with control released. Copied source save hash unchanged; no owner-state writes. |
+| Charon arrival admission and boat motion | Passed within diagnostic scope | `charon-mask-final-gl2/`, `charon-all-shots-final-gl2/`: all 17 shots, completed save/load; recorded actor positions travel beyond the previous blocked push. Resident admission succeeds after event metadata repair. |
+| Charon visual performance | Failed; further work required | All-shot native captures show the boat/actors in several views, but many cameras miss them and Hiro's queued movement trails the authored framing. Successful scene completion does not establish visual acceptance. |
+| Episode-four boat arrival | Passed within diagnostic scope | `femaleguard-boat-final-gl2/`: all 19 shots, completed save/load; ten captures inspected, boat riders and arrival actors visible. This scene does not visibly exercise the repaired female guard's blades. |
+| Female guard blade fit | Passed within serialized sample scope | Four paired frames 0/70/96/182 show both original short blades with independent hand attachment. Native blade scene remains unqualified. |
+| GL1 opening regression | Passed within partial diagnostic scope | `opening-final-runtime-gl1/`: ordinary guarded software GL1 passes shots 10–18 beyond the prior overflow point. Complete GL1 playback remains unqualified. |
+| Aggregate checks | Passed | `aggregate-resource-barrier-final.log`: 54/54 steps, 445/445 Zig tests, 190 Python tests and C contracts. Supersedes the aggregate before the primary snapshot barrier. |
+| Authorized development installation | Passed within installation scope | `cinematic-user-install.json`: both development prefixes select the qualified generation; 25 manifest files verified per prefix, 106 owner-state hashes exact, launcher/main/online selectors and previous generation preserved. Native development's loose japanDM package survives activation. Both installs pass 43/43 steps. |
+
+Episode package: 2,195,922,456 bytes, classic ZIP32, SHA-256
+`e58108e57ef159b85003d8ab5c426b037f82e7a1dc5b9971a52d5c0769db52d6`.
+Only two IQMs, four female-guard skins and the receipt change relative to 330.
+Runtime/engine modules and compatibility records also change in the installation;
+this is not an archive-only update. Installed generation:
+`b895461e6ab7c59844540bac9d0b76c0adbca1a63b6cc9de86d98f8cac20ba6f`.
+
+Evidence remains under `zig-out/reports/runtime-zig-331/`; sequence 331 in the
+journal belongs to the concurrent japanDM task. See `cinematic-native-review.html`
+for paired poses and actual native captures. Osaka/Casseti/Mikiko visual repair,
+rolled/death poses, cloth, facial morphs, full visual playback of every story scene,
+hardware rendering and connected campaign completion remain open. Engine runs
+use dkguard `--headless` without `--gpu`. No Git operations.
+
+## Sequence 330 — neural-visible-quality — reviewed replacements installed; cinematic acceptance partial
+
+This is the historical checkpoint. Sequence 332 above supersedes its native
+opening/Superfly playback failures and the two admitted ninja/female-guard fit
+defects. Its other visual and campaign limits remain open unless qualified above.
+
+The owner rejected the torn Toshiro forehead/neck, other facial artifacts and
+cartoonish anatomy. Six dedicated reconstructions now replace Toshiro, Hiro,
+Superfly, Usagi, Garroth and Charon heads with realistic proportions. Accepted
+master concepts remain the style target. Closed geometry, local jaw/neck repairs
+and anatomical head weights replace the failed portrait-fitting approach.
+Five fixed mesh-conditioned camera guides paint separate 4096-pixel head atlases;
+full combined-model depth limits projection visibility. Usagi's garment interior
+uses a bounded two-sided collar painting exception. Body conversions remain
+frozen parents, and the original joint/bind/frame channels stay exact.
+
+Hiro's head is now 1.15 times the preceding replacement size. Eight actual albedo
+and lit views and six serialized gameplay poses were inspected before admission;
+the installed opening close-ups also show the larger head. Accepted body concepts
+remain unchanged. Current front/quarter/both-side views and animated join reviews
+identify each candidate by SHA-256. Admission copies those exact renders into the
+gallery. All 37 masters and 11,458 frames pass the current structural/skinning
+audit. The final aggregate passes 52/52 steps, 442/442 Zig tests, 173 Python tests
+and C contracts in `aggregate-final-zip32.log`.
+Duplicate gameplay pose blocks now share exact storage, keeping the high-detail
+Superfly IQM within the engine's 16 MiB bound. Every named movement and attack
+pose of the five gameplay masters remains bit-identical after serialization.
+
+The cinematic fitter now keeps semantic head/torso/leg surfaces through source
+deduplication, calibrates limbs from source anatomical landmarks and preserves
+original prop rotations. Head orientation no longer follows an arm gesture.
+Connected fixed-length IK constrains knees and ankles. Quantized hidden weapon
+pieces and rigid long staffs are recovered; Toshiro's staff uses the standing
+reference grip rather than a fallen wrist near the shaft end. Upright first poses
+remain upright even when most source frames are recumbent. Source-pinned landmarks
+restore Hiro's kneeling ending, and Charon's weapon is extracted from its connected
+original hand mesh. Original clip/frame ordering and named hardpoints remain intact.
+
+All 102 cinematic variants were rebuilt with matching skins. The paired review
+viewer exports the original vertex animation and exact serialized replacement,
+with every frame and clip available at a shared camera scale. Numeric joint-step
+triage covers 55,604 frames and 2,081 clips, excluding clip boundaries. All 13
+contact sheets were visually inspected: 300 samples cover every model's initial,
+movement and flagged poses. This establishes sampled inspection of every model;
+it does not establish full visual playback of every clip or native scene timing.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Six actual serialized face materials and motion | Passed within scope | `head-admissions.json`, per-actor `visual-review.json`, four albedo/four lit views and actual animated master renders. No facial morphs. |
+| Current original image resolution | Passed | Head and body both upload at 4096 pixels. Fine faces previously occupied a small part of the whole-body atlas. Separate head atlases increase facial coverage. |
+| Larger Hiro head | Passed within scope | `hiro-owner-size-admission.json`, `hiro-owner-size-eight-views.jpg`, `hiro-owner-size-gameplay-poses.jpg`; installed GL2 shot 14/15 close-ups inspected. |
+| Toshiro/Hiro installed opening faces | Passed within sampled diagnostic scope | `installed-opening-heads-zip32-ack-debug/`: exact installed package, guarded software GL2 under GDB, shots 10–18 and animated samples. Hiro face/gesture and Toshiro shot-18 face inspected; both head images upload at 4096. This debugger replay does not qualify ordinary complete playback. Older direct previews remain identified separately. |
+| All cinematic model sample inspection | Passed within scope | `all-cinematic-final-inspection.json`, `all-cinematic-sampled-review/`, `cinematic-pose-review.json`, `final-cinematic-candidate-proof.json`. All 102 models inspected in 300 paired samples; 2,081 clips receive numeric triage. |
+| Usagi/Garroth authored scene samples | Passed within scope | `usagi-nomipmaps-paced-gl2/` confirms the affected Usagi face-filtering repair. `garroth-final-guarded-gl2/` shows authored scene samples from the earlier builder; final staff poses are reviewed in serialized samples. Complete native performances remain unqualified. |
+| Superfly native movement, shadow and save | Passed within scope | `superfly-final-native-gl2/` direct isolated probe. Guarded copied active encounter captures show actual head motion, but the scene completion later exits on signal 4; completion is failed. |
+| Charon native story presentation | Unverified | Diagnostic single-map scenes load the model/material but inspected authored cameras do not visibly show Charon. Serialized animated master review passes; actor binding/presentation does not. Resident-region admission also fails in the normal e2m2a scene. |
+| Native filtering change | Passed within scope | `usagi-nomipmaps-paced-gl2/`: actual affected face/neck comparison inspected. Separate head shaders use `nomipmaps`; final installed Hiro/Toshiro retain sharp face detail. Body materials retain mipmaps. |
+| Normal installed opening playback | Failed | `installed-opening-heads-zip32-gl2/` drops after shot 17 with “illegible client message”; `installed-toshiro-zip32-gl1/` drops during early practice with server-command overflow. The latter pending queue is dominated by ordinary `cs 29` lightstyle updates alongside bounded world patches. GDB does not reproduce the drop through shot 18; no playback repair or full-intro acceptance is claimed. |
+| Remaining cinematic pose/prop repair | Open | Female guard weapon absent in affected samples; ninja crouched-reference size/airborne poses; rolled/death poses, torso lean, robes and cloth still approximate the original vertex performance. No facial morphs. |
+| Remaining whole-gallery visual repair | Open | Osaka beard/hair shards, Casseti stretched beard projection and Mikiko style remain visible in the inspected side renders. They remain rejected, not visually accepted. |
+| Final package and authorized installation | Passed within scope | `head-final-package.json`, `zip32-format-repair.json`, `head-user-install.json`; both development prefixes select generation `22352873871ec98a877aa919368ae48b05a45b40a6f609cc5ba7da28f46dc3e5`. Normal launcher remains guarded. Final install passes 43/43 build steps. Owner hardware testing is pending. |
+
+Final episode package: 2,195,897,606 bytes, SHA-256
+`cc2637bd3efcb4d3404c64d2312e965665c49e0f5f888407bafbb27906174267`.
+It contains 132 IQMs: 110 character variants change and all 22 monster IQMs remain
+exact relative to the fresh pre-repair package. Both prisoners, model/physics
+mappings, engine, native modules, renderers and base content remain exact.
+Only `share/dk3/zz-dk3-neural.pk3` changes in the installation. Previous generations,
+package backups, owner state, launcher and preserved main/online selectors are
+verified against `head-install.before.json` by `head-user-install.json`.
+
+The first combined package crossed Python's conservative 2 GiB ZIP64 threshold.
+The bundled ZIP32 reader misread the extra ZIP64 directory bytes and trapped while
+listing shaders; the original failure and GDB trace are retained. The packager now
+writes classic unsigned ZIP32 offsets below 4 GiB and rejects ZIP64 before admission.
+All 939 reviewed payload hashes remain exact across this format-only repair.
+Sparse-archive regression coverage exercises the actual boundary above 2 GiB.
+
+Evidence and retained failures are under `zig-out/reports/runtime-zig-330/`.
+New engine runs use dkguard `--headless` without `--gpu`; direct older preview
+runs are identified separately. Full 115-shot intro, all story performances,
+campaign completion, owner hardware rendering and higher-load software behavior
+remain unverified. Both prisoners, previous immutable installations, owner saves
+and preserved main/online installations stay protected. No Git operations.
+
+## Sequence 329 — neural-face-quality — structural/scenario checks passed; visual acceptance reopened by 330
+
+The close-up repair pass admits 19 closed-surface masters: the 15 character
+identities and Mishima Guard, Fatworker, Skinnyworker and Surgeon. Their rebuilt
+meshes and 4096-pixel atlases exactly reproduce the reviewed candidates. All 41
+registered front/side views have a positive sampled Jacobian, with a minimum of
+0.2377788665 on the 201-square grid. Topology and UV
+checks pass; joint names, hierarchy, bind channels and animation channels are
+unchanged, with zero measured frame-channel error. Both prisoners retain their
+protected inputs and products.
+
+The baker now rejects folded registrations, contributes no backward-facing camera
+weight outside the named anterior orbital exception, and limits frontal eye
+priority to measured anterior eye regions. Independent side portraits repair
+ear/neck albedo. Corrected Tatsuo
+glasses, jaw and collar landmarks remove the observed projected stripes. Candidate
+and production evidence is under `zig-out/reports/runtime-zig-328/`, including
+`texture-candidate-production-proof.json`, `registration-jacobians-final.json`
+and `texture-quality-review/closed/`.
+
+Packaging, isolated installation and serialized-pose review are complete. All
+37 conversions retain their current products. The shared bounded baker also
+refreshes Psyclaw's atlas while preserving its exact IQM and source texels outside
+the face mask. Its refreshed eye/pose review and provenance are recorded separately.
+The all-frame audit passes 37 masters and 11,458 frames; current render receipts
+cover 217 sampled poses and 19 separately lit faces. Ten new independent side
+portraits and their exact built-in imagegen prompts are recorded in
+`texture-quality-review/closed/continuation-side-artwork.json`.
+
+The isolated installation is
+`d0d76e7161d12122ad295efa5948e2f0bfe67456112978e4d6a47fe82337354e`;
+combined executable/module/asset identity:
+`f159f7bccf495ac482c130e0117001156a9136fdabb14ae29b8fefa64a3c838c`.
+Package: `zig-out/neural-monsters/episode1/dk3-neural-episode.pk3`,
+1,875,536,283 bytes, SHA-256
+`a3cce6c208de4e7977798ba2efd7959076ede55a48eb7990b2ff36466fde3ff1`.
+It contains 132 IQMs: 110 character variants and 22 monsters. Compared with
+sequence 328, 114 IQMs change and 18 remain byte-identical; the model/physics
+mappings and both published prisoners remain exact. Executables, modules,
+renderers and base content match the preceding qualified installation. At the
+owner's explicit request, both `zig-out/neural-monsters-dev/play/current` and
+`zig-out/native-dev/play/current` now select that installation. The normal `dk3`
+command launches the native development prefix through its dkguard. The default
+local neural-package selector also chooses this package for `zig build play`.
+The previous native installation, preserved `zig-out/play/current` and
+`zig-out/online/play/current` selectors, and all 120 snapshotted save/settings
+files remain exact. Previous package and launcher bytes are retained; installation
+proof is `zig-out/reports/runtime-zig-328/texture-user-install.json`. Owner manual
+hardware testing is pending. No Git operations.
+
+Evidence: `zig-out/reports/runtime-zig-328/texture-final-evidence.json`,
+`texture-native-review.html`, `texture-native-executions.json`,
+`texture-package-diff.json`, and per-case commands/inputs/captures/receipts.
+All engine runs use dkguard, isolated profiles and `--headless` without `--gpu`.
+GL2 qualification uses 960×540 captures with two software workers; GL1 uses
+960×540 with eight workers. Controlled setup and ordinary resulting actions
+remain recorded separately by the existing probes.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| All episode-one monsters | Passed | `texture-all-monsters-gl2/`: all 22 skeletal actors render and restore, including the frozen prisoners and updated Psyclaw atlas. Controlled worlds; no full level route. |
+| Guard death and default fragments | Passed | `texture-guard-body-gl2/`: ordinary Glock death, articulated contacts, sleep and alive restoration in e1m3b. `texture-guard-gibs-gl2/` verifies the default class gibs. `texture-guard-body-gl1-opening/` qualifies articulated death/restoration in e1m1a on GL1. |
+| Five UDP character appearances | Passed | `texture-network-characters-gl2/` and `texture-network-characters-gl1-workers/`: real client/server admission, 15-frame gait at 30 Hz, moving/stationary attacks, complete deaths, respawn, retained bodies, sleep and cleanup for Hiro, Mikiko, Superfly, Mishima and Usagi. |
+| Held weapons, carry and companion | Passed | `texture-held-weapons-gl2/`, `texture-carry-gl2/`, `texture-companion-body-gl2/`: sword/rifle/Glock grips and attacks, carried Mikiko performance, companion articulated death and actual alive save restoration. |
+| Intro motion and close face views | Passed within scope | `texture-intro-motion-gl2-standard/`: practice motion, early camera angles and Hiro face burst, playback through shot 35 and mid-cinematic save/load. Full 115-shot intro remains unverified. |
+| Saved Superfly encounter | Passed | `texture-encounter-gl2/`: ordinary trigger contact, all 13 authored shots, retained torture apparatus, active/completed restoration and player control release. Source autosave is copied and remains unchanged. |
+| Aggregate and asset provenance | Passed | One `zig build test` aggregate: 52/52 steps, 442/442 Zig tests, 130 Python tests and C contracts. Exact candidate/production, registration, render receipts, package lineage, conversion retention and prisoner proofs pass. |
+| Higher-load software profiles | Failed; unqualified | The 1920×1080 intro capture overflows reliable server commands. Initial GL1 firing/gait windows expire; e1m3b guard replays also overflow commands, and drop cleanup reports `StaleEntity` in the reduced-size attempt. These failed reports remain preserved; opening-map and standard-size passes do not qualify those paths. |
+
+The structural and scenario receipts above remain available. The owner's later
+close-up test reopens visual acceptance in sequence 330 above.
+Full campaign, every story performance, hardware rendering, higher-load software
+behavior and reliable-command drop cleanup remain open. Body collision remains
+approximate; runtime materials use base color and have no facial morphs. Concepts
+remain 1280 pixels. Earlier pod, Crox, robot and Venomvermin scenario evidence from
+sequence 328 retains its exact runtime geometry/materials and engine/module inputs.
+
+## Sequence 328 — neural-characters-episode1 — first integration verified; close-up repairs superseded by 329
+
+The owner reopened visual acceptance after finding eye placement, texture stripes
+and ragged surface edges. The package/scenarios below record the completed first
+integration, not acceptance of those defects. Further surface and registered
+material repairs are completed by sequence 329 above under
+`zig-out/reports/runtime-zig-328/texture-quality-review/`; the installed package
+remains available as historical evidence.
+
+The local pipeline photographs admitted original models, records reviewed detailed
+concepts, runs the pinned TRELLIS.2 deployment on the RTX 5090 and converts the
+inferred bodies to textured IQM. Its 37-master roster includes all 22 episode-one
+monsters, the five established characters and ten additional story identities.
+The prisoners retain their exact protected chained performances. Suitable bipeds
+use the shared anatomical character rig and new motion; creature trajectories
+retain authored frame/event intervals. Character variant construction preserves
+cinematic props, hardpoints, carry performance, moving weapon stances, team skins
+and face tint protection. Humanoid and generic creature physics use native Zig.
+
+Completed: 35 new reconstructed masters and two protected prisoners; 132 published
+IQM variants (110 character performances/appearances and 22 monsters). The final
+structural audit checks 37 masters and 11,458 frames. Asset review records 217
+sampled poses, 20 registered face/eye edits and 19 lit face reviews. Local deployment,
+capture/concept intake, reconstruction, conversion, review, packaging and replay
+instructions are in [the pipeline documentation](neural-monsters.md).
+
+Visual repairs include neutral torso centering, source-faithful guard identity,
+standing Toshiro alignment, robot frontal polarity, continuous robe hems and
+released hands, rigid pod petals, measured mechanical arms, connected Venomvermin
+quadruped motion, UV-seam welding before decimation, bounded face re-registration
+and valid serialized lighting normals. The two face shapes that exceeded the seam
+registration bounds received fresh registered edits. Normal reconstruction changes
+only IQM normal/tangent arrays; binary proofs retain the other geometry/motion bytes.
+The bundled engine's cumulative file-read counter now uses unsigned 64-bit
+accounting: repeated large-package restoration previously overflowed its signed
+32-bit counter and trapped in ReleaseSafe. Game/client/UI behavior remains Zig.
+
+Final isolated installation:
+`b39371cb7fb58d6c4a57b3c88af78c3061b5875da7b1770bf1b7b3e4138099a2`;
+combined executable/module/asset identity:
+`79582fa0f439d63a0ab768c1cdbe1ab155c0e98629fe971095322239d1bf9c08`.
+Package: `zig-out/neural-monsters/episode1/dk3-neural-episode.pk3`,
+1,874,338,862 bytes, SHA-256
+`e58e1d7ca38e82b734032f328445c8547b0ae829704918d736dc563b625cf7c0`.
+The current link now selects the sequence 329 installation above.
+The preserved installation and original save remain untouched; no Git operations.
+
+Evidence: `zig-out/reports/runtime-zig-328/final-evidence.json`, `native-review.html`,
+per-scenario inputs/captures/receipts, and `zig-out/neural-monsters/verification/`.
+All engine runs use canonical dkguard, isolated profiles and `--headless` without
+`--gpu`. Controlled spawning, facing, health/equipment and fragment suppression are
+recorded explicitly. Ordinary attacks, native animation events, contacts, respawn
+and actual save/load provide the resulting behavior.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| All episode-one monsters | Passed | `all-monsters-final-gl2/passed.json`: all 22 installed skeletal models render, each from an independently restored controlled world. Includes the two frozen prisoners. No full level route acceptance. |
+| Living guard, body and default gibs | Passed | `guard-body-seams-gl2/`: ordinary Glock death with fragments disabled, 30 joints, 23 samples, 5,707 contacts, sleep and alive restore. `guard-gibs-seams-gl2/` separately verifies default class gibs and corpse retirement. |
+| Generic Crox body | Passed | `crox-body-seams-gl2/`: seven joints, 23 samples, 98 contacts, sleep and alive restoration. |
+| Mechanical bipeds | Passed | `sludge-body-seams-gl2/` and `rage-body-seams-gl2/`: 28 joints, 24 samples each, ordinary death and alive restoration; 10,313/3,518 contacts. Ragemaster sleeps; Sludgeminion is still awake at the end of this short sample. |
+| Connected Venomvermin quadruped | Passed | `venom-body-final-gl2/`: 16 joints, 22 samples, 7,406 contacts, sleep and alive restoration. New run/strike pose reviews retain source event intervals; all-frame edge-stretch p99 is 1.92. |
+| Protopod and mechanical mosquito | Passed | `pod-hatch-opening-gl2/`: grounded visible pod 343 in e1m1a hatches the separate `monster_slaughterskeet` actor 345, loads its own IQM, and records 12 hatch views. Existing hatch timing and child gameplay remain authoritative. |
+| Five multiplayer characters | Passed | `network-characters-final-gl2/result.json`: two real UDP clients; Hiro, Mikiko, Superfly, Mishima and Usagi have 15-frame gait at 30 Hz, moving/stationary attacks, complete death playback before respawn, retained bodies and sleep. Final contacts are 2,462/3,023/2,360/3,020/1,979. Disabling ragdolls clears retained presentations. Four recorded map restarts use the same authored spawn for each appearance. LAN lifecycle checks also pass. |
+| Held weapons and carry | Passed | `held-weapons-seams-gl2/`: remote sword, rifle and Glock grips/attacks. `carry-seams-gl2/`: carried Mikiko/Superfly performance, movement, shadows and alive save restoration. |
+| Companion death/restoration | Passed | `companion-body-opening-gl2/`: ordinary Glock kills Mikiko; 30 joints, 24 physical samples, 2,960 contacts and sleep. Actual load restores her alive and clears the corpse. Collision-checked observer placement and torso aim are recorded. |
+| Intro practice/dialogue | Passed within scope | `intro-motion-seams-gl2/`: Hiro/Usagi models, practice motion bursts, sampled poses through shot 35 and actual mid-cinematic save restoration. The complete 115-shot intro and all story performances remain unverified. |
+| Saved Superfly encounter | Passed | `encounter-seams-gl2/`: copied autosave, ordinary trigger 50 contact, all 13 authored shots, original torture apparatus retained, active/completed scene restoration and player control release. Later rescue/full campaign remain unverified. |
+| Final package lineage | Passed | `verification/package-quadruped-diff.json`: final correction changes only Venomvermin IQM and the manifest; all other 131 runtime models, textures, skins, shaders and physics mapping match the seam-qualified package. Engine/modules/base content also match the earlier passing scenario identities. Thus unchanged affected scenarios retain their exact qualified assets. |
+| Broad aggregate | Passed | `aggregate-final.log`: 52/52 steps, 442/442 Zig tests, 125 Python tests and C contracts. Contracts cover anatomy, mechanical/pod rigidity, quadruped event/length preservation, bounded face registration, lighting-only byte changes, missing normals, frozen prisoners, stage invalidation and strict package reuse/admission. |
+| Protected assets/state | Passed | `verification/protected-final.json`: prisoner inputs, concepts, prompts, conversion metadata, IQMs and atlases are unchanged; published prisoner meshes/atlases match. Source autosave SHA-256 remains `6241cc17800ea58c99d293e16173bb0f9163b6ce890b6434e591540d97b7355d`. |
+
+Earlier failed diagnostics remain visible. The e1m3b pod fixture lacked authored
+air routes for the child's later retreat; the successful replay uses e1m1a. An
+intermediate `e1m1` spelling was not an installed map. The e1m3b companion fixture
+lost its shot lane behind a pillar and a subsequent low-health ally could be killed
+by surrounding enemies before the observer's shot; the isolated opening fixture
+qualifies ordinary fire and restoration. A wall/stair-adjacent multiplayer Mishima
+body remained awake after 8.4 seconds. Equal-spawn replay settles all five rigs;
+general settling at that earlier placement remains a known physics limit. None of
+these failed runs is counted as a passing complete scenario.
+
+Physics is cosmetic and collision volumes approximate the skinned bodies. Exact
+cloth/triangle/body-to-body collision, persisted physical poses, every placement,
+all cinematic performances, full campaign and hardware rendering are not qualified.
+Concept output is 1280 pixels despite the requested 2048; generated GLBs retain
+4096-pixel PBR atlases, while runtime materials use base color and no facial morphs.
+
+## Sequence 327 — skills-attachments-corpse-physics — verified on focused saved and multiplayer scenarios
+
+Fresh multiplayer advancement starts with all five attributes at zero for every
+appearance. Earned advancement still survives respawn. Timed skill pickups expose
+level five through the shared character rules, movement parameters and HUD, without
+changing permanent attributes; their existing expiry remains intact.
+
+Attached models now sample their parent's pose at render time using persistent
+parent/world identities, including nested attachments. Tossed pickups recover a
+partly embedded hull before settling, keep the precise contact point, and follow
+moving supports. Grounded pickups no longer repeatedly restart their gravity path.
+
+Weapon damage carries cumulative, sequenced body impulses in snapshots. Dead players
+and retained multiplayer bodies remain damageable, with score/death processing only
+once. Respawn retains the same body identity in an ordinary entity slot. Powerful
+lethal hits, substantial lethal explosions and sufficient overkill produce flesh
+fragments, and fragmented bodies retire their cosmetic ragdolls. Body solvers inherit authoritative velocity, release
+joint constraints gradually, and wake on localized subsequent impulses. Projectile
+splash now admits dead bodies and uses the blast direction without duplicating the
+shared death impulse. Console suicide retains its ordinary ragdoll path.
+
+Engine and native entity delta schemas advance together to protocol 1351. Matching
+client/server builds are required. Generated room compatibility metadata now uses
+the same protocol instead of the stale 1349 literal. Original saves remain compatible;
+source saves and the preserved installation are untouched. All runs use dkguard, copied state,
+isolated profiles and software rendering. No Git operations or service deployment.
+
+Final installation used by `zig build play`:
+`81687de5a239474418de2ff1240c08e8f88d79d95733f1386d1e68ff18a6d49a`;
+combined executable/module/asset identity
+`d6d73498e12c6414fa05d1aa289e9ceeb2b43455174b637bad6023b32f4db0f1`.
+Earlier focused scenario identities remain recorded in their own evidence files;
+final refresh adds the matching protocol metadata and a test-literal correction.
+
+Evidence: `zig-out/reports/runtime-zig-327/`. Reproducible scenario driver:
+`dkq3/tools/runtime_physics_repair_probe.py`. Diagnostic placement, elevated health,
+equipment and spawned pickups are recorded; contact, button use, attacks and respawn
+use ordinary client input. These are focused defect checks, not continuous campaign
+acceptance.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Five full-bar single-player pickups | Passed | `skills-final-gl2/` and the later `skills-admission-gl2/passed.json`: ordinary contact fills all five bars; inspected capture shows five segments per bar; save/load retains active boosts; expiry restores permanent zero attributes. |
+| Autosave lift attachment | Passed | `saved-gl2/` and `saved-final-gl1/`: copied e1m3b autosave, ordinary t478 button use; 188.9/186.2 units of lift travel, zero X/Z offset range, three units of the button's own Y travel. Saved state reloads; original autosave hash remains `6241cc17800ea58c99d293e16173bb0f9163b6ce890b6434e591540d97b7355d`. |
+| Grounded pickups near autosave | Passed | Same runs: four visible grounded pickups, including the health pack, show zero sampled position range. More maps/support geometries remain unverified. |
+| Multiplayer skills, deaths and corpse hits | Passed | `network-final-gl2/` and `network-friction-gl1/`: two real UDP clients, zero bars across all five character selections; ordinary speed pickup fills the bar and expiry returns it to zero. Glock death produces an articulated body; respawn retains its identity; a later Glock hit wakes and moves it (GL1 pelvis displacement 0.573 units). Sidewinder hits fragment both the retained body and a living player; corpse hits do not award another kill. Screenshots inspected. |
+| Single-player companion and restore | Passed | `companion-ragdoll/passed.json`: ordinary Glock fire kills grounded Mikiko, her bone solver settles with world contacts, and actual load restores her alive and removes the dead presentation. Existing fixture/movement/shadow captures retained. |
+| Installed multiplayer checkpoint | Passed | `installed-network-gl2/result.json`: all multiplayer checks pass on the final play installation; combined identity matches the recorded installation identity. |
+| Broad aggregate and focused repair | Passed | `aggregate.log`: all other targets pass (227 Zig tests, 113 Python tests and C contracts); runtime-root compilation caught an ambiguous new test literal. After its correction, `runtime-repair-checks.log` passes 64/64 steps and 302 runtime/catalog tests. There are 442 distinct Zig tests across these results, with the 87 catalog tests counted once. No duplicate whole-suite rerun. New contracts cover full-bar expiry, zero MP advancement, nested attachments, gib policy, corpse damage without another kill, gradual pose release/waking, and retained-body native save admission/rebasing. |
+| Preserved state | Passed | `original-save.json`: original autosave is byte-identical. No Git, preserved-installation, or external-service mutation. |
+
+The articulated bone solver remains cosmetic, with an approximate authoritative
+corpse hull. Exact bone hit locations, identical articulated trajectories on every
+client, all weapons/materials/maps and hardware rendering are not qualified here.
+The sandbox-only first renderer launch could not connect to X11; approved virtual
+display runs succeeded. `skills-gl2-approved/` retained a failed pickup setup after
+the path reached a wall. The corrected driver returns to a known grounded origin
+before each actual pickup; no attribute grant is used. `network-gl2/` exposed
+the lethal-explosion threshold edge case (68 damage left −38 health without gibs);
+the repaired weapon policy qualifies substantial lethal explosive hits. Its final
+replay fragments that case. `network-final-gl1/` measured movement below an imposed
+one-unit handgun slide threshold; floor friction arrested the body after a real
+response. `network-friction-gl1/` checks motion above diagnostic resolution instead
+of prescribing a fixed displacement for every weapon. Failed setup/assertion evidence
+is retained and is not included in the passing results.
+
+## Sequence 326 — superfly-encounter-prop — verified on the saved encounter
+
+The owner's screenshot from reaching Superfly in e1m3b was reproduced through
+ordinary contact with encounter trigger 50. The cinematic camera was looking
+through giant limbs because the cosmetic package replaced the torture apparatus
+`models/e1/d1_supertorture.dkm` with a generated Superfly body. The character
+classifier admitted this multipart prop as a humanoid, and fitting to the whole
+device produced a body with Z bounds −34.005 to 459.499. The converted apparatus's
+own bounds are −23.726 to 106.274. Neither the authored camera nor the player's
+death state caused this view; the player is alive and frozen for the scene.
+
+The classifier now leaves this device with its converted prop geometry. Package
+admission rejects that invalid body substitution, and the package tool can prune
+it from an existing local overlay without refitting other performances. The
+installed local overlay was repaired: its faulty IQM and four skins are removed,
+the manifest/report hashes are refreshed, and all 594 other non-manifest entries
+remain byte-identical. The original converted model package is unchanged; the
+old local cosmetic overlay is retained in the report directory. Native movement,
+actor placement, authored camera paths and saved model identities are unchanged.
+
+Installed build
+`925b35601295734af913ac3e57c14dd55e39cf2554b91107b6665ed2ac4dd7d9`;
+combined executable/module/asset identity
+`060db5bdb0e15f70909b02b9cb27352a44e2ae6f4c6b9c344e5778e20d15be13`.
+Evidence: `zig-out/reports/runtime-zig-326/`. Driver:
+`dkq3/tools/runtime_superfly_cinematic_probe.py`, through dkguard with isolated
+profiles and software rendering. `zig build play-install -j8` refreshed the
+installation used by ordinary `zig build play`.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Reported giant limbs | Expected defect reproduced | `encounter-before/`: prior installation and copied autosave; actual forward contact removes the first decorative stand-in and starts `e1m3_cinemid`. First-shot captures reproduce the supplied view; generated prop height exceeds 400 units. |
+| Corrected encounter view | Passed | `encounter-final/`: inspected first-shot captures show the apparatus in place of the giant body. The apparatus remains an authored world entity; the trigger removes `superdeco` as authored. Subsequent Hiro/Superfly shots also captured and sampled visually. |
+| Entire encounter and restoration | Passed | `encounter-final/passed.json`: all 13 encounter shots observed; saving/loading within the active first shot retains frozen viewer ownership and the corrected view. Natural completion returns normal control; saving/loading the completed encounter keeps it completed. Diagnostic placement outside the trigger, ordinary forward contact, original saved health/difficulty/inventory. This is the encounter cinematic, not the later four-shot rescue or full campaign. |
+| Cosmetic package repair | Passed | `package-repair.json`: removes only the faulty prop IQM/four skins and updates the two manifests; 594 other entries match the old overlay byte-for-byte. Corrected overlay passes normal package admission against the same converted models. Old overlay retained as `neural-before.pk3`, local assets only. |
+| Broad checks | Passed | `aggregate.log`: 52/52 steps, 435/435 Zig tests, 109 Python tests and C contracts. The new package regression rejects the invalid override, repairs a local overlay, and verifies unrelated performance bytes and admission integrity. |
+| Original save | Passed | `original-save.json`: source autosave hash unchanged. No Git operations or preserved installation/main changes. |
+| Other props/cinematics | Unverified | This repair excludes the identified multipart apparatus. It is not acceptance of the full cosmetic model classification or cinematic catalog, all facial performances, the later rescue sequence, or hardware rendering. |
+
+## Sequence 325 — saved-button-travel-and-lift-carry — verified on copied Solitary saves
+
+The fixes in sequences 323–324 did not repair existing native saves. The owner's
+`save2.sav` still contained the old travel endpoints for all 25 e1m3a buttons;
+`autosave.sav` retained them for all 14 e1m3b buttons. Restoring the saved mover
+replaced the corrected fresh-map component, so a flush panel still travelled two
+units behind its wall. Admission now recognizes that old hull-based formula,
+repairs the endpoints and remaps the saved pose and trajectory together. A
+`travel_version` marker makes this idempotent. Already-correct markerless saves
+keep their endpoints; used latches, target delivery, travel timing and dwell
+remain saved state. Explicit platform heights and angular travel stay intact.
+
+Lift prediction had two faults. The server's pusher had already carried the player
+to snapshot time, but command replay carried that origin again and tested against
+brush geometry at render time. Replay now uses the snapshot's committed geometry,
+then adjusts grounded presentation once from snapshot time to render time, including
+render frames before the newest snapshot. Separately, a platform catching a falling
+stationary player could turn a tiny outward collision residue into the full falling
+speed upward. Ground movement now discards that residue when there is no tangential
+motion. An engine replay measured the former −79 → +79 velocity reversal and lost
+ground contact; the repaired landing keeps vertical velocity zero. Existing bundled
+movement differential cases still pass; the new stationary-support case explicitly
+corrects this edge case rather than asserting reference parity for it.
+
+Saved movers also lacked the later authored audio fields. Restoration now resolves
+those fields against the saved resource registry, with the active world's bindings
+published before the initial gamestate. Leading slashes in authored sound paths are
+normalized: restored resident maps exposed `sounds//doors/...` causing media admission
+failure. Mixer audibility is **unverified in these saved-game runs**: ordinary load
+disables cheats, so `s_show` rejects channel inspection. Sound dispatch and persisted
+bindings alone are not evidence that a sample was heard.
+
+Final play installation:
+`d61c5af7426f2faccf5939b8f5e66735743dd525662c5cb88a05d84358e92109`;
+combined executable/module/asset identity
+`b6645c24846cf38389c047c0c3eea535d9049fb0d9225eeda58554d26549fcfe`.
+`zig build play-install -j8` refreshed the isolated installation used by
+`zig build play`. Evidence is under `zig-out/reports/runtime-zig-325/`;
+the reproducible driver is `dkq3/tools/runtime_saved_mover_probe.py`.
+
+| Scenario | State | Evidence and limits |
+|---|---|---|
+| Old saved endpoints | Expected defect reproduced | `saved-before-101/`: previous sequence-324 installation restores all 25 incorrect e1m3a button endpoints; flush terminal 101 still travels two units. This run's immediate pressed capture used the terminal's remote camera and does not prove disappearance visually. |
+| e1m3a saved buttons | Passed | `save2-verified/`: all 25 endpoints match authored travel; ordinary use of flush terminal 101 keeps its face visible, including after actual save/load. The permanent used latch stays open and audio binding is retained. Captures inspected after the authored remote camera returns. Diagnostic placement, original saved inventory/difficulty. |
+| e1m3b saved buttons | Passed | `autosave-verified/`: all 14 endpoints match; ordinary use of panel 357 leaves the triangle visible, also after save/load. Press travels three units rather than five. Captures inspected; restored press binding and sound dispatch recorded, audibility unverified. |
+| Saved platform ascent and landing | Passed | `save2-verified/lift-frames.json` and `view-summary.json`: 751 rendered frames, 743 supported rider frames, zero feet/deck or camera/deck range and no authoritative-ground loss, including initial landing. 717 supported frames precede snapshot time. Living rider contact renews this platform's upper dwell; this is ascent/dwell acceptance, not a descended cycle. |
+| Saved large lift ascent/descent | Passed | `save2-verified/big-lift-frames.json` and `view-summary.json`: 2,180 supported frames, 169 rising and 156 falling samples; feet/deck and camera/deck range below 0.0003 units, zero lost ground. Button 110 is pressed with ordinary use; elevated player health permits observation amid Inmater attacks. No trajectory or geometry fixture. |
+| Fresh platform ascent and dwell | Passed | `fresh-lift-final/`: 705 rendered frames, 658 supported, 43 rising samples, zero camera/deck and feet/deck range, zero lost ground. Elevated health keeps the observation alive. The platform correctly holds its upper dwell while touched. |
+| Broad checks | Passed | `aggregate-landing.log`: 52/52 build steps, 435/435 Zig tests including 208 runtime checks; 108 Python tests and C contracts pass. Compiler-cache writes initially failed in the sandbox; approved runs succeeded. |
+| Preserved saves | Passed | `original-saves.json`: both source saves remain byte-identical. All engine runs use dkguard, isolated profiles and software rendering. No Git operation, main merge, preserved installation or service change. |
+| Other mover/save cases | Implemented; unverified in engine | Recognized translating-door and implicit-platform save travel is admitted by the shared migration; other maps, parent-rotated saves, every mover class and hardware rendering are not qualified by these cases. Full campaign acceptance remains open. |
+
+Failed setup and intermediate evidence is retained. `saved-final-101/` exposed the
+leading-slash resident-media fault; `save2-final/` captured the actual landing bounce
+before repair. `save2-landing-final/` passed the repaired panel and platform, but its
+large-lift placement landed on the raised button instead of the deck and the player
+died during the wait. The corrected fixture clears that button's hull and records
+elevated health. `fresh-lift-verified/` crossed into the death camera, invalidating
+its camera range; `fresh-lift-living-verified/` incorrectly required descent while
+living contact held the platform open. Neither is accepted as a living full-cycle
+test. Earlier `--audible` failures were unavailable cheat-protected instrumentation,
+not demonstrated mixer silence. The final rows above supersede those outcomes and
+the earlier saved-game/living-rider acceptance claims.
+An additional `autosave-before-defect/` visual comparison could not start because
+the previous immutable installation had been removed during subsequent installation
+refreshes. It supplies no old-panel visual acceptance; the original expected-defect
+endpoint report and final inspected panel captures remain the recorded evidence.
+
 ## Sequence 324 — Authored mover motion, settling and looping audio — verified on Solitary
 
 Sequence 323 made the buttons of "Solitary" (e1m3a) audible and stopped them sinking into the

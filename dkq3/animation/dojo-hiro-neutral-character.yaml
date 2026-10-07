@@ -1,0 +1,73 @@
+version: 1
+body_sha256: 5c4c123034fe213d624a397fe7375df47cc5b0b3d634329bb502c243595f61cc
+head_sha256: d4ccbb8b6954e0aabe6ed1857da7fb9aebf94c676d730e3a2405c3e30ca3f8d0
+rest_sha256: c70d38c8eb05560de7dd8f1e2aa73da5960dfbe2df190df46c1e98285ad5be98
+body_material: models/neural/hiro-dojo-slim/body
+head_material: models/neural/hiro/head
+rig:
+  torso:
+  - - 0
+    - 0
+    - 4
+  - - 0
+    - 0
+    - 11
+  - - 0
+    - 0
+    - 18
+  - - 0
+    - 0
+    - 23
+  - - 0
+    - 0
+    - 27
+  arm_l:
+  - - 0
+    - 6.4
+    - 19
+  - - 0
+    - 8.8
+    - 12
+  - - 0
+    - 10.3
+    - 5
+  arm_r:
+  - - 0
+    - -6.4
+    - 19
+  - - 0
+    - -8.8
+    - 12
+  - - 0
+    - -10.3
+    - 5
+  leg:
+  - - 0
+    - 3.4
+    - 4
+  - - 0
+    - 3.8
+    - -9
+  - - 0
+    - 4
+    - -21
+  toe:
+  - 3.5
+  - 4
+  - -23
+body_cut: 23.0
+head_cut: 23.25
+head_neck_blend:
+- 20.5
+- 23.5
+head_translation:
+- 2.55
+- 3.6
+- 0.75
+provenance: DK3-generated slim gi body; exact previously approved Hiro face and atlas;
+  static rest orientation only
+head_ring_hint:
+- 0.33
+- 0.03
+neck_policy: weighted_overlap
+head_scale: 1.08

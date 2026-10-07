@@ -10,6 +10,15 @@ const v = @import("../domain/vector.zig");
 const c = abi.c;
 pub const Move = @import("attachments.zig").Move;
 const Backup = struct { slot: u16, origin: v.Vec3, angles: v.Vec3, ground: i32, yaw_delta: i32 = 0 };
+fn riderGround(world: *data.World, entity: ecs.Entity) ?i32 {
+    if (world.get(entity, data.Player)) |player| {
+        if (player.mode == .noclip or player.mode == .spectator) return null;
+        return player.ground_entity;
+    } else |_| {}
+    if (world.get(entity, data.Performer)) |performer| return performer.ground_entity else |_| {}
+    if (world.get(entity, data.Actor)) |actor| return actor.ground_entity else |_| {}
+    return null;
+}
 fn pushProjected(world: *data.World, slots: *const Slots, projections: []abi.EntityProjection, moves: []const Move) !?ecs.Entity {
     var saved: [ecs.max_entities]Backup = undefined;
     var count: usize = 0;
@@ -48,10 +57,14 @@ fn pushProjected(world: *data.World, slots: *const Slots, projections: []abi.Ent
         for (slots.occupants, 0..) |occupant, index| {
             const entity = occupant orelse continue;
             if (seen[index]) continue;
-            const ground = if (world.get(entity, data.Player)) |player| blk: {
-                if (player.mode == .noclip or player.mode == .spectator) continue;
-                break :blk player.ground_entity;
-            } else |_| if (world.get(entity, data.Actor)) |actor| actor.ground_entity else |_| continue;
+            const ground = riderGround(world, entity) orelse continue;
+            // Rider motion and pushing must agree on collision policy. A
+            // cinematic performer must not acquire player-only clip walls
+            // merely because its floor is a moving brush.
+            const mask = if (world.get(entity, data.Performer) catch null != null)
+                (try world.get(entity, data.Body)).collision_mask
+            else
+                c.MASK_PLAYERSOLID;
             const other = &projections[index];
             const riding = ground == before.slot;
             if (!riding) {
@@ -61,20 +74,20 @@ fn pushProjected(world: *data.World, slots: *const Slots, projections: []abi.Ent
                     break;
                 };
                 if (!intersects) continue;
-                const occupied = try engine.collisionService().trace(.{ .start = other.shared.currentOrigin, .end = other.shared.currentOrigin, .mins = other.shared.mins, .maxs = other.shared.maxs, .slot = @intCast(index), .mask = c.MASK_PLAYERSOLID });
+                const occupied = try engine.collisionService().trace(.{ .start = other.shared.currentOrigin, .end = other.shared.currentOrigin, .mins = other.shared.mins, .maxs = other.shared.maxs, .slot = @intCast(index), .mask = mask });
                 if (!occupied.start_solid) continue;
             }
             const old = other.shared.currentOrigin;
             const offset = v.add(old, v.scale(before.origin, -1));
             const rotated = v.add(v.add(v.scale(axes.forward, offset[0]), v.scale(axes.right, -offset[1])), v.scale(up, offset[2]));
             const destination = v.add(v.add(old, translation), v.add(rotated, v.scale(offset, -1)));
-            const hit = try engine.collisionService().trace(.{ .start = destination, .end = destination, .mins = other.shared.mins, .maxs = other.shared.maxs, .slot = @intCast(index), .mask = c.MASK_PLAYERSOLID });
+            const hit = try engine.collisionService().trace(.{ .start = destination, .end = destination, .mins = other.shared.mins, .maxs = other.shared.maxs, .slot = @intCast(index), .mask = mask });
             if (hit.start_solid) {
                 if (engine.integer("developer") > 1) {
                     var message: [256]u8 = undefined;
                     engine.print(try std.fmt.bufPrintZ(&message, "zig push blocked mover={d} rider={d} grounded={any} hit={d} old={d:.2},{d:.2},{d:.2} new={d:.2},{d:.2},{d:.2}\n", .{ before.slot, index, riding, hit.entity, old[0], old[1], old[2], destination[0], destination[1], destination[2] }));
                 }
-                const remains = try engine.collisionService().trace(.{ .start = old, .end = old, .mins = other.shared.mins, .maxs = other.shared.maxs, .slot = @intCast(index), .mask = c.MASK_PLAYERSOLID });
+                const remains = try engine.collisionService().trace(.{ .start = old, .end = old, .mins = other.shared.mins, .maxs = other.shared.maxs, .slot = @intCast(index), .mask = mask });
                 if (!remains.start_solid) {
                     saved[count] = .{ .slot = @intCast(index), .origin = old, .angles = other.shared.currentAngles, .ground = other.state.groundEntityNum };
                     count += 1;
@@ -102,9 +115,21 @@ fn pushProjected(world: *data.World, slots: *const Slots, projections: []abi.Ent
         } else |_| if (world.get(entity, data.Actor)) |actor| {
             actor.ground_entity = @intCast(projection.state.groundEntityNum);
         } else |_| {}
+        if (world.get(entity, data.Performer)) |performer| {
+            performer.ground_entity = @intCast(projection.state.groundEntityNum);
+        } else |_| {}
     }
     committed = true;
     return null;
+}
+test "spawned and borrowed cinematic performers participate in mover riding" {
+    var world = data.World.init(std.testing.allocator, 4);
+    defer world.deinit();
+    const performer: data.Performer = .{ .unique = "charonferry", .classname = "cine_charon", .model = "models/cinematic/c_char_e2m2.dkm", .ground_entity = 17 };
+    const spawned = try world.create(1, .{performer});
+    const borrowed = try world.create(2, .{ performer, data.Actor{ .definition = 0, .ground_entity = 2047 } });
+    try std.testing.expectEqual(@as(?i32, 17), riderGround(&world, spawned));
+    try std.testing.expectEqual(@as(?i32, 17), riderGround(&world, borrowed));
 }
 
 pub fn publishAssembly(world: *data.World, projections: []abi.EntityProjection, assembly: *const @import("attachments.zig").Assembly) anyerror!void {

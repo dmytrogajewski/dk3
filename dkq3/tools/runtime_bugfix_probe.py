@@ -177,8 +177,12 @@ def run(args, scenario=None, setup=None):
             setup(home, args.report)
         settings = client_settings(args.engine, home, args.renderer)
         settings.update(g_spSkill="3", r_picmip="0")
+        if getattr(args,'capture_size',None):
+            width,height=args.capture_size
+            settings.update(r_customwidth=str(width),r_customheight=str(height))
         if getattr(args, 'face', False):
-            settings.update(r_customwidth='1920', r_customheight='1080')
+            width,height=getattr(args,'face_size',(1920,1080))
+            settings.update(r_customwidth=str(width), r_customheight=str(height))
         if getattr(args, "ui_input", False):
             settings['in_nograb'] = '1'
         if getattr(args, "developer", False):

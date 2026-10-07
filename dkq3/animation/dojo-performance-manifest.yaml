@@ -1,0 +1,172 @@
+version: 1
+characters:
+- character: hiro
+  source_model: models/cinematic/c_hiro_intr.dkm
+  target_model: models/neural/c_hiro_intr.iqm
+  iqm: hiro.iqm
+  skeleton: dk3_humanoid_v1
+  clips:
+    stance:
+      sequence: ambba
+      source_frames:
+      - 122
+      - 142
+      authority_fps: 10
+      target_frames:
+      - 955
+      - 1017
+      fps: 0
+      loop: true
+      root_motion: preserve
+      motion: capture/stance.npz
+      retarget: dojo-performance-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 62
+        foot_r:
+        - - 0
+          - 62
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_loop_position: 2
+      max_loop_angle: 25
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot: &id001
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 1.1
+        - 0
+        - -1.4
+        max_error: 0.02
+        finger_pose:
+          fingers_l:
+          - 0
+          - -55
+          - 0
+          thumb_l:
+          - 0
+          - -20
+          - -15
+        blend_frames: 4
+      joint_limits:
+        fingers_l: 55.1
+        thumb_l: 28.1
+    look_left:
+      sequence: lftlook
+      source_frames:
+      - 163
+      - 172
+      authority_fps: 10
+      target_frames:
+      - 1018
+      - 1047
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: capture/look_left.npz
+      retarget: dojo-performance-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 29
+        foot_r:
+        - - 0
+          - 29
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot: *id001
+        parent: hand_l
+        position:
+        - 1.1
+        - 0
+        - -1.4
+        max_error: 0.02
+        finger_pose:
+          fingers_l:
+          - 0
+          - -55
+          - 0
+          thumb_l:
+          - 0
+          - -20
+          - -15
+        blend_frames: 4
+      joint_limits:
+        fingers_l: 55.1
+        thumb_l: 28.1
+    sad:
+      sequence: lksadb
+      source_frames:
+      - 234
+      - 263
+      authority_fps: 10
+      target_frames:
+      - 1048
+      - 1137
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: capture/sad.npz
+      retarget: dojo-performance-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 89
+        foot_r:
+        - - 0
+          - 89
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot: *id001
+        parent: hand_l
+        position:
+        - 1.1
+        - 0
+        - -1.4
+        max_error: 0.02
+        finger_pose:
+          fingers_l:
+          - 0
+          - -55
+          - 0
+          thumb_l:
+          - 0
+          - -20
+          - -15
+        blend_frames: 4
+      joint_limits:
+        fingers_l: 55.1
+        thumb_l: 28.1
+  bind_pose_sha256: 754d81754eabbef544e1e99fe468abf60466acb186b1af98cfdc70774a50eacc
+  provenance:
+    origin: Owner supplied local Daikatana pak3.pak, converted by reviewed DK3 asset
+      pipeline
+    license: Proprietary original game data; local development and owner testing only
+    redistribution: Not granted; original and reconstructed performance data remain
+      local build products
+    credit: Original Daikatana animation performance; DK3 surface reconstruction
+    capture_profile_sha256: e3194caf84da4ad9d8a07eae1a9c416ac96de2cbb626cac111b429c719b95435

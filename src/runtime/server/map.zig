@@ -47,7 +47,10 @@ pub fn read(allocator: std.mem.Allocator, source: anytype) !?Object {
         if (std.mem.eql(u8, key, "origin")) result.transform.position = try vector(value) else if (std.mem.eql(u8, key, "angles")) result.transform.angles = try vector(value) else if (std.mem.eql(u8, key, "angle")) {
             result.transform.angles[1] = try std.fmt.parseFloat(f32, value);
             if (!std.math.isFinite(result.transform.angles[1])) return error.InvalidVector;
-        } else if (std.mem.eql(u8, key, "spawnflags")) result.binding.flags = try std.fmt.parseInt(u32, value, 10) else inline for (.{ "classname", "targetname", "target", "model" }) |field| {
+        } else if (std.mem.eql(u8, key, "spawnflags")) {
+            // An authored empty value (e4m2a) reads as none, like atoi.
+            result.binding.flags = if (value.len == 0) 0 else try std.fmt.parseInt(u32, value, 10);
+        } else inline for (.{ "classname", "targetname", "target", "model" }) |field| {
             if (std.mem.eql(u8, key, field)) @field(result.binding, field) = owned;
         }
     }

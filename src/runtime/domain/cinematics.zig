@@ -268,6 +268,7 @@ pub const Performer = struct {
     due_ms: i64 = 0,
     next_ms: i64 = 0,
     velocity: v.Vec3 = @splat(0),
+    ground_entity: u16 = 2047,
 };
 test "cinematic cubic evaluates seconds and holds segment endpoints" {
     const segment: Segment = .{ .seconds = 2, .fov_flags = .{ true, true }, .fov = .{ 90, 60 }, .speed_flags = .{ false, false }, .speed = .{ 1, 1 }, .blend_flags = .{ true, true }, .blend = .{ .{ 0, 0, 0, 255 }, .{ 0, 0, 0, 0 } }, .position = .{ 0, 0, 10, 100, 0, 0, 0, 2, 0, 0, 0, 3 }, .angles = @splat(0) };

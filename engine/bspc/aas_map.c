@@ -26,6 +26,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "aas_store.h"				//AAS_MAX_BBOXES
 #include "aas_cfg.h"
 #include "qcommon/surfaceflags.h"
+#include "l_bsp_q3.h"			//q3_dmodels
 
 #define SPAWNFLAG_NOT_EASY			0x00000100
 #define SPAWNFLAG_NOT_MEDIUM		0x00000200
@@ -524,6 +525,10 @@ int AAS_ValidEntity(entity_t *mapent)
 	//some of the func_wall brushes are also used for AAS
 	else if (!strcmp("func_wall", ValueForKey(mapent, "classname")))
 	{
+		/* dk3: a non-solid wall (32) never blocks; a CTF-only wall (64)
+		   stands only in CTF (the native spawn applies the same flags). */
+		int dk3flags = atoi(ValueForKey(mapent, "spawnflags"));
+		if ((dk3flags & 32) || ((dk3flags & 64) && dk3_navMode != 4)) return false;
 		//Log_Print("found func_wall entity %d\n", mapent - entities);
 		//if the func wall is used in deathmatch
 		if (dk3_navMode >= 0 || !(atoi(ValueForKey(mapent, "spawnflags")) & SPAWNFLAG_NOT_DEATHMATCH))
@@ -552,7 +557,11 @@ int AAS_ValidEntity(entity_t *mapent)
 	} //end else if
 	else if (!strcmp("trigger_push", ValueForKey(mapent, "classname")))
 	{
-		return true;
+		/* dk3: a Quake III jump pad aims at a target. Daikatana's pushes are
+		   targetless currents (angle and speed: draughts, a laser field's
+		   shove) that a player walks into and out of; as jump pad areas
+		   they lost every walking link. Their space stays ordinary. */
+		return ValueForKey(mapent, "target")[0] != '\0';
 	} //end else if
 	else if (!strcmp("trigger_multiple", ValueForKey(mapent, "classname")))
 	{
@@ -636,6 +645,38 @@ static void AAS_RotatingDoorAngles(entity_t *mapent, vec3_t result)
 	if (!(spawnflags & DOOR_START_OPEN)) VectorMA(result, -distance, movedir, result);
 }
 
+/* dk3: a func_wall that appears when triggered (1) or toggles (2) is not
+   static. Daikatana uses them for cell force fields and walls a scene
+   removes; compiled solid they cut every route through them for good. They
+   are compiled like doors instead: mover areas carrying the model number, so
+   the runtime knows which areas the wall occupies while it stands. */
+static int AAS_Dk3DynamicWall(entity_t *mapent)
+{
+	return !strcmp("func_wall", ValueForKey(mapent, "classname")) && (atoi(ValueForKey(mapent, "spawnflags")) & 3);
+}
+
+/* dk3: a func_door that slides sideways and is made of thin wide slabs is a
+   floor (Daikatana's bridges and sliding floors), not a door to walk through:
+   compile it as floor in its authored position, where it spans its gap; the
+   runtime keeps routes off it while it is retracted. */
+static int AAS_Dk3FloorSlab(entity_t *mapent, mapbrush_t *brush)
+{
+	float angle = FloatForKey(mapent, "angle");
+	char *model = ValueForKey(mapent, "model");
+	q3_dmodel_t *bounds;
+	int number;
+
+	(void) brush;
+	if (strcmp("func_door", ValueForKey(mapent, "classname"))) return false;
+	if (angle == -1 || angle == -2) return false;
+	if (model[0] != '*') return false;
+	number = atoi(model + 1);
+	if (number <= 0 || number >= q3_nummodels) return false;
+	//the whole door, not each of its brushes (a bridge is many strips)
+	bounds = &q3_dmodels[number];
+	return bounds->maxs[2] - bounds->mins[2] <= 24 && bounds->maxs[0] - bounds->mins[0] >= 48 && bounds->maxs[1] - bounds->mins[1] >= 48;
+}
+
 /* Collision probes use the same static brush selection and placement as AAS
    construction. Dynamic doors remain represented by mover reachabilities. */
 int AAS_NextStaticModel(int after, int *model, vec3_t origin, vec3_t angles)
@@ -646,6 +687,7 @@ int AAS_NextStaticModel(int after, int *model, vec3_t origin, vec3_t angles)
 		char *name = ValueForKey(entity, "classname"), *reference = ValueForKey(entity, "model");
 		if (reference[0] != '*' || !AAS_ValidEntity(entity)) continue;
 		if (strcmp(name, "func_wall") && strcmp(name, "func_static") && strcmp(name, "func_door_rotating")) continue;
+		if (AAS_Dk3DynamicWall(entity)) continue;
 		*model = atoi(reference + 1);
 		VectorCopy(entity->origin, origin);
 		VectorClear(angles);
@@ -704,18 +746,22 @@ void AAS_PositionBrush(entity_t *mapent, mapbrush_t *brush)
 		//if it's a trigger hurt
 		if (!strcmp("trigger_hurt", ValueForKey(mapent, "classname")))
 		{
+			/* dk3: converted trigger brushes carry solid contents (Daikatana
+			   tells triggers by entity, not brush). Keep only the team flags:
+			   a hurt volume is space a route avoids, not a wall, and many
+			   are lasers and force fields the level switches off. */
 			notteam = FloatForKey(mapent, "bot_notteam");
 			if ( notteam == 1 ) {
-				brush->contents |= CONTENTS_NOTTEAM1;
+				brush->contents = CONTENTS_NOTTEAM1;
 			}
 			else if ( notteam == 2 ) {
-				brush->contents |= CONTENTS_NOTTEAM2;
+				brush->contents = CONTENTS_NOTTEAM2;
 			}
 			else {
 				/* dk3 backpack carriers survive lava, but not trigger_hurt.
 				   Exclude both teams instead of conflating these hazards with
 				   a liquid whose travel flag a protected carrier can enable. */
-				brush->contents |= CONTENTS_NOTTEAM1 | CONTENTS_NOTTEAM2;
+				brush->contents = CONTENTS_NOTTEAM1 | CONTENTS_NOTTEAM2;
 			}
 		} //end if
 		//
@@ -739,7 +785,11 @@ void AAS_PositionBrush(entity_t *mapent, mapbrush_t *brush)
 			brush->contents = CONTENTS_TELEPORTER;
 			//Log_Print("found trigger_teleport teleporter brush\n");
 		} //end if
-		else if (!strcmp("func_door", ValueForKey(mapent, "classname")))
+		else if (AAS_Dk3FloorSlab(mapent, brush))
+		{
+			//a floor in its authored position: keep its solid contents
+		} //end else if
+		else if (!strcmp("func_door", ValueForKey(mapent, "classname")) || AAS_Dk3DynamicWall(mapent))
 		{
 			//set mover contents
 			brush->contents = CONTENTS_MOVER;
@@ -812,6 +862,8 @@ void AAS_CreateMapBrushes(mapbrush_t *brush, entity_t *mapent, int addbevels)
 									| CONTENTS_LAVA
 									| CONTENTS_SLIME
 									| CONTENTS_MOVER
+									| CONTENTS_NOTTEAM1
+									| CONTENTS_NOTTEAM2
 									)))
 	{
 		nummapbrushsides -= brush->numsides;
@@ -846,6 +898,8 @@ void AAS_CreateMapBrushes(mapbrush_t *brush, entity_t *mapent, int addbevels)
 									| CONTENTS_JUMPPAD
 									| CONTENTS_DONOTENTER
 									| CONTENTS_MOVER
+									| CONTENTS_NOTTEAM1
+									| CONTENTS_NOTTEAM2
 									))
 	{
 		brush->expansionbbox = 0;

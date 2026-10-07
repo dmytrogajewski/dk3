@@ -23,6 +23,7 @@ pub const Actors = struct {
     air_ready: bool = false,
     water_routes: @import("air_routes.zig").Routes = .{},
     water_ready: bool = false,
+    sidekick_nodes: @import("sidekick_nodes.zig").State = .{},
     pub fn spawn(self: *Actors, allocator: std.mem.Allocator, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, now: i64, episode: u8) !void {
         self.episode = episode;
         self.allocator = allocator;
@@ -53,6 +54,8 @@ pub const Actors = struct {
     /// without a local start marker. Admit their existing class models/metadata
     /// before publishing the destination's resource table; do not spawn actors.
     pub fn prepareParty(self: *Actors) !void {
+        // A map entered or a save of it restored: its teleport nodes are unused.
+        self.sidekick_nodes = .{};
         if (engine.integer("g_gametype") != c.GT_SINGLE_PLAYER) return;
         for (catalog.entries, 0..) |entry, id| if (entry.kind == .companion) {
             try self.ensure(@intCast(id));
@@ -134,7 +137,17 @@ pub const Actors = struct {
                 definition.vermin_has_leap = (try animation.find(metadata, attack)) != null;
                 if (!definition.vermin_has_leap) continue;
             }
-            definition.attacks[i] = try animation.find(metadata, attack) orelse return error.MissingActorAttack;
+            // The supplied satyr model has no transition poses; the side
+            // change then happens without one.
+            if (policy.kind == .satyr and i >= 3) {
+                if (i == 3) definition.satyr_has_transitions = (try animation.find(metadata, attack)) != null and (try animation.find(metadata, attacks[4])) != null;
+                if (!definition.satyr_has_transitions) continue;
+            }
+            definition.attacks[i] = try animation.find(metadata, attack) orelse {
+                var text: [160]u8 = undefined;
+                engine.print(std.fmt.bufPrintZ(&text, "dk3 actor: {s} has no attack sequence {s} in {s}\n", .{ policy.classname, attack, name }) catch "");
+                return error.MissingActorAttack;
+            };
             if ((policy.kind == .spider or policy.kind == .smallspider) and i == 0) definition.attacks[i].fps *= 2;
             // These Wyndrax model sequences have no rows in the supplied CSV;
             // their default strike is first+1 and the class supplies zap audio.
@@ -441,7 +454,11 @@ pub const Actors = struct {
         }
         @import("../engine/animation.zig").publish(&projection.state, playback, now);
         projection.state.pos = @import("../engine/trajectory.zig").interpolated(pose.position);
-        projection.state.apos = @import("../engine/trajectory.zig").interpolated(pose.angles);
+        // A companion's pitch is where it aims, not how it stands: like a
+        // player, its body is drawn upright and turned by yaw alone (aiming up
+        // at a ledge must not tip the whole model back off its feet).
+        const drawn: v.Vec3 = if (policy.kind == .companion) .{ 0, pose.angles[1], 0 } else pose.angles;
+        projection.state.apos = @import("../engine/trajectory.zig").interpolated(drawn);
         projection.shared.currentOrigin = pose.position;
         projection.shared.currentAngles = pose.angles;
         projection.shared.mins = body.mins;
@@ -464,6 +481,7 @@ pub const Actors = struct {
         return hit.fraction == 1 or hit.entity == target;
     }
     pub fn step(self: *Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, router: *@import("targets.zig").Router, navigation: @import("../domain/navigation.zig").Service, now: i64, elapsed: u32) !void {
+        if (engine.integer("g_gametype") == c.GT_SINGLE_PLAYER) try @import("sidekick_nodes.zig").step(&self.sidekick_nodes, world, slots);
         const occupants = slots.occupants;
         for (occupants) |occupant| {
             const entity = occupant orelse continue;
@@ -693,7 +711,7 @@ pub const Actors = struct {
                 }
                 if (!dead and policy.kind == .fish) try @import("fishes.zig").think(self, world, slots, projections, entity, &actor, &pose, now);
                 const previous_companion_mode = actor.mode;
-                if (!dead and policy.kind == .companion) try @import("companions.zig").goal(self, navigation, world, slots, entity, &actor, &pose, now);
+                if (!dead and policy.kind == .companion) try @import("companion_brain.zig").think(self, navigation, world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now);
                 if (!dead and policy.kind == .mishima_guard) try @import("hostiles.zig").guard(world, slots, projections, entity, &actor, &pose, self.table.definitions[actor.definition], now);
                 var velocity = (try world.get(entity, data.Velocity)).*;
                 if (!dead and policy.kind == .froginator and body.motion_owner == null) try @import("froginators.zig").think(world, slots, projections, entity, &actor, &pose, body, &velocity, self.table.definitions[actor.definition], now);
@@ -704,7 +722,7 @@ pub const Actors = struct {
                 const slow = if (world.get(entity, data.Ailments) catch null) |ailment| 1 - 0.8 * ailment.freeze_level else 1;
                 if (!dead and policy.kind == .protopod) try @import("skeeters.zig").pod(self, world, slots, projections, entity, &actor, pose, &body, now);
                 if (!dead and policy.kind == .companion and body.motion_owner == null) {
-                    try @import("companion_navigation.zig").move(world, entity, &actor, &pose, &body, &velocity, navigation, self.table.definitions[actor.definition], self.table.definitions[actor.definition].speed * slow, threat, binding.slot, now, elapsed);
+                    try @import("companion_pilot.zig").drive(self, world, slots, projections, entity, &actor, &pose, &body, &velocity, navigation, self.table.definitions[actor.definition], self.table.definitions[actor.definition].speed * slow, now, elapsed);
                 } else if (!dead and policy.kind == .froginator and actor.frog.phase == .jump and body.motion_owner == null) {
                     try @import("froginators.zig").jump(&actor, &pose, &body, &velocity, binding.slot, elapsed);
                 } else if (!dead and (policy.kind == .fish or policy.kind == .dopefish) and body.motion_owner == null) {

@@ -1,0 +1,16 @@
+version: 1
+profile: dojo-hiro-dialogue-capture.yaml
+template: hiro.iqm
+template_sha256: 121333afb5f4cc6930c034b8635c25d4db61d0dc355a6e5c01742f49cf7f340a
+head_material: models/neural/hiro/head
+body_material: models/neural/hiro-dojo/body
+neck_cut: 22.0
+subdivision: 2
+head_scale: 0.95
+surface_correctives: true
+provenance:
+  origin: Owner local original dojo vertex animation plus previously admitted DK3
+    detailed Hiro head
+  license: Retail source and owner-generated head, local use only
+  redistribution: Not distributable without separate licensing review
+  credit: Ion Storm original costume/performance; DK3 reconstruction tooling

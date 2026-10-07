@@ -1,0 +1,1385 @@
+version: 1
+characters:
+- character: hiro
+  source_model: models/cinematic/c_hiro_intr.dkm
+  target_model: models/neural/c_hiro_intr.iqm
+  iqm: hiro-generated/generated.iqm
+  skeleton: dk3_humanoid_dojo_corrective_v2
+  clips:
+    stance:
+      sequence: ambba
+      source_frames:
+      - 122
+      - 142
+      authority_fps: 10
+      target_frames:
+      - 955
+      - 1017
+      fps: 0
+      loop: true
+      root_motion: preserve
+      motion: hiro-capture/stance.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 62
+        foot_r:
+        - - 0
+          - 62
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      max_loop_position: 2
+      max_loop_angle: 25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: &id001
+        deform_pelvis: pelvis
+        deform_spine: spine
+        deform_chest: chest
+        deform_neck: neck
+        deform_head: head
+        deform_upperarm_l: upperarm_l
+        deform_forearm_l: forearm_l
+        deform_hand_l: hand_l
+        deform_upperarm_r: upperarm_r
+        deform_forearm_r: forearm_r
+        deform_hand_r: hand_r
+    look_left:
+      sequence: lftlook
+      source_frames:
+      - 163
+      - 172
+      authority_fps: 10
+      target_frames:
+      - 1018
+      - 1047
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: hiro-capture/look_left.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 29
+        foot_r:
+        - - 0
+          - 29
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    sad:
+      sequence: lksadb
+      source_frames:
+      - 234
+      - 263
+      authority_fps: 10
+      target_frames:
+      - 1048
+      - 1137
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: hiro-capture/sad.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 89
+        foot_r:
+        - - 0
+          - 89
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+        intervals:
+        - - 0
+          - 39
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    ambb:
+      sequence: ambb
+      source_frames:
+      - 99
+      - 121
+      authority_fps: 10
+      target_frames:
+      - 1138
+      - 1206
+      fps: 0
+      loop: true
+      root_motion: preserve
+      motion: hiro-capture/ambb.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 68
+        foot_r:
+        - - 0
+          - 68
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      max_loop_position: 2
+      max_loop_angle: 25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    walka:
+      sequence: walka
+      source_frames:
+      - 775
+      - 794
+      authority_fps: 10
+      target_frames:
+      - 1207
+      - 1266
+      fps: 0
+      loop: true
+      root_motion: preserve
+      motion: hiro-capture/walka.npz
+      retarget: dojo-source-retarget.yaml
+      contacts: {}
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      max_loop_position: 2
+      max_loop_angle: 25
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    tka:
+      sequence: tka
+      source_frames:
+      - 582
+      - 601
+      authority_fps: 10
+      target_frames:
+      - 1267
+      - 1326
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: hiro-capture/tka.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 59
+        foot_r:
+        - - 0
+          - 59
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    tkb:
+      sequence: tkb
+      source_frames:
+      - 602
+      - 631
+      authority_fps: 10
+      target_frames:
+      - 1327
+      - 1416
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: hiro-capture/tkb.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 89
+        foot_r:
+        - - 0
+          - 89
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    tkc:
+      sequence: tkc
+      source_frames:
+      - 632
+      - 661
+      authority_fps: 10
+      target_frames:
+      - 1417
+      - 1506
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: hiro-capture/tkc.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 89
+        foot_r:
+        - - 0
+          - 89
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    tkd:
+      sequence: tkd
+      source_frames:
+      - 662
+      - 681
+      authority_fps: 10
+      target_frames:
+      - 1507
+      - 1566
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: hiro-capture/tkd.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 59
+        foot_r:
+        - - 0
+          - 59
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    tke:
+      sequence: tke
+      source_frames:
+      - 682
+      - 712
+      authority_fps: 10
+      target_frames:
+      - 1567
+      - 1659
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: hiro-capture/tke.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 92
+        foot_r:
+        - - 0
+          - 92
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    tkea:
+      sequence: tkea
+      source_frames:
+      - 713
+      - 728
+      authority_fps: 10
+      target_frames:
+      - 1660
+      - 1707
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: hiro-capture/tkea.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 47
+        foot_r:
+        - - 0
+          - 47
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+    tkeb:
+      sequence: tkeb
+      source_frames:
+      - 729
+      - 753
+      authority_fps: 10
+      target_frames:
+      - 1708
+      - 1782
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: hiro-capture/tkeb.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 74
+        foot_r:
+        - - 0
+          - 74
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        - prop_31
+        - prop_32
+        pivot:
+        - 7.783203125
+        - 8.109375
+        - 5.529296875
+        parent: hand_l
+        position:
+        - 0.841015624999998
+        - 0.3992187499999993
+        - -0.5234374999999991
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 1.25
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+        prop_31:
+          mode: captured
+        prop_32:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id001
+  bind_pose_sha256: ab99f03ba88645bfce05f207a1b3b54e614df116bb63b0d063b49dbf68b600e8
+  provenance:
+    origin: Owner supplied local Daikatana pak3.pak, converted by reviewed DK3 asset
+      pipeline
+    license: Proprietary original game data; local development and owner testing only
+    redistribution: Not granted; original and reconstructed performance data remain
+      local build products
+    credit: Original Daikatana animation performance; DK3 surface reconstruction
+    capture_profile_sha256: 4b4c57d76b9fe7c0982ffdd0d33a50f394c3be5ee22e6f94b313bb606973fd67
+- character: ebihara
+  source_model: models/cinematic/c_tosh_intr.dkm
+  target_model: models/neural/c_tosh_intr.iqm
+  iqm: ebihara-master-observed/rebased.iqm
+  skeleton: dk3_humanoid_dojo_corrective_v1
+  bind_pose_sha256: 3ccbf59497631e9b39fab9c001dacc0dad26f8f212edd46ef17e61b35c906cba
+  provenance:
+    origin: Owner supplied local Daikatana pak3.pak, converted by reviewed DK3 asset
+      pipeline
+    license: Proprietary original game data; local development and owner testing only
+    redistribution: Not granted; original and reconstructed performance data remain
+      local build products
+    credit: Original Daikatana animation performance; DK3 surface reconstruction
+    capture_profile_sha256: 73c857565e39178a0a53982c69a9a2074947d082210852f2b5efac35ba39c4eb
+  clips:
+    tka:
+      sequence: tka
+      source_frames:
+      - 216
+      - 235
+      authority_fps: 10
+      target_frames:
+      - 515
+      - 574
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/tka.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 59
+        foot_r:
+        - - 0
+          - 59
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: &id002
+        deform_neck: neck
+        deform_head: head
+        deform_upperarm_l: upperarm_l
+        deform_forearm_l: forearm_l
+        deform_hand_l: hand_l
+        deform_upperarm_r: upperarm_r
+        deform_forearm_r: forearm_r
+        deform_hand_r: hand_r
+    tkb:
+      sequence: tkb
+      source_frames:
+      - 236
+      - 264
+      authority_fps: 10
+      target_frames:
+      - 575
+      - 661
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/tkb.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 86
+        foot_r:
+        - - 0
+          - 86
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002
+    tkc:
+      sequence: tkc
+      source_frames:
+      - 265
+      - 293
+      authority_fps: 10
+      target_frames:
+      - 662
+      - 748
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/tkc.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 86
+        foot_r:
+        - - 0
+          - 86
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002
+    tkd:
+      sequence: tkd
+      source_frames:
+      - 294
+      - 322
+      authority_fps: 10
+      target_frames:
+      - 749
+      - 835
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/tkd.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 86
+        foot_r:
+        - - 0
+          - 86
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002
+    tkda:
+      sequence: tkda
+      source_frames:
+      - 323
+      - 343
+      authority_fps: 10
+      target_frames:
+      - 836
+      - 898
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/tkda.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 62
+        foot_r:
+        - - 0
+          - 62
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002
+    tke:
+      sequence: tke
+      source_frames:
+      - 344
+      - 373
+      authority_fps: 10
+      target_frames:
+      - 899
+      - 988
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/tke.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 89
+        foot_r:
+        - - 0
+          - 89
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002
+    tkf:
+      sequence: tkf
+      source_frames:
+      - 374
+      - 393
+      authority_fps: 10
+      target_frames:
+      - 989
+      - 1048
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/tkf.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 59
+        foot_r:
+        - - 0
+          - 59
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002
+    tkg:
+      sequence: tkg
+      source_frames:
+      - 394
+      - 413
+      authority_fps: 10
+      target_frames:
+      - 1049
+      - 1108
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/tkg.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 59
+        foot_r:
+        - - 0
+          - 59
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002
+    cough:
+      sequence: cough
+      source_frames:
+      - 1
+      - 20
+      authority_fps: 10
+      target_frames:
+      - 1109
+      - 1168
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/cough.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 59
+        foot_r:
+        - - 0
+          - 59
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002
+    coughb:
+      sequence: coughb
+      source_frames:
+      - 21
+      - 40
+      authority_fps: 10
+      target_frames:
+      - 1169
+      - 1228
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/coughb.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 59
+        foot_r:
+        - - 0
+          - 59
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002
+    coughc:
+      sequence: coughc
+      source_frames:
+      - 41
+      - 70
+      authority_fps: 10
+      target_frames:
+      - 1229
+      - 1318
+      fps: 0
+      loop: false
+      root_motion: preserve
+      motion: ebihara-capture/coughc.npz
+      retarget: dojo-source-retarget.yaml
+      contacts:
+        foot_l:
+        - - 0
+          - 89
+        foot_r:
+        - - 0
+          - 89
+      solve_contacts: true
+      max_foot_slide: 0.5
+      max_joint_step: 65
+      prop_contacts:
+      - prop: prop_30
+        members:
+        - prop_30
+        pivot:
+        - 10.86
+        - 4.96
+        - 3
+        parent: hand_l
+        position:
+        - 1.608223806034367
+        - 0.6174430871039149
+        - 0.5531978778567574
+        max_error: 0.02
+        blend_frames: 4
+        orientation: source_world
+        floor_contact:
+          point:
+          - 9.998
+          - 9.578
+          - -23.922
+          height: -24
+          max_error: 0.5
+          solve: false
+        source_grip: true
+        attachment_bone: deform_hand_l
+        max_surface_error: 0.75
+      solve_contact_root: true
+      contact_floor: -24
+      props:
+        prop_30:
+          mode: captured
+      source_fidelity:
+        max_direction_degrees: 5
+      correctives: *id002

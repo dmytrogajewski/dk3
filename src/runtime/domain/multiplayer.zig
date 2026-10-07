@@ -15,12 +15,8 @@ pub const Session = struct {
     pose: @import("player_pose.zig").State = .{},
     advancement: ?@import("character.zig").Advancement = null,
 };
-pub fn initialAdvancement(appearance_id: u8) @import("character.zig").Advancement {
-    return .{ .attributes = switch (@import("appearance_catalog").character(appearance_id)) {
-        0 => .{ 0, 1, 0, 1, 0 },
-        1 => .{ 0, 1, 1, 0, 0 },
-        else => .{ 1, 0, 0, 0, 1 },
-    }, .level = 3, .experience = @import("weapon_catalog").character.experienceThreshold(2) };
+pub fn initialAdvancement(_: u8) @import("character.zig").Advancement {
+    return .{};
 }
 pub fn allied(a: Session, b: Session) bool {
     return (a.team == .red or a.team == .blue) and a.team == b.team;
@@ -169,15 +165,15 @@ test "deathtag fuse survives a drop and transfer and a capture shortens it" {
     try t.expectEqual(@as(?u32, null), flag.carrier);
 }
 
-test "class starting attributes and retained advancement exclude temporary effects" {
+test "multiplayer starts at zero and retains earned advancement without temporary effects" {
     const t = std.testing;
     const character = @import("character.zig");
     const hiro = initialAdvancement(0);
     const mikiko = initialAdvancement(1);
     const superfly = initialAdvancement(2);
-    try t.expectEqual([5]i32{ 0, 1, 0, 1, 0 }, hiro.attributes);
-    try t.expectEqual([5]i32{ 0, 1, 1, 0, 0 }, mikiko.attributes);
-    try t.expectEqual([5]i32{ 1, 0, 0, 0, 1 }, superfly.attributes);
+    try t.expectEqual([5]i32{ 0, 0, 0, 0, 0 }, hiro.attributes);
+    try t.expectEqual(hiro, mikiko);
+    try t.expectEqual(hiro, superfly);
     var state = character.State.fromAdvancement(hiro);
     state.invincible_until = 90000;
     state.rings = 16;
@@ -193,5 +189,5 @@ test "class starting attributes and retained advancement exclude temporary effec
     var capped = character.State.fromAdvancement(hiro);
     _ = try capped.awardLimited(100000, 4);
     try t.expectEqual(@as(i32, 4), capped.level);
-    try t.expectEqual(@as(i32, 1), capped.points);
+    try t.expectEqual(@as(i32, 3), capped.points);
 }

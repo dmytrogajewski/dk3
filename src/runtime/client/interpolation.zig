@@ -63,7 +63,11 @@ pub fn ingest(snapshot: *const c.snapshot_t, boundary: u32) void {
 pub fn apply(value: *c.entityState_t, now: i32) void {
     if (value.number < 0 or value.number >= entities.len) return;
     const pose = entities[@intCast(value.number)].sample(now);
-    if (value.pos.trType == c.TR_INTERPOLATE) value.pos = trajectory.stationary(pose.position);
+    if (value.pos.trType == c.TR_INTERPOLATE) {
+        const velocity = value.pos.trDelta;
+        value.pos = trajectory.stationary(pose.position);
+        value.pos.trDelta = velocity;
+    }
     if (value.apos.trType == c.TR_INTERPOLATE) value.apos = trajectory.stationary(pose.angles);
 }
 pub fn camera(now: i32) Pose {

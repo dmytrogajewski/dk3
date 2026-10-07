@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-//! Party spawning, orders, perception and class-owned weapon execution.
+//! Party spawning, orders and class-owned weapon execution. What a companion
+//! wants is companion_brain's; how it moves and aims is the shared pilot's.
 const std = @import("std");
 const data = @import("../domain/components.zig");
 const Ref = @import("../domain/world_references.zig").Ref;
@@ -121,6 +122,7 @@ pub fn order(actors: *const @import("actors.zig").Actors, world: *data.World, no
         companion.collect_until_ms = now + 15000;
         companion.yielding_until_ms = 0;
         (try ref.get(data.Actor)).route = .{};
+        @import("companion_pilot.zig").forget(try ref.id());
         companion.owner = try world.persistentId(player);
         companion.order = requested;
         companion.target = target;
@@ -134,94 +136,6 @@ pub fn order(actors: *const @import("actors.zig").Actors, world: *data.World, no
         changed = true;
     }
     return changed;
-}
-pub fn goal(actors: *const @import("actors.zig").Actors, navigation: @import("../domain/navigation.zig").Service, world: *data.World, slots: *Slots, entity: ecs.Entity, actor: *data.Actor, pose: *data.Transform, now: i64) !void {
-    const table = &actors.weapons;
-    const companion = try world.get(entity, data.Companion);
-    if (actor.reaction != null) {
-        actor.mode = .idle;
-        return;
-    }
-    if (try @import("companion_triggers.zig").advance(world, entity, actor, pose, now)) return;
-    if (!companion.enabled) {
-        actor.mode = .idle;
-        return;
-    }
-    if (access.find(world, companion.owner) == null) if (slots.occupants[0]) |player| {
-        companion.owner = try world.persistentId(player);
-    };
-    const owner = access.find(world, companion.owner) orelse {
-        actor.mode = .idle;
-        return;
-    };
-    if (companion.order == .collect and companion.collecting == 0 and companion.target != 0) {
-        companion.collecting = companion.target;
-        companion.collect_forced = true;
-        companion.collect_until_ms = now + 15000;
-    }
-    if (try @import("companion_items.zig").pursuing(world, entity, actor, pose.*, table, actors.episode, now)) return;
-    if (companion.order == .move) {
-        actor.threat_position = companion.destination;
-        actor.mode = if (v.length(v.subtract(companion.destination, pose.position)) > 24) .chase else .idle;
-        if (actor.mode == .idle) companion.order = .stay;
-        return;
-    }
-    if (companion.stopped) {
-        actor.threat = 0;
-        actor.mode = .idle;
-        return;
-    }
-    var enemy: ?Ref = null;
-    var distance: f32 = 1000;
-    var candidates = access.Damageables.init(world, slots);
-    while (!companion.carrying) {
-        const candidate = candidates.next() orelse break;
-        const other = candidate.get(data.Actor) catch continue;
-        const kind = @import("actor_catalog").entries[other.definition].kind;
-        if (kind == .civilian or @import("actor_catalog").ambient(kind) or kind == .companion or (try candidate.get(data.Health)).current <= 0) continue;
-        const commanded = companion.order == .attack and companion.target == try candidate.id();
-        if (!commanded and actor.threat != try candidate.id() and other.threat != companion.owner and other.threat != try world.persistentId(entity)) continue;
-        const target = (try candidate.get(data.Transform)).position;
-        const range = v.length(v.subtract(target, pose.position));
-        if (range >= distance and !commanded) continue;
-        const trace = try @import("region_collision.zig").trace(.{ .start = v.add(pose.position, .{ 0, 0, 22 }), .end = target, .mins = @splat(0), .maxs = @splat(0), .slot = (try world.get(entity, data.Binding)).slot, .mask = c.MASK_SHOT });
-        if (!@import("region_collision.zig").reaches(world, trace, candidate)) continue;
-        enemy = candidate;
-        distance = range;
-        if (commanded) break;
-    }
-    companion.selected_weapon = try @import("companion_weapons.zig").choose(world, entity, enemy, table, actors.episode);
-    if (enemy) |target| if (!companion.carrying and (try target.get(data.Health)).current > 0) {
-        actor.threat = try target.id();
-        actor.threat_position = (try target.get(data.Transform)).position;
-        const delta = v.subtract(actor.threat_position, pose.position);
-        pose.angles = .{ -std.math.atan2(delta[2] - 22, @sqrt(delta[0] * delta[0] + delta[1] * delta[1])) * 180 / std.math.pi, std.math.atan2(delta[1], delta[0]) * 180 / std.math.pi, 0 };
-        const loadout = (try world.get(entity, data.Weapons)).*;
-        const range = @import("companion_weapons.zig").range(loadout, companion.selected_weapon, table);
-        const can_fire = (try world.get(entity, data.Health)).current >= 15 and range > 0 and v.length(delta) <= range and try @import("companion_weapons.zig").clear(world, entity, target, companion.selected_weapon, table);
-        actor.mode = if (can_fire) .attack else if ((try world.get(entity, data.Health)).current < 15) .flee else if (companion.order == .stay or companion.selected_weapon == 0) .idle else .chase;
-        return;
-    };
-    actor.threat = 0;
-    if (companion.order == .stay) {
-        actor.mode = .idle;
-        return;
-    }
-    const leader = (try owner.get(data.Transform)).*;
-    const side: f32 = if (companion.identity == .mikiko) -48 else 48;
-    const axes = v.basis(leader.angles);
-    actor.threat_position = v.add(leader.position, v.add(v.scale(axes.forward, -80), v.scale(axes.right, side)));
-    actor.mode = if (v.length(v.subtract(pose.position, actor.threat_position)) > 64) .chase else .idle;
-    if (actor.mode == .idle and now >= companion.collect_scan_ms) {
-        companion.collect_scan_ms = now + 1000;
-        companion.collecting = try @import("companion_items.zig").choose(world, entity, table, actors.episode, navigation, now);
-        companion.collect_forced = false;
-        companion.collect_until_ms = now + 10000;
-        if (companion.collecting != 0) {
-            actor.route = .{};
-            _ = try @import("companion_items.zig").pursuing(world, entity, actor, pose.*, table, actors.episode, now);
-        }
-    }
 }
 pub fn combat(actors: *const @import("actors.zig").Actors, world: *data.World, slots: *Slots, projections: []abi.EntityProjection, table: *const @import("../domain/weapons.zig").Table, now: i64, elapsed: u32) !void {
     const occupants = slots.occupants;
@@ -249,18 +163,22 @@ pub fn combat(actors: *const @import("actors.zig").Actors, world: *data.World, s
             }
             continue;
         }
-        const actor = (try world.get(entity, data.Actor)).*;
         const pose = (try world.get(entity, data.Transform)).*;
         const slot = (try world.get(entity, data.Binding)).slot;
         const loadout = try world.get(entity, data.Weapons);
+        // The pilot chose the weapon and whether to pull the trigger this
+        // frame; the companion's own weapon step raises, fires and reloads.
+        const decided = @import("companion_pilot.zig").output(try world.persistentId(entity), now);
+        if (decided) |choice| companion.selected_weapon = if (companion.carrying or loadout.dk3Inventory & (@as(i32, 1) << choice.weapon) == 0) 0 else choice.weapon;
         if (loadout.weapon == 0 and companion.selected_weapon == 0) continue;
         var events: @import("../domain/weapons.zig").Events = .{};
         var context: @import("../domain/weapons.zig").Context = .{ .ps = loadout, .table = table, .events = &events, .service = engine.collisionService(), .slot = slot, .shot_mask = c.MASK_SHOT, .single_player = true };
         var player = companion.motor;
         var motion: @import("../domain/slide.zig").State = .{ .position = pose.position, .velocity = @splat(0) };
         const hook = context.hook();
-        const target = access.find(world, actor.threat);
-        const wants_fire = companion.enabled and !companion.stopped and !companion.carrying and actor.mode == .attack and companion.selected_weapon != 0 and health >= 15 and !@import("nightmare.zig").frozen(world, entity) and (if (target) |enemy| try @import("companion_weapons.zig").clear(world, entity, enemy, companion.selected_weapon, table) else false);
+        const target = access.find(world, (try world.get(entity, data.Actor)).threat);
+        // The weapon's own leader-safety lane stays the last word.
+        const wants_fire = companion.enabled and !companion.stopped and !companion.carrying and companion.selected_weapon != 0 and (if (decided) |choice| choice.fire else false) and !@import("nightmare.zig").frozen(world, entity) and (if (target) |enemy| try @import("companion_weapons.zig").clear(world, entity, enemy, companion.selected_weapon, table) else false);
         try hook.run_fn(hook.context, &player, &motion, .{ .time_ms = now, .angles = pose.angles, .weapon = if (companion.selected_weapon > 0) companion.selected_weapon else @intCast(loadout.weapon), .attack = wants_fire }, @min(elapsed, 200));
         for (events.values[0..events.count]) |event| switch (event) {
             .fired => |shot| try @import("combat.zig").fire(world, slots, projections, entity, shot, table, now),

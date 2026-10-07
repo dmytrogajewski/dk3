@@ -35,6 +35,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         const hurt = (try world.get(entity, data.Hurt)).*;
         var feedback = hurt.feedback;
         const newly_dead = health.current <= 0 and !feedback.death_handled;
+        if (health.current <= 0 and !feedback.gibbed) {
+            try @import("player_corpses.zig").fragment(world, slots, projections, entity, now);
+            feedback.gibbed = (try world.get(entity, data.Hurt)).feedback.gibbed;
+        }
         if (!newly_dead and feedback.handled_revision == hurt.revision) continue;
         feedback.handled_revision = hurt.revision;
         const appearance = if (world.get(entity, data.Session) catch null) |session| @import("appearance_catalog").character(session.appearance) else 0;
@@ -53,7 +57,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
             try @import("multiplayer.zig").release(world, projections, entity, now);
             try @import("weapon_actions.zig").cancel(world, slots, projections, entity);
             (try world.get(entity, data.Weapons)).discardInventory();
-            (try world.get(entity, data.Body)).contents = c.CONTENTS_CORPSE;
+            (try world.get(entity, data.Body)).contents = if (feedback.gibbed) 0 else c.CONTENTS_CORPSE;
             (try world.get(entity, data.Health)).armor = 0;
             (try world.get(entity, data.Health)).absorption = 0;
             (try world.get(entity, data.Character)).invisible_until = 0;

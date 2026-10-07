@@ -4,7 +4,19 @@ const ecs = @import("../ecs/world.zig");
 const rules = @import("../domain/damage.zig");
 pub fn apply(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, options: rules.Options) !rules.Result {
     try @import("region_access.zig").expose(world, now);
-    return applyResolved(world, try @import("wall_breakage.zig").recipient(world, entity, amount), amount, now, options);
+    const recipient = try @import("wall_breakage.zig").recipient(world, entity, amount);
+    return applyResolved(world, recipient, if (try partyHit(world, recipient, options.source)) @divTrunc(amount + 1, 2) else amount, now, options);
+}
+/// The reference halves damage between a player and a companion either way,
+/// and between companions (com_Damage's client/sidekick discount).
+fn partyHit(world: *data.World, entity: ecs.Entity, source_id: u32) !bool {
+    if (source_id == 0 or source_id == try world.persistentId(entity)) return false;
+    const source = @import("region_access.zig").find(world, source_id) orelse return false;
+    const target_player = (world.get(entity, data.Player) catch null) != null;
+    const target_companion = (world.get(entity, data.Companion) catch null) != null;
+    const source_player = (source.get(data.Player) catch null) != null;
+    const source_companion = (source.get(data.Companion) catch null) != null;
+    return (target_player and source_companion) or (target_companion and (source_player or source_companion));
 }
 fn applyResolved(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, options: rules.Options) !rules.Result {
     if ((world.get(entity, data.Performer) catch null) != null) return .{};
@@ -28,10 +40,18 @@ fn applyResolved(world: *data.World, entity: ecs.Entity, amount: i32, now: i64, 
     // A solid corpse can still break apart. Do not dispatch a second kill,
     // award experience again, or run living pain/resurrection controllers.
     if (health.current <= 0) {
-        const actor = world.get(entity, data.Actor) catch return .{};
-        if (actor.gibbed or amount <= 0) return .{};
-        const kind = @import("actor_catalog").entries[actor.definition].kind;
-        if (@import("actor_catalog").fragments.forKind(kind).never) return .{};
+        // Damageable fixtures without hurt feedback (a drained health
+        // station) have nothing left to break.
+        const hurt = world.get(entity, data.Hurt) catch return .{};
+        if (amount <= 0 or hurt.feedback.gibbed) return .{};
+        if (world.get(entity, data.Actor) catch null) |actor| {
+            if (actor.gibbed) return .{};
+            const kind = @import("actor_catalog").entries[actor.definition].kind;
+            if (@import("actor_catalog").fragments.forKind(kind).never) return .{};
+        } else if ((world.get(entity, data.Player) catch null) == null) {
+            const scenery = world.get(entity, data.Scenery) catch return .{};
+            if (scenery.corpse == null) return .{};
+        }
         if (world.get(entity, data.Ailments) catch null) |status| if (status.petrified_frame != null) return .{};
         health.current -|= amount;
         const receipt = try world.get(entity, data.Hurt);
@@ -143,6 +163,20 @@ test "corpse damage records fragment eligibility without dispatching a second ki
     try t.expectEqual(@as(u32, 1), (try world.get(victim, data.Hurt)).revision);
     (try world.get(victim, data.Actor)).gibbed = true;
     try t.expectEqual(@as(i32, 0), (try apply(&world, victim, 50, 1250, .{})).blood);
+}
+test "player and retained corpse hits do not award another death or score" {
+    const t = @import("std").testing;
+    var world = data.World.init(t.allocator, 8);
+    defer world.deinit();
+    const player = try world.create(null, .{ data.Player{ .mode = .dead }, data.Session{ .deaths = 1, .score = 7 }, data.Health{ .current = -5 }, data.Hurt{ .feedback = .{ .death_handled = true } } });
+    try t.expect(!(try apply(&world, player, 10, 100, .{})).killed);
+    try t.expectEqual(@as(u32, 1), (try world.get(player, data.Session)).deaths);
+    try t.expectEqual(@as(i32, 7), (try world.get(player, data.Session)).score);
+    const corpse = try world.create(null, .{ data.Scenery{ .model = "models/global/m_hiro.dkm", .started_ms = 0, .corpse = .{ .appearance = 0 } }, data.Health{ .current = -5 }, data.Hurt{} });
+    try t.expect(!(try apply(&world, corpse, 10, 100, .{})).killed);
+    try t.expectEqual(@as(i32, -15), (try world.get(corpse, data.Health)).current);
+    (try world.get(corpse, data.Hurt)).feedback.gibbed = true;
+    try t.expectEqual(@as(i32, 0), (try apply(&world, corpse, 100, 200, .{})).blood);
 }
 test "Rockgat pain deduction is class-scoped and dispatches the resulting death" {
     const t = @import("std").testing;

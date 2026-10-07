@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //! Flesh fragment lifecycle; actor policies decide which deaths fragment.
 pub const State = struct { next_ms: i64, fade_ms: ?i64 = null, robotic: bool = false, bone: bool = false, no_blood: bool = false, skin_model: []const u8 = "" };
+pub fn playerEligible(damage: i32, remaining: i32, explosive: bool) bool {
+    return remaining <= 0 and (damage >= 80 or remaining <= -40 or (explosive and damage >= 40));
+}
 pub fn count(mass: f32, multiplayer: bool) usize {
     return @intFromFloat((if (multiplayer) @as(f32, 3) else 8) * @import("std").math.clamp(mass / 500, 0.35, 1));
 }
@@ -31,4 +34,14 @@ test "gib count uses mass and mode rather than a fixed fragment count" {
     try t.expectEqual(@as(usize, 6), count(400, false));
     try t.expectEqual(@as(usize, 8), count(3000, false));
     try t.expectEqual(@as(usize, 3), count(3000, true));
+}
+test "powerful player deaths fragment while small lethal hits keep a body" {
+    const t = @import("std").testing;
+    try t.expect(!playerEligible(15, -5, false));
+    try t.expect(playerEligible(100, 0, false));
+    try t.expect(playerEligible(15, -41, false));
+    try t.expect(playerEligible(70, -40, false));
+    try t.expect(playerEligible(68, -38, true));
+    try t.expect(!playerEligible(15, -5, true));
+    try t.expect(!playerEligible(100, 10, true));
 }

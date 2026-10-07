@@ -103,7 +103,7 @@ SV_SetConfigstring
 
 ===============
 */
-void SV_SetConfigstring (int index, const char *val) {
+static void SV_StoreConfigstring (int index, const char *val, qboolean broadcast) {
 	int		i;
 	client_t	*client;
 
@@ -126,7 +126,7 @@ void SV_SetConfigstring (int index, const char *val) {
 
 	// send it to all the clients if we aren't
 	// spawning a new server
-	if ( sv.world == sv.primaryWorld && (sv.state == SS_GAME || sv.restarting) ) {
+	if ( broadcast && sv.world == sv.primaryWorld && (sv.state == SS_GAME || sv.restarting) ) {
 
 		// send the data to all relevant clients
 		for (i = 0, client = svs.clients; i < sv_maxclients->integer ; i++, client++) {
@@ -143,6 +143,17 @@ void SV_SetConfigstring (int index, const char *val) {
 			SV_SendConfigstring(client, index);
 		}
 	}
+}
+
+void SV_SetConfigstring (int index, const char *val) {
+	SV_StoreConfigstring(index, val, qtrue);
+}
+
+// Native regional publication owns its bounded, acknowledged update stream.
+// Keep the engine's world registry/gamestate current without also enqueueing
+// ordinary cs commands. Arenas continue to use SV_SetConfigstring above.
+void SV_SetWorldConfigstring (int index, const char *val) {
+	SV_StoreConfigstring(index, val, qfalse);
 }
 
 /*
@@ -398,7 +409,7 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	// also print some status stuff
     Cvar_Set("dk3_previousMap", Cvar_VariableString("mapname"));
     Cvar_Set("dk3_loadingMap", server);
-    Cvar_Set("dk3_loadingProgress", "0");
+    Cvar_Set("dk3_loading_progress", "0");
 	CL_MapLoading();
 
 	// make sure all the client stuff is unloaded

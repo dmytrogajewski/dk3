@@ -1,0 +1,11 @@
+version: 1
+profile: dojo-ebihara-dialogue-capture.yaml
+template: tosh.iqm
+template_sha256: f2aff1a79f808680aa05e871f0d26c6458a3638c83161dbfdeae86a6bb9cf428
+provenance:
+  origin: Owner local original Toshiro motion and previously admitted detailed DK3
+    model
+  license: Local use only
+  redistribution: Not distributable without separate licensing review
+  credit: Ion Storm original performance; DK3 tooling
+surface_correctives: true

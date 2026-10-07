@@ -25,6 +25,10 @@ GPL grant does not replace those licenses; see [component dispositions](docs/pro
 ioquake3 is bundled under `engine/ioquake3` with its own
 [GPL license and notices](engine/ioquake3/COPYING.txt). Its LCC tools carry separate
 [terms](engine/ioquake3/code/tools/lcc/COPYRIGHT) and are optional development targets.
+Lua 5.4.7 is bundled unmodified under `engine/lua` under the MIT license; its notice
+(Copyright © 1994–2024 Lua.org, PUC-Rio) is retained in [lua.h](engine/lua/src/lua.h) and
+[readme.html](engine/lua/doc/readme.html). It is linked into the native server module for the
+scripted co-op bot.
 The Daikatana 1.3 maintainers explicitly say they cannot release the game's source in their
 [project README](https://github.com/maraakate/daikatana). We have not established a GPL grant for
 the Gold source used by the local playable build, so that runtime remains excluded.

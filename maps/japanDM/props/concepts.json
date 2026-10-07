@@ -1,0 +1,106 @@
+[
+  {
+    "name": "ac_condenser",
+    "concept": "maps/japanDM/props/ac_condenser/concept.png",
+    "raw": "raw-06107.png",
+    "coverage": 0.3407,
+    "alpha_range": [
+      0,
+      255
+    ],
+    "seconds": 78.6,
+    "raw_sha256": "3ffd6080b24b9b4943e18a279da622d7cae5cdddc3e8b101406ccef8c602700b",
+    "concept_sha256": "42860e997b8dc76d3d050efe9dbda26b5f2949414595ba3365c0449f6afcc090"
+  },
+  {
+    "name": "barrier",
+    "concept": "maps/japanDM/props/barrier/concept.png",
+    "raw": "raw-06120.png",
+    "coverage": 0.2641,
+    "alpha_range": [
+      0,
+      255
+    ],
+    "seconds": 78.6,
+    "raw_sha256": "3e0ffeec3dd057750e4b2603607ce80a794c13d8ad8ad5396048a634aded0599",
+    "concept_sha256": "63654d00c01a6c85c8170de577c1943ba806b4b0003eda6e421fa8bda878eff6"
+  },
+  {
+    "name": "lantern",
+    "concept": "maps/japanDM/props/lantern/concept.png",
+    "raw": "raw-06133.png",
+    "coverage": 0.203,
+    "alpha_range": [
+      0,
+      255
+    ],
+    "seconds": 78.3,
+    "raw_sha256": "3c2f7461ff22d6f9cfae733569d769837d2e2c9fa791cf9fc792734a0e377bca",
+    "concept_sha256": "d7e1fc57ab482ea8e781b599c3a5525aed9b0dcf205b26261e6ecaa0203aa0cd"
+  },
+  {
+    "name": "planter",
+    "concept": "maps/japanDM/props/planter/concept.png",
+    "raw": "raw-06146.png",
+    "coverage": 0.3394,
+    "alpha_range": [
+      0,
+      255
+    ],
+    "seconds": 78.3,
+    "raw_sha256": "1a16c232b2dad3e847b1e0faf23142660e238e6f76a91a20f50fee8c17a7ba29",
+    "concept_sha256": "474e49f5488b46709b1554dc2a1234226355fa348d869c88d77aa3855f1e6ca6"
+  },
+  {
+    "name": "pushcart",
+    "concept": "maps/japanDM/props/pushcart/concept.png",
+    "raw": "raw-06159.png",
+    "coverage": 0.3527,
+    "alpha_range": [
+      0,
+      255
+    ],
+    "seconds": 80.3,
+    "raw_sha256": "100b45a50678e05948c462944c46a40ec1dbf80f5da9ea8bc7563df1788be97a",
+    "concept_sha256": "04d1c6a9eb1921845a9587c87ce8d785ec641342ad287730b3e9d1c63ec8ff61"
+  },
+  {
+    "name": "trashbin",
+    "concept": "maps/japanDM/props/trashbin/concept.png",
+    "raw": "raw-06172.png",
+    "coverage": 0.3366,
+    "alpha_range": [
+      0,
+      255
+    ],
+    "seconds": 80.3,
+    "raw_sha256": "1fa91cd73ea67afa22a0ade69637b7bfdfad265d27865688ae28ecc65575cbd9",
+    "concept_sha256": "6cc4b1bb84cf2e65e42c56d5a8105f51b6b414d59d727fae00d44e5bda5afc82"
+  },
+  {
+    "name": "utility_box",
+    "concept": "maps/japanDM/props/utility_box/concept.png",
+    "raw": "raw-06185.png",
+    "coverage": 0.4211,
+    "alpha_range": [
+      0,
+      255
+    ],
+    "seconds": 80.3,
+    "raw_sha256": "a7107306836762606fc20f59ec22577dd450849c47a4ef0f8ccbff2a7962a22d",
+    "concept_sha256": "5f66c266f17cd5dfb4dc6a810ef07983fb453d88d42d957c08b9510847a3c67f"
+  },
+  {
+    "name": "vending",
+    "concept": "maps/japanDM/props/vending/concept.png",
+    "raw": "raw-06198.png",
+    "coverage": 0.2915,
+    "alpha_range": [
+      0,
+      255
+    ],
+    "seconds": 84.3,
+    "raw_sha256": "4df05449bd8d8c2839f00eb6a0d0c7512fe8c7b8885411c2eae2cead7f71ae51",
+    "concept_sha256": "089e57b290ff0e82caf57391f7339b9153b7b71401790c95ce5c0e1ed60245e9"
+  }
+]

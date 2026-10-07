@@ -30,6 +30,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // in entityStates (level eType), so the game must explicitly flag
 // special server behaviors
 #define	SVF_NOCLIENT			0x00000001	// don't send entity to clients, even if it has effects
+#define SVF_DK3_CONFIG_PENDING 0x00001000 // native resource definitions are still being published
 
 // TTimo
 // https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=551
@@ -408,6 +409,7 @@ typedef enum {
     , G_DK3_WORLD_NAME_V1 = 715
     , G_DK3_WORLD_CHECKSUM_V1 = 716
     , G_DK3_WORLD_ACTIVATE_V1 = 717
+    , G_DK3_WORLD_CONFIGSTRING_V1 = 718
 } gameImport_t;
 
 

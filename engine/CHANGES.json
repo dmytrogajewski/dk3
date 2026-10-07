@@ -191,6 +191,41 @@
       "name": "ext-capabilities-cvar",
       "path": "code/qcommon/common.c",
       "reason": "capability discovery: modules query ext_capabilities with the stock trap_Cvar_VariableStringBuffer"
+    },
+    {
+      "name": "native-bounded-world-configuration-g_public",
+      "path": "code/game/g_public.h",
+      "reason": "Import 718 stores campaign world configstrings without ordinary reliable broadcasts; native acknowledged world patches own delivery."
+    },
+    {
+      "name": "native-bounded-world-configuration-server",
+      "path": "code/server/server.h",
+      "reason": "Declare the registry-only world configstring service."
+    },
+    {
+      "name": "native-bounded-world-configuration-sv_game",
+      "path": "code/server/sv_game.c",
+      "reason": "Dispatch the native registry-only world configstring import."
+    },
+    {
+      "name": "native-bounded-world-configuration-sv_init",
+      "path": "code/server/sv_init.c",
+      "reason": "Share checked world registry storage while retaining ordinary arena broadcasts. Removes duplicate primary lightstyle publication that overflowed cinematic reliable queues."
+    },
+    {
+      "name": "native-resource-publication-barrier-g_public",
+      "path": "code/game/g_public.h",
+      "reason": "Add a separate local snapshot flag (0x1000) for definitions still in bounded native publication; existing visibility and collision flags retain their values."
+    },
+    {
+      "name": "native-resource-publication-barrier-sv_snapshot",
+      "path": "code/server/sv_snapshot.c",
+      "reason": "Withhold primary snapshot entities until their referenced model/sound definition completes. Collision links remain active."
+    },
+    {
+      "name": "native-loading-progress-reset-sv_init",
+      "path": "code/server/sv_init.c",
+      "reason": "Reset the loading bar under the cvar name the native client and UI read (dk3_loading_progress), so a new map's bar starts empty instead of showing the previous load as complete."
     }
   ],
   "files": {

@@ -1,0 +1,44 @@
+# Cosmetic-only opening stance study. The source film supplies timing and
+# dialogue beats; no original vertex or captured skeletal motion is consumed.
+version: 1
+fps: 30
+frames: 63
+loop: true
+provenance: DK3 original authoring; hand, elbow, chest and head acting keys
+keys:
+  - frame: 0
+    root: [0, 0, 0]
+    spine: [0, 0, 0]
+    chest: [0, 0, 0]
+    neck: [0, 0, 0]
+    head: [0, 0, 0]
+    hand_l: [2, -2, 3]
+    elbow_l: [0, -0.5, 1]
+    hand_r: [4, 3, 5]
+    elbow_r: [0, 1, 1]
+    palm_l: [0, -10, 0]
+    palm_r: [0, 10, 0]
+  - frame: 16
+    root: [0, 0, 0.12]
+    chest: [0, 0, 1.5]
+    head: [0, 0, -4]
+    hand_l: [2.2, -2, 3.2]
+    hand_r: [4.3, 3, 5.3]
+  - frame: 31
+    root: [0, 0, 0]
+    chest: [0, 0, 0]
+    head: [0, 0, 2]
+    hand_l: [2, -2, 3]
+    hand_r: [4, 3, 5]
+  - frame: 47
+    root: [0, 0, -0.08]
+    chest: [0, 0, -1]
+    head: [0, 0, 4]
+    hand_l: [1.8, -2, 2.8]
+    hand_r: [3.8, 3, 4.8]
+  - frame: 62
+    root: [0, 0, 0]
+    chest: [0, 0, 0]
+    head: [0, 0, 0]
+    hand_l: [2, -2, 3]
+    hand_r: [4, 3, 5]

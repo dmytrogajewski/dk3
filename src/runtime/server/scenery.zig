@@ -97,6 +97,14 @@ pub fn publish(world: *data.World, entity: ecs.Entity, projections: []abi.Entity
     projection.state.angles2 = state.scale;
     projection.state.pos = @import("../engine/trajectory.zig").interpolated(pose.position);
     projection.state.apos = @import("../engine/trajectory.zig").interpolated(pose.angles);
+    projection.state.pos.trDelta = (try world.get(entity, data.Velocity)).linear;
+    if (state.corpse) |corpse| {
+        projection.state.eType = c.ET_PLAYER;
+        projection.state.eFlags = c.EF_DEAD;
+        projection.state.dk3BodyAppearance = @as(i32, corpse.appearance) + 1;
+        projection.state.time2 = 0;
+        projection.state.modelindex = if ((try world.get(entity, data.Hurt)).feedback.gibbed) 0 else binding.model;
+    }
     projection.shared.currentOrigin = pose.position;
     projection.shared.currentAngles = pose.angles;
     projection.shared.mins = body.mins;
@@ -197,7 +205,7 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
     for (occupants) |occupant| {
         const entity = occupant orelse continue;
         if (!world.alive(entity)) continue;
-        const state = world.get(entity, data.Scenery) catch continue;
+        var state = world.get(entity, data.Scenery) catch continue;
         if (state.broken) continue;
         if (state.gib != null and try @import("actor_gibs.zig").update(world, entity, state, (try world.get(entity, data.Body)).*, now)) {
             try @import("weapon_entities.zig").remove(world, slots, projections, entity);
@@ -210,6 +218,10 @@ pub fn step(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         if (state.explosive_fragment) {
             if (now >= state.started_ms + 550) state.spin = @splat(0);
             if (now >= state.started_ms + 5000) state.alpha = @max(0, state.alpha - @as(f32, @floatFromInt(elapsed)) * 0.001);
+        }
+        if (state.corpse != null) {
+            try @import("player_corpses.zig").fragment(world, slots, projections, entity, now);
+            state = try world.get(entity, data.Scenery);
         }
         if (state.breakable and (try world.get(entity, data.Health)).current <= 0) {
             if (state.breaking_ms == null) state.breaking_ms = now + 100 + @as(i64, @intFromFloat((try world.get(entity, data.Random)).next() * 4)) * 100;

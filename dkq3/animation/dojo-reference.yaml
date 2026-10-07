@@ -1,0 +1,6 @@
+# Original opening shots retained as local data, with their original camera/audio.
+version: 1
+source_program: dk3/cinematics/intro.cfg
+source_shots: [12, 13, 14]
+actors: [hiro1]
+scene: dojo_reference

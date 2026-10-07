@@ -1144,7 +1144,7 @@ int AAS_Reachability_Step_Barrier_WaterJump_WalkOffLedge(int area1num, int area2
 	int ground_bestarea2groundedgenum, ground_foundreach;
 	int water_bestarea2groundedgenum, water_foundreach;
 	int side1, area1swim, faceside1, groundface1num;
-	float dist, dist1, dist2, diff, ortdot;
+	float dist, dist1, dist2, diff, ortdot, tolerance;
 	float x1, x2, x3, x4, y1, y2, y3, y4, tmp, y;
 	float length, ground_bestlength, water_bestlength, ground_bestdist, water_bestdist;
 	vec3_t v1, v2, v3, v4, tmpv, p1area1, p1area2, p2area1, p2area2;
@@ -1175,6 +1175,13 @@ int AAS_Reachability_Step_Barrier_WaterJump_WalkOffLedge(int area1num, int area2
 		if (area1->mins[i] > area2->maxs[i] + 10) return qfalse;
 		if (area1->maxs[i] < area2->mins[i] - 10) return qfalse;
 	} //end for
+	/* dk3: splits by small crouch areas can leave riser vertices about a
+	   tenth of a unit off the plane (e3m2a 670.89 on x 671). Only when the
+	   strict pass finds no pair are edges within half a unit compared: the
+	   lowest pair is kept, so admitting more pairs everywhere would let a
+	   drop displace a step. */
+	tolerance = 0.1;
+retry:
 	//
 	ground_foundreach = qfalse;
 	ground_bestdist = 99999;
@@ -1245,9 +1252,9 @@ int AAS_Reachability_Step_Barrier_WaterJump_WalkOffLedge(int area1num, int area2
 					//check the distance between the two points and the vertical plane
 					//through the edge of area1
 					diff = DotProduct(normal, v3) - dist;
-					if (diff < -0.1 || diff > 0.1) continue;
+					if (diff < -tolerance || diff > tolerance) continue;
 					diff = DotProduct(normal, v4) - dist;
-					if (diff < -0.1 || diff > 0.1) continue;
+					if (diff < -tolerance || diff > tolerance) continue;
 					//
 					//project the two ground edges into the step side plane
 					//and calculate the shortest distance between the two
@@ -1421,6 +1428,11 @@ int AAS_Reachability_Step_Barrier_WaterJump_WalkOffLedge(int area1num, int area2
 			} //end for
 		} //end for
 	} //end for
+	if (!ground_foundreach && !water_foundreach && tolerance < 0.5)
+	{
+		tolerance = 0.5;
+		goto retry;
+	} //end if
 	//
 	// NOTE: swim reachabilities are already filtered out
 	//
@@ -3053,18 +3065,343 @@ void AAS_Reachability_Teleport(void)
 // Returns:				-
 // Changes Globals:		-
 //===========================================================================
+//===========================================================================
+// links the areas beside an elevator at its bottom to the areas beside it at
+// its top (mins and maxs relative to origin; platbottom/plattop are points
+// just above the standing surface in each position)
+//
+// Parameter:			-
+// Returns:				-
+// Changes Globals:		-
+//===========================================================================
+static void AAS_ElevatorLinks(int ent, int modelnum, vec3_t mins, vec3_t maxs, vec3_t origin, vec3_t platbottom, vec3_t plattop, float height, float speed, int down)
+{
+	int area1num, area2num, i, j, k, l, n, p;
+	vec3_t mids, bottomorg, toporg, start, end, dir;
+	vec_t xvals[8], yvals[8], xvals_top[8], yvals_top[8];
+	aas_lreachability_t *lreach;
+	aas_trace_t trace;
+
+	vec3_t basemins, basemaxs;
+
+	//get the mins and maxs a little larger
+	for (i = 0; i < 3; i++)
+	{
+		mins[i] -= 1;
+		maxs[i] += 1;
+	} //end for
+	VectorCopy(mins, basemins);
+	VectorCopy(maxs, basemaxs);
+	//
+	//botimport.Print(PRT_MESSAGE, "platbottom[2] = %1.1f plattop[2] = %1.1f\n", platbottom[2], plattop[2]);
+	//
+	VectorAdd(mins, maxs, mids);
+	VectorScale(mids, 0.5, mids);
+	//
+	xvals[0] = mins[0]; xvals[1] = mids[0]; xvals[2] = maxs[0]; xvals[3] = mids[0];
+	yvals[0] = mids[1]; yvals[1] = maxs[1]; yvals[2] = mids[1]; yvals[3] = mins[1];
+	//
+	xvals[4] = mins[0]; xvals[5] = maxs[0]; xvals[6] = maxs[0]; xvals[7] = mins[0];
+	yvals[4] = maxs[1]; yvals[5] = maxs[1]; yvals[6] = mins[1]; yvals[7] = mins[1];
+	//find adjacent areas around the bottom of the plat
+	for (i = 0; i < 9; i++)
+	{
+		if (i < 8) //check at the sides of the plat
+		{
+			bottomorg[0] = origin[0] + xvals[i];
+			bottomorg[1] = origin[1] + yvals[i];
+			bottomorg[2] = platbottom[2] + 16;
+			//get a grounded or swim area near the plat in the bottom position
+			area1num = AAS_PointAreaNum(bottomorg);
+			for (k = 0; k < 16; k++)
+			{
+				if (area1num)
+				{
+					if (AAS_AreaGrounded(area1num) || AAS_AreaSwim(area1num)) break;
+				} //end if
+				bottomorg[2] += 4;
+				area1num = AAS_PointAreaNum(bottomorg);
+			} //end if
+			//if in solid
+			if (k >= 16)
+			{
+				continue;
+			} //end if
+		} //end if
+		else //at the middle of the plat
+		{
+			VectorCopy(plattop, bottomorg);
+			bottomorg[2] += 24;
+			area1num = AAS_PointAreaNum(bottomorg);
+			if (!area1num) continue;
+			VectorCopy(platbottom, bottomorg);
+			bottomorg[2] += 24;
+		} //end else
+		//look at adjacent areas around the top of the plat
+		//make larger steps to outside the plat everytime
+		/* dk3: Daikatana lifts often stop short of their landing (a door
+		   frame between): step out up to 96 units; the clear line from the
+		   lift top to the landing below still qualifies each link. */
+		VectorCopy(basemins, mins);
+		VectorCopy(basemaxs, maxs);
+		for (n = 0; n < 12; n++)
+		{
+			for (k = 0; k < 3; k++)
+			{
+				mins[k] -= 8;
+				maxs[k] += 8;
+			} //end for
+			xvals_top[0] = mins[0]; xvals_top[1] = mids[0]; xvals_top[2] = maxs[0]; xvals_top[3] = mids[0];
+			yvals_top[0] = mids[1]; yvals_top[1] = maxs[1]; yvals_top[2] = mids[1]; yvals_top[3] = mins[1];
+			//
+			xvals_top[4] = mins[0]; xvals_top[5] = maxs[0]; xvals_top[6] = maxs[0]; xvals_top[7] = mins[0];
+			yvals_top[4] = maxs[1]; yvals_top[5] = maxs[1]; yvals_top[6] = mins[1]; yvals_top[7] = mins[1];
+			//
+			for (j = 0; j < 8; j++)
+			{
+				toporg[0] = origin[0] + xvals_top[j];
+				toporg[1] = origin[1] + yvals_top[j];
+				toporg[2] = plattop[2] + 16;
+				//get a grounded or swim area near the plat in the top position
+				area2num = AAS_PointAreaNum(toporg);
+				for (l = 0; l < 16; l++)
+				{
+					if (area2num)
+					{
+						if (AAS_AreaGrounded(area2num) || AAS_AreaSwim(area2num))
+						{
+							VectorCopy(plattop, start);
+							start[2] += 32;
+							VectorCopy(toporg, end);
+							end[2] += 1;
+							trace = AAS_TraceClientBBox(start, end, PRESENCE_CROUCH, -1);
+							if (trace.fraction >= 1)
+							{
+								/* dk3: and floor right under the landing point (an area
+								   grounded somewhere far below is not a landing) */
+								VectorCopy(toporg, start);
+								VectorCopy(toporg, end);
+								end[2] -= 32;
+								trace = AAS_TraceClientBBox(start, end, PRESENCE_CROUCH, -1);
+								if (!trace.startsolid && trace.fraction < 1) break;
+							} //end if
+						} //end if
+					} //end if
+					toporg[2] += 4;
+					area2num = AAS_PointAreaNum(toporg);
+				} //end if
+				//if in solid
+				if (l >= 16) continue;
+				//never create a reachability in the same area
+				if (area2num == area1num) continue;
+				//if the area isn't grounded
+				if (!AAS_AreaGrounded(area2num)) continue;
+				//if there already exists reachability between the areas
+				if (AAS_ReachabilityExists(area1num, area2num)) continue;
+				//if the reachability start is within the elevator bounding box
+				VectorSubtract(bottomorg, platbottom, dir);
+				VectorNormalize(dir);
+				dir[0] = bottomorg[0] + 24 * dir[0];
+				dir[1] = bottomorg[1] + 24 * dir[1];
+				dir[2] = bottomorg[2];
+				//
+				for (p = 0; p < 3; p++)
+					if (dir[p] < origin[p] + basemins[p] || dir[p] > origin[p] + basemaxs[p]) break;
+				if (p >= 3) continue;
+				//create a new reachability link
+				lreach = AAS_AllocReachability();
+				if (!lreach) continue;
+				lreach->areanum = area2num;
+				//the facenum is the model number
+				lreach->facenum = modelnum;
+				//the edgenum is the height
+				lreach->edgenum = (int) height;
+				//
+				VectorCopy(dir, lreach->start);
+				VectorCopy(toporg, lreach->end);
+				lreach->traveltype = TRAVEL_ELEVATOR;
+				lreach->traveltype |= AAS_TravelFlagsForTeam(ent);
+				lreach->traveltime = aassettings.rs_startelevator + height * 100 / speed;
+				lreach->next = areareachability[area1num];
+				areareachability[area1num] = lreach;
+				//don't go any further to the outside
+				n = 9999;
+				//
+#ifdef REACH_DEBUG
+				Log_Write("elevator reach from %d to %d\r\n", area1num, area2num);
+#endif //REACH_DEBUG
+				//
+				reach_elevator++;
+				/* dk3: a train lift also carries riders down: the same link
+				   reversed, starting on the upper landing beside the lift
+				   (the rider boards when the lift stands level with it) */
+				if (down && !AAS_ReachabilityExists(area2num, area1num))
+				{
+					lreach = AAS_AllocReachability();
+					if (!lreach) continue;
+					lreach->areanum = area1num;
+					lreach->facenum = modelnum;
+					lreach->edgenum = (int) height;
+					VectorCopy(toporg, lreach->start);
+					VectorCopy(bottomorg, lreach->end);
+					lreach->traveltype = TRAVEL_ELEVATOR;
+					lreach->traveltype |= AAS_TravelFlagsForTeam(ent);
+					lreach->traveltime = aassettings.rs_startelevator + height * 100 / speed;
+					lreach->next = areareachability[area2num];
+					areareachability[area2num] = lreach;
+					reach_elevator++;
+				} //end if
+			} //end for
+		} //end for
+	} //end for
+} //end of the function AAS_ElevatorLinks
+//===========================================================================
+// dk3: falls and jumps into a lift shaft land where the lift may stand (or
+// pass): BSPC compiles the shaft empty. The elevator links cover the trip.
+// A short step down onto the lift resting in its pit stays.
+//===========================================================================
+static void AAS_Dk3DropShaftFalls(vec3_t low, vec3_t high)
+{
+	int i, kind;
+	aas_lreachability_t **link, *lreach;
+
+	for (i = 1; i < aasworld.numareas; i++)
+	{
+		for (link = &areareachability[i]; *link; )
+		{
+			lreach = *link;
+			kind = lreach->traveltype & TRAVELTYPE_MASK;
+			if ((kind == TRAVEL_WALKOFFLEDGE || kind == TRAVEL_JUMP) &&
+				lreach->end[0] > low[0] + 4 && lreach->end[0] < high[0] - 4 &&
+				lreach->end[1] > low[1] + 4 && lreach->end[1] < high[1] - 4 &&
+				lreach->end[2] > low[2] && lreach->end[2] < high[2] &&
+				lreach->start[2] - lreach->end[2] > 64)
+			{
+				*link = lreach->next;
+				continue;
+			} //end if
+			link = &lreach->next;
+		} //end for
+	} //end for
+} //end of the function AAS_Dk3DropShaftFalls
+#ifdef BSPC
+int AAS_Dk3ModelFloor(int modelnum, float x, float y, float *floor);
+#endif
+//===========================================================================
+// dk3: Daikatana builds many lifts as func_train, moving between path corners
+// (a platform, or a cage whose floor is inside it). Every vertical leg of a
+// train's path gets the elevator links of a func_plat between its two
+// stops; the floor a rider stands on is found in the train's own brushes.
+// The game still summons, boards and rides the train by its controls.
+//
+// Parameter:			-
+// Returns:				-
+// Changes Globals:		-
+//===========================================================================
+void AAS_Reachability_TrainLifts(void)
+{
+#ifdef BSPC
+	int ent, corner, modelnum, count, i, j, hasorigin;
+	char model[MAX_EPAIRKEY], classname[MAX_EPAIRKEY], target[MAX_EPAIRKEY], name[MAX_EPAIRKEY];
+	vec3_t mins, maxs, origin, angles = {0, 0, 0}, stops[16], low, high, platbottom, plattop, linkmins, linkmaxs, stand;
+	float speed, floor, cx, cy;
+	int corners[16], looped, u, w, found;
+
+	for (ent = AAS_NextBSPEntity(0); ent; ent = AAS_NextBSPEntity(ent))
+	{
+		if (!AAS_ValueForBSPEpairKey(ent, "classname", classname, MAX_EPAIRKEY) || strcmp(classname, "func_train")) continue;
+		if (!AAS_ValueForBSPEpairKey(ent, "model", model, MAX_EPAIRKEY)) continue;
+		modelnum = atoi(model + 1);
+		if (modelnum <= 0) continue;
+		AAS_BSPModelMinsMaxsOrigin(modelnum, angles, mins, maxs, NULL);
+		hasorigin = AAS_VectorForBSPEpairKey(ent, "origin", origin);
+		if (!AAS_FloatForBSPEpairKey(ent, "speed", &speed) || speed <= 0) speed = 100;
+		//the path: follow targets through path corners until one repeats
+		count = 0;
+		looped = qfalse;
+		if (!AAS_ValueForBSPEpairKey(ent, "target", target, MAX_EPAIRKEY)) continue;
+		while (count < 16 && target[0])
+		{
+			for (corner = AAS_NextBSPEntity(0); corner; corner = AAS_NextBSPEntity(corner))
+			{
+				if (!AAS_ValueForBSPEpairKey(corner, "targetname", name, MAX_EPAIRKEY) || strcmp(name, target)) continue;
+				if (!AAS_ValueForBSPEpairKey(corner, "classname", classname, MAX_EPAIRKEY) || strncmp(classname, "path_corner", 11)) continue;
+				break;
+			} //end for
+			if (!corner) break;
+			for (j = 0; j < count && corners[j] != corner; j++) ;
+			if (j < count)
+			{
+				looped = (j == 0);
+				break;
+			} //end if
+			corners[count] = corner;
+			AAS_VectorForBSPEpairKey(corner, "origin", stops[count]);
+			//a train with an origin brush travels by its origin, otherwise by its mins
+			if (!hasorigin) VectorSubtract(stops[count], mins, stops[count]);
+			count++;
+			if (!AAS_ValueForBSPEpairKey(corner, "target", target, MAX_EPAIRKEY)) target[0] = '\0';
+		} //end while
+		for (i = 0; i < count; i++)
+		{
+			j = i + 1;
+			if (j >= count)
+			{
+				if (!looped || count < 2) break;
+				j = 0;
+			} //end if
+			if (fabs(stops[i][0] - stops[j][0]) > 1 || fabs(stops[i][1] - stops[j][1]) > 1) continue;
+			if (fabs(stops[i][2] - stops[j][2]) < 64) continue;
+			VectorCopy(stops[i][2] < stops[j][2] ? stops[i] : stops[j], low);
+			VectorCopy(stops[i][2] < stops[j][2] ? stops[j] : stops[i], high);
+			/* where a rider stands: a column with the train's floor under it
+			   and open space above it at both stops (a lift may ring a
+			   pillar, or carry walls) */
+			found = qfalse;
+			for (u = 1; u < 6 && !found; u++)
+			{
+				for (w = 1; w < 6 && !found; w++)
+				{
+					cx = mins[0] + (maxs[0] - mins[0]) * u / 6;
+					cy = mins[1] + (maxs[1] - mins[1]) * w / 6;
+					if (!AAS_Dk3ModelFloor(modelnum, cx, cy, &floor)) continue;
+					VectorSet(stand, low[0] + cx, low[1] + cy, low[2] + floor + 25);
+					if (!AAS_PointAreaNum(stand)) continue;
+					stand[2] = high[2] + floor + 25;
+					if (!AAS_PointAreaNum(stand)) continue;
+					found = qtrue;
+				} //end for
+			} //end for
+			if (!found) continue;
+			VectorSet(platbottom, low[0] + cx, low[1] + cy, low[2] + floor + 2);
+			VectorSet(plattop, low[0] + cx, low[1] + cy, high[2] + floor + 2);
+			VectorCopy(mins, linkmins);
+			VectorCopy(maxs, linkmaxs);
+			Log_Write("train lift model %d floor %1.1f from %1.1f to %1.1f\n", modelnum, floor, low[2], high[2]);
+			AAS_ElevatorLinks(ent, modelnum, linkmins, linkmaxs, low, platbottom, plattop, high[2] - low[2], speed, qtrue);
+			{
+				vec3_t sweptlow, swepthigh;
+				VectorAdd(low, mins, sweptlow);
+				VectorAdd(high, maxs, swepthigh);
+				sweptlow[0] = low[0] + mins[0]; swepthigh[0] = low[0] + maxs[0];
+				sweptlow[1] = low[1] + mins[1]; swepthigh[1] = low[1] + maxs[1];
+				AAS_Dk3DropShaftFalls(sweptlow, swepthigh);
+			}
+		} //end for
+	} //end for
+#endif //BSPC
+} //end of the function AAS_Reachability_TrainLifts
+//===========================================================================
+// create possible elevator reachabilities
+//===========================================================================
 void AAS_Reachability_Elevator(void)
 {
-	int area1num, area2num, modelnum, i, j, k, l, n, p;
+	int modelnum;
 	float lip, height, speed, angle;
 	char model[MAX_EPAIRKEY], classname[MAX_EPAIRKEY];
 	int ent;
 	vec3_t mins, maxs, origin, angles = {0, 0, 0};
 	vec3_t pos1, pos2, mids, platbottom, plattop;
-	vec3_t bottomorg, toporg, start, end, dir;
-	vec_t xvals[8], yvals[8], xvals_top[8], yvals_top[8];
-	aas_lreachability_t *lreach;
-	aas_trace_t trace;
 
 #ifdef REACH_DEBUG
 	Log_Write("AAS_Reachability_Elevator\r\n");
@@ -3129,141 +3466,7 @@ void AAS_Reachability_Elevator(void)
 				Log_Write("no grounded area near plat bottom\r\n");
 				continue;
 			} //end if*/
-			//get the mins and maxs a little larger
-			for (i = 0; i < 3; i++)
-			{
-				mins[i] -= 1;
-				maxs[i] += 1;
-			} //end for
-			//
-			//botimport.Print(PRT_MESSAGE, "platbottom[2] = %1.1f plattop[2] = %1.1f\n", platbottom[2], plattop[2]);
-			//
-			VectorAdd(mins, maxs, mids);
-			VectorScale(mids, 0.5, mids);
-			//
-			xvals[0] = mins[0]; xvals[1] = mids[0]; xvals[2] = maxs[0]; xvals[3] = mids[0];
-			yvals[0] = mids[1]; yvals[1] = maxs[1]; yvals[2] = mids[1]; yvals[3] = mins[1];
-			//
-			xvals[4] = mins[0]; xvals[5] = maxs[0]; xvals[6] = maxs[0]; xvals[7] = mins[0];
-			yvals[4] = maxs[1]; yvals[5] = maxs[1]; yvals[6] = mins[1]; yvals[7] = mins[1];
-			//find adjacent areas around the bottom of the plat
-			for (i = 0; i < 9; i++)
-			{
-				if (i < 8) //check at the sides of the plat
-				{
-					bottomorg[0] = origin[0] + xvals[i];
-					bottomorg[1] = origin[1] + yvals[i];
-					bottomorg[2] = platbottom[2] + 16;
-					//get a grounded or swim area near the plat in the bottom position
-					area1num = AAS_PointAreaNum(bottomorg);
-					for (k = 0; k < 16; k++)
-					{
-						if (area1num)
-						{
-							if (AAS_AreaGrounded(area1num) || AAS_AreaSwim(area1num)) break;
-						} //end if
-						bottomorg[2] += 4;
-						area1num = AAS_PointAreaNum(bottomorg);
-					} //end if
-					//if in solid
-					if (k >= 16)
-					{
-						continue;
-					} //end if
-				} //end if
-				else //at the middle of the plat
-				{
-					VectorCopy(plattop, bottomorg);
-					bottomorg[2] += 24;
-					area1num = AAS_PointAreaNum(bottomorg);
-					if (!area1num) continue;
-					VectorCopy(platbottom, bottomorg);
-					bottomorg[2] += 24;
-				} //end else
-				//look at adjacent areas around the top of the plat
-				//make larger steps to outside the plat everytime
-				for (n = 0; n < 3; n++)
-				{
-					for (k = 0; k < 3; k++)
-					{
-						mins[k] -= 4;
-						maxs[k] += 4;
-					} //end for
-					xvals_top[0] = mins[0]; xvals_top[1] = mids[0]; xvals_top[2] = maxs[0]; xvals_top[3] = mids[0];
-					yvals_top[0] = mids[1]; yvals_top[1] = maxs[1]; yvals_top[2] = mids[1]; yvals_top[3] = mins[1];
-					//
-					xvals_top[4] = mins[0]; xvals_top[5] = maxs[0]; xvals_top[6] = maxs[0]; xvals_top[7] = mins[0];
-					yvals_top[4] = maxs[1]; yvals_top[5] = maxs[1]; yvals_top[6] = mins[1]; yvals_top[7] = mins[1];
-					//
-					for (j = 0; j < 8; j++)
-					{
-						toporg[0] = origin[0] + xvals_top[j];
-						toporg[1] = origin[1] + yvals_top[j];
-						toporg[2] = plattop[2] + 16;
-						//get a grounded or swim area near the plat in the top position
-						area2num = AAS_PointAreaNum(toporg);
-						for (l = 0; l < 16; l++)
-						{
-							if (area2num)
-							{
-								if (AAS_AreaGrounded(area2num) || AAS_AreaSwim(area2num))
-								{
-									VectorCopy(plattop, start);
-									start[2] += 32;
-									VectorCopy(toporg, end);
-									end[2] += 1;
-									trace = AAS_TraceClientBBox(start, end, PRESENCE_CROUCH, -1);
-									if (trace.fraction >= 1) break;
-								} //end if
-							} //end if
-							toporg[2] += 4;
-							area2num = AAS_PointAreaNum(toporg);
-						} //end if
-						//if in solid
-						if (l >= 16) continue;
-						//never create a reachability in the same area
-						if (area2num == area1num) continue;
-						//if the area isn't grounded
-						if (!AAS_AreaGrounded(area2num)) continue;
-						//if there already exists reachability between the areas
-						if (AAS_ReachabilityExists(area1num, area2num)) continue;
-						//if the reachability start is within the elevator bounding box
-						VectorSubtract(bottomorg, platbottom, dir);
-						VectorNormalize(dir);
-						dir[0] = bottomorg[0] + 24 * dir[0];
-						dir[1] = bottomorg[1] + 24 * dir[1];
-						dir[2] = bottomorg[2];
-						//
-						for (p = 0; p < 3; p++)
-							if (dir[p] < origin[p] + mins[p] || dir[p] > origin[p] + maxs[p]) break;
-						if (p >= 3) continue;
-						//create a new reachability link
-						lreach = AAS_AllocReachability();
-						if (!lreach) continue;
-						lreach->areanum = area2num;
-						//the facenum is the model number
-						lreach->facenum = modelnum;
-						//the edgenum is the height
-						lreach->edgenum = (int) height;
-						//
-						VectorCopy(dir, lreach->start);
-						VectorCopy(toporg, lreach->end);
-						lreach->traveltype = TRAVEL_ELEVATOR;
-						lreach->traveltype |= AAS_TravelFlagsForTeam(ent);
-						lreach->traveltime = aassettings.rs_startelevator + height * 100 / speed;
-						lreach->next = areareachability[area1num];
-						areareachability[area1num] = lreach;
-						//don't go any further to the outside
-						n = 9999;
-						//
-#ifdef REACH_DEBUG
-						Log_Write("elevator reach from %d to %d\r\n", area1num, area2num);
-#endif //REACH_DEBUG
-						//
-						reach_elevator++;
-					} //end for
-				} //end for
-			} //end for
+			AAS_ElevatorLinks(ent, modelnum, mins, maxs, origin, platbottom, plattop, height, speed, qfalse);
 		} //end if
 	} //end for
 } //end of the function AAS_Reachability_Elevator
@@ -4577,6 +4780,8 @@ int AAS_ContinueInitReachability(float time)
 		AAS_Reachability_Teleport();
 		//create elevator (func_plat) reachabilities
 		AAS_Reachability_Elevator();
+		//dk3: lifts built as trains
+		AAS_Reachability_TrainLifts();
 		//create func_bobbing reachabilities
 		AAS_Reachability_FuncBobbing();
 		//

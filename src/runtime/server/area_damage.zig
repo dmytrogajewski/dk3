@@ -34,7 +34,7 @@ pub fn apply(world: *data.World, slots: *const Slots, blast: Blast, now: i64) !v
     while (candidates.next()) |target| {
         if (try target.id() == skip) continue;
         const health = target.get(data.Health) catch continue;
-        if (health.current <= 0) continue;
+        if (health.current <= 0 and (target.get(data.Hurt) catch null) == null) continue;
         const point = try center(target.world, target.entity);
         const distance = v.length(v.subtract(point, blast.origin));
         if (distance >= blast.radius) continue;
@@ -45,6 +45,6 @@ pub fn apply(world: *data.World, slots: *const Slots, blast: Blast, now: i64) !v
             const hit = try @import("region_collision.zig").from(blast.world, .{ .start = blast.origin, .end = point, .mins = @splat(0), .maxs = @splat(0), .slot = blast.skip_slot, .mask = c.MASK_SOLID }, skip);
             if (!@import("region_collision.zig").reaches(world, hit, target)) continue;
         }
-        if (try @import("weapon_damage.zig").hurt(target.world, target.entity, blast.owner, blast.weapon, amount, now, false)) if (blast.inertial) try @import("weapon_damage.zig").shove(target.world, target.entity, blast.owner, v.subtract(point, blast.origin), amount, now);
+        if (try @import("weapon_damage.zig").hurt(target.world, target.entity, blast.owner, blast.weapon, amount, now, false)) if (blast.inertial or (try target.get(data.Health)).current <= 0) try @import("weapon_damage.zig").shove(target.world, target.entity, blast.owner, v.subtract(point, blast.origin), amount, now);
     }
 }

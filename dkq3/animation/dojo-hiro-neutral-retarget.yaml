@@ -1,0 +1,48 @@
+bones:
+  pelvis: pelvis
+  spine: spine
+  chest: chest
+  neck: neck
+  head: head
+  upperarm_l: upperarm_l
+  forearm_l: forearm_l
+  hand_l: hand_l
+  thigh_l: thigh_l
+  shin_l: shin_l
+  foot_l: foot_l
+  toe_l: toe_l
+  upperarm_r: upperarm_r
+  forearm_r: forearm_r
+  hand_r: hand_r
+  thigh_r: thigh_r
+  shin_r: shin_r
+  foot_r: foot_r
+  toe_r: toe_r
+forward: x
+up: z
+scale: 1.0
+root_origin: reference
+rotation_bones:
+- spine
+- chest
+- neck
+- hand_l
+- hand_r
+preserve_observed_poles: true
+stabilize_poles: true
+bind_bones:
+- fingers_l
+- thumb_l
+- fingers_r
+- thumb_r
+absolute_rotations:
+  head:
+    forward:
+    - 1
+    - 0
+    - 0
+    up:
+    - 0
+    - 0
+    - 1
+neck_turn_weight: 0.5

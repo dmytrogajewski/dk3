@@ -56,15 +56,7 @@ pub fn spawn(allocator: std.mem.Allocator, world: *data.World, projections: []ab
         } else if (is(object, "func_event_generator")) {
             var events: std.array_list.Managed(rules.Event) = .init(allocator);
             for (object.properties) |property| {
-                var reserved = false;
-                for ([_][]const u8{ "classname", "model", "origin", "angle", "angles", "targetname", "spawnflags", "wait", "sound", "volume", "health", "delay", "_color", "min", "max", "coop", "ctf", "deathtag" }) |name| if (std.ascii.eqlIgnoreCase(property.key, name)) {
-                    reserved = true;
-                    break;
-                };
-                if (reserved) continue;
-                const seconds = std.fmt.parseFloat(f32, property.value) catch return error.InvalidEventDelay;
-                if (!std.math.isFinite(seconds) or seconds < 0 or seconds > 3600 or events.items.len >= 128) return error.InvalidEventDelay;
-                try events.append(.{ .target = property.key, .delay_ms = @intFromFloat(seconds * 1000) });
+                if (try rules.eventProperty(property.key, property.value, events.items.len)) |event| try events.append(event);
             }
             std.mem.sort(rules.Event, events.items, {}, struct {
                 fn less(_: void, a: rules.Event, b: rules.Event) bool {

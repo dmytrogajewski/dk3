@@ -1,0 +1,444 @@
+{
+  "images": {
+    "japandm/ad_board": {
+      "control": {
+        "blur": 3.0,
+        "cells": 3,
+        "grit": 0.15,
+        "kind": "blocks"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "prompt": "bright future tokyo billboard advertisement light box, abstract product graphic shapes, no readable lettering, cool white and orange light",
+      "seed": 64334,
+      "sha256": {
+        "_g": "725c140244ae934c",
+        "diffuse": "275764b8c1c3855f"
+      },
+      "size": 1024,
+      "steps": 28
+    },
+    "japandm/asphalt": {
+      "control": {
+        "blur": 2.4,
+        "grit": 0.45,
+        "kind": "grit",
+        "veins": 6
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, very dark wet rain asphalt road, low contrast charcoal albedo, faint faded white road markings, large dark tire-wear bands and wide oil sheen stains, a few long thin cracks, fine aggregate only in close-up, no bright speckle, no mottled noise",
+      "seed": 87696,
+      "sha256": {
+        "_n": "b48725f176dc6fbe",
+        "_s": "dab26d374f423670",
+        "diffuse": "946fcd8fe182c744"
+      },
+      "size": 1024,
+      "steps": 28
+    },
+    "japandm/cloth": {
+      "control": {
+        "blur": 0.5,
+        "cells": 48,
+        "grit": 0.55,
+        "kind": "weave"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, indigo and crimson striped market awning canvas, woven thread visible, sun-faded seams, japanese noren fabric",
+      "seed": 43703,
+      "sha256": {
+        "_n": "5dfd0a35a0268ba4",
+        "_s": "886ef4fe6996ddca",
+        "diffuse": "3f4f26b7e7455dc7"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/concrete_panel": {
+      "control": {
+        "blur": 2.2,
+        "bolts": 0.35,
+        "cells": 2,
+        "grit": 0.28,
+        "kind": "panels",
+        "mortar": 0.13
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, dark grey prefab concrete wall panel, low contrast matte albedo, recessed seams, long soft rain streaks and wide dark grime gradients, rust bleed from embedded bolts, a few formwork tie holes, soot in the lower half, no bright speckle, no mottled noise",
+      "seed": 3440,
+      "sha256": {
+        "_n": "f55486f9cee3e376",
+        "_s": "b6707cfa112f1416",
+        "diffuse": "256aa131b0f54107"
+      },
+      "size": 1024,
+      "steps": 28
+    },
+    "japandm/crate": {
+      "control": {
+        "blur": 1.1,
+        "bolts": 0.2,
+        "cells": 3,
+        "grit": 0.45,
+        "kind": "panels",
+        "mortar": 0.09
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, weathered plywood shipping crate panel with stencil frame, splintered edges, dark green lacquer bars",
+      "seed": 12395,
+      "sha256": {
+        "_n": "c0f0d699e68e3b90",
+        "_s": "a165f9b7afd8b2d8",
+        "diffuse": "688ff97f3da9afc4"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/glass": {
+      "control": {
+        "blur": 2.6,
+        "grit": 0.12,
+        "kind": "brushed"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, dark tinted safety glass panel with faint rain streaks and a subtle blue reflection gradient, near transparent",
+      "seed": 86962,
+      "sha256": {
+        "_n": "4cb24a91cfd9053c",
+        "_s": "5d4b7ef5773a66ae",
+        "diffuse": "2d1838e312859729"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/grate": {
+      "control": {
+        "blur": 0.7,
+        "cells": 6,
+        "grit": 0.5,
+        "kind": "grid",
+        "mortar": 0.3
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, heavy steel bar grating grid seen from above, dark gaps between bars, galvanized worn edges",
+      "seed": 75466,
+      "sha256": {
+        "_n": "5488cde0a1e53236",
+        "_s": "7ac6cba5e06aaf2c",
+        "diffuse": "dbe3f5d8fcabf404"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/holo_pool": {
+      "control": {
+        "blur": 2.0,
+        "cells": 6,
+        "grit": 0.3,
+        "kind": "ripple"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "prompt": "glowing cyan holographic data grid on a black pool floor, concentric wave ripples of light, faint scanlines, emissive floor",
+      "seed": 74412,
+      "sha256": {
+        "_g": "beca6b0c8622a22a",
+        "diffuse": "6540c638dba58b4f"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/lacquer_red": {
+      "control": {
+        "blur": 1.2,
+        "cells": 4,
+        "grit": 0.35,
+        "kind": "planks"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, vermilion lacquered timber torii surface, glossy worn red varnish, black iron fittings, subtle wood grain through paint",
+      "seed": 68679,
+      "sha256": {
+        "_n": "308379b68f6fe6eb",
+        "_s": "886330a0fd4467d3",
+        "diffuse": "f2738a9a7d5aa507"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/light_strip": {
+      "control": {
+        "blur": 1.0,
+        "bolts": 0.0,
+        "cells": 3,
+        "grit": 0.15,
+        "kind": "ribs"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "prompt": "seamless emissive LED light strip, bright white core with cool blue edges, dark housing lines, uniform along one axis",
+      "seed": 39724,
+      "sha256": {
+        "_g": "b1197e6c2b92c70b",
+        "diffuse": "55039dae72057ea7"
+      },
+      "size": 256,
+      "steps": 28
+    },
+    "japandm/metal_column": {
+      "control": {
+        "blur": 0.6,
+        "grit": 0.35,
+        "kind": "brushed"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, brushed stainless steel panel with vertical grain, hairline scratches, faint heat tint, rivet line along one edge",
+      "seed": 18927,
+      "sha256": {
+        "_n": "b4223763ff610fb0",
+        "_s": "1c86cbc15ba3333a",
+        "diffuse": "479bc8714c044718"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/metal_deck": {
+      "control": {
+        "blur": 0.8,
+        "bolts": 0.5,
+        "cells": 8,
+        "grit": 0.65,
+        "kind": "ribs"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, industrial steel floor plate with diamond anti-slip ribs, worn metallic blue-grey paint, scratched edges, bolt heads",
+      "seed": 59911,
+      "sha256": {
+        "_n": "26ab9db279abf6a6",
+        "_s": "c9da0fddb9ddffbb",
+        "diffuse": "0d277578e3243f2d"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/neon_a": {
+      "control": {
+        "blur": 2.2,
+        "cells": 5,
+        "grit": 0.2,
+        "kind": "blocks"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "prompt": "glowing japanese neon sign kanji strokes on a black panel, magenta and cyan tubing, clean vector edges, emissive light box, no text errors",
+      "seed": 90099,
+      "sha256": {
+        "_g": "cf417e08a2af1456",
+        "diffuse": "6a881c3aa44e8097"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/neon_b": {
+      "control": {
+        "blur": 2.4,
+        "cells": 4,
+        "grit": 0.2,
+        "kind": "blocks"
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_g",
+        "diffuse"
+      ],
+      "prompt": "glowing japanese neon sign katakana strokes and arrow glyphs on a dark panel, amber and green tubing, emissive light box, high contrast",
+      "seed": 43243,
+      "sha256": {
+        "_g": "fe7ab06af3226a66",
+        "diffuse": "9df55f88ebb770fa"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/plant": {
+      "control": {
+        "blur": 1.8,
+        "grit": 0.8,
+        "kind": "grit",
+        "veins": 30
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, dense trimmed green rooftop hedge foliage, small glossy leaves, deep shadow between leaves",
+      "seed": 22501,
+      "sha256": {
+        "_n": "6e0d466fe1ca127e",
+        "_s": "8e610840e0d54b0c",
+        "diffuse": "e9833a1e917b6598"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/plaza_stone": {
+      "control": {
+        "blur": 1.2,
+        "cells": 4,
+        "grit": 0.35,
+        "kind": "slabs",
+        "mortar": 0.1
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, large grey granite paving slabs with narrow dark grout lines, wet polished surface, subtle mineral speckle",
+      "seed": 13036,
+      "sha256": {
+        "_n": "7f7cc69524917de8",
+        "_s": "0d6c02a03074c063",
+        "diffuse": "1a6d05ef60c927ec"
+      },
+      "size": 1024,
+      "steps": 28
+    },
+    "japandm/roof_gravel": {
+      "control": {
+        "blur": 2.0,
+        "grit": 0.55,
+        "kind": "grit",
+        "veins": 4
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, flat rooftop ballast of coarse dark stones set in a dark waterproofing membrane, low contrast charcoal and brown albedo, wide dried rain stains and pooled dirt patches, stones clustered in bands rather than sprinkled evenly, no bright speckle",
+      "seed": 90825,
+      "sha256": {
+        "_n": "45d11ba843ed6bf8",
+        "_s": "1aaf704a3e027b3e",
+        "diffuse": "cf685b92eb36e13e"
+      },
+      "size": 512,
+      "steps": 28
+    },
+    "japandm/tower_front": {
+      "control": {
+        "blur": 1.0,
+        "cells": 6,
+        "grit": 0.3,
+        "kind": "slabs",
+        "mortar": 0.16
+      },
+      "control_scale": 0.62,
+      "maps": [
+        "_g",
+        "_n",
+        "_s",
+        "diffuse"
+      ],
+      "prompt": "seamless tileable texture, game asset albedo map, flat even ambient light, orthographic top-down view, no directional shading, no cast shadows, dark modern high-rise facade panel with rows of dim lit windows, black metal mullions, concrete bands, future tokyo building",
+      "seed": 9023,
+      "sha256": {
+        "_g": "73e8fb1bdede36ec",
+        "_n": "eef096a338361896",
+        "_s": "ffcbb85360381bd1",
+        "diffuse": "6b18e71ded102706"
+      },
+      "size": 1024,
+      "steps": 28
+    }
+  },
+  "provenance": {
+    "avoided": "FLUX.1-dev is licensed for research/non-commercial use only, so it is not used for anything shipped with this map",
+    "derivation": "albedo from the model; height/normal from a periodic procedural field; specular and glow derived from the albedo; sky cube faces reprojected from the panorama and detail-passed",
+    "generator": "Stable Diffusion XL base 1.0 (CreativeML Open RAIL++-M) and xinsir controlnet-tile-sdxl-1.0 (same licence), both loaded from ~/dk_models; madebyollin sdxl-vae-fp16-fix (MIT) for decoding",
+    "machine": "RTX 5090, torch 2.9 cu128, diffusers 0.36"
+  },
+  "sky": {
+    "panorama": "dusk sky above a city, deep blue violet gradient with thin stretched cirrus clouds, no ground, no buildings, no horizon line, soft atmospheric gradient, cinematic, high dynamic range",
+    "seed": 4411,
+    "sha256": {
+      "bk": "24cd51c1b719246f",
+      "dn": "2191cb912dfc1cf2",
+      "ft": "cfe73433136af7cc",
+      "lf": "7a3640b75f8f7281",
+      "rt": "c6c6d288bc1ecda1",
+      "up": "eb086e570f3429f2"
+    },
+    "sides": [
+      "rt",
+      "bk",
+      "lf",
+      "ft",
+      "up",
+      "dn"
+    ],
+    "size": 1024
+  }
+}

@@ -840,6 +840,30 @@ qboolean PlaceOccupant (node_t *headnode, vec3_t origin, entity_t *occupant)
 // Returns:					-
 // Changes Globals:		-
 //===========================================================================
+/* dk3: forget every occupant before flooding again. */
+void ClearOccupied_r(node_t *node)
+{
+	node->occupied = 0;
+	node->occupant = NULL;
+	if (node->planenum == PLANENUM_LEAF) return;
+	ClearOccupied_r(node->children[0]);
+	ClearOccupied_r(node->children[1]);
+}
+
+/* dk3: leaves an outside flood reached become solid; occupancy is cleared. */
+void SealOccupied_r(node_t *node)
+{
+	if (node->planenum != PLANENUM_LEAF)
+	{
+		SealOccupied_r(node->children[0]);
+		SealOccupied_r(node->children[1]);
+		return;
+	}
+	if (node->occupied) node->contents |= CONTENTS_SOLID;
+	node->occupied = 0;
+	node->occupant = NULL;
+}
+
 qboolean FloodEntities (tree_t *tree)
 {
 	int i;

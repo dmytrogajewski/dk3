@@ -10,7 +10,7 @@ pub fn experienceThreshold(level: i32) i32 {
     return 110000;
 }
 pub fn attribute(base: i32, until: i64, now: i64) i32 {
-    return @min(base + @as(i32, @intFromBool(until > now)), 5);
+    return if (until > now) 5 else std.math.clamp(base, 0, 5);
 }
 pub fn movementFactor(level: i32) f32 {
     return 1 + 0.08 * @as(f32, @floatFromInt(level));

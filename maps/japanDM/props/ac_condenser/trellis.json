@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "generator": "microsoft/TRELLIS.2-4B",
+  "source": "TRELLIS.2-75fbf0183001ed9876c8dbb35de6b68552ee08bd",
+  "weights": [
+    {
+      "repository": "microsoft/TRELLIS.2-4B",
+      "revision": "af44b45f2e35a493886929c6d786e563ec68364d",
+      "path": "/home/dmitriy/sources/dk3/zig-out/neural-tools/huggingface/hub/models--microsoft--TRELLIS.2-4B/snapshots/af44b45f2e35a493886929c6d786e563ec68364d"
+    },
+    {
+      "repository": "microsoft/TRELLIS-image-large",
+      "revision": "25e0d31ffbebe4b5a97464dd851910efc3002d96",
+      "path": "/home/dmitriy/sources/dk3/zig-out/neural-tools/huggingface/hub/models--microsoft--TRELLIS-image-large/snapshots/25e0d31ffbebe4b5a97464dd851910efc3002d96"
+    },
+    {
+      "repository": "timm/vit_large_patch16_dinov3.lvd1689m",
+      "revision": "30c1109559f65dea34316b0d4842d35c5771fe11",
+      "path": "/home/dmitriy/sources/dk3/zig-out/neural-tools/huggingface/hub/models--timm--vit_large_patch16_dinov3.lvd1689m/snapshots/30c1109559f65dea34316b0d4842d35c5771fe11"
+    }
+  ],
+  "encoder": "timm public publisher conversion; same DINOv3 ViT-L/16 LVD1689M",
+  "resolution": "1024_cascade",
+  "seed": 1468960452,
+  "texture_size": 4096,
+  "low_vram": true,
+  "attention": "dense PyTorch SDPA; sparse xformers CUTLASS",
+  "device": "NVIDIA GeForce RTX 5090 Laptop GPU",
+  "seconds": 201.1780108669991,
+  "input_sha256": "42860e997b8dc76d3d050efe9dbda26b5f2949414595ba3365c0449f6afcc090",
+  "glb_sha256": "a9345528bb0e9b34c5c23a4af78ffe16f5524c44ee890652ad7808702d7cfd70"
+}

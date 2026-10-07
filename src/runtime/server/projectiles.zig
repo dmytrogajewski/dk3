@@ -213,7 +213,6 @@ fn explode(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
     const skip = (try world.get(entity, data.Binding)).slot;
     var targets = access.Damageables.init(world, slots);
     while (targets.next()) |target| {
-        if ((try target.get(data.Health)).current <= 0) continue;
         const body = (try target.get(data.Body)).*;
         const origin = (try target.get(data.Transform)).position;
         const center = v.add(origin, v.scale(v.add(body.mins, body.maxs), 0.5));
@@ -222,8 +221,13 @@ fn explode(world: *data.World, slots: *Slots, projections: []abi.EntityProjectio
         const amount = rules.radiusDamage(projectile.damage * spec.projectile.splash_scale, distance, spec.projectile.splash_radius, false, false) * (if (owner) spec.projectile.self_splash else 1);
         if (amount <= 0) continue;
         const visible = try region.from(hit.world, .{ .start = hit.end, .end = center, .mins = @splat(0), .maxs = @splat(0), .slot = skip, .mask = c.MASK_SOLID }, try world.persistentId(entity));
+        if (engine.integer("developer") >= 3) {
+            var text: [160]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&text, "dk3 zig splash: target={d} distance={d:.0} amount={d:.1} reaches={d} at={d:.0},{d:.0},{d:.0}\n", .{ try target.id(), distance, amount, @intFromBool(region.reaches(world, visible, target)), hit.end[0], hit.end[1], hit.end[2] }) catch "");
+        }
         if (!region.reaches(world, visible, target)) continue;
-        _ = try damage.hurt(target.world, target.entity, projectile.owner, projectile.weapon, amount, now, false);
+        if (try damage.hurt(target.world, target.entity, projectile.owner, projectile.weapon, amount, now, false))
+            if ((try target.get(data.Health)).current <= 0) try damage.shove(target.world, target.entity, projectile.owner, v.subtract(center, hit.end), amount, now);
     }
     try @import("impacts.zig").contact(world, slots, projections, projectile.weapon, hit, .{ .detonation = true }, now);
     if (engine.integer("developer") > 0) {

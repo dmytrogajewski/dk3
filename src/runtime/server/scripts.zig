@@ -75,10 +75,17 @@ pub const State = struct {
         const size = engine.gateway.call(abi.c.G_FS_FOPEN_FILE, .{ filename.ptr, &handle, @as(isize, abi.c.FS_READ) });
         if (handle != 0) _ = engine.gateway.call(abi.c.G_FS_FCLOSE_FILE, .{@as(isize, handle)});
         if (size < 0) {
+            // Maps without authored AI actions have no converted program. A
+            // map may still name scripts the supplied data never defines
+            // (e1m7b's trigger_script "BrainRelease"): those requests stay
+            // no-ops, as every absent script lookup is.
             var objects = world.queryAccess(data.World.mask(.{data.MapObject}), 0, 0);
             defer objects.deinit();
-            while (objects.next()) |view| for (view.read(data.MapObject)) |object| if (prop.nonempty(object, "aiscript")) return error.MissingAuthoredActionProgram;
-            return; // Maps without authored AI actions have no converted program.
+            while (objects.next()) |view| for (view.read(data.MapObject)) |object| if (prop.text(object, "aiscript")) |name| if (name.len > 0) {
+                var text: [160]u8 = undefined;
+                engine.print(std.fmt.bufPrintZ(&text, "dk3 script: {s} names {s} but the map has no action program\n", .{ object.classname, name }) catch "");
+            };
+            return;
         }
         const bytes = try @import("../engine/files.zig").read(.server, &engine.gateway, allocator, filename, 4 * 1024 * 1024);
         self.program = try rules.Program.parse(allocator, bytes);

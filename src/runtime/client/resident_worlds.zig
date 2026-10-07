@@ -159,12 +159,23 @@ pub const State = struct {
             const value = arg(1, &buffer);
             if (!std.mem.eql(u8, value, "0") and !std.mem.eql(u8, value, "1")) return error.InvalidRegionWait;
             const waiting = value[0] == '1';
+            const loading = @import("loading_bar.zig");
+            const now: i32 = @intCast(engine.gateway.call(c.CG_MILLISECONDS, .{}));
             if (!self.waiting or !waiting) self.required_worlds = 0;
+            // The bar continues from client registration (or starts, for an
+            // in-place load); it is never reset to empty mid-load.
+            if (waiting and !self.waiting) {
+                loading.publish(loading.bar.regionStart(now));
+                loading.mark("region-wait", now);
+            }
+            if (!waiting and self.waiting) {
+                loading.publish(loading.bar.regionEnd());
+                loading.mark("region-ready", now);
+            }
             self.waiting = waiting;
             const count = arg(2, &buffer);
             if (count.len != 0) self.required_worlds = try std.fmt.parseInt(usize, count, 10);
             _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_region_loading"), @as([*:0]const u8, if (self.waiting) "1" else "0") });
-            _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_loading_progress"), @as([*:0]const u8, if (self.waiting) "0" else "1") });
             return;
         }
         if (std.mem.eql(u8, command_name, "dk3_world_begin")) {
@@ -252,12 +263,15 @@ pub const State = struct {
     }
     pub fn step(self: *State) !void {
         // Background preparation yields after one resource. While gameplay is
-        // held for admission, cheap resources must not each consume a frame.
-        // Bound both elapsed time and work, including polls awaiting worker I/O.
+        // held for admission, cheap resources must not each consume a frame,
+        // and only the loading screen draws: spend most of each frame on the
+        // load (about 30 bar redraws a second). Bound both elapsed time and
+        // work, including polls awaiting worker I/O.
         const started = engine.gateway.call(c.CG_MILLISECONDS, .{});
-        for (0..if (self.waiting) @as(usize, 64) else 1) |_| {
+        const budget_ms: isize = if (self.waiting) 30 else 8;
+        for (0..if (self.waiting) @as(usize, 256) else 1) |_| {
             if (!try self.stepOne()) break;
-            if (engine.gateway.call(c.CG_MILLISECONDS, .{}) - started >= 8) break;
+            if (engine.gateway.call(c.CG_MILLISECONDS, .{}) - started >= budget_ms) break;
         }
         if (self.waiting) {
             var count: usize = 0;
@@ -268,9 +282,9 @@ pub const State = struct {
                 if (entry.ready) completed += admission.progress();
             };
             const total = @max(self.required_worlds, count);
-            var value: [32]u8 = undefined;
             const progress = if (total == 0) 0 else completed / @as(f32, @floatFromInt(total));
-            _ = engine.gateway.call(c.CG_CVAR_SET, .{ @as([*:0]const u8, "dk3_loading_progress"), (try std.fmt.bufPrintZ(&value, "{d:.4}", .{progress})).ptr });
+            const loading = @import("loading_bar.zig");
+            loading.publish(loading.bar.region(progress));
         }
     }
     fn stepOne(self: *State) !bool {
@@ -283,6 +297,11 @@ pub const State = struct {
                 if (entry.admission) |admission| {
                     if (admission.ready or admission.failed) continue;
                     admission.step(entry.handle, std.mem.sliceTo(&entry.name, 0)) catch |err| admission.fail(err);
+                    if (admission.ready) {
+                        var label: [96]u8 = undefined;
+                        const loading = @import("loading_bar.zig");
+                        loading.mark(std.fmt.bufPrint(&label, "admitted map={s}", .{std.mem.sliceTo(&entry.name, 0)}) catch "admitted", @intCast(engine.gateway.call(c.CG_MILLISECONDS, .{})));
+                    }
                     return true;
                 }
                 continue;

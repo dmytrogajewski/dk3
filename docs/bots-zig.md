@@ -145,6 +145,77 @@ Two things these runs are not: a controlled measurement (unsupervised encounters
 the percentages) and a balance verdict. The pure policy tests, not the sampling, are what
 pin the cone geometry itself.
 
+## Shared pilot
+
+Since sequence 342 the multiplayer bots fly the same pilot as the co-op bot and the
+companions (`bot_pilot.zig`); `bots.zig` keeps only population, the ladder, goals
+(objectives, pickups, resupply, chasing the last sighting, skipping an unreachable
+objective) and team coordination, and submits the pilot's command through
+`bot_input.zig`. The pilot runs with match options: enemy players by team (aimed at
+the chest, no range limit beyond the ladder's sight), turning to gunfire, looking
+around while walking, no ammunition hoarding, stepping aside for teammates, a
+teammate's claimed control left to it while this bot waits at the gate, and a 16-unit
+clearance from lethal volumes (the co-op bot and companions keep 48; inside the margin
+a step may run alongside a volume but not close on it). With an enemy in sight and no
+objective or resupply under way, a bot fights from a firing stand on a short tether
+instead of running past.
+
+Three ladder knobs shape the new handling. Level 10 is unchanged; the co-op bot and
+the companions fly at level 10.
+
+| Level | Dodging and strafing | Projectile lead | Fire within |
+|---|---|---|---|
+| 1 | no | 0 | 16° |
+| 2 | no | 0 | 15° |
+| 3 | no | 0.25 | 14° |
+| 4 | no | 0.40 | 13° |
+| 5 | yes | 0.55 | 11° |
+| 6 | yes | 0.65 | 10° |
+| 7 | yes | 0.75 | 9° |
+| 8 | yes | 0.85 | 8° |
+| 9 | yes | 0.95 | 7° |
+| 10 | yes | 1.0 | 6° |
+
+`developer 2` adds a `dk3 bot pilot:` line after each route line (hazard refused,
+dodging, firing stand, route state, objective skip).
+
+Sampled comparison (`zig-out/reports/mp-pilot/`, same probes as above): on e1dm2a
+the target-held samples at levels 10/5/1 were 15/26/4 before and 35/25/7 after,
+monotonic again, with navigation as healthy (0–2 blocked samples, 53–63 waypoint
+edges); dodges occurred at levels 10 and 5 only. CTF e1ctf1 still makes its
+contested capture; deathtag e1dt1 keeps three bomb carriers (and, as before, no
+capture). Smoke, not balance: no human has played the new low levels yet.
+
+## Companions
+
+Superfly and Mikiko fly the co-op bot's pilot (`bot_pilot.zig`) at the top of the
+ladder (level 10), through `companion_pilot.zig`. The pilot's command drives the
+companion's own player motor with its class hull and speed; its trigger decision goes
+to the companion weapon step, where the weapon's own leader-safety lane check stays the
+last gate. Companions never operate controls, take teleporter passages or press use,
+and keep out of any enabled hurting volume of 5 damage or more (the co-op bot: 25),
+besides lava, slime, nitro, drops, currents beside drops and descending lifts. Weapons
+are chosen by the bot scoring over what the companion carries, excluding those whose
+splash or spread the reviewed companion rules keep away from the leader; an emptied
+discus or venom still strikes up close.
+
+`companion_brain.zig` decides the intent each frame:
+
+| Situation | Behaviour |
+|---|---|
+| Following | A spot beside/behind the leader on the companion's own side, the other side, straight behind, or back along the leader's trail; each candidate must have level floor, no harmful liquid (water only when the leader is in it), no hazard volume, no descending lift above, and a way there. Settles within 64, sets off beyond 96. |
+| Healthy, threatened | Hostiles hunting the companion or the leader, or seen: hold and shoot from a stand, or close in along the area graph, never beyond 512 of the leader (1024 under an attack order). |
+| Below 50% health | No closing in; fires from the follow spot; detours to a reachable health pack it may take (never one past the enemy). |
+| Below 25% health, or only a melee weapon while hunted | Falls back behind the leader away from the enemy, out of its line of fire, never by way of it; fires only when cornered (enemy within 192) or to finish an enemy at 15 health or less. |
+| Off the area graph, or the leader where no route goes | After 2 s without headway, walks back to where a route last existed; with none, waits (4, 8, then 16 s) instead of hopping against the obstacle. |
+
+Orders (`stay`, `move`, `attack`, `collect`), authored stops and teleports, item
+collection and lane yielding keep their meaning. Planning state is transient (never
+saved); a restore or an absence starts it afresh. `developer 1` prints a `dk3 sidekick:`
+status line per companion each second (health, goal, fire discipline, enemy, route and
+retrace state). `dk3_runtime_damage <amount> superfly|mikiko` hurts a companion for
+diagnostics.
+
 ## Open work
 
 No level has been played by a human against bots, and the balance of levels 1..3 on the

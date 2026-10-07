@@ -85,7 +85,10 @@ pub fn soundPath(path: []const u8, normalized: []u8) ![]const u8 {
     var length: usize = 0;
     for (path) |char| {
         const next = if (char == '\\') '/' else std.ascii.toLower(char);
-        if (next == '/' and length > 0 and normalized[length - 1] == '/') continue;
+        // Map keys also spell paths as "/doors/...". Resource paths are
+        // relative to sounds; retaining that slash creates sounds//doors/...
+        // and fails resident-world media admission after restoring old saves.
+        if (next == '/' and (length == 0 or normalized[length - 1] == '/')) continue;
         if (length == normalized.len) return error.InvalidResourcePath;
         normalized[length] = next;
         length += 1;
@@ -99,4 +102,6 @@ test "authored sound separators normalize without replacing the named asset" {
     try std.testing.expectEqualStrings("global/e_forcefield.wav", try soundPath("Sounds\\GLOBAL\\\\e_forcefield.wav", &buffer));
     try std.testing.expectEqualStrings("global/e_forcefield.wav", try soundPath("global//e_forcefield.wav", &buffer));
     try std.testing.expectEqualStrings("weapons/ion/fire.wav", try soundPath("weapons/ion/fire.wav", &buffer));
+    try std.testing.expectEqualStrings("doors/e1/hydrolic2loop.wav", try soundPath("/doors/e1/hydrolic2loop.wav", &buffer));
+    try std.testing.expectEqualStrings("doors/e1/hydrolic2loop.wav", try soundPath("\\Sounds\\doors\\e1\\hydrolic2loop.wav", &buffer));
 }

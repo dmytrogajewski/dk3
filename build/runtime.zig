@@ -8,7 +8,14 @@ pub fn declareTests(b: *std.Build, optimize: std.builtin.OptimizeMode) *std.Buil
     root.addIncludePath(b.path("src/runtime/tests"));
     for ([_][]const u8{ "engine/ioquake3/code/game/bg_pmove.c", "engine/ioquake3/code/game/bg_slidemove.c", "engine/ioquake3/code/qcommon/q_math.c", "src/runtime/tests/movement_reference.c" }) |source| root.addCSourceFile(.{ .file = b.path(source), .flags = &.{ "-std=gnu99", "-ffp-contract=off" } });
     root.linkSystemLibrary("m", .{});
+    addLua(b, root);
     step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = root })).step);
+    const configuration = b.createModule(.{ .target = b.graph.host, .optimize = optimize, .link_libc = true });
+    for ([_][]const u8{ "src/runtime/tests/server_configuration.c", "engine/ioquake3/code/qcommon/q_shared.c" }) |source|
+        configuration.addCSourceFile(.{ .file = b.path(source), .flags = &.{ "-std=gnu99", "-ffunction-sections", "-fdata-sections" } });
+    const configuration_contract = b.addExecutable(.{ .name = "server-configuration-contracts", .root_module = configuration });
+    configuration_contract.link_gc_sections = true;
+    step.dependOn(&b.addRunArtifact(configuration_contract).step);
     const collision = b.createModule(.{ .target = b.graph.host, .optimize = optimize, .link_libc = true });
     collision.addIncludePath(b.path("engine/ioquake3/code/qcommon"));
     for ([_][]const u8{ "cm_load.c", "cm_patch.c", "cm_polylib.c", "cm_trace.c", "cm_test.c", "q_shared.c", "q_math.c", "md4.c" }) |source|
@@ -63,6 +70,7 @@ pub fn addProduct(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std
         else => unreachable,
     };
     const module = runtimeModule(b, target, optimize, root);
+    if (product == .qagame) addLua(b, module);
     const compatibility = b.addOptions();
     compatibility.addOption([]const u8, "identity", rules_identity);
     module.addOptions("runtime_build", compatibility);
@@ -84,4 +92,17 @@ fn runtimeModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.
     for ([_][]const u8{ "qcommon", "game", "cgame", "ui", "client", "renderercommon", "botlib" }) |directory|
         module.addIncludePath(b.path(b.fmt("engine/ioquake3/code/{s}", .{directory})));
     return module;
+}
+
+/// Unmodified bundled Lua 5.4 core and pure libraries (engine/LUA-UPSTREAM.json).
+/// Only the server module embeds it, for scripted development drivers.
+const lua_sources = [_][]const u8{
+    "lapi.c",     "lcode.c",    "lctype.c",   "ldebug.c",  "ldo.c",      "ldump.c",    "lfunc.c",
+    "lgc.c",      "llex.c",     "lmem.c",     "lobject.c", "lopcodes.c", "lparser.c",  "lstate.c",
+    "lstring.c",  "ltable.c",   "ltm.c",      "lundump.c", "lvm.c",      "lzio.c",     "lauxlib.c",
+    "lbaselib.c", "lcorolib.c", "lmathlib.c", "lstrlib.c", "ltablib.c",  "lutf8lib.c",
+};
+fn addLua(b: *std.Build, module: *std.Build.Module) void {
+    module.addIncludePath(b.path("engine/lua/src"));
+    module.addCSourceFiles(.{ .root = b.path("engine/lua/src"), .files = &lua_sources, .flags = &.{"-std=gnu99"} });
 }
