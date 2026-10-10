@@ -241,9 +241,10 @@ pub fn strafe(frame: Frame, position: v.Vec3, enemy: v.Vec3, anchor: v.Vec3, sid
     const away = v.subtract(position, anchor);
     const bearing = v.normalize(.{ enemy[0] - position[0], enemy[1] - position[1], 0 });
     // Inside a brawler's reach, back straight off (the tether gives way up
-    // to twice its length): it hits far harder up close than from range.
+    // to twice its length): it hits far harder up close than from range
+    // (a cryotech's freezing spray reaches about 250).
     const range = v.length(.{ enemy[0] - position[0], enemy[1] - position[1], 0 });
-    if (range < 220 and v.length(.{ away[0], away[1], 0 }) < 224) {
+    if (range < 280 and v.length(.{ away[0], away[1], 0 }) < 224) {
         const back = v.scale(bearing, -96);
         if (inside(arena, v.add(position, back)) and try walkable(frame, position, v.add(position, back)) and !try avoid(frame, position, back)) return back;
     }

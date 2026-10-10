@@ -1,0 +1,38 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// 13-tap physically based bloom downsample (Jimenez, "Next Generation Post Processing in
+// Call of Duty"); the first pass applies a soft threshold to exposed colour with a Karis
+// average against fireflies.
+#include "post_common.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+vec3 sample_at(vec2 uv) { return textureLod(textures[pc.slots.x], uv, 0.0).rgb; }
+float karis(vec3 c) { return 1.0 / (1.0 + dot(c, LUMA)); }
+void main() {
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    if (p.x >= int(pc.size.x) || p.y >= int(pc.size.y)) return;
+    vec2 texel = 1.0 / vec2(pc.size.zw);
+    vec2 uv = (vec2(p) + 0.5) / vec2(pc.size.xy);
+    vec3 a = sample_at(uv + texel * vec2(-2, -2)), b = sample_at(uv + texel * vec2(0, -2)), c = sample_at(uv + texel * vec2(2, -2));
+    vec3 d = sample_at(uv + texel * vec2(-2, 0)), e = sample_at(uv), f = sample_at(uv + texel * vec2(2, 0));
+    vec3 g = sample_at(uv + texel * vec2(-2, 2)), h = sample_at(uv + texel * vec2(0, 2)), i = sample_at(uv + texel * vec2(2, 2));
+    vec3 j = sample_at(uv + texel * vec2(-1, -1)), k = sample_at(uv + texel * vec2(1, -1));
+    vec3 l = sample_at(uv + texel * vec2(-1, 1)), m = sample_at(uv + texel * vec2(1, 1));
+    vec3 result;
+    if (pc.params.x > 0.5) {
+        float exposure = Values(pc.buffer1).v[0];
+        vec3 g0 = (a + b + d + e) * 0.25, g1 = (b + c + e + f) * 0.25, g2 = (d + e + g + h) * 0.25, g3 = (e + f + h + i) * 0.25, g4 = (j + k + l + m) * 0.25;
+        float w0 = karis(g0), w1 = karis(g1), w2 = karis(g2), w3 = karis(g3), w4 = karis(g4);
+        result = (g0 * w0 * 0.125 + g1 * w1 * 0.125 + g2 * w2 * 0.125 + g3 * w3 * 0.125 + g4 * w4 * 0.5) /
+            max(w0 * 0.125 + w1 * 0.125 + w2 * 0.125 + w3 * 0.125 + w4 * 0.5, 1e-4);
+        // Soft knee threshold on exposed luminance (params.y threshold, params.z knee).
+        vec3 exposed = result * exposure;
+        float brightness = max(exposed.r, max(exposed.g, exposed.b));
+        float soft = clamp(brightness - pc.params.y + pc.params.z, 0.0, 2.0 * pc.params.z);
+        soft = soft * soft / (4.0 * pc.params.z + 1e-4);
+        float contribution = max(soft, brightness - pc.params.y) / max(brightness, 1e-4);
+        result *= contribution;
+    } else {
+        result = e * 0.125 + (a + c + g + i) * 0.03125 + (b + d + f + h) * 0.0625 + (j + k + l + m) * 0.125;
+    }
+    imageStore(images[pc.slots.y], p, vec4(result, 1.0));
+}

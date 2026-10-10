@@ -1,0 +1,120 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Temporal resolve and upscale (taa.zig). slots: x current HDR sampler, y output history image,
+// z previous history sampler, w depth sampler. size: output w, h, input w, h.
+// params: jitter as UV offset (xy), blend weight, reset.
+#include "post_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Matrices {
+    mat4 inverseCurrent;
+    mat4 previous;
+};
+
+vec3 toYCoCg(vec3 c) {
+    return vec3(dot(c, vec3(0.25, 0.5, 0.25)), dot(c, vec3(0.5, 0.0, -0.5)), dot(c, vec3(-0.25, 0.5, -0.25)));
+}
+vec3 fromYCoCg(vec3 c) {
+    return vec3(c.x + c.y - c.z, c.x + c.z, c.x - c.y - c.z);
+}
+
+// Five bilinear taps approximating a Catmull-Rom filter (Jimenez, "Filmic SMAA").
+vec3 catmullRom(uint slot, vec2 uv, vec2 size) {
+    vec2 position = uv * size;
+    vec2 center = floor(position - 0.5) + 0.5;
+    vec2 f = position - center;
+    vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+    vec2 w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+    vec2 w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+    vec2 w3 = f * f * (-0.5 + 0.5 * f);
+    vec2 w12 = w1 + w2;
+    vec2 tc12 = (center + w2 / w12) / size;
+    vec2 tc0 = (center - 1.0) / size;
+    vec2 tc3 = (center + 2.0) / size;
+    vec3 result =
+        texture(textures[nonuniformEXT(slot)], vec2(tc12.x, tc0.y)).rgb * (w12.x * w0.y) +
+        texture(textures[nonuniformEXT(slot)], vec2(tc0.x, tc12.y)).rgb * (w0.x * w12.y) +
+        texture(textures[nonuniformEXT(slot)], tc12).rgb * (w12.x * w12.y) +
+        texture(textures[nonuniformEXT(slot)], vec2(tc3.x, tc12.y)).rgb * (w3.x * w12.y) +
+        texture(textures[nonuniformEXT(slot)], vec2(tc12.x, tc3.y)).rgb * (w12.x * w3.y);
+    float weight = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
+    return max(result / weight, vec3(0.0));
+}
+
+// Clips `history` toward the neighbourhood mean so it stays inside the AABB (Playdead INSIDE).
+vec3 clipToBox(vec3 history, vec3 lo, vec3 hi) {
+    vec3 center = 0.5 * (hi + lo);
+    vec3 extent = 0.5 * (hi - lo) + 1e-4;
+    vec3 offset = history - center;
+    vec3 units = abs(offset / extent);
+    float m = max(units.x, max(units.y, units.z));
+    return m > 1.0 ? center + offset / m : history;
+}
+
+void main() {
+    uvec2 id = gl_GlobalInvocationID.xy;
+    if (any(greaterThanEqual(id, pc.size.xy))) return;
+    vec2 outSize = vec2(pc.size.xy);
+    vec2 inSize = vec2(pc.size.zw);
+    vec2 uv = (vec2(id) + 0.5) / outSize;
+    vec2 jitterUv = pc.params.xy;
+
+    // Current frame: the jittered render sampled at this output pixel's unjittered position.
+    vec3 currentColor = catmullRom(pc.slots.x, uv + jitterUv, inSize);
+
+    // Neighbourhood statistics and the nearest depth at render resolution.
+    ivec2 base = ivec2((uv + jitterUv) * inSize);
+    vec3 m1 = vec3(0.0), m2 = vec3(0.0);
+    float nearestDepth = 1.0;
+    ivec2 nearestTexel = base;
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            ivec2 t = clamp(base + ivec2(x, y), ivec2(0), ivec2(inSize) - 1);
+            vec3 s = toYCoCg(texelFetch(textures[nonuniformEXT(pc.slots.x)], t, 0).rgb);
+            m1 += s;
+            m2 += s * s;
+            float d = texelFetch(textures[nonuniformEXT(pc.slots.w)], t, 0).r;
+            if (d < nearestDepth) {
+                nearestDepth = d;
+                nearestTexel = t;
+            }
+        }
+    }
+    m1 /= 9.0;
+    vec3 sigma = sqrt(max(m2 / 9.0 - m1 * m1, vec3(0.0)));
+    vec3 lo = m1 - 1.25 * sigma, hi = m1 + 1.25 * sigma;
+
+    if (pc.params.w > 0.5) {
+        imageStore(images[pc.slots.y], ivec2(id), vec4(currentColor, 1.0));
+        return;
+    }
+
+    // Camera reprojection through the closest depth of the neighbourhood (sharper edges).
+    Matrices m = Matrices(pc.buffer1);
+    vec2 ndc = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+    vec4 world = m.inverseCurrent * vec4(ndc, nearestDepth, 1.0);
+    world /= world.w;
+    vec4 previousClip = m.previous * world;
+    vec2 previousNdc = previousClip.xy / max(previousClip.w, 1e-5);
+    vec2 previousUv = vec2(previousNdc.x * 0.5 + 0.5, 0.5 - previousNdc.y * 0.5);
+    if (previousClip.w <= 0.0 || any(lessThan(previousUv, vec2(0.0))) || any(greaterThan(previousUv, vec2(1.0)))) {
+        imageStore(images[pc.slots.y], ivec2(id), vec4(currentColor, 1.0));
+        return;
+    }
+    vec3 historyColor = catmullRom(pc.slots.z, previousUv, outSize);
+    historyColor = fromYCoCg(clipToBox(toYCoCg(historyColor), lo, hi));
+
+    // Luminance-weighted blend (Karis) suppresses flicker from bright sub-pixel details; fast
+    // motion trusts the current frame more. Model pixels (HDR alpha 0, stage.frag
+    // FLAG_DYNAMIC) move on their own, so their history is nearly discarded: no ghost limbs.
+    float motion = length((previousUv - uv) * outSize);
+    float alpha = clamp(pc.params.z + motion * 0.01, pc.params.z, 0.5);
+    // Models write 0; faint weather streaks lower it by their coverage, so amplify.
+    float dynamic = clamp((1.0 - texelFetch(textures[nonuniformEXT(pc.slots.x)], nearestTexel, 0).a) * 3.0, 0.0, 1.0);
+    alpha = max(alpha, 0.6 * dynamic);
+    float wc = alpha / (1.0 + dot(currentColor, LUMA));
+    float wh = (1.0 - alpha) / (1.0 + dot(historyColor, LUMA));
+    vec3 result = (currentColor * wc + historyColor * wh) / (wc + wh);
+    imageStore(images[pc.slots.y], ivec2(id), vec4(max(result, vec3(0.0)), 1.0));
+}

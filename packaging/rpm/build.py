@@ -31,7 +31,7 @@ def main():
         parser.error('--ca must contain a public certificate, never a private key')
     runtime = args.runtime.resolve(strict=True)
     manifest = json.loads((runtime / 'installation.json').read_text())
-    allowed_bin = {'dk3', 'dk3ded', 'renderer_opengl1.so', 'renderer_opengl2.so'}
+    allowed_bin = {'dk3', 'dk3ded', 'renderer_opengl1.so', 'renderer_opengl2.so', 'renderer_vulkan.so'}
     allowed_data = {'rules.json', 'compatibility.json'}
     modules = {'cgame.so', 'qagame.so', 'ui.so'}
     required = {f'bin/{name}' for name in allowed_bin} | {f'share/dk3/{name}' for name in modules | allowed_data}

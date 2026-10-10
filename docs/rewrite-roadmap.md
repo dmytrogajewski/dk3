@@ -319,6 +319,18 @@ the run log. The rows remain open until their complete acceptance evidence exist
   complete source/provenance/license review, private-data exclusions, preserved local saves,
   and verified README clone/build/assets/play path. Refresh only results invalidated by fixes.
 
+## Remaster renderer proposal
+
+[vulkan-remaster.md](vulkan-remaster.md) records the owner-requested Vulkan renderer:
+a third renderer, `renderer_vulkan.so`, written in Zig and now the default, with OpenGL2
+as the automatic fallback.
+Its milestone 1 (sequences 347-357) is accepted implementation scope. The owner then
+directed the remaster roadmap to completion: HDR/PBR, water, volumetrics, TAA, GPU
+weather, clustered lights, model shadows, material sidecars, ray-traced shadows and
+reflections, DDGI, directional lightmaps and a path-tracing mode (sequences 358-370).
+All of them are implemented and await owner visual acceptance. They stay outside
+V1–V12 and do not gate the parity acceptance above.
+
 ## Existing evidence and migration
 
 The initial tools publication remains recorded in `specs/dk3/ROADMAP.md` in the legacy

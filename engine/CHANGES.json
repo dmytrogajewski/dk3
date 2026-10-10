@@ -226,6 +226,36 @@
       "name": "native-loading-progress-reset-sv_init",
       "path": "code/server/sv_init.c",
       "reason": "Reset the loading bar under the cvar name the native client and UI read (dk3_loading_progress), so a new map's bar starts empty instead of showing the previous load as complete."
+    },
+    {
+      "name": "renderer-default-vulkan",
+      "path": "code/client/cl_main.c",
+      "reason": "cl_renderer defaults to the native Zig renderer_vulkan.so (docs/vulkan-remaster.md); a missing library falls back to the reset string and then to opengl2"
+    },
+    {
+      "name": "renderer-refusal-falls-back-to-opengl2",
+      "path": "code/client/cl_main.c",
+      "reason": "GetRefAPI returning NULL (renderer_vulkan without a Vulkan 1.3 device) loads renderer_opengl2 for the session instead of ERR_FATAL; the saved cl_renderer is kept"
+    },
+    {
+      "name": "renderer-dk3-weather-volumes",
+      "path": "code/renderercommon/tr_public.h",
+      "reason": "refexport AddDk3WeatherToScene lets renderer_vulkan simulate authored rain/snow volumes on the GPU; OpenGL renderers leave it NULL and cgame keeps CPU particles"
+    },
+    {
+      "name": "cgame-dk3-weather-syscall",
+      "path": "code/client/cl_cgame.c",
+      "reason": "CG_DK3_R_WEATHER_V1 (716, cg_public.h) forwards a weather volume to the renderer and returns whether it was accepted"
+    },
+    {
+      "name": "console-auto-scale",
+      "path": "code/client/cl_console.c",
+      "reason": "con_scale 0 (the new default) scales console text with the screen height (vidHeight / 540, clamped 1-4) so native high-DPI modes stay readable; 1-4 keep their fixed meaning"
+    },
+    {
+      "name": "signal-crash-log",
+      "path": "code/sys/sys_unix.c",
+      "reason": "Fatal signals (segfault, abort from a Zig panic) write crashlog.txt with the glibc backtrace and the console history; before, only Sys_Error wrote it and a crash left nothing on disk"
     }
   ],
   "files": {

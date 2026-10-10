@@ -95,7 +95,7 @@ of the current map (see the survey tool below).
 
 | Action | Completes when |
 |---|---|
-| `move(t, {radius, direct, crouch, cautious})` | within `radius` (default 40); `direct` steers straight (falls into water, ledges the area graph lacks) and must end standing, braking into the goal; `cautious` stops to fight whatever engages the player (held on a short tether, dodging) and goes on once nothing has engaged it for 2.5 s, the stand cannot hurt its prey, 45 s have passed, or nothing is left to shoot with at range |
+| `move(t, {radius, direct, crouch, cautious, pace})` | within `radius` (default 40); `direct` steers straight (falls into water, ledges the area graph lacks) and must end standing, braking into the goal; `pace` (0.1–1) walks it (off a narrow ledge, to drop close under it); `cautious` stops to fight whatever engages the player (held on a short tether, dodging) and goes on once nothing has engaged it for 2.5 s, the stand cannot hurt its prey, 45 s have passed, or nothing is left to shoot with at range |
 | `path({points}, opts)` | every point reached, starting at the point nearest the player |
 | `touch(t)` | the hull overlaps the trigger, or it fired/was consumed |
 | `use(t)` | the control reacted (mover/trigger state); presses are retried with re-aim |
@@ -158,7 +158,8 @@ restorations per map (`map_deaths = { e1m2a = 10 }` raises it for one map);
 `deaths` optionally bounds the whole run. Long levels
 mark stages `{ "canal", checkpoint = true, function() … end }`: the stage saves
 as it begins (slot `coop-<map>-<index>`) when the player has at least 60% of
-its health, so a later death resumes there rather than at the arrival. (The runtime does not spend save gems on saves.)
+its health (first tending the sidekicks, recovering health and collecting ammunition
+near by), so a later death resumes there rather than at the arrival. (The runtime does not spend save gems on saves.)
 Saves are not counted among a stage's actions (one may be written after the
 next action began), and a checkpoint save records its stage with none of the
 body's actions done. `runtime_coop_bot.py --load <save> --stage N` resumes a

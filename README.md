@@ -65,8 +65,25 @@ Builds default to `zig-out/native-dev`; settings and saves remain under that pre
 Use `-Dassets-dir=/path/to/cache` for a different converted cache or `-Dheadless=true`
 for a software-rendered test on a virtual display.
 
-Normal launches use OpenGL2 with model shadows enabled. **Video → Model shadows**
-toggles shadows. To explicitly use OpenGL1, pass `-- +set cl_renderer opengl1`.
+Normal launches use the Vulkan renderer at the display's native resolution
+(`r_mode -2`; fullscreen is borderless at desktop size). Without a Vulkan 1.3 device
+the client falls back to OpenGL2 automatically. To choose a renderer explicitly, pass
+`-- +set cl_renderer opengl2` or `-- +set cl_renderer opengl1`.
+
+The Vulkan renderer's remaster path (`r_vkRemaster 1`, the default) adds:
+- HDR lighting with PBR materials;
+- shaded water, volumetric fog, TAA and render scaling;
+- GPU rain and snow with wet and snowy surfaces;
+- shadow-mapped model shadows.
+
+On hardware with ray queries it adds ray-traced shadows and reflections,
+traced-probe global illumination and directional lightmaps; `r_vkPathTracing 1`
+switches on the path-tracing mode. `r_vkRemaster 0` restores the classic OpenGL1
+look. The features and their settings are listed in
+[the remaster design](docs/vulkan-remaster.md). Run
+`python3 dkq3/tools/materialgen.py --textures <dk3-textures.pk3> --shaders
+<dk3-shaders.pk3> --normals --out zig-out/materials/dk3-materials.pk3` once to give
+the remaster material data; `play-install` then includes it.
 
 Press **Escape** during a cinematic to skip it and continue its authored exit.
 Outside cinematics, Escape opens or closes the pause menu.

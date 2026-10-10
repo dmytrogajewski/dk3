@@ -101,6 +101,7 @@ test {
     _ = @import("client/interpolation.zig");
     _ = @import("client/ground_motion.zig");
     _ = @import("client/sky.zig");
+    _ = @import("client/fog.zig");
     _ = @import("domain/checkpoint.zig");
     _ = @import("domain/explosives.zig");
     _ = @import("actor_catalog").perception;

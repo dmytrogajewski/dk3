@@ -129,7 +129,9 @@ pub const State = struct {
             const sound = try engine.config(&self.game, c.CS_SOUNDS + self.sound_cursor);
             self.sound_cursor += 1;
             if (sound.len == 0) continue;
-            if (try engine.registerSound(sound) == 0) return error.MissingWorldSound;
+            // A missing sample only loses that sound: the engine already warned and keeps its
+            // default. Ending the game over it would turn one absent clip into a crash.
+            _ = try engine.registerSound(sound);
             self.sounds += 1;
             return;
         }

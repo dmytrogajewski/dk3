@@ -7,7 +7,7 @@ const domain = @import("../domain/menu.zig");
 const settings = @import("settings.zig");
 const controls = @import("controls.zig");
 const art_module = @import("art.zig");
-const Action = union(enum) { multiplayer: @import("multiplayer.zig").Action, difficulty: usize, setting: usize, bind: usize, save_pick: usize, save_commit, invert_mouse, video_apply, input_apply, config_save, config_load, back, quit, options };
+const Action = union(enum) { multiplayer: @import("multiplayer.zig").Action, difficulty: usize, setting: usize, bind: usize, save_pick: usize, save_commit, invert_mouse, video_apply, video_page: i32, input_apply, config_save, config_load, back, quit, options };
 const Widget = struct { rect: domain.Rect, action: Action };
 pub const Menu = struct {
     active: bool = false,
@@ -26,6 +26,7 @@ pub const Menu = struct {
     widgets: [64]Widget = undefined,
     count: usize = 0,
     control_page: usize = 0,
+    video_page: usize = 0,
     feedback: [256]u8 = @splat(0),
     saves: @import("saves.zig").Browser = .{},
     multiplayer: @import("multiplayer.zig").Browser = .{},
@@ -111,7 +112,11 @@ pub const Menu = struct {
     }
     fn group(self: *Menu, value: settings.Group) !void {
         var row: usize = 0;
-        for (settings.entries, 0..) |setting, i| if (setting.group == value) {
+        if (value == .video) {
+            var title: [64]u8 = undefined;
+            self.art.text(self.layout, 92, 110, try std.fmt.bufPrint(&title, "{s} ({d}/{d})", .{ settings.video_pages[self.video_page], self.video_page + 1, settings.video_pages.len }), true);
+        }
+        for (settings.entries, 0..) |setting, i| if (setting.group == value and (value != .video or setting.page == self.video_page)) {
             var buffer: [160]u8 = undefined;
             var number: [48]u8 = undefined;
             const text = try std.fmt.bufPrint(&buffer, "{s}: {s}", .{ setting.label, try setting.labelValue(&number) });
@@ -125,7 +130,11 @@ pub const Menu = struct {
             row += 1;
         };
         switch (value) {
-            .video => self.button(110, 380, 300, "Apply video changes", .video_apply),
+            .video => {
+                self.button(92, 380, 70, "< Prev", .{ .video_page = -1 });
+                self.button(172, 380, 180, "Apply video changes", .video_apply);
+                self.button(362, 380, 70, "Next >", .{ .video_page = 1 });
+            },
             .mouse => self.button(92, 234, 300, if (engine.number("m_pitch") < 0) "Invert mouse: On" else "Invert mouse: Off", .invert_mouse),
             .joystick => self.button(110, 380, 300, "Apply input changes", .input_apply),
             else => {},
@@ -284,6 +293,12 @@ pub const Menu = struct {
             self.panel.selected = 0;
             return;
         }
+        if (self.page == 5 and (code == c.K_PGDN or code == c.K_PGUP)) {
+            const pages = settings.video_pages.len;
+            self.video_page = if (code == c.K_PGDN) (self.video_page + 1) % pages else (self.video_page + pages - 1) % pages;
+            self.panel.selected = 0;
+            return;
+        }
         if (self.page == 7 and (code == c.K_PGDN or code == c.K_PGUP)) {
             const pages = (controls.entries.len + 7) / 8;
             self.control_page = if (code == c.K_PGDN) (self.control_page + 1) % pages else (self.control_page + pages - 1) % pages;
@@ -346,6 +361,12 @@ pub const Menu = struct {
                 engine.execute(text);
             },
             .invert_mouse => engine.setNumber("m_pitch", if (engine.number("m_pitch") < 0) 0.022 else -0.022),
+            .video_page => |step| {
+                const pages = settings.video_pages.len;
+                self.video_page = if (step > 0) (self.video_page + 1) % pages else (self.video_page + pages - 1) % pages;
+                self.panel = .{ .selected = 0 };
+                self.count = 0;
+            },
             .video_apply => {
                 self.close();
                 engine.execute("vid_restart\n");

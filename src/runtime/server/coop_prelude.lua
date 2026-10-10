@@ -96,7 +96,7 @@ function stages(list)
       -- A checkpoint is only worth having in good health: restoring a badly
       -- hurt player again and again cannot succeed. Heal from what is near;
       -- if still hurt, keep the older checkpoint.
-      if list[index].checkpoint and not resuming then tend() recover(0.6) end
+      if list[index].checkpoint and not resuming then tend() recover(0.6) resupply(30, 900) end
       if list[index].checkpoint and not resuming and sturdy(0.5) then
         -- The save records the stage with none of its body's actions done
         -- (healing on the way here is not replayed on restoration).

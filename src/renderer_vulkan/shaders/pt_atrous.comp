@@ -1,0 +1,42 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Path tracing mode, pass 3: one edge-avoiding à-trous wavelet iteration (Dammertz et al.,
+// with SVGF's variance-guided luminance weight). slots: x input, y output, z normal-depth,
+// w moments; params.x = step width.
+#include "post_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void main() {
+    ivec2 id = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(uvec2(id), pc.size.xy))) return;
+    vec4 center = imageLoad(images[pc.slots.x], id);
+    vec4 nd = imageLoad(images[pc.slots.z], id);
+    if (nd.w < 0.0 || center.a <= 0.0) {
+        imageStore(images[pc.slots.y], id, center);
+        return;
+    }
+    float variance = imageLoad(images[pc.slots.w], id).z;
+    float lumCenter = dot(center.rgb, LUMA);
+    float sigmaL = 4.0 * sqrt(max(variance, 1e-6)) + 1e-3;
+    int step = int(pc.params.x);
+    const float kernel[3] = float[](3.0 / 8.0, 1.0 / 4.0, 1.0 / 16.0);
+    vec3 sum = vec3(0.0);
+    float weights = 0.0;
+    for (int y = -2; y <= 2; ++y) {
+        for (int x = -2; x <= 2; ++x) {
+            ivec2 q = id + ivec2(x, y) * step;
+            if (any(lessThan(q, ivec2(0))) || any(greaterThanEqual(uvec2(q), pc.size.xy))) continue;
+            vec4 s = imageLoad(images[pc.slots.x], q);
+            vec4 snd = imageLoad(images[pc.slots.z], q);
+            if (snd.w < 0.0 || s.a <= 0.0) continue;
+            float wz = exp(-abs(snd.w - nd.w) / (max(nd.w, 1.0) * 0.02 * float(step)));
+            float wn = pow(max(dot(snd.xyz, nd.xyz), 0.0), 64.0);
+            float wl = exp(-abs(dot(s.rgb, LUMA) - lumCenter) / sigmaL);
+            float w = kernel[abs(x)] * kernel[abs(y)] * wz * wn * wl;
+            sum += s.rgb * w;
+            weights += w;
+        }
+    }
+    imageStore(images[pc.slots.y], id, vec4(weights > 0.0 ? sum / weights : center.rgb, center.a));
+}

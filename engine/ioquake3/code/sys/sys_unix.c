@@ -41,6 +41,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <sys/wait.h>
 #include <time.h>
 #include <sys/resource.h>
+#if defined(__linux__) && defined(__GLIBC__)
+#include <execinfo.h>
+#endif
 
 qboolean stdinIsATTY;
 
@@ -1004,6 +1007,48 @@ void Sys_ErrorDialog( const char *error )
 	}
 
 	close( f );
+}
+
+/*
+==============
+Sys_CrashLog
+
+dk3: a fatal signal (segfault, abort from a Zig panic) records the native backtrace and the
+console history in crashlog.txt, as Sys_ErrorDialog does for fatal errors.
+==============
+*/
+void Sys_CrashLog( int signal )
+{
+	char buffer[ 1024 ];
+	unsigned int size;
+	int f;
+	const char *homedatapath = Cvar_VariableString( "fs_homedatapath" );
+	const char *gamedir = Cvar_VariableString( "fs_game" );
+	char *ospath = FS_BuildOSPath( homedatapath, gamedir, "crashlog.txt" );
+	int len;
+
+	if( FS_CreatePath( homedatapath ) )
+		return;
+	f = open( ospath, O_CREAT | O_TRUNC | O_WRONLY, 0640 );
+	if( f == -1 )
+		return;
+	len = Com_sprintf( buffer, sizeof( buffer ), "Received signal %d\nBacktrace:\n", signal );
+	if( write( f, buffer, len ) != len ) {}
+#if defined(__linux__) && defined(__GLIBC__)
+	{
+		void *frames[ 64 ];
+		int count = backtrace( frames, 64 );
+		backtrace_symbols_fd( frames, count, f );
+	}
+#endif
+	len = Com_sprintf( buffer, sizeof( buffer ), "\nConsole:\n" );
+	if( write( f, buffer, len ) != len ) {}
+	while( ( size = CON_LogRead( buffer, sizeof( buffer ) ) ) > 0 ) {
+		if( write( f, buffer, size ) != size )
+			break;
+	}
+	close( f );
+	fprintf( stderr, "Crash details written to %s\n", ospath );
 }
 
 #ifndef __APPLE__

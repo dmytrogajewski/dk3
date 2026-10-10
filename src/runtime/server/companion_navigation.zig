@@ -29,7 +29,9 @@ pub fn prepare(world: *data.World, slots: *Slots, projections: []abi.EntityProje
     }
     if (actor.mode == .chase) {
         const toward = if (actor.route.waypoint) |point| point.point else actor.threat_position;
-        const direction = v.normalize(.{ toward[0] - pose.position[0], toward[1] - pose.position[1], 0 });
+        // Climbing straight up (a ladder under a hatch): the door is overhead.
+        const flat: v.Vec3 = .{ toward[0] - pose.position[0], toward[1] - pose.position[1], 0 };
+        const direction = if (toward[2] - pose.position[2] > 18 and v.length(flat) < 24) v.Vec3{ 0, 0, 1 } else v.normalize(flat);
         const hit = try @import("actor_collision.zig").service().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, 64)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = body.collision_mask });
         if (hit.fraction < 1) if (@import("region_access.zig").victim(world, slots, hit)) |obstacle| {
             if (obstacle.get(data.Mover) catch null) |mover| {

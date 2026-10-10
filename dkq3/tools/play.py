@@ -12,7 +12,7 @@ import zipfile
 
 from assets import digest, write_json
 
-BINARIES = ('dk3', 'dk3ded', 'renderer_opengl1.so', 'renderer_opengl2.so')
+BINARIES = ('dk3', 'dk3ded', 'renderer_opengl1.so', 'renderer_opengl2.so', 'renderer_vulkan.so')
 MODULES = ('qagame.so', 'cgame.so', 'ui.so')
 LEGACY_RUNTIME_MEDIA = ('scripts/dk3-projectile-weather.shader',)
 ONLINE_METADATA = ('rules.json', 'compatibility.json')
@@ -46,8 +46,54 @@ def checked_assets(directory):
     return manifest
 
 
+def converted_surface_counts(maps_package):
+    """-> {map name: surface count} of the converted maps."""
+    import struct
+    import q3bsp
+    counts = {}
+    index = q3bsp.LUMPS.index('surfaces')
+    with zipfile.ZipFile(maps_package) as archive:
+        for name in archive.namelist():
+            if not (name.startswith('maps/') and name.endswith('.bsp') and name.count('/') == 1):
+                continue
+            with archive.open(name) as stream:
+                head = stream.read(8 + 8 * len(q3bsp.LUMPS))
+            _, length = struct.unpack_from('<ii', head, 8 + 8 * index)
+            counts[name[5:-4]] = length // q3bsp.DT['surfaces'].itemsize
+    return counts
+
+
+def ensure_surface_lights(package, source):
+    """The ray traced lighting's per-map surface lights (surface_lights.py) are derived from the
+    original maps and stay local: when any installed map lacks its sidecar, or the sidecar was
+    made for different geometry, regenerate them all from this asset generation's input."""
+    import surface_lights
+    expected = converted_surface_counts(source / 'packages' / 'dk3-maps.pk3')
+    with zipfile.ZipFile(package) as archive:
+        present = {name: archive.read(name).decode('utf-8', 'replace')
+                   for name in archive.namelist() if name.startswith('maps/') and name.endswith('.lights')}
+    stale = sorted(name for name, count in expected.items()
+                   if surface_lights.recorded_surfaces(present.get(f'maps/{name}.lights', '')) != count)
+    if not stale:
+        return
+    game = source / 'input'
+    if not game.is_dir():
+        raise ValueError(f'{package}: surface lights missing or stale for {len(stale)} maps ({", ".join(stale[:5])}...) '
+                         f'and {game} is not available; run dkq3/tools/surface_lights.py --data <Daikatana data> '
+                         f'--package {package}')
+    texts = surface_lights.sidecars(str(game))
+    still = sorted(name for name in stale
+                   if surface_lights.recorded_surfaces(texts.get(f'maps/{name}.lights', '')) != expected[name])
+    if still:
+        raise ValueError(f'{package}: could not regenerate surface lights matching the converted maps: '
+                         + ', '.join(still[:10]))
+    surface_lights.write_package(package, texts)
+    print(f'play-install: regenerated surface lights for {len(texts)} maps ({len(stale)} missing or stale) '
+          f'from {game} into {package}')
+
+
 def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None,
-            neural_assets=None, neural_assets_fallback=None):
+            neural_assets=None, neural_assets_fallback=None, materials=None, materials_fallback=None):
     if not (assets / 'current' / 'manifest.json').is_file():
         raise ValueError(f'no completed asset generation in {assets}; run zig build assets '
                          '-DDK_DATA=/path/to/data -Dasset-profile=retail first, '
@@ -83,6 +129,26 @@ def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None,
         from neural_package import validate_package
         validate_package(neural, source / 'packages/dk3-models.pk3')
         files['share/dk3/zz-dk3-neural.pk3'] = neural
+    # Remaster material sidecars, normal maps (materialgen.py) and map surface-light sidecars
+    # (surface_lights.py) are read only by renderer_vulkan; like the HD overlay they are cosmetic.
+    material_package = materials or prefix / 'materials' / 'dk3-materials.pk3'
+    if not materials and not material_package.is_file() and materials_fallback:
+        material_package = materials_fallback
+    if materials or material_package.is_file():
+        with zipfile.ZipFile(material_package) as archive:
+            names = archive.namelist()
+            def material_entry(name):
+                if name.startswith('textures/'):
+                    return name.endswith(('.mat', '_n.png'))
+                return name.startswith('maps/') and name.count('/') == 1 and name.endswith('.lights')
+            if not names or any(not material_entry(name) or '..' in name.split('/') for name in names):
+                raise ValueError(f'{material_package}: material package must contain .mat sidecars, _n.png maps and '
+                                 'maps/<map>.lights only')
+            invalid = archive.testzip()
+            if invalid:
+                raise ValueError(f'{material_package}: corrupt entry {invalid}')
+        ensure_surface_lights(material_package, source)
+        files['share/dk3/zz-dk3-materials.pk3'] = material_package
     # Canonical package entries ignore ZIP timestamps/compression and native ELF
     # bytes. Approved texture-only overlays do not change gameplay compatibility.
     gameplay = hashlib.sha256()
@@ -96,6 +162,8 @@ def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None,
     compatibility.update(gameplay=gameplay.hexdigest(), cosmetic='hd-textures-v1' if 'share/dk3/zz-dk3-textures-hd.pk3' in files else 'stock-v1')
     if 'share/dk3/zz-dk3-neural.pk3' in files:
         compatibility['cosmetic'] += '+neural-v1'
+    if 'share/dk3/zz-dk3-materials.pk3' in files:
+        compatibility['cosmetic'] += '+materials-v1'
     compatibility_file = prefix / 'share/dk3/compatibility.json'
     write_json(compatibility_file, compatibility)
     files['share/dk3/compatibility.json'] = compatibility_file
@@ -139,6 +207,8 @@ def install(prefix, assets, hd_textures=None, *, hd_textures_fallback=None,
         print(f'play-install: HD textures enabled from {hd}')
     if 'share/dk3/zz-dk3-neural.pk3' in records:
         print(f'play-install: skeletal neural characters enabled from {neural}')
+    if 'share/dk3/zz-dk3-materials.pk3' in records:
+        print(f'play-install: remaster materials enabled from {material_package}')
 
 
 def launch(prefix, guard, extra, headless=False):
@@ -169,7 +239,7 @@ def launch(prefix, guard, extra, headless=False):
                '+set', 'fs_homedatapath', str(prefix / 'play' / 'home'),
                '+set', 'fs_homestatepath', str(prefix / 'play' / 'state'),
                '+set', 'vm_game', '0', '+set', 'vm_cgame', '0', '+set', 'vm_ui', '0',
-               '+set', 'g_gametype', '2', '+set', 'cl_renderer', 'opengl2',
+               '+set', 'g_gametype', '2', '+set', 'cl_renderer', 'vulkan',
                *(['+set', 'r_picmip', '0'] if any(name in manifest['files'] for name in
                  ('share/dk3/zz-dk3-textures-hd.pk3', 'share/dk3/zz-dk3-neural.pk3')) else []), *extra]
     os.execv(command[0], command)
@@ -185,6 +255,8 @@ def main(argv=None):
     prepare.add_argument('--hd-textures-fallback', type=Path, help='shared local HD package used when the build prefix has none')
     prepare.add_argument('--neural-assets', type=Path, help='optional validated skeletal character package')
     prepare.add_argument('--neural-assets-fallback', type=Path, help='shared locally converted skeletal package')
+    prepare.add_argument('--materials', type=Path, help='optional materialgen.py remaster material package')
+    prepare.add_argument('--materials-fallback', type=Path, help='shared locally generated material package')
     run = sub.add_parser('launch')
     run.add_argument('--prefix', type=Path, required=True)
     run.add_argument('--dkguard', required=True)
@@ -196,7 +268,8 @@ def main(argv=None):
             if extra: parser.error('unexpected installation arguments: ' + ' '.join(extra))
             install(prefix, arguments.assets.resolve(), arguments.hd_textures,
                     hd_textures_fallback=arguments.hd_textures_fallback,
-                    neural_assets=arguments.neural_assets, neural_assets_fallback=arguments.neural_assets_fallback)
+                    neural_assets=arguments.neural_assets, neural_assets_fallback=arguments.neural_assets_fallback,
+                    materials=arguments.materials, materials_fallback=arguments.materials_fallback)
         else:
             launch(prefix, arguments.dkguard, extra[1:] if extra[:1] == ['--'] else extra, arguments.headless)
         return 0

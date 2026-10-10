@@ -86,14 +86,20 @@ pub fn touch(world: *data.World, slots: *Slots, projections: []abi.EntityProject
             const actor = client orelse continue;
             if (!world.alive(entity) or !world.alive(actor)) break;
             const player = if (world.get(actor, data.Player)) |value| value.* else |_| null;
+            // A sidekick calls a plat as a player does (the reference's touch
+            // accepts bots: e1m6a's lift up from the drained nitrogen pool).
+            const riding_companion = player == null and mover != null and mover.?.platform and (world.get(actor, data.Companion) catch null) != null;
             if (player) |state| {
                 if (state.mode != .normal) continue;
-            } else if (sequence == null or !sequence.?.actor_allowed or (world.get(actor, data.Actor) catch null) == null) continue;
+            } else if (!riding_companion and (sequence == null or !sequence.?.actor_allowed or (world.get(actor, data.Actor) catch null) == null)) continue;
             if ((try world.get(actor, data.Health)).current <= 0) continue;
             const body = &projections[(try world.get(actor, data.Binding)).slot];
             const padding: f32 = if (trigger != null or sequence != null or button_touch) 1 else 48;
             if (!overlap(body, projection, padding)) continue;
-            if (mover) |motion| if (motion.platform and (player == null or player.?.ground_entity != binding.slot)) continue;
+            if (mover) |motion| if (motion.platform) {
+                const ground = if (player) |state| state.ground_entity else if (world.get(actor, data.Actor)) |state| state.ground_entity else |_| c.ENTITYNUM_NONE;
+                if (ground != binding.slot) continue;
+            };
             try router.activate(world, slots, projections, entity, try world.persistentId(actor), now);
             // Structural target actions invalidate component addresses. Revisit next frame.
             break;

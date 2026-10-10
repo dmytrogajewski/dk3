@@ -1,0 +1,57 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Path tracing mode, pass 2: reprojects the previous accumulated irradiance through depth,
+// rejects disoccluded history by depth and normal, and blends (exponential moving average with
+// a history-length ramp). Tracks luminance moments for the variance-guided filter.
+// slots: x noisy, y normal-depth, z history out, w moments out; size.zw: previous history and
+// previous normal-depth sampler slots; params: target size, previous moments sampler slot.
+#include "post_common.glsl"
+#include "pt_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void main() {
+    uvec2 id = gl_GlobalInvocationID.xy;
+    if (any(greaterThanEqual(id, pc.size.xy))) return;
+    PtParams p = PtParams(pc.buffer1);
+    vec4 noisy = imageLoad(images[pc.slots.x], ivec2(id));
+    vec4 nd = imageLoad(images[pc.slots.y], ivec2(id));
+    if (noisy.a <= 0.0) {
+        imageStore(images[pc.slots.z], ivec2(id), vec4(0.0));
+        imageStore(images[pc.slots.w], ivec2(id), vec4(0.0));
+        return;
+    }
+    float lum = dot(noisy.rgb, LUMA);
+    vec3 color = noisy.rgb;
+    vec2 moments = vec2(lum, lum * lum);
+    float length = 1.0;
+    if (p.counts.y != 0u) {
+        vec2 size = vec2(pc.params.xy);
+        vec2 uv = (vec2(id) + 0.5) / size;
+        vec2 ndc = vec2(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0);
+        // World position from the traced eye depth along the unjittered pixel ray.
+        vec3 dir = p.forward.xyz - p.left.xyz * (ndc.x - p.jitter.x) * p.forward.w + p.up.xyz * (ndc.y - p.jitter.y) * p.left.w;
+        vec3 world = p.origin.xyz + dir * nd.w;
+        vec4 clip = p.previous * vec4(world, 1.0);
+        if (clip.w > 0.0) {
+            vec2 prevUv = vec2(clip.x / clip.w * 0.5 + 0.5, 0.5 - clip.y / clip.w * 0.5);
+            if (all(greaterThanEqual(prevUv, vec2(0.0))) && all(lessThanEqual(prevUv, vec2(1.0)))) {
+                ivec2 texel = ivec2(prevUv * size);
+                vec4 prevNd = texelFetch(textures[nonuniformEXT(pc.size.w)], texel, 0);
+                vec4 prev = texelFetch(textures[nonuniformEXT(pc.size.z)], texel, 0);
+                bool depthOk = abs(prevNd.w - nd.w) < max(4.0, nd.w * 0.03);
+                bool normalOk = dot(prevNd.xyz, nd.xyz) > 0.85;
+                if (depthOk && normalOk && prev.a > 0.0) {
+                    length = min(prev.a + 1.0, 48.0);
+                    float alpha = max(1.0 / length, 0.05);
+                    color = mix(prev.rgb, noisy.rgb, alpha);
+                    vec2 prevMoments = texelFetch(textures[nonuniformEXT(uint(pc.params.z))], texel, 0).xy;
+                    moments = mix(prevMoments, moments, alpha);
+                }
+            }
+        }
+    }
+    float variance = max(moments.y - moments.x * moments.x, 0.0);
+    imageStore(images[pc.slots.z], ivec2(id), vec4(color, length));
+    imageStore(images[pc.slots.w], ivec2(id), vec4(moments, variance, 0.0));
+}

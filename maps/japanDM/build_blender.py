@@ -413,7 +413,7 @@ def flight(name, start, end, width, material, tread=TREAD, bulk=None):
         # material from riser to nosing reads as a sloped wall at night, and this
         # costs no brush because a Quake brush already carries one shader per plane.
         made.append(box('%s_%02d' % (name, index), mins, maxs, material, source='stairs',
-                        kind='stair', crown=GRATE))
+                        kind='stair', crown=mat('deck_timber')))
     return made
 
 
@@ -495,7 +495,7 @@ def rail(name, p0, p1, height, solid_top=True, glazed=True, post_at=72.0):
             made.extend(rail_posts('%s_post' % name, 'x', x0, x1, y, p0[2], height,
                                    thickness, post_at))
         made.append(box('%s_cap' % name, (x0, y - thickness / 2, p0[2] + height - 8),
-                        (x1, y + thickness / 2, p0[2] + height), COLUMN, kind=kind))
+                        (x1, y + thickness / 2, p0[2] + height), mat('metal_brass'), kind=kind))
     else:
         y0, y1 = sorted((p0[1], p1[1]))
         x = p0[0]
@@ -508,7 +508,7 @@ def rail(name, p0, p1, height, solid_top=True, glazed=True, post_at=72.0):
             made.extend(rail_posts('%s_post' % name, 'y', y0, y1, x, p0[2], height,
                                    thickness, post_at))
         made.append(box('%s_cap' % name, (x - thickness / 2, y0, p0[2] + height - 8),
-                        (x + thickness / 2, y1, p0[2] + height), COLUMN, kind=kind))
+                        (x + thickness / 2, y1, p0[2] + height), mat('metal_brass'), kind=kind))
     return made
 
 
@@ -969,12 +969,12 @@ def climbs():
     flight(name, start, end, width, CONCRETE)
     for climb in (CLIMB_N, CLIMB_W):
         name, start, end, width = climb
-        sided_ramp(name, start, end, width, GRATE)
+        sided_ramp(name, start, end, width, mat('deck_timber'))
     for climb in (ROOF_CLIMB_W, ROOF_CLIMB_E):    # these two cross a T0-to-T1
         name, start, end, width = climb                     # climb in the same
         flight(name, start, end, width, DECK_METAL, bulk=48)  # corridor: see flight()
     name, start, end, width = ROOF_CLIMB_N
-    sided_ramp(name, start, end, width, GRATE)
+    sided_ramp(name, start, end, width, mat('deck_timber'))
     for climb in (CLIMB_S, CLIMB_E, ROOF_CLIMB_W, ROOF_CLIMB_E, ROOF_CLIMB_N, CLIMB_N, CLIMB_W):
         stair_light(climb[0], climb[1], climb[2], climb[3])
     # Every stairwell is a 256-unit hole in a walkway, so it gets a balustrade
@@ -1003,6 +1003,11 @@ def climbs():
 
 
 def bridges():
+    # The corridor's piers come here from `arcade`, because they are the load the
+    # corridor carries and not the street's furniture: they must exist before the
+    # landmarks ask where the plaza has the air, and a shaft that is placed after
+    # them stands through a lantern post that was only ever told to move for routes.
+    skybridge_piers()
     for name, (x0, y0), (x1, y1) in BRIDGES:
         slab(name, (x0, y0, T1 - DECK), (x1, y1, T1), DECK_METAL)
         if x1 - x0 < y1 - y0:                              # spans in y: rail the y edges
@@ -1019,7 +1024,8 @@ def roofs():
         # The soffit of a roof is the ceiling of the street; 38 exported faces
         # pointed down wearing roof ballast, and that lump is the dark ceiling in
         # the owner's screenshot.
-        slab_with_voids(name, rect, T2 - DECK, T2, ROOF_HOLES.get(name, []), ROOF,
+        slab_with_voids(name, rect, T2 - DECK, T2, ROOF_HOLES.get(name, []),
+                        mat('roof_membrane'),
                         soffit=CONCRETE)
     # Rails on the roof edges that overlook the plaza or a 256-unit drop. A roof
     # edge is only an edge where the floor next to it is lower: the north roof
@@ -1081,8 +1087,10 @@ def skybridge():
         # arena is balanced on.  The frame still reads as a frame at 584.
         box('skybridge_header_%d' % index, (index * 128 - 8, -256, T2 + 72),
             (index * 128 + 8, -128, T2 + 112), COLUMN, detail=True)
-    slab('skybridge_strip_n', (-PLAZA, -144, T2), (PLAZA, -136, T2 + 3), STRIP, )
-    slab('skybridge_strip_s', (-PLAZA, -248, T2), (PLAZA, -240, T2 + 3), STRIP)
+    slab('skybridge_strip_n', (-PLAZA, -144, T2), (PLAZA, -136, T2 + 3),
+         mat('light_strip_cyan'))
+    slab('skybridge_strip_s', (-PLAZA, -248, T2), (PLAZA, -240, T2 + 3),
+         mat('light_strip_warm'))
     for index in range(4):                           # conduit hung under the deck
         box('skybridge_conduit_%d' % index, (-384 + index * 224, -208, T2 - 64),
             (-320 + index * 224, -176, T2 - DECK), COLUMN, detail=True)
@@ -1216,7 +1224,8 @@ def facades():
                 box('facade_%s_%02d_crown' % (side, index), (cx0, cy0, height),
                     (cx1, cy1, height + 128), CONCRETE, detail=True)
                 box('facade_%s_%02d_beacon' % (side, index), (cx0, cy0, height + 128),
-                    (cx1, cy1, height + 132), STRIP, detail=True)   # aircraft warning line
+                    (cx1, cy1, height + 132), mat('light_strip_warm'),
+                    detail=True)   # aircraft warning line
 
 
 # The front heights are measured against the tiers -- 512 is flush with the
@@ -1239,6 +1248,720 @@ def facade_parapets():
                 continue
             rail_line('facade_rail_%s_%02d' % (side, index), FACADES[side]['axis'], coord,
                       a0 + 24, a1 - 24, height, 48)
+
+
+# --- the street kit: bays, relief, foot detail, landmarks -------------------
+# The census that opened this round counted 24 materials doing the work of a city
+# block and named the four most-used: `metal_column`, `concrete_panel`,
+# `tower_front`, `prop_concrete`.  Three of those four draw a motif a *storey*
+# tall -- `concrete_panel`'s is a 128-unit panel with four tie holes, so a wall
+# wears three panels to the roofline and the eye finds nothing to measure itself
+# against.  This is the pass that answers that, and it answers it in the one way
+# a brush format allows: the surfaces a pedestrian can reach are *rebuilt* out of
+# the materials a shopfront is actually made of -- tile, plaster, slat, shutter,
+# painted board -- at the pitch of those materials, and the parts of the block a
+# player cannot walk up to are given a service course and a sign instead of a
+# curtain of one tile.
+#
+# Four rules run through every section below, and each one is here because of a
+# specific way this file has failed before:
+#
+# * nothing crosses the tower-front line.  The street reads as a wall at |coord| =
+#   1024, so every kit part starts *on* that plane and stands into the street.
+#   Sinking 8 into the wall to "make sure it touches" would put the box 8 past
+#   `FACE` and `verify` would charge it as crossing, which is what the first draft
+#   of this pass did;
+# * every part is named `facade_*`, because that is what it is: the block's own
+#   finish, in the same exemption class as the plinth course that already runs the
+#   block.  `verify`'s crossing rule is axis-symmetric and does not know which
+#   front a brush belongs to, so a bay at the corner of the north front -- 1136 in
+#   x, 1024 in y -- reads to it as a brush crossing the *east* front's line.  The
+#   climb audit is not exempted, and should not be: a kit part in a flight of
+#   steps is a defect whatever it is called;
+# * nothing stands inside a flight of steps.  Both bands are cut at every climb's
+#   own mouth, and the mouths are *derived* from the climbs rather than retyped,
+#   because a stair owns the air above its treads up to the floor it arrives at and
+#   the table that remembers that has drifted twice;
+# * nothing narrows a lane.  The fitout stands 12 proud of a wall 148 units from
+#   the nearest walking line and the relief 32 proud of the same wall, which leaves
+#   100 units of a 30-unit body's clearance unspent.  The four alley mouths are cut
+#   out of the deck band, because that is where a footbridge lands.
+KIT_WALLS = ('plaster_warm', 'tile_cream', 'stucco_pale', 'shutter_steel', 'brick_deep',
+             'slat_timber', 'panel_blue', 'tile_dark', 'corrugated_rust', 'tile_sage',
+             'shutter_green', 'plaster_slate', 'slat_dark', 'concrete_rough')
+#: The materials a *closed* bay wears: a board, a hoarding, a wall papered over.
+KIT_PANELS = ('poster_wall', 'slat_dark', 'brick_deep', 'panel_blue', 'corrugated_rust',
+              'tile_dark', 'plaster_slate', 'stucco_pale', 'tile_sage', 'plaster_warm')
+#: Every sign face in the arena, in the order the bays take them.  A run of three
+#: boards on one facade is three pictures, not one picture repeated three times --
+#: which is the failure `neon_a` tiled at a 256 repeat produced (DESIGN.md 5).
+KIT_SIGNS = ('sign_band_a', 'sign_vertical', 'sign_band_b', 'sign_menu', 'banner_red',
+             'sign_vertical_b', 'wayfinding_blue', 'neon_c', 'vend_face_b', 'banner_white',
+             'vend_face_c', 'ad_board_b', 'sign_band_a', 'sign_vertical_b')
+#: The three finishes a locked shutter is painted in, and the two hazard colours a
+#: kerb, an A-frame board and a planter rim are striped with.
+KIT_SHUTTERS = ('shutter_steel', 'shutter_green', 'corrugated_rust')
+KIT_HAZARD = ('prop_paint_yellow', 'prop_paint_green')
+#: How far apart two pilasters stand, and how far each kit part reaches into the
+#: street.  192 is the pitch the colonnade already uses, so the new rhythm does not
+#: argue with the old one; 12 proud is a shopfront's face and 40 proud is a sign you
+#: can read from three sides.
+FITOUT_PITCH, FITOUT_PROUD, RELIEF_PROUD = 192.0, 12.0, 32.0
+#: The two walk-up bands.  A: the street's shopfront row, standing on the block's
+#: own 64-tall plinth course.  B: the same row at deck level, standing on the deck
+#: itself.  Both are 152 tall, which is a storey's worth of glass and board under a
+#: 224-unit clear storey, and both stop short of the roof over their own tier.
+FITOUT_BANDS = ((64.0, 216.0), (float(T1), float(T1) + 152.0))
+#: Where the sign goes above a band, and how tall it is.
+FITOUT_SIGN_LIP, FITOUT_SIGN_TALL = 4.0, 56.0
+#: Where a front stops being a face anybody can see.  The four fronts are authored as
+#: four full strips and so overlap in the four corner squares: at x 1100 the north
+#: front's face exists on paper, but it is buried inside the *east* wall, which runs
+#: the whole y extent.  Kit laid there is invisible geometry inside a solid, so every
+#: run on every front is clipped to the perpendicular front's own face line.
+KIT_LIMIT = FACE - 8.0
+
+
+def _clip(a0, a1):
+    """-> the stretch of one front a kit part may actually be seen on."""
+    return max(a0, -KIT_LIMIT), min(a1, KIT_LIMIT)
+
+
+def _chunks(a0, a1, gaps, size, piece=None):
+    """-> the clear spans of a front, cut by `gaps` and then chopped to `size`.
+
+    `spans` alone returns the whole remaining run as one interval, so one crate
+    parked in a painted strip costs the entire strip and one shopfront is written
+    350 units wide under a sign meant for a 192 pitch.  Chopping first keeps a piece
+    the size of the thing it wears and keeps a refusal local to one bay.
+    """
+    out = []
+    for r0, r1 in spans(a0, a1, gaps, piece=piece if piece is not None else size):
+        count = max(1, int(round((r1 - r0) / float(size))))
+        step = (r1 - r0) / float(count)
+        for index in range(count):
+            out.append((r0 + step * index, r0 + step * (index + 1)))
+    return out
+#: The courses nobody walks up to but everybody looks at.  Both sit above 568 --
+#: a body on a roof is 512 plus its own 56 -- because a condenser hood standing
+#: where a roof walk line passes is not relief, it is an obstacle at shin height.
+RELIEF_BANDS = ((584.0, 614.0), (656.0, 686.0))
+RELIEF_HOOD_LIP, RELIEF_HOOD_TALL = 10.0, 22.0
+
+
+def _climb_front_gaps(climbs):
+    """-> {side: [(along0, along1), ...]}, the strip each climb owns on a front.
+
+    A climb is authored from the face it is measured from, so the front it stands
+    against and the strip it occupies are both readable from its own start, end and
+    width -- which is the only reason this list survives the next time a stair is
+    re-cut.  8 units of clearance, the same the plinth uses.
+    """
+    out = {'n': [], 's': [], 'w': [], 'e': []}
+    for _name, start, end, width in climbs:
+        run = 0 if abs(end[0] - start[0]) > abs(end[1] - start[1]) else 1
+        across = 1 - run
+        c0 = min(start[across], end[across]) - width / 2.0 - 8.0
+        c1 = max(start[across], end[across]) + width / 2.0 + 8.0
+        touch = start[run] if abs(start[run]) > abs(end[run]) else end[run]
+        side = ('e' if touch > 0 else 'w') if run == 0 else ('n' if touch > 0 else 's')
+        out[side].append((c0, c1))
+    return dict((side, tuple(ranges)) for side, ranges in out.items())
+
+
+#: The four T0-to-T1 mouths.  Derived, then checked against the plinth's own table:
+#: the two must agree or one of them is wrong about where a stair stands, and a
+#: silent disagreement between two tables of the same fact is how the plinth ended up
+#: walling off four climbs in the first place.
+FITOUT_GAPS_GROUND = _climb_front_gaps((CLIMB_S, CLIMB_N, CLIMB_W, CLIMB_E))
+for _side in ('n', 's', 'w', 'e'):
+    _derived = [tuple(float(v) for v in one) for one in FITOUT_GAPS_GROUND[_side]]
+    _course = [tuple(float(v) for v in one) for one in PLINTH_GAPS[_side]]
+    if _derived != _course:
+        print('japanDM: fitout and plinth disagree about %s: %s vs %s'
+              % (_side, _derived, _course))
+#: The three T1-to-T2 mouths, which the deck band owes the roof climbs.
+FITOUT_GAPS_DECK = _climb_front_gaps((ROOF_CLIMB_W, ROOF_CLIMB_N, ROOF_CLIMB_E))
+#: Where a footbridge lands on the deck band, so the fitout stops at the canyon.
+ALLEY_GAPS = ((-(LANE + 8.0), LANE + 8.0),)
+
+
+def _face_box(name, side, a0, a1, proud, z0, z1, material, detail=True):
+    """-> one kit part standing `proud` into the street off one tower front.
+
+    The box starts exactly on the face plane rather than inside the wall: `FACE`
+    is the line `verify` refuses to let anything cross, and the face plane *is*
+    that line, so a part that touches it and stands into the street is legal and a
+    part that is sunk 8 into the wall to make sure it touches is a defect.
+    """
+    inner = FOOT - FACADE_THICK
+    if side == 'n':
+        return box(name, (a0, inner - proud, z0), (a1, inner, z1), material, detail=detail)
+    if side == 's':
+        return box(name, (a0, -inner + proud, z0), (a1, -inner, z1), material, detail=detail)
+    if side == 'w':
+        return box(name, (-inner + proud, a0, z0), (-inner, a1, z1), material, detail=detail)
+    return box(name, (inner - proud, a0, z0), (inner, a1, z1), material, detail=detail)
+
+
+def _front_gaps(side, band):
+    """-> the mouths cut out of one front's band, derived from the level's climbs."""
+    gaps = FITOUT_GAPS_GROUND[side]
+    if band:
+        gaps = FITOUT_GAPS_GROUND[side] + FITOUT_GAPS_DECK.get(side, ()) + ALLEY_GAPS
+    return gaps
+
+
+def facade_fitout():
+    """Re-surface the two bands a player walks up to, one bay at a time.
+
+    A bay is a pilaster, then one of four shopfronts -- glazed, shuttered, boarded
+    or an open entry -- and then either a fascia board flat on the wall or a blade
+    sign projecting over the street.  Which one a bay gets is decided by its own
+    address rather than by a random draw, so the level builds the same way twice and
+    a reviewer can stand in the same place in two rounds and compare them.
+    """
+    made = []
+    for side in sorted(FACADES):
+        for index, (a0, a1, height) in enumerate(FACADES[side]['segments']):
+            for band, (z0, z1) in enumerate(FITOUT_BANDS):
+                if z1 > height - 8.0:                # the band would stand outside
+                    continue                          # the wall it is built onto
+                for run_index, (r0, r1) in enumerate(_chunks(*_clip(a0 + 16, a1 - 16),
+                                                              _front_gaps(side, band),
+                                                              size=320.0, piece=128.0)):
+                    pitch = int((r0 + r1) / 2.0 / FITOUT_PITCH) + index * 7 + band * 3
+                    made += _bay('facade_%s%02d_%02d_%d' % (side, index, run_index, band),
+                                 side, r0, r1, z0, z1, height, pitch, band)
+    print('japanDM: facade fitout laid %d pieces on the two walk-up bands' % len(made))
+    return made
+
+
+def _bay(name, side, r0, r1, z0, z1, height, pitch, band):
+    """-> the kit parts for one stretch of one band of one front."""
+    made = []
+    # The pilaster first: it is what a bay is, and everything else is measured from
+    # its inner edge.  32 proud on a 192 pitch is the column rhythm a shopping
+    # street's ground floor is built on, and it is the one part of this pass that
+    # reads at the far end of a lane as well as at arm's length.  It is not `detail`:
+    # it is the piece that casts the shadow the relief is supposed to read as.
+    wall = mat(KIT_WALLS[pitch % len(KIT_WALLS)])
+    made.append(_face_box('%s_pil_plinth' % name, side, r0, r0 + 32.0, RELIEF_PROUD, z0, z1,
+                          mat(KIT_WALLS[(pitch + 5) % len(KIT_WALLS)]), detail=False))
+    a0, a1 = r0 + 44.0, r1 - 8.0
+    if a1 - a0 < 48.0:
+        return made
+    kind = pitch % 4
+    if kind == 0:                                    # a glazed shopfront
+        made.append(_face_box('%s_jamb_lo_flange' % name, side, a0, a0 + 14.0, FITOUT_PROUD,
+                              z0, z1, wall))
+        made.append(_face_box('%s_jamb_hi_flange' % name, side, a1 - 14.0, a1, FITOUT_PROUD,
+                              z0, z1, wall))
+        made.append(_face_box('%s_lintel_flange' % name, side, a0, a1, FITOUT_PROUD,
+                              z1 - 28.0, z1, wall))
+        # The glass sits 8 behind the frame rather than in it, which is what makes
+        # the bay read as recessed: a brush cannot be hollow, so depth in this
+        # format is a shadow gap and a normal map, and nothing else.
+        made.append(_face_box('%s_glass' % name, side, a0 + 14.0, a1 - 14.0, FITOUT_PROUD - 8.0,
+                              z0, z1 - 28.0, GLASS))
+    elif kind == 1:                                  # a shutter, down and locked
+        made.append(_face_box('%s_shutter_flange' % name, side, a0 + 6.0, a1 - 6.0,
+                              FITOUT_PROUD, z0 + 4.0, z1 - 4.0,
+                              mat(KIT_SHUTTERS[pitch % len(KIT_SHUTTERS)])))
+        made.append(_face_box('%s_lintel_flange' % name, side, a0, a1, FITOUT_PROUD,
+                              z1 - 20.0, z1, wall))
+    elif kind == 2:                                  # a boarded hoarding or a poster wall
+        made.append(_face_box('%s_board_flange' % name, side, a0, a1, FITOUT_PROUD, z0,
+                              z1 - 20.0, mat(KIT_PANELS[pitch % len(KIT_PANELS)])))
+        made.append(_face_box('%s_rail_flange' % name, side, a0, a1, FITOUT_PROUD + 6.0,
+                              z1 - 20.0, z1, mat('slat_timber')))
+    else:                                            # a recessed entry, open to the wall
+        made.append(_face_box('%s_pier_lo_flange' % name, side, a0, a0 + 20.0, FITOUT_PROUD,
+                              z0, z1, wall))
+        made.append(_face_box('%s_pier_hi_flange' % name, side, a1 - 20.0, a1, FITOUT_PROUD,
+                              z0, z1, wall))
+        made.append(_face_box('%s_head_flange' % name, side, a0 + 20.0, a1 - 20.0,
+                              FITOUT_PROUD - 8.0, z1 - 24.0, z1, mat('concrete_rough')))
+    # The sign, and this is the whole argument of the pass: a plate with a margin
+    # and one glyph in it, at the size the brush that wears it actually is.  At
+    # street level it is a fascia across the head of the shopfront, because the
+    # market deck's own slab crosses this band 8 units above its top -- an overhead
+    # board there would be a sign buried in a floor.
+    sign = mat(KIT_SIGNS[pitch % len(KIT_SIGNS)])
+    blade = kind == 3
+    if band == 0:
+        s0, s1 = z1 - 40.0, z1
+    else:
+        s0, s1 = z1 + FITOUT_SIGN_LIP, z1 + FITOUT_SIGN_LIP + FITOUT_SIGN_TALL
+        blade = blade or s1 > height - 4.0
+    if not blade:
+        made.append(_face_box('%s_band_glow' % name, side, a0, a1, FITOUT_PROUD + 4.0, s0, s1,
+                              sign))
+    else:
+        # A blade sign is the other half of a Japanese street's silhouette, and it
+        # is the only part of this pass that reaches far enough into the street to be
+        # read from the opposite pavement.  It hangs in the air a bay leaves between
+        # its own head and whatever is over it, so it can never share a bay's volume.
+        b0, b1 = (z0 + 80.0, z1 - 8.0) if band == 0 else (z1 + 2.0, z1 + 42.0)
+        made.append(_face_box('%s_blade_glow' % name, side, a0 + 20.0, a0 + 48.0,
+                              RELIEF_PROUD + 8.0, b0, b1, sign))
+    return made
+
+
+def wall_relief():
+    """The courses nobody walks up to, but everybody looks at.
+
+    Above the deck the block is 512 to 768 tall and it used to be one curtain-wall
+    tile from the roofline to the parapet.  A service duct on a bracket course and a
+    row of condenser hoods are what a facade between windows actually carries, they
+    are all 16-40 units proud, and at a 192-unit pitch they give a 700-unit wall the
+    same rhythm the ground floor has.
+    """
+    made = []
+    for side in sorted(FACADES):
+        for index, (a0, a1, height) in enumerate(FACADES[side]['segments']):
+            for band_index, (z0, z1) in enumerate(RELIEF_BANDS):
+                if z1 + RELIEF_HOOD_LIP + RELIEF_HOOD_TALL > height - 12.0:
+                    continue
+                for run_index, (r0, r1) in enumerate(_chunks(*_clip(a0 + 32, a1 - 32),
+                                                              _front_gaps(side, band_index),
+                                                              size=320.0, piece=160.0)):
+                    tag = 'facade_%s%02d_r%02d_b%d' % (side, index, run_index, band_index)
+                    pitch = int(r0 / FITOUT_PITCH) + index * 5 + band_index
+                    # The duct: a continuous run, broken only at a bay line, so it
+                    # reads as one conduit crossing the block rather than as a row of
+                    # boxes, and it is the one part of the upper wall a player can
+                    # identify as made by hand rather than by a texture.
+                    made.append(_face_box('%s_duct_flange' % tag, side, r0, r1, 20.0, z0, z1,
+                                          mat('corrugated_rust'), detail=False))
+                    for step in range(int((r1 - r0) / FITOUT_PITCH) + 1):
+                        b0 = r0 + step * FITOUT_PITCH
+                        if b0 + 28.0 > r1:
+                            continue
+                        made.append(_face_box('%s_brk%02d_flange' % (tag, step), side, b0,
+                                              b0 + 28.0, RELIEF_PROUD, z0, z1,
+                                              mat('metal_column')))
+                        if b0 + 128.0 <= r1:
+                            made.append(_face_box('%s_hood%02d_flange' % (tag, step), side,
+                                                  b0 + 40.0, b0 + 120.0, 24.0,
+                                                  z1 + RELIEF_HOOD_LIP,
+                                                  z1 + RELIEF_HOOD_LIP + RELIEF_HOOD_TALL,
+                                                  mat(KIT_PANELS[(pitch + step)
+                                                                % len(KIT_PANELS)])))
+            # One wayfinding plate per tall segment, at the course above the roof
+            # line: a network sign rather than a shop sign, which is what makes a
+            # row of boards read as a street with a system instead of a pile.
+            if height >= 640:
+                for run_index, (r0, r1) in enumerate(spans(*_clip(a0 + 160, a1 - 160),
+                                                           _front_gaps(side, 1), piece=200.0)):
+                    if run_index:
+                        continue
+                    made.append(_face_box('facade_%s%02d_way_glow' % (side, index), side,
+                                          r0, r0 + 180.0, 18.0, RELIEF_BANDS[0][0] - 40.0,
+                                          RELIEF_BANDS[0][0] + 8.0, mat('wayfinding_blue')))
+    print('japanDM: wall relief laid %d pieces above the walk-up bands' % len(made))
+    return made
+
+
+def _rect_clear(low, high, why=None):
+    """-> whether a rect from `low` to `high` has the storey to itself.
+
+    The square footprint `_site_clear` tests is right for a column and wrong for a
+    building: the deck's colonnade is a lattice on a 256 pitch with a 296-unit strip
+    between its rows, and the only way to find the strip is to ask about the rect the
+    thing actually has.  With `why` the reason is printed, because a landmark that
+    silently never got built is the failure this file keeps having.
+    """
+    for rect in VOID_KEEPOUT.get(int(low[2]), ()):
+        if (rect[0] < high[0] and rect[2] > low[0] and rect[1] < high[1]
+                and rect[3] > low[1]):
+            if why is not None:
+                print('japanDM: %s: a stairwell is open under it' % why)
+            return False
+    if not route_clear(low, high):
+        if why is not None:
+            # Which promise, said out loud: a climb and a street lane need opposite
+            # remedies -- one moves the landmark, the other only needs it off the
+            # centre line -- and a refusal that does not say which has cost this file
+            # a build cycle per guess.
+            which = 'a climbing route' if not climb_route_clear(low, high) else \
+                    'a street lane'
+            print('japanDM: %s: %s runs through it' % (why, which))
+        return False
+    for name, other_low, other_high, kind in BOXES:
+        if kind in ('detail', 'rail', 'trigger', 'loose') or name.startswith(SHELLS):
+            continue
+        if high[2] <= other_low[2] + 2.0 or low[2] >= other_high[2] - 2.0:
+            continue
+        if (other_low[0] < high[0] and other_high[0] > low[0]
+                and other_low[1] < high[1] and other_high[1] > low[1]):
+            if why is not None:
+                print('japanDM: %s: %s already stands there' % (why, name))
+            return False
+    for _name, place, _angle in SPAWNS:
+        if (place[0] - 88.0 < high[0] and place[0] + 88.0 > low[0]
+                and place[1] - 88.0 < high[1] and place[1] + 88.0 > low[1]
+                and abs(place[2] - low[2]) < 64.0):
+            if why is not None:
+                print('japanDM: %s: it is a player\'s own start' % why)
+            return False
+    return True
+
+
+def _lm_frame(axis, front, rect):
+    """-> (u0, u1, v0, v1, to_world, to_point) for a landmark built along one street.
+
+    `u` runs along the street, `v` crosses it, and `v` grows toward `front`, which is
+    the side the shop's own stair stands on.  A landmark written in this frame is
+    placed on any arm of the deck by naming the arm and the facing; written in world
+    corners it is one arm's geometry with a rotation bolted on, and that is exactly
+    how the first vendor grew steps that only ever pointed +y -- correct on the north
+    arm and buried in the tower's own face on the other three.
+    """
+    (x0, y0, _z0), (x1, y1, _z1) = rect
+    if axis == 'x':
+        u0, u1 = x0, x1
+        v0, v1 = sorted((front * y0, front * y1))
+    else:
+        u0, u1 = y0, y1
+        v0, v1 = sorted((front * x0, front * x1))
+
+    def to_world(ua, va, ub, vb, za, zb):
+        """-> world mins/maxs for a box given in the landmark's own frame."""
+        if axis == 'x':
+            along, across = (ua, ub), (front * va, front * vb)
+        else:
+            along, across = (front * va, front * vb), (ua, ub)
+        return ((min(along), min(across), min(za, zb)),
+                (max(along), max(across), max(za, zb)))
+
+    def to_point(ua, va, za):
+        return to_world(ua, va, ua, va, za, za)[0]
+
+    return u0, u1, v0, v1, to_world, to_point
+
+
+def _landmark_vendor(name, axis, front, rect, seed=0):
+    """-> the T1 landmark: a vendor block with its own stair, awning and sign band.
+
+    A shop, not a crate with an awning on it: the block stands on its own deck plate,
+    its door sits under its own landing, its noren hangs under its own awning, and its
+    sign band is the picture a player steers by from the far end of the deck.  Every
+    piece is authored in the block's own frame (`_lm_frame`) and every one stands
+    inside the storey `landmarks` tested clear, so a block that fits on the south arm
+    fits on the east arm without a second geometry.
+
+    The storeys are not a preference.  `landmarks` tests 216 units of air from the
+    deck floor and nothing may cross `FACE`, so the tallest thing here -- the blade
+    sign -- stops below the parapet ring, and the parapet a player can reach from the
+    landing stops 56 above it rather than offering a ledge onto the deck's own roof.
+    """
+    u0, u1, v0, v1, W, P = _lm_frame(axis, front, rect)
+
+    def part(tag, ua, va, ub, vb, za, zb, material, **kw):
+        low, high = W(ua, va, ub, vb, za, zb)
+        return box('%s_%s' % (name, tag), low, high, material, **kw)
+
+    face = v1 - 8.0                            # the body's own street-facing wall
+    uc = (u0 + u1) / 2.0                       # the door sits on the block's axis
+    band_lo, top = T1 + 144.0, T1 + 168.0
+    made = [part('deck', u0, v0, u1, v1, T1, T1 + 16.0, mat('deck_timber'),
+                 source='slab', kind='slab', soffit=CONCRETE)]
+    made.append(part('body', u0 + 8.0, v0 + 8.0, u1 - 8.0, face, T1 + 16.0, top,
+                     mat(KIT_WALLS[seed % len(KIT_WALLS)])))
+    # Two sign bands, on the two long faces, in two different plates of the kit and
+    # stopped short of the corners: one picture repeated on both faces is the `neon_a`
+    # failure DESIGN.md 5 already records, and a band that runs to the corner leaves
+    # nothing for the blade signs to stand on.
+    made.append(part('band_a_glow', u0 + 56.0, v0 + 2.0, u1 - 56.0, v0 + 10.0, band_lo,
+                     top, mat(KIT_SIGNS[seed % len(KIT_SIGNS)]), detail=True))
+    made.append(part('band_b_glow', u0 + 56.0, v1 - 10.0, u1 - 56.0, v1 - 2.0, band_lo,
+                     top, mat(KIT_SIGNS[(seed + 5) % len(KIT_SIGNS)]), detail=True))
+    # A parapet is a ring, not a lid: one box across the whole footprint would hover
+    # 24 over the block's own roof, and a floating slab is the read this whole pass
+    # exists to kill.  Four pieces, each standing on the wall it belongs to.
+    for index, (pa0, pa1, pb0, pb1) in enumerate((
+            (u0 + 6.0, u1 - 6.0, v1 - 18.0, v1 - 6.0),
+            (u0 + 6.0, u1 - 6.0, v0 + 6.0, v0 + 18.0),
+            (u0 + 6.0, u0 + 18.0, v0 + 6.0, v1 - 6.0),
+            (u1 - 18.0, u1 - 6.0, v0 + 6.0, v1 - 6.0))):
+        made.append(part('parapet%02d' % index, pa0, pb0, pa1, pb1, top, top + 8.0,
+                         mat('slat_timber'), detail=True))
+    # The stair, its landing and the door it exists for.  `flight` sizes its treads
+    # off the *run* and then adds steps until every rise fits the engine's step, so a
+    # 64-unit lift across an 80-unit run gives five treads 16 deep and 12.8 up -- one
+    # footfall per tread for a 32-unit hull.  The old block asked for a 96 lift in the
+    # same air and got a flight whose treads were shallower than the player climbing
+    # them, which is the "stairs too big to be real" the owner named.
+    made.append(part('landing', uc - 52.0, v1 - 8.0, uc + 52.0, v1 + 8.0, T1 + 56.0,
+                     T1 + 64.0, mat('deck_timber'), source='slab', kind='slab',
+                     soffit=CONCRETE))
+    made += flight('%s_steps' % name, P(uc, v1 + 88.0, float(T1)),
+                   P(uc, v1 + 8.0, T1 + 64.0), 88.0, mat('deck_timber'))
+    # The two shoulders beside the steps, built as cheeks rather than as rails:
+    # `rail`/`rail_line` build axis-aligned boxes and plant a post at each end of the
+    # run, so a rail along a 16-deep landing put its post *inside* the block's own wall
+    # and its glass across the mouth the steps walk through.  A cheek is the thing a
+    # real external stair has, it carries the landing's shadow, and it stops the
+    # landing reading as a ledge onto the roof.
+    for side, su in ((0, uc - 52.0), (1, uc + 44.0)):
+        made.append(part('cheek%d' % side, su, v1 - 8.0, su + 8.0, v1 + 8.0, T1 + 64.0,
+                         T1 + 104.0, mat(KIT_WALLS[(seed + 3) % len(KIT_WALLS)])))
+    # The door under the landing and its head board above it, both on the block's own
+    # face: a stair that arrives at a wall is a defect wearing the silhouette this
+    # pass was asked for, so the glass and the lintel are built here, not assumed.
+    made.append(part('door_glass', uc - 36.0, v1 - 16.0, uc + 36.0, v1 - 8.0, T1 + 16.0,
+                     T1 + 56.0, GLASS, detail=True))
+    made.append(part('door_glow', uc - 32.0, v1 - 14.0, uc + 32.0, v1 - 10.0, T1 + 20.0,
+                     T1 + 52.0, mat('light_strip_warm'), detail=True))
+    made.append(part('head_glow', uc - 44.0, v1 - 16.0, uc + 44.0, v1 - 8.0, T1 + 64.0,
+                     T1 + 80.0, mat(KIT_SIGNS[(seed + 2) % len(KIT_SIGNS)]), detail=True))
+    # The awning over the steps, and the noren hung at its outer edge: the pair a
+    # customer ducks under, and the only cloth in the level at the scale a street is
+    # read at.  48 of clearance over the top tread is the awning's own headroom; below
+    # it the noren marks the door without closing it.
+    made.append(part('awning_flange', uc - 60.0, v1 - 8.0, uc + 60.0, v1 + 64.0,
+                     T1 + 112.0, T1 + 132.0, CLOTH, detail=True))
+    panel = 104.0 / 3.0
+    for index in range(3):
+        made.append(part('noren%d_glow' % index, uc - 52.0 + index * panel, v1 + 56.0,
+                         uc - 52.0 + index * panel + panel - 10.0, v1 + 64.0, T1 + 72.0,
+                         T1 + 112.0, mat('noren_strip'), detail=True))
+    # One vertical blade per corner, readable from both ends of the arm because they
+    # face along the street rather than across it.
+    for index, bu in enumerate((u0 + 10.0, u1 - 26.0)):
+        made.append(part('blade%d_glow' % index, bu, v1 - 8.0, bu + 16.0, v1 + 30.0,
+                         T1 + 32.0, T1 + 164.0,
+                         mat(KIT_SIGNS[(seed + 8 + index) % len(KIT_SIGNS)]), detail=True))
+    return made
+
+
+def landmarks():
+    """One thing per tier you can navigate by, chosen by the level's own geometry.
+
+    The census of sightlines found the arena's three tiers hold together as *space*
+    and not as *places*: every direction looks like the same colonnade, because
+    nothing in it is unique.  A lantern court, a vendor block and a mast are three
+    unique things, each standing where the level's own checks say nothing else
+    needs the air, and each candidate is printed whether it was taken or refused --
+    a landmark that quietly failed to place is the failure this file keeps having.
+    """
+    made = []
+    # --- T0: the lantern court, a ring of paving and four posts round the pool ----
+    ring, ring_z = 64.0, 8.0
+    inner, outer = 176.0, 176.0 + ring
+    for index, (low, high) in enumerate((
+            ((-inner, inner, T0), (inner, outer, T0 + ring_z)),
+            ((-inner, -outer, T0), (inner, -inner, T0 + ring_z)),
+            ((inner, -outer, T0), (outer, outer, T0 + ring_z)),
+            ((-outer, -outer, T0), (-inner, outer, T0 + ring_z)))):
+        made.append(box('lantern_court_ring%d_plinth' % index, low, high, mat('paving_court'),
+                        detail=True))
+    # The four sites `map_site_probe` found against the scene as it stands before the
+    # landmarks are built: the earlier pair at +-224 sat on the two bridge plinths, and
+    # a landmark that is refused by a pier is a landmark that silently does not exist.
+    # +-384 is out past the arcade's first column row, so the court is the first thing
+    # a player walking any of the four lanes into the plaza meets.
+    for index, (px, py) in enumerate(((-384, -224), (384, -224), (384, 224), (-384, 224))):
+        if not _rect_clear((px - 20.0, py - 20.0, float(T0)), (px + 20.0, py + 20.0, T0 + 288.0),
+                           'lantern post %d' % index):
+            continue
+        if _rect_clear((px - 30.0, py - 30.0, float(T0)), (px + 30.0, py + 30.0,
+                                                           float(T0) + 4.0),
+                       'lantern post %d footring' % index):
+            made.append(box('lantern_court_foot%d_plinth' % index, (px - 30.0, py - 30.0, T0),
+                            (px + 30.0, py + 30.0, T0 + 4.0), mat('paving_court'),
+                            detail=True))
+        made.append(box('lantern_court_post%d' % index, (px - 20.0, py - 20.0, T0),
+                        (px + 20.0, py + 20.0, T0 + 288.0), mat('slat_timber')))
+        made.append(box('lantern_court_lantern%d_glow' % index, (px - 32.0, py - 32.0, T0 + 200.0),
+                        (px + 32.0, py + 32.0, T0 + 272.0),
+                        mat(('banner_red', 'banner_white')[index % 2]), detail=True))
+        made.append(box('lantern_court_cap%d_cap' % index, (px - 26.0, py - 26.0, T0 + 288.0),
+                        (px + 26.0, py + 26.0, T0 + 300.0), mat('metal_brass'), detail=True))
+    # --- T1: the vendor block, on the arm whose strip the probe found clear --------
+    # Each candidate is an arm, a facing and the body's own footprint, which is what
+    # `_lm_frame` needs and what the probe searched with -- so the site a search
+    # offered and the site that gets built are the same statement, not a translation
+    # of one.  The keep-out asked about is the block *plus* its stair and awning*, so
+    # a site that answers here is a site the whole building fits.
+    taken = 0
+    for (tag, axis, front, body, seed) in (
+            ('vendor_s', 'x', +1, ((100.0, -700.0), (340.0, -560.0)), 0),
+            ('vendor_e', 'y', -1, ((680.0, -728.0), (820.0, -488.0)), 1),
+            ('vendor_n', 'x', -1, ((100.0, 680.0), (340.0, 820.0)), 2)):
+        if taken >= 2:
+            break
+        u0, u1, v0, v1, W, _P = _lm_frame(axis, front, (body[0] + (float(T1),),
+                                                        body[1] + (float(T1),)))
+        low, high = W(u0 - 8.0, v0 - 8.0, u1 + 8.0, v1 + 104.0, float(T1), T1 + 216.0)
+        if not _rect_clear(low, high, tag):
+            continue
+        print('japanDM: %s takes arm %s facing %+d, %d,%d to %d,%d'
+              % (tag, axis, front, body[0][0], body[0][1], body[1][0], body[1][1]))
+        made += _landmark_vendor(tag, axis, front, (body[0] + (float(T1),),
+                                                    body[1] + (float(T1),)), seed)
+        taken += 1
+    # --- T2: the mast, a plinth and a column you can set a bearing on -------------
+    # The one roof site `map_site_probe` found inside the view cone of *two* starts
+    # (`garden` and `roof_e`), which is the whole point of a landmark: the census wants
+    # a thing identifiable from two different starts per tier, and a mast nobody's
+    # spawn is aimed at is scenery for nobody.
+    for index, (mx, my) in enumerate(((-580.0, 140.0), (-540.0, 100.0), (860.0, -300.0),
+                                      (-540.0, -300.0))):
+        if not _rect_clear((mx - 60.0, my - 60.0, float(T2)), (mx + 60.0, my + 60.0,
+                                                               T2 + 384.0),
+                           'roof mast %d' % index):
+            continue
+        print('japanDM: roof mast %d stands at %d,%d' % (index, mx, my))
+        if _rect_clear((mx - 96.0, my - 96.0, float(T2)), (mx + 96.0, my + 96.0,
+                                                           float(T2) + 4.0),
+                       'roof mast %d apron' % index):
+            made.append(box('roof_mast%d_apron_plinth' % index, (mx - 96.0, my - 96.0, T2),
+                            (mx + 96.0, my + 96.0, T2 + 2.0), mat('paving_court'),
+                            detail=True))
+        made.append(box('roof_mast%d_plinth' % index, (mx - 48.0, my - 48.0, T2),
+                        (mx + 48.0, my + 48.0, T2 + 16.0), mat('concrete_rough')))
+        made.append(box('roof_mast%d_column' % index, (mx - 20.0, my - 20.0, T2 + 16.0),
+                        (mx + 20.0, my + 20.0, T2 + 384.0), COLUMN))
+        made.append(box('roof_mast%d_panel_glow' % index, (mx - 28.0, my - 8.0, T2 + 200.0),
+                        (mx + 28.0, my + 8.0, T2 + 340.0), mat('sign_vertical'), detail=True))
+        made.append(box('roof_mast%d_cap_glow' % index, (mx - 30.0, my - 30.0, T2 + 352.0),
+                        (mx + 30.0, my + 30.0, T2 + 368.0), mat('neon_c'), detail=True))
+        made += post_row('roof_mast%d_stay_post' % index, (mx, my), 88.0, 4, 40.0,
+                         mat('metal_brass'), size=12.0, sides=4, base=T2)
+        break
+    print('japanDM: landmarks laid %d pieces' % len(made))
+    return made
+
+
+def foot_detail():
+    """The two-unit pass on the floor a player actually walks on.
+
+    A night street is painted, drained and kerbed before it is anything else, and
+    the eye looks *down* when it moves: the ground is where the scale of a level is
+    measured.  Nothing here stands more than 3 units proud of the floor it lies on,
+    which is a sixth of the engine's step -- the player walks over all of it and
+    reads shadow where a 1999 arena reads a plate.  Every piece asks the same
+    question `surface_marks` asks, and this section runs after the props for the
+    same reason: a painted line across a bin, or floating over a stairwell, is the
+    exact defect this pass exists to prevent.
+    """
+    def clear(low, high, on_z):
+        """-> whether a band sits on floor and has nothing standing in it."""
+        standing = False
+        for name, other_low, other_high, kind in BOXES:
+            if kind in ('rail', 'trigger', 'loose', 'hint') or name.startswith(SHELLS):
+                continue
+            if not (other_low[0] < high[0] and other_high[0] > low[0]
+                    and other_low[1] < high[1] and other_high[1] > low[1]):
+                continue
+            if abs(other_high[2] - on_z) <= 3.0 and other_low[2] < on_z:
+                standing = True                     # the plate this paint lies on
+            elif other_low[2] < high[2] and other_high[2] > low[2]:
+                return False                        # something else lives here
+        return standing
+
+    def paint(name, low, high, on_z, material):
+        return box(name, low, high, material, detail=True) if clear(low, high, on_z) else None
+
+    made = []
+    # --- the pavement in front of the shopfronts, and its two edges --------------
+    # Gutter, kerb, tactile strip, carriageway: four bands of a 128-unit stretch of
+    # the block front, which is the width the eye has to cross before it reaches the
+    # arcade across the street, and the reason a lane stopped reading as a section.
+    for side in sorted(FACADES):
+        along_x = side in ('n', 's')
+        for index, (a0, a1, _height) in enumerate(FACADES[side]['segments']):
+            for step, (s0, s1) in enumerate(_chunks(*_clip(a0 + 16, a1 - 16),
+                                                     _front_gaps(side, 0),
+                                                     size=160.0, piece=64.0)):
+                # `s0`/`s1` are the along-street extent of one stretch of front;
+                # `across` is measured from the wall face toward the middle of the
+                # street, and `rect` turns that into world coordinates for whichever
+                # front is being walked.  The inner `spans` this loop used to carry
+                # had no gaps and so returned the outer span whole -- the same span,
+                # counted twice, for a name that changed and geometry that did not.
+                def rect(at0, at1, across0, across1, z0, z1, s0=s0, s1=s1):
+                    if along_x:
+                        return ((s0, across0, z0), (s1, across1, z1)) if side == 'n' \
+                            else ((s0, -across1, z0), (s1, -across0, z1))
+                    return ((-across1, s0, z0), (-across0, s1, z1)) if side == 'w' \
+                        else ((across0, s0, z0), (across1, s1, z1))
+                tag = 'foot_%s%02d_%02d' % (side, index, step)
+                face = FOOT - FACADE_THICK
+                for piece in (
+                        # The apron stops at the plinth's own street face, not at the
+                        # wall behind it.  The plinth stands 16 proud of the facade
+                        # and `clear()` never sees it, because it is a shell -- so
+                        # paving laid to `face` is paving 16 deep inside the plinth,
+                        # and the audit charges the paving for it.
+                        ('apron', mat('paving_lane'), face - 96.0, face - 16.0, 0.0, 2.0),
+                        ('grate', mat('grate_drain'), face - 64.0, face - 32.0, 0.0, 3.0),
+                        ('kerb', mat('kerb_granite'), face - 100.0, face - 96.0, 0.0, 6.0),
+                        ('tactile', mat('tactile_yellow'), face - 128.0, face - 104.0,
+                         0.0, 2.0),
+                        # The yellow line lies inboard of the outer colonnade row
+                        # (|800| plus half its own section) and outboard of the
+                        # t0_*_860 walking line's hull, so it reads as the edge of the
+                        # carriageway and not as a stripe under a player's feet.
+                        ('line', mat('paint_line_yellow'), face - 260.0, face - 252.0,
+                         0.0, 2.0)):
+                    low, high = rect(s0, s1, *piece[2:])
+                    low = (low[0], low[1], low[2] + T0)
+                    high = (high[0], high[1], high[2] + T0)
+                    made.append(paint('%s_%s_flange' % (tag, piece[0]), low, high,
+                                      float(T0), piece[1]))
+    # --- the carriageway: wet patches, and the two lines that cross an arm --------
+    for index, (cx, cy, wide) in enumerate(((-800, 600, True), (760, -600, True),
+                                            (-600, -800, False), (600, 780, False),
+                                            (-760, -160, True), (200, 880, False))):
+        low, high = ((cx - 120, cy - 80, T0), (cx + 120, cy + 80, T0 + 2)) if wide else \
+                    ((cx - 80, cy - 120, T0), (cx + 80, cy + 120, T0 + 2))
+        made.append(paint('wet%02d_flange' % index, low, high, float(T0), mat('asphalt_wet')))
+    # A crossing laid along the wrong axis is worse than no crossing: the two loops
+    # this replaces put 112-unit bars at y -560..-448 in the south arm, whose
+    # carriageway runs along x at y -700 and -860, so the "zebra" was a row of
+    # rectangles marching down the middle of the road.  A zebra stack therefore runs
+    # *along* the street -- bars elongated across it, stacked along it -- in the outer
+    # half of the covered arm, between the outer colonnade row at |800| and the
+    # shopfronts at |1024|: the pedestrian half of the section, and the only half with
+    # no column standing inside the stack.  A station is taken whole or not at all,
+    # and two stations per arm is the cap.
+    for side in sorted(FACADES):
+        along_x = side in ('n', 's')
+        near, far = 824.0, 1008.0
+        accepted = 0
+        for centre in (608.0, 864.0, -608.0, -864.0):
+            if accepted >= 2:
+                break
+            bars = []
+            for bar in range(4):
+                b0 = centre - 60.0 + bar * 40.0
+                b1 = b0 + 24.0
+                if along_x:
+                    low = (min(b0, b1), near if side == 'n' else -far, T0)
+                    high = (max(b0, b1), far if side == 'n' else -near, T0 + 2)
+                else:
+                    low = (near if side == 'e' else -far, min(b0, b1), T0)
+                    high = (far if side == 'e' else -near, max(b0, b1), T0 + 2)
+                bars.append(paint('crossing_%s%02d_%02d_flange' % (side, accepted, bar),
+                                  low, high, float(T0), mat('paint_line_white')))
+            if len([one for one in bars if one is not None]) < 4:
+                continue                        # a half-crossing is an obstacle
+            made += bars
+            accepted += 1
+        print('japanDM: the %s arm took %d crossings' % (side, accepted))
+    # --- hazard chevrons: the two colours nothing else in the level wears ---------
+    for index, (hx, hy, wide) in enumerate(((-600, -448, True), (600, 448, True),
+                                            (-448, 620, False), (448, -620, False))):
+        low, high = ((hx - 64, hy - 12, T0), (hx + 64, hy + 12, T0 + 3)) if wide else \
+                    ((hx - 12, hy - 64, T0), (hx + 12, hy + 64, T0 + 3))
+        made.append(paint('chevron%02d_flange' % index, low, high, float(T0),
+                          mat(KIT_HAZARD[index % 2])))
+    made = [one for one in made if one is not None]
+    print('japanDM: foot detail laid %d pieces of paint, kerb and drain' % len(made))
+    return made
 
 
 def shell():
@@ -1474,7 +2197,7 @@ def billboards():
               ('bb_e', 'y', FOOT - 208, (-320, -128), T2, ADBOARD),
               ('bb_e2', 'y', FOOT - 208, (128, 320), T2, NEON_B),
               ('bb_s', 'x', -FOOT + 208, (-320, -160), T1, NEON_B),
-              ('bb_s2', 'x', -FOOT + 208, (200, 392), T1, ADBOARD))
+              ('bb_s2', 'x', -FOOT + 208, (200, 392), T1, mat('ad_board_b')))
     for name, axis, band, (a0, a1), base, material in frames:
         legs = base == T1                            # a roofless arm gets legs
         z0 = base + 256 if legs else base            # framed: above the legs
@@ -1594,7 +2317,8 @@ def roof_dressing():
         box('roof_house_%s' % name, (x - w / 2.0, y - d / 2.0, T2 - DECK),
             (x + w / 2.0, y + d / 2.0, T2 + height), CONCRETE)
         box('roof_house_%s_strip' % name, (x - w / 2.0 - 4, y - d / 2.0 - 4, T2 + height),
-            (x + w / 2.0 + 4, y + d / 2.0 + 4, T2 + height + 6), STRIP, detail=True)
+            (x + w / 2.0 + 4, y + d / 2.0 + 4, T2 + height + 6),
+            mat('light_strip_warm'), detail=True)
     for index, (x, y, w) in enumerate(ROOF_PLANTERS):
         box('planter_%02d' % index, (x - w / 2.0, y - 48, T2), (x + w / 2.0, y + 48, T2 + 40),
             PLAZA_STONE)
@@ -1739,7 +2463,8 @@ def awning(name, x0, x1, y, lintel, depth, face):
         x = x0 + 12 + index * panel
         front = a0 + 2 if face < 0 else a1 - 8
         made.append(box('%s_noren%d_glow' % (name, index), (x, front, lintel - 44),
-                        (x + panel - 8, front + 6, lintel - 4), LACQUER, detail=True))
+                        (x + panel - 8, front + 6, lintel - 4), mat('noren_strip'),
+                        detail=True))
     return made
 
 
@@ -1860,7 +2585,8 @@ def skybridge_piers():
         made.append(box('bridge_pier_%02d_cap_flange' % index, (x - 48, -240, T2 - DECK - 24),
                         (x + 48, -144, T2 - DECK), CONCRETE))
         made.append(box('bridge_pier_%02d_strip_glow' % index,
-                        (x - 34, -216, T0 + 96), (x - 30, -168, T0 + 300), STRIP, detail=True))
+                        (x - 34, -216, T0 + 96), (x - 30, -168, T0 + 300),
+                        mat('light_strip_cyan'), detail=True))
     return made
 
 
@@ -1898,7 +2624,8 @@ def surface_marks():
     for index, x in enumerate(range(-940, 941, 168)):
         low, high = (x - 32, -756, T1), (x + 32, -748, T1 + 2)
         if clear(low, high, float(T1)):
-            made.append(box('road_dash_%02d' % index, low, high, STRIP, detail=True))
+            made.append(box('road_dash_%02d' % index, low, high,
+                            mat('paint_line_white'), detail=True))
     # The plaza's border ring, inset 28 from the four edges it looks out over.
     # Each of its four sides is cut at the two places a walkway reaches the plaza
     # so the line does not march across an entrance, and the corners butt rather
@@ -1917,7 +2644,8 @@ def surface_marks():
     for index, ((x0, y0, x1, y1), _axis) in enumerate(runs):
         low, high = (min(x0, x1), min(y0, y1), T0), (max(x0, x1), max(y0, y1), T0 + 2)
         if clear(low, high, float(T0)):
-            made.append(box('plaza_border_%02d' % index, low, high, STRIP, detail=True))
+            made.append(box('plaza_border_%02d' % index, low, high,
+                            mat('paint_line_yellow'), detail=True))
     return made
 
 def viaduct_piers():
@@ -1952,7 +2680,8 @@ def viaduct_piers():
         made.append(box('pier_%02d_cap_flange' % index, (x - 64, 695, 640),
                         (x + 64, 855, 672), CONCRETE))
         made.append(box('pier_%02d_strip_glow' % index, (x - 36, 739, base + 96),
-                        (x + 36, 811, base + 104), STRIP, detail=True))
+                        (x + 36, 811, base + 104), mat('light_strip_cyan'),
+                        detail=True))
     return made
 
 
@@ -1977,7 +2706,8 @@ def roof_hardware():
         made.append(box('hvac_%02d_flange' % index, low, high, DECK_METAL, detail=True))
         grill = ((x - 72, y + 30, T2 + 8), (x + 72, y + 41, T2 + 40)) if wide else \
                 ((x + 30, y - 72, T2 + 8), (x + 41, y + 72, T2 + 40))
-        made.append(box('hvac_%02d_glow' % index, grill[0], grill[1], GRATE, detail=True))
+        made.append(box('hvac_%02d_glow' % index, grill[0], grill[1],
+                        mat('grate_drain'), detail=True))
     for index, (x, y) in enumerate(((-900, -420), (620, -420), (-500, 900), (760, 320))):
         for step in range(3):
             made.append(box('vent_%02d_%d_flange' % (index, step),
@@ -2002,31 +2732,31 @@ def street_markings():
                                                                     (168 if rim < 0 else 0),
                                                                     T0),
                             (offset + 56, rim * 224 + (0 if rim < 0 else 168), T0 + 2),
-                            PLAZA_STONE, detail=True))
+                            mat('kerb_granite'), detail=True))
             made.append(box('cross_y%02d_%d_flange' % (step, rim),
                             (rim * 224 - (168 if rim < 0 else 0), offset, T0),
                             (rim * 224 + (0 if rim < 0 else 168), offset + 56, T0 + 2),
-                            PLAZA_STONE, detail=True))
+                            mat('kerb_granite'), detail=True))
     for rim in (-1, 1):
         # Six units, not twelve, and in the plaza's own stone: a 12-unit concrete
         # kerb is a shadow cast across the whole approach at a grazing eye, which
         # is what the crossing photographed as two black bars.
         made.append(box('kerb_w%d_flange' % rim, (-PLAZA - 14, -PLAZA, T0),
-                        (-PLAZA - 4, PLAZA, T0 + 6), PLAZA_STONE, detail=True))
+                        (-PLAZA - 4, PLAZA, T0 + 6), mat('kerb_granite'), detail=True))
         made.append(box('kerb_e%d_flange' % rim, (PLAZA + 4, -PLAZA, T0),
-                        (PLAZA + 14, PLAZA, T0 + 6), PLAZA_STONE, detail=True))
+                        (PLAZA + 14, PLAZA, T0 + 6), mat('kerb_granite'), detail=True))
         made.append(box('kerb_n%d_flange' % rim, (-PLAZA, PLAZA + 4, T0),
-                        (PLAZA, PLAZA + 14, T0 + 6), PLAZA_STONE, detail=True))
+                        (PLAZA, PLAZA + 14, T0 + 6), mat('kerb_granite'), detail=True))
         made.append(box('kerb_s%d_flange' % rim, (-PLAZA, -PLAZA - 14, T0),
-                        (PLAZA, -PLAZA - 4, T0 + 6), PLAZA_STONE, detail=True))
+                        (PLAZA, -PLAZA - 4, T0 + 6), mat('kerb_granite'), detail=True))
     for index, (x, y) in enumerate(((-700, 200), (700, -200), (200, 700), (-200, -700),
                                     (-900, -200), (900, 200))):
         if abs(x) > abs(y):
             made.append(box('drain%02d_flange' % index, (x - 48, y - 24, T0),
-                            (x + 48, y + 24, T0 + 2), GRATE, detail=True))
+                            (x + 48, y + 24, T0 + 2), mat('grate_drain'), detail=True))
         else:
             made.append(box('drain%02d_flange' % index, (x - 24, y - 48, T0),
-                            (x + 24, y + 48, T0 + 2), GRATE, detail=True))
+                            (x + 24, y + 48, T0 + 2), mat('grate_drain'), detail=True))
     return made
 
 
@@ -3189,7 +3919,6 @@ def arcade():
     for lateral in (ARCADE_LATERALS[0], ARCADE_LATERALS[1]):
         arm_rows.append((1, lateral, -704.0, 704.0))                  # north roof
     made += colonnade('arcade_t2', arm_rows, T1, T2 - DECK, taken)
-    made += skybridge_piers()
     print('japanDM: arcade of %d pieces on %d column sites'
           % (len(made), len(taken)))
     for opening in BEAM_OPENINGS:
@@ -3811,9 +4540,23 @@ def walk_audit():
 # goes is recorded first and pushes the column along its row, which is the order
 # a builder would work in: fit out the street, then stand the structure that holds
 # the floor over it.
+# The kit goes on after the structure that carries it and before the props that
+# have to stand clear of it: the fitout and the relief are laid once the fronts,
+# the deck and the parapets exist, and the foot detail is laid last of the geometry
+# because paint must not run across a bin or a stair -- the same reason
+# `surface_marks` already runs after `prop_scatter`.
+#    The landmarks stand between the structure and the furniture, not at the end.
+#    A landmark is a *place*, so it is sited while only the loads exist: the deck
+#    that carries it, the piers that hold the corridor, the rooftop plant it must
+#    not stand through.  Everything laid after it -- the bazaar's pitches, the
+#    colonnade, every prop -- already asks `_site_clear` and walks around what is
+#    there, which is the way a street grows round a building.  Run any later than
+#    this and the landmark spends its whole budget dodging market stalls, which is
+#    how this level ended up with no landmark at all on two of its three tiers.
 for section in (ground, deck, deck_parapets, climbs, bridges, roofs, skybridge, viaduct, facades,
-                facade_parapets, shell, dressing, deck_market, lantern_strings, arcade,
-                prop_scatter, surface_marks, hazard, lights, spawns, items):
+                facade_parapets, facade_fitout, wall_relief, shell, dressing, landmarks,
+                deck_market, lantern_strings, arcade, prop_scatter, surface_marks, foot_detail,
+                hazard, lights, spawns, items):
     section()
 
 problems = verify()

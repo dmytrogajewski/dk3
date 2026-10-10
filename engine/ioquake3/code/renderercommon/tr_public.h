@@ -109,6 +109,9 @@ typedef struct {
     int (*PollWorld)(unsigned int world);
     qboolean (*SelectWorld)(unsigned int world);
     unsigned int (*CurrentWorld)(void);
+    /* Authored weather volume for the next world scene (kind 0 rain, 1 snow). Returns
+     * qtrue when the renderer simulates it itself; NULL or qfalse keeps cgame particles. */
+    qboolean (*AddDk3WeatherToScene)( int kind, int flags, const vec3_t mins, const vec3_t maxs, int id );
 } refexport_t;
 
 //

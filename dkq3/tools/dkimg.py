@@ -225,7 +225,11 @@ def encode_png(img):
 
 def read_png(path):
     with open(path, 'rb') as f:
-        d = f.read()
+        return decode_png(f.read())
+
+
+def decode_png(d):
+    """-> (H,W,3|4) uint8 image of 8-bit RGB or RGBA PNG bytes (the files encode_png writes)."""
     pos, idat = 8, b''
     while pos < len(d):
         ln = struct.unpack('>I', d[pos:pos+4])[0]; tag = d[pos+4:pos+8]

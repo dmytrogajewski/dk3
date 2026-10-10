@@ -1,0 +1,37 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Average scene luminance from the histogram (darkest/brightest tails trimmed), then a
+// smoothed, range-limited exposure in buffer1[0]; buffer1[1] keeps the measured luminance.
+#include "post_common.glsl"
+layout(local_size_x = 256) in;
+shared float weighted[256];
+shared float counted[256];
+void main() {
+    uint i = gl_LocalInvocationIndex;
+    float count = float(Words(pc.buffer0).v[i]);
+    weighted[i] = i == 0u ? 0.0 : count * float(i);
+    counted[i] = i == 0u ? 0.0 : count;
+    barrier();
+    for (uint stride = 128u; stride > 0u; stride >>= 1) {
+        if (i < stride) {
+            weighted[i] += weighted[i + stride];
+            counted[i] += counted[i + stride];
+        }
+        barrier();
+    }
+    if (i == 0u) {
+        // params: min log2, log2 range, key value, adaptation rate; params2: dt, min exposure, max exposure, compensation (EV)
+        float average_bin = counted[0] > 0.0 ? weighted[0] / counted[0] : 128.0;
+        float log_lum = (average_bin - 1.0) / 254.0 * pc.params.y + pc.params.x;
+        float lum = max(exp2(log_lum), 1e-4);
+        // Partial adaptation keeps authored dark/bright moods while recovering detail.
+        float target = clamp(pow(pc.params.z / lum, 0.65), pc.params2.y, pc.params2.z) * exp2(pc.params2.w);
+        Values state = Values(pc.buffer1);
+        float current = state.v[0];
+        if (!(current > 0.0) || pc.params.w <= 0.0) current = target;
+        else current += (target - current) * (1.0 - exp(-pc.params2.x * pc.params.w));
+        state.v[0] = current;
+        state.v[1] = lum;
+    }
+    Words(pc.buffer0).v[i] = 0u;
+}

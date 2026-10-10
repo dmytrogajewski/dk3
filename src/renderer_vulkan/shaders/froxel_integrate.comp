@@ -1,0 +1,32 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Froxel integrate: front-to-back accumulation along each froxel column, energy-conserving
+// per slice (Hillaire 2015). Output rgb = in-scattered light to the slice's far edge,
+// a = transmittance.
+#include "froxel_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+void main() {
+    uvec2 id = gl_GlobalInvocationID.xy;
+    if (any(greaterThanEqual(id, pc.size.xy))) return;
+    Params p = Params(pc.buffer1);
+    vec2 uv = (vec2(id) + 0.5) / vec2(pc.size.xy);
+    vec3 dir = p.forward.xyz - p.left.xyz * (uv.x * 2.0 - 1.0) * p.forward.w + p.up.xyz * (1.0 - uv.y * 2.0) * p.left.w;
+    float stretch = length(dir);
+    vec3 accum = vec3(0.0), glow = vec3(0.0);
+    float transmittance = 1.0;
+    for (uint z = 0u; z < pc.size.z; ++z) {
+        vec4 v = imageLoad(froxels[pc.slots.x], ivec3(id, z));
+        vec3 g = imageLoad(froxels[pc.slots.z], ivec3(id, z)).rgb;
+        float step = (sliceDistance(p, float(z) + 1.0) - sliceDistance(p, float(z))) * stretch;
+        float sigma = max(v.a, 1e-7);
+        float t = exp(-sigma * step);
+        float reach = transmittance * (1.0 - t) / sigma;
+        accum += v.rgb * reach;
+        glow += g * reach;
+        transmittance *= t;
+        imageStore(froxels[pc.slots.y], ivec3(id, z), vec4(accum, transmittance));
+        imageStore(froxels[pc.slots.w], ivec3(id, z), vec4(glow, 0.0));
+    }
+}

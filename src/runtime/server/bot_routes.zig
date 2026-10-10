@@ -248,11 +248,19 @@ fn seekInternal(world: *data.World, slots: *Slots, projections: []const @import(
     var direction = v.subtract(toward, pose.position);
     const ground = (try world.get(actor, data.Player)).ground_entity;
     const platform = if (ground < slots.occupants.len) slots.occupants[ground] else null;
-    const descending_lift = direction[2] < -18 and (if (platform) |entity| (world.get(entity, data.Mover) catch null) != null else false);
     // The next AAS descent can be underneath the platform we stand on. Keep
     // that trace's vertical component so the actual lift, not an imaginary
-    // horizontal wall, owns the request for its authored control.
-    if (!descending_lift) direction[2] = 0;
+    // horizontal wall, owns the request for its authored control. (A goal
+    // below and off the platform is a step down from it: door slabs laid
+    // as stairs, e1m5b's console room.)
+    const over_platform = ground < projections.len and
+        toward[0] > projections[ground].shared.absmin[0] - 24 and toward[0] < projections[ground].shared.absmax[0] + 24 and
+        toward[1] > projections[ground].shared.absmin[1] - 24 and toward[1] < projections[ground].shared.absmax[1] + 24;
+    const descending_lift = direction[2] < -18 and over_platform and (if (platform) |entity| (world.get(entity, data.Mover) catch null) != null else false);
+    // Climbing straight up (a ladder under a hatch, e1m6b's from the
+    // platform in the nitrogen): what closes the way is overhead.
+    const climbing = direction[2] > 18 and v.length(.{ direction[0], direction[1], 0 }) < 24;
+    if (!descending_lift and !climbing) direction[2] = 0;
     direction = v.normalize(direction);
     var hit = try engine.collisionService().trace(.{ .start = pose.position, .end = v.add(pose.position, v.scale(direction, 80)), .mins = body.mins, .maxs = body.maxs, .slot = slot, .mask = c.MASK_PLAYERSOLID });
     // A hull grazing a doorway's jamb meets the wall first: look again with a
@@ -262,8 +270,9 @@ fn seekInternal(world: *data.World, slots: *Slots, projections: []const @import(
         if (slim.fraction < 1 and slim.entity < slots.occupants.len) hit = slim;
     }
     if (diagnostic) {
-        var text: [160]u8 = undefined;
-        engine.print(try std.fmt.bufPrintZ(&text, "dk3 control seek: slot={d} hit_slot={d} fraction={d:.3} solid={d}\n", .{ slot, hit.entity, hit.fraction, @intFromBool(hit.start_solid) }));
+        var text: [256]u8 = undefined;
+        const top = if (hit.entity < slots.occupants.len) projections[hit.entity].shared.absmax[2] else 0;
+        engine.print(try std.fmt.bufPrintZ(&text, "dk3 control seek: slot={d} hit_slot={d} fraction={d:.3} solid={d} ground={d} top={d:.0} feet={d:.0} normal={d:.2},{d:.2},{d:.2}\n", .{ slot, hit.entity, hit.fraction, @intFromBool(hit.start_solid), ground, top, pose.position[2] + body.mins[2], hit.normal[0], hit.normal[1], hit.normal[2] }));
     }
     if (hit.fraction == 1 or hit.entity >= slots.occupants.len) return null;
     const obstacle = slots.occupants[hit.entity] orelse return null;

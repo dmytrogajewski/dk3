@@ -1,0 +1,22 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// 3x3 tent upsample of the lower mip, accumulated into the higher one.
+#include "post_common.glsl"
+layout(local_size_x = 8, local_size_y = 8) in;
+void main() {
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy);
+    if (p.x >= int(pc.size.x) || p.y >= int(pc.size.y)) return;
+    vec2 uv = (vec2(p) + 0.5) / vec2(pc.size.xy);
+    vec2 r = pc.params.x / vec2(pc.size.zw);
+    vec3 sum = textureLod(textures[pc.slots.x], uv + vec2(-r.x, -r.y), 0.0).rgb
+        + 2.0 * textureLod(textures[pc.slots.x], uv + vec2(0.0, -r.y), 0.0).rgb
+        + textureLod(textures[pc.slots.x], uv + vec2(r.x, -r.y), 0.0).rgb
+        + 2.0 * textureLod(textures[pc.slots.x], uv + vec2(-r.x, 0.0), 0.0).rgb
+        + 4.0 * textureLod(textures[pc.slots.x], uv, 0.0).rgb
+        + 2.0 * textureLod(textures[pc.slots.x], uv + vec2(r.x, 0.0), 0.0).rgb
+        + textureLod(textures[pc.slots.x], uv + vec2(-r.x, r.y), 0.0).rgb
+        + 2.0 * textureLod(textures[pc.slots.x], uv + vec2(0.0, r.y), 0.0).rgb
+        + textureLod(textures[pc.slots.x], uv + vec2(r.x, r.y), 0.0).rgb;
+    vec3 current = imageLoad(images[pc.slots.y], p).rgb;
+    imageStore(images[pc.slots.y], p, vec4(current + sum / 16.0, 1.0));
+}

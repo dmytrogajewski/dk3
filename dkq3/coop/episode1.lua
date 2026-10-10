@@ -1042,14 +1042,14 @@ level("e1m5a", function(visit, resumed)
       -- (Nothing is cleared here: what is heard beyond the locked door is
       -- out of reach, and chasing it ends in a niche off the floor.)
       dk3.sidekick("all", "follow")
-      -- The first room's station, health and ammunition: the pool and the
-      -- shafts after it have little of either.
+      -- The first room's ammunition (ion packs, shells, rockets in its far
+      -- corner) and station: the pool and the shafts after it have little.
+      for _, item in ipairs({ 83, 2, 84 }) do try(pickup, { index = item }, { timeout = 30 }) end
       recover(0.9, 900)
-      resupply(40, 900)
-      advance({ -1192, 2270, -816 })
-      move({ -1192, 2270, -816 }, { timeout = 240 })
+      -- The hall up the stairs is held by a deathsphere, a venomvermin and
+      -- two laser turrets: stop and fight each as it shows.
+      move({ -1192, 2270, -816 }, { timeout = 240, cautious = true })
       tend(800, 0.8)
-      recover(0.9, 900)
     end },
     { "pool", checkpoint = true, function()
       -- The door will not open from here: Superfly waits in the hall.
@@ -1057,20 +1057,44 @@ level("e1m5a", function(visit, resumed)
       dk3.sidekick("all", "stay")
       shoot({ index = 111 }, { timeout = 30, around = { -990, 2340, -752 } })
       move({ -1177, 2471, -1160 }, { timeout = 60 })
-      -- Out of the water at once (what swims here is fought from the rocks):
-      -- up the rocks to the last before the gap over the waterfall's pool,
-      -- a running jump across it, and on to the tunnel's mouth.
-      move({ -700, 2930, -1020 }, { timeout = 90 })
-      try(function() clear { radius = 500, timeout = 30 } end)
-      move({ -640, 2900, -1030 }, { timeout = 30 })
-      leap({ -616, 2842, -1041 }, { -595, 2700, -1060 })
     end },
     { "tunnel", checkpoint = true, function()
-      -- Through the tunnel; its mouth lowers the door on the shaft above
-      -- the flooded room it leads to.
-      move({ -616, 2444, -1024 }, { timeout = 120 })
-      move({ -599, 2279, -1072 }, { crouch = true, timeout = 60 })
+      -- Out of the water (what swims here is fought from the rocks), up the
+      -- rocks to the last before the gap over the waterfall's pool, a
+      -- running jump across it, and a short hop from the far rock's south
+      -- end into the pipe's mouth across a narrow channel. A miss lands in
+      -- the water, whence the only way back is round the rocks again.
+      local function across()
+        move({ -700, 2930, -1020 }, { timeout = 120 })
+        try(function() clear { radius = 500, timeout = 30 } end)
+        -- Still, on the jump's line, before the run-up (momentum from the
+        -- climb carries the player off the rock's east edge); off the flat
+        -- before the rock's lip (running down it leaves the ground before
+        -- any jump), to the far rock's tip.
+        move({ -622, 2930, -1020 }, { direct = true, radius = 8, timeout = 15 })
+        wait(0.5)
+        if not try(leap, { -618, 2868, -1036 }, { -572, 2672, -1040 }) then return false end
+        move({ -566, 2534, -1040 }, { direct = true, radius = 12, timeout = 10 })
+        move({ -600, 2575, -1052 }, { direct = true, radius = 8, timeout = 10 })
+        wait(0.3)
+        -- Slowly: a full jump's head meets the pipe's upper lip; at this
+        -- pace it tops out over the channel and is below the lip by the
+        -- mouth.
+        return try(leap, { -600, 2530, -1052 }, { -604, 2436, -1048 }, { pace = 0.4 })
+      end
+      local inside = false
+      for _ = 1, 4 do
+        if across() then inside = true break end
+      end
+      if not inside then error(dk3.where() .. ": tunnel: the pipe's mouth was never reached", 0) end
+      -- Its mouth lowers the door on the shaft above the flooded room the
+      -- pipe leads to.
+      move({ -612, 2300, -1048 }, { direct = true, crouch = true, radius = 16, timeout = 20 })
       try(function() clear { radius = 500, timeout = 45 } end)
+      -- The room's health and rockets: the hall behind the locked door is
+      -- under a turret, a deathsphere and a guard when the player comes up.
+      try(pickup, { index = 72 }, { timeout = 20 })
+      try(pickup, { index = 73 }, { timeout = 20 })
       -- Up the ladder in its east corner to the ledge by that door (the
       -- area graph has only the way down). Climbing never settles: timed.
       move({ -544, 2205, -1064 }, { direct = true, radius = 16, timeout = 20 })
@@ -1078,20 +1102,558 @@ level("e1m5a", function(visit, resumed)
       move({ -530, 2184, -928 }, { direct = true, radius = 24, timeout = 10 })
     end },
     { "shaft", checkpoint = true, function()
-      -- Round the loop to the ladder under the grate behind the locked door.
-      move({ -699, 2190, -928 }, { timeout = 120 })
+      -- Round the loop to the ladder under the grate behind the locked door:
+      -- east through the lowered door, south, west and north again (from
+      -- the ledge itself the area graph finds no way).
+      path({ { -500, 2184, -928 }, { -290, 2184, -928 }, { -290, 1937, -928 },
+             { -704, 1937, -928 }, { -699, 2180, -928 } }, { direct = true, radius = 24, timeout = 40 })
+      try(kill, { index = 70 }, { timeout = 20 })       -- the venomvermin at its foot
+      -- Right under the grate (from the shaft's edge it is out of sight).
+      move({ -699, 2228, -928 }, { direct = true, radius = 8, timeout = 10 })
+      shoot({ index = 112 }, { timeout = 30, hold = true })
+      -- The hall's deathsphere comes over the opened grate: fought from down
+      -- here, out of the hall turret's sight (up there it and the turret
+      -- together take most of the player's health in two seconds).
+      try(kill, { index = 92 }, { hold = true, timeout = 25 })
+      -- Up the ladder on the shaft's west wall without firing: bolts loosed
+      -- up the narrow shaft ricochet back down it. Out into the hall above,
+      -- then fight.
+      try(move, { -716, 2228, -808 }, { direct = true, radius = 12, timeout = 8, fight = false })
+      move({ -745, 2228, -816 }, { direct = true, radius = 16, timeout = 10, fight = false })
+      -- At once (the hall's guard and the turret high on its south wall are
+      -- on the way): the control box over the door, whose wires hold its
+      -- plates shut, and the door; back through it to Superfly, and the
+      -- guard is fought there by both.
+      shoot({ index = 325 }, { timeout = 30, fight = false })
+      -- The door opens to touch now: straight through it.
+      move({ -840, 2228, -816 }, { direct = true, radius = 24, timeout = 10, fight = false })
+      dk3.sidekick("all", "follow")
       try(function() clear { radius = 500, timeout = 45 } end)
-      shoot({ index = 112 }, { timeout = 30 })
-      try(move, { -704, 2228, -808 }, { direct = true, radius = 16, timeout = 8 })
-      move({ -720, 2228, -816 }, { timeout = 20 })
     end },
     { "door", checkpoint = true, function()
-      -- The control box over the door: its wires hold the plates shut.
-      shoot({ index = 325 }, { timeout = 30 })
-      try(use, { index = 48 }, { timeout = 20 })
+      -- East along the hall with Superfly (its choppers, guards, a
+      -- venomvermin), fighting as each shows, to the station by its far door.
       dk3.sidekick("all", "follow")
       try(regroup, 250, 90)
+      move({ 200, 2248, -816 }, { timeout = 240, cautious = true })
+      try(recharge, { index = 91 })
+      tend(800, 0.8)
+    end },
+    { "out", checkpoint = true, function()
+      -- On past the fan and the guards to the Mishima door (the exit), a
+      -- leg at a time, back to the station between legs while it has
+      -- charge: part 2 opens on a guard, a turret and deathspheres with
+      -- no health before the stairs down, so arrive whole.
+      dk3.sidekick("all", "follow")
+      for _, point in ipairs({ { 240, 1700, -760 }, { 330, 1596, -816 }, { 968, 1560, -816 }, { 968, 1420, -752 } }) do
+        move(point, { timeout = 180, cautious = true })
+        recover(0.95, 1300)
+      end
       progress("e1m5b")
+    end },
+  }(visit, resumed)
+end)
+
+-- Processing, part 2: the catwalk and its turret, the spiral stairs down,
+-- the rooms south and west to the stairs up to the console that unlocks the
+-- freezer door; back to the freezer and on to the Mishima logo (the exit).
+-- Deathspheres hold most rooms: each leg is fought cautiously, with the
+-- stations at the bottom of the stairs and by the south room's stairs.
+level("e1m5b", function(visit, resumed)
+  if visit > 1 then return exit "e1m6a" end
+  return stages {
+    { "catwalk", function()
+      -- Hold the arrival corridor first: its guard, the catwalk's
+      -- deathspheres and a venomvermin come to it one by one (chased, they
+      -- are met all at once with the turret at the catwalk's end).
+      dk3.sidekick("all", "follow")
+      try(function() clear { radius = 900, hold = true, timeout = 15, arena = { { 1220, 1300 }, { 1300, 1445 } } } end)
+      -- The corridor's door opens to use only.
+      try(use, { index = 30 }, { timeout = 15 })
+      for _, item in ipairs({ 91, 92 }) do try(pickup, { index = item }, { timeout = 20, fight = false }) end
+      move({ 1460, 1887, -608 }, { timeout = 120, cautious = true })
+      try(kill, { index = 45 }, { hold = true, timeout = 30 })   -- the catwalk's turret
+      -- The two deathspheres by the catwalk's far door: Superfly's
+      -- shotcycler takes them on while the player holds mid-catwalk and
+      -- shoots what comes into sight.
+      for _, sphere in ipairs({ 361, 78 }) do
+        for _ = 1, 3 do
+          if try(sic, { index = sphere }, "superfly", 20) then break end
+          wait(1)
+        end
+        try(kill, { index = sphere }, { hold = true, timeout = 20 })
+      end
+      move({ 1949, 1952, -648 }, { timeout = 120, cautious = true })
+    end },
+    { "spiral", checkpoint = true, function()
+      dk3.sidekick("all", "follow")
+      move({ 2228, 1785, -896 }, { timeout = 180, cautious = true })
+      try(recharge, { index = 104 })
+      try(pickup, { index = 103 }, { timeout = 20 })
+      tend(800, 0.8)
+    end },
+    { "south", checkpoint = true, function()
+      dk3.sidekick("all", "follow")
+      move({ 2304, 1300, -896 }, { timeout = 120, cautious = true })
+      try(pickup, { index = 87 }, { timeout = 20 })
+      move({ 2281, 623, -896 }, { timeout = 180, cautious = true })
+      try(recharge, { index = 75 })
+      tend(800, 0.8)
+    end },
+    { "console", checkpoint = true, function()
+      -- West through the side door, up the stairs north to the hall over
+      -- the console room, down into it.
+      dk3.sidekick("all", "follow")
+      move({ 1920, 536, -896 }, { timeout = 120, cautious = true })
+      move({ 1760, 862, -896 }, { timeout = 120, cautious = true })
+      -- Up the steps west (door slabs a button lowers into a secret: on
+      -- them the area graph places the player in the vent below).
+      -- North along the corridor over the secret vent (above it the area
+      -- graph places the player in the vent too) to past its end.
+      path({ { 1640, 850, -840 }, { 1563, 945, -826 }, { 1620, 955, -808 }, { 1632, 1185, -808 } },
+           { direct = true, radius = 24, timeout = 15 })
+      move({ 1644, 1388, -808 }, { timeout = 180, cautious = true })
+      -- Two deathspheres and a venomvermin hold the room below the ledge
+      -- (two deathspheres' volleys together take a full health in a
+      -- second): show at the ledge, fall back down the corridor and fight
+      -- them there as they come through it one by one.
+      move({ 1640, 1560, -800 }, { direct = true, radius = 16, timeout = 10 })
+      for _ = 1, 4 do
+        if dk3.hostiles(500, { 1640, 1750, -850 }) == 0 then break end
+        try(use, { index = 26 }, { timeout = 8 })
+        try(function()
+          kill({ class = "monster_deathsphere" }, { around = { 1640, 1750, -850 }, radius = 500, hold = true, timeout = 20,
+                 arena = { { 1612, 1530 }, { 1668, 1590 } } })
+        end)
+        try(function()
+          kill({ class = "monster_venomvermin" }, { around = { 1640, 1750, -850 }, radius = 500, hold = true, timeout = 15,
+                 arena = { { 1612, 1530 }, { 1668, 1590 } } })
+        end)
+      end
+      -- Down the door-slab steps into the cleared room, the health in the
+      -- passage east of it, and across to the console.
+      try(use, { index = 26 }, { timeout = 8 })
+      path({ { 1640, 1655, -812 }, { 1640, 1730, -848 } }, { direct = true, radius = 24, timeout = 10, fight = false })
+      try(pickup, { index = 363 }, { timeout = 40 })
+      move({ 1340, 1640, -832 }, { timeout = 60 })
+      use({ index = 168 }, { timeout = 60 })
+      cinematic()
+    end },
+    { "soul", checkpoint = true, function()
+      -- Back the way the route came (the steps by the vent walked
+      -- straight) and east to the stairs short of the freezer: the golden
+      -- soul in the secret under their landing, off its edge at a walk
+      -- into the slot beneath it.
+      dk3.sidekick("all", "follow")
+      try(regroup, 300, 60)
+      move({ 1632, 1185, -808 }, { timeout = 120, cautious = true })
+      path({ { 1620, 955, -808 }, { 1563, 945, -826 }, { 1640, 850, -840 }, { 1760, 862, -896 } },
+           { direct = true, radius = 24, timeout = 15 })
+      move({ 2342, 336, -808 }, { timeout = 120, cautious = true })
+      move({ 2323, 352, -820 }, { direct = true, radius = 4, timeout = 10 })
+      move({ 2325, 372, -896 }, { direct = true, radius = 10, timeout = 10, pace = 0.3 })
+      path({ { 2327, 330, -896 }, { 2327, 292, -896 }, { 2260, 296, -896 } }, { direct = true, radius = 12, timeout = 10 })
+      path({ { 2327, 292, -896 }, { 2331, 360, -896 } }, { direct = true, radius = 12, timeout = 10 })
+    end },
+    { "freezer", checkpoint = true, function()
+      -- The freezer the console unlocked: its inner door opens to use. The
+      -- deathsphere over its far side comes to the doorway and is met from
+      -- the stair landing (not backed off it: its side drops into a corner
+      -- nothing leads out of), where the open door's edge keeps the
+      -- lasergat hung mid-room from a clear shot either way; then the
+      -- lasergat from just inside, where its lane is clear.
+      dk3.sidekick("all", "follow")
+      local landing = { { 2645, 380 }, { 2695, 420 } }
+      move({ 2669, 416, -740 }, { timeout = 120, cautious = true })
+      for _ = 1, 3 do
+        try(use, { index = 25 }, { timeout = 8 })
+        if try(kill, { index = 364 }, { hold = true, timeout = 20, arena = landing }) then break end
+      end
+      tend(800, 0.6)
+      for _ = 1, 3 do
+        try(use, { index = 25 }, { timeout = 8 })
+        move({ 2730, 415, -744 }, { direct = true, radius = 12, timeout = 5 })
+        if try(kill, { index = 44 }, { hold = true, timeout = 20, arena = { { 2712, 392 }, { 2770, 440 } } }) then break end
+      end
+      recover(0.9, 600)
+      move({ 2669, 416, -740 }, { timeout = 60, cautious = true })
+      try(use, { index = 25 }, { timeout = 8 })
+      try(function() clear { radius = 700, hold = true, timeout = 30, arena = landing } end)
+      try(pickup, { index = 74 }, { timeout = 30 })   -- the shockwave
+    end },
+    { "hall", checkpoint = true, function()
+      -- South up the freezer's ramp, through the guards' rooms to the use
+      -- door into the great hall under the exit. What comes to the doorway
+      -- is met there; the rest of the hall (its two deathspheres, the
+      -- lasergat on the central pillar, the guard on the floor) mostly
+      -- stays put and is hunted one by one, with the health on its floor
+      -- between; then up round the walkways to the exit door (the armour
+      -- below the exit's corridor is left: the way back up from it is a
+      -- ladder).
+      dk3.sidekick("all", "follow")
+      move({ 2368, -560, -496 }, { timeout = 180, cautious = true })
+      local doorway = { { 2340, -585 }, { 2396, -540 } }
+      for _ = 1, 2 do
+        try(use, { index = 22 }, { timeout = 8 })
+        if try(function() clear { radius = 900, hold = true, timeout = 20, arena = doorway } end) then break end
+      end
+      tend(900, 0.6)
+      for _, foe in ipairs({ 113, 366, 46, 114 }) do
+        try(kill, { index = foe }, { timeout = 30 })
+        recover(0.7, 900)
+      end
+      for _, item in ipairs({ 70, 69 }) do try(pickup, { index = item }, { timeout = 40 }) end
+      progress("e1m6a")
+    end },
+  }(visit, resumed)
+end)
+
+-- Icelab: the decontamination corridor's door opens a while after its
+-- button; the sprays along it cycle. The four-way door at its end opens to
+-- the blue control card, in the control room past the denied keypads.
+-- Through the cryotechs' rooms, down into the lab over the nitrogen pool
+-- (across the gap in its walkway): its valve drains the pool, whose floor
+-- leads to the lift up to the exit's rooms.
+level("e1m6a", function(visit, resumed)
+  if visit > 1 then return exit "e1m6b" end
+  return stages {
+    { "lab", function()
+      dk3.sidekick("all", "follow")
+      recover(0.8, 900)
+      use { index = 64 }
+      wait(11)
+      pickup { index = 2 }
+      try(recharge, { index = 29 })   -- the station in the card's room
+      use { index = 85 }
+    end },
+    { "valve", checkpoint = true, function()
+      -- The lab's cryotechs spray a freezing fluid at close range. Down the
+      -- ladder shaft (the room's way down) to its foot, a floor cut off
+      -- from the rest by a gap over the nitrogen: what shows across it is
+      -- shot from well back off its edge. Then a running leap over the gap
+      -- (the area graph's jump falls short) and the rest held off there.
+      dk3.sidekick("all", "follow")
+      move({ 1455, 250, -24 }, { timeout = 180, cautious = true })
+      move({ 1574, 305, -24 }, { timeout = 30, radius = 16 })
+      move({ 1590, 345, -240 }, { direct = true, radius = 24, timeout = 10 })
+      move({ 1600, 300, -240 }, { direct = true, radius = 16, timeout = 10 })
+      try(function() kill({ class = "monster_cryotech" }, { around = { 1450, 470, -248 }, radius = 450, hold = true, timeout = 15,
+                              arena = { { 1580, 230 }, { 1615, 345 } } }) end)
+      move({ 1600, 220, -240 }, { direct = true, radius = 16, timeout = 10 })
+      for _ = 1, 3 do
+        if x() < 1440 then break end
+        try(leap, { 1548, 220, -240 }, { 1385, 220, -240 })
+      end
+      -- North along the west floor, clear of the gap's edge.
+      path({ { 1350, 225, -240 }, { 1340, 300, -248 }, { 1340, 407, -248 } }, { direct = true, radius = 20, timeout = 10 })
+      -- (Ones not yet roused are not counted hostile: each by name.)
+      for _, foe in ipairs({ 7, 104, 6, 8, 351, 352 }) do
+        try(kill, { index = foe }, { hold = true, timeout = 15, arena = { { 1320, 380 }, { 1370, 430 } } })
+        try(kill, { index = foe }, { timeout = 15 })
+      end
+      move({ 1380, 560, -248 }, { timeout = 60 })
+      try(pickup, { index = 23 }, { timeout = 20 })
+      use { index = 97 }
+      wait(15)
+      try(regroup, 250, 60)
+      progress("e1m6b")
+    end },
+  }(visit, resumed)
+end)
+
+-- Icelab, part 2: the door on along the walkway opens only from beyond it.
+-- The way there is a running drop off the walkway's end onto the round
+-- platform standing in the nitrogen, its ladder, and the hatch at the top;
+-- the button there opens the door. Superfly waits at the drop (a sidekick
+-- following falls short into the nitrogen) and comes through the door.
+level("e1m6b", function(visit, resumed)
+  if visit > 1 then return exit "e1m6c" end
+  return stages {
+    { "shield", function()
+      -- The megashield at the far end of a pipe over the nitrogen, by the
+      -- ladder down from the alcove off the walkway: fetched while
+      -- Superfly waits on the walkway.
+      dk3.sidekick("all", "follow")
+      move({ 1650, -1040, 40 }, { timeout = 120, cautious = true })
+      dk3.sidekick("all", "stay")
+      try(pickup, { index = 13 }, { timeout = 120 })
+      move({ 1650, -1040, 40 }, { timeout = 120 })
+    end },
+    { "ramp", checkpoint = true, function()
+      -- The console by the door on along the walkway opens the door up the
+      -- ramp (and lets two deathspheres out of hatches by it): Superfly's
+      -- way round to the far side, kept open.
+      dk3.sidekick("all", "stay")
+      use { index = 70 }
+      -- (Held well back on the walkway: its edges drop to the nitrogen.)
+      move({ 1630, -900, 40 }, { timeout = 30, radius = 24 })
+      for _, foe in ipairs({ 98, 149 }) do
+        try(kill, { index = foe }, { hold = true, timeout = 20, arena = { { 1600, -1000 }, { 1660, -760 } } })
+      end
+      tend(900, 0.6)
+    end },
+    { "platform", checkpoint = true, function()
+      -- Alone over the platform in the nitrogen: a running drop off the
+      -- walkway's end, the ladder, the hatch, the guards in the room above
+      -- it, its lift up, and those on the floor at the top; then Superfly
+      -- comes round through the ramp door (the door from the walkway to
+      -- the hatch room shuts again a moment after its button).
+      move({ 1650, -1040, 40 }, { timeout = 120, cautious = true })
+      dk3.sidekick("all", "stay")
+      move({ 1672, -1060, 40 }, { direct = true, radius = 8, timeout = 10 })
+      move({ 1912, -1185, -256 }, { direct = true, radius = 40, timeout = 10, fight = false })
+      -- Up the ladder to the hatch over it, opened by hand from the rungs.
+      try(move, { 1920, -1150, 38 }, { direct = true, radius = 12, timeout = 8 })
+      for _ = 1, 3 do
+        if opened(24)() or opened(22)() then break end
+        try(use, { index = 24 }, { timeout = 6 })
+        try(use, { index = 22 }, { timeout = 6 })
+      end
+      for _, foe in ipairs({ 275, 274, 60 }) do try(kill, { index = foe }, { timeout = 20 }) end
+      move({ 1912, -1393, 248 }, { timeout = 60 })
+      for _, foe in ipairs({ 10, 59, 276, 317 }) do try(kill, { index = foe }, { timeout = 25 }) end
+      recover(0.8, 600)
+      dk3.sidekick("all", "follow")
+      try(regroup, 250, 120)
+      tend(900, 0.6)
+    end },
+    -- The long way round to the exit, in legs: east along the gallery and
+    -- south, the loop of halls west, the rooms on west to the drop to the
+    -- floor below, and north over it to the exit.
+    { "east", checkpoint = true, function()
+      dk3.sidekick("all", "follow")
+      move({ 2383, -1104, 344 }, { timeout = 120, cautious = true })
+      move({ 2383, -1900, 344 }, { timeout = 120, cautious = true })
+      recover(0.8, 900)
+      tend(900, 0.6)
+    end },
+    { "loop", checkpoint = true, function()
+      dk3.sidekick("all", "follow")
+      move({ 1504, -1969, 344 }, { timeout = 120, cautious = true })
+      move({ 1472, -2600, 392 }, { timeout = 120, cautious = true })
+      move({ 1284, -2863, 376 }, { timeout = 120, cautious = true })
+      move({ 1252, -2111, 344 }, { timeout = 120, cautious = true })
+      recover(0.8, 900)
+      tend(900, 0.6)
+    end },
+    { "west", checkpoint = true, function()
+      dk3.sidekick("all", "follow")
+      move({ 1121, -2127, 344 }, { timeout = 120, cautious = true })
+      move({ -15, -2399, 344 }, { timeout = 120, cautious = true })
+      move({ 79, -1747, 344 }, { timeout = 120, cautious = true })
+      recover(0.8, 900)
+      tend(900, 0.6)
+    end },
+    { "lower", checkpoint = true, function()
+      -- The floor below is held by guards and cryotechs: Superfly waits
+      -- while the bot goes down and clears it, then comes after.
+      dk3.sidekick("all", "stay")
+      for _, foe in ipairs({ 318, 144, 101, 50, 49, 48 }) do try(kill, { index = foe }, { timeout = 30 }) end
+      recover(0.8, 900)
+      resupply(30, 900)
+      dk3.sidekick("all", "follow")
+      move({ 352, -1599, -48 }, { timeout = 120 })
+      try(regroup, 250, 120)
+      move({ 352, -1183, 16 }, { timeout = 120, cautious = true })
+      recover(0.8, 900)
+      progress("e1m6c")
+    end },
+  }(visit, resumed)
+end)
+
+-- Icelab, part 3: the room past the first door holds two inmaters, a
+-- ragemaster on the catwalk and a deathsphere overhead. The shockwave is
+-- fired in from the doorway (the bot backs out of its rings), the rest held
+-- off from the door while Superfly waits behind.
+level("e1m6c", function(visit, resumed)
+  if visit > 1 then return exit "e1m7a" end
+  return stages {
+    { "arena", function()
+      dk3.sidekick("all", "stay")
+      try(use, { index = 59 }, { timeout = 10 })
+      try(use, { index = 61 }, { timeout = 10 })
+      -- They keep to their beat on the catwalk: hunted one by one, met at
+      -- range (the brutes hit hard up close) with Superfly kept back.
+      for _ = 1, 2 do
+        for _, foe in ipairs({ 172, 21, 32 }) do try(kill, { index = foe }, { timeout = 30 }) end
+      end
+      -- The deathsphere over the ring is awaited at the catwalk's near end:
+      -- chased, it leads off the catwalk into the nitrogen under the ring.
+      move({ 352, -90, 200 }, { timeout = 30, radius = 24 })
+      try(kill, { index = 31 }, { hold = true, timeout = 30, arena = { { 320, -110 }, { 400, -60 } } })
+      recover(0.8, 900)
+    end },
+    { "doors", checkpoint = true, function()
+      -- Round the ring to the buttons of the doors on (not the chromatic
+      -- armour on the catwalk's far side: the way to it drops into the
+      -- nitrogen).
+      dk3.sidekick("all", "follow")
+      try(regroup, 250, 60)
+      use { index = 125 }
+      try(use, { index = 44 }, { timeout = 30 })
+      tend(900, 0.6)
+    end },
+    { "west", checkpoint = true, function()
+      -- The catwalks and rooms west (a battle boar, an inmater, cryotechs,
+      -- guards, deathspheres) over the nitrogen, while Superfly waits. The
+      -- battle boar charges and knocks a player off the narrow catwalk: it
+      -- and the inmater are let come to the floor by the buttons.
+      dk3.sidekick("all", "stay")
+      for _, foe in ipairs({ 190, 20 }) do try(kill, { index = foe }, { hold = true, timeout = 30, arena = { { 150, 1330 }, { 260, 1420 } } }) end
+      for _, foe in ipairs({ 190, 20, 58, 28 }) do
+        try(kill, { index = foe }, { timeout = 40 })
+        if dk3.health() < 50 then recover(0.8, 900) end
+      end
+      recover(0.8, 900)
+    end },
+    { "far west", checkpoint = true, function()
+      dk3.sidekick("all", "stay")
+      -- Deathspheres come to the bot; the cryotechs are met from range.
+      for _, foe in ipairs({ 14, 187 }) do try(kill, { index = foe }, { hold = true, timeout = 25 }) end
+      for _, foe in ipairs({ 54, 57, 29, 14, 187 }) do
+        try(kill, { index = foe }, { timeout = 40 })
+        if dk3.health() < 50 then recover(0.8, 900) end
+      end
+      recover(0.8, 900)
+      dk3.sidekick("all", "follow")
+      try(regroup, 250, 120)
+    end },
+    { "prison", checkpoint = true, function()
+      -- Up the platforms to the inmaters by the door to Mikiko's prison.
+      dk3.sidekick("all", "stay")
+      for _, foe in ipairs({ 192, 173, 19 }) do try(kill, { index = foe }, { timeout = 40 }) end
+      recover(0.8, 900)
+      dk3.sidekick("all", "follow")
+      try(regroup, 250, 120)
+      -- The doors open to a trigger before them; the exit is the line just
+      -- past them (the area graph ends at the grate beyond it).
+      try(touch, { index = 25 }, { timeout = 60 })
+      move({ -300, 485, 472 }, { timeout = 30 })
+      exit "e1m7a"
+    end },
+  }(visit, resumed)
+end)
+
+-- The vault: up the stairs, through the big doors, the halls of the trap
+-- and the ladder; the diagonal door below the cage lift opens only from
+-- beyond. The cage lift rises to the keypad cage (its lock shot away): the
+-- keypad opens the doors to beyond for a while, reached by jumping off the
+-- catwalk; there the keypad by the diagonal door lets the sidekicks in.
+level("e1m7a", function(visit, resumed)
+  if visit > 1 then return exit "e1m7b" end
+  return stages {
+    { "halls", function()
+      dk3.sidekick("all", "follow")
+      -- The golden soul and the plasteel armour by the start, past the
+      -- start room's door.
+      try(use, { index = 568 }, { timeout = 20 })
+      for _, item in ipairs({ 80, 609, 88, 83 }) do
+        if dk3.reachable({ index = item }) then try(pickup, { index = item }, { timeout = 30 }) end
+      end
+      advance({ 300, -2300, 338 })
+      move({ 300, -2300, 338 }, { timeout = 120, cautious = true })
+      -- The deathsphere hovering over the floor above sees down the trap's
+      -- corridor: met from its east end first.
+      try(kill, { index = 109 }, { hold = true, timeout = 15 })
+      -- Along the walkway and off its end to the floor below (the area
+      -- graph waits there for the corner lift, which no one calls).
+      move({ 25, -2276, 344 }, { timeout = 60 })
+      move({ -60, -2150, 216 }, { direct = true, radius = 24, timeout = 10 })
+      advance({ -337, -2103, 216 })
+      move({ -300, -2110, 216 }, { timeout = 120, cautious = true })
+    end },
+    { "ladder", checkpoint = true, function()
+      -- The keypad by the far end slides a ladder's rungs out of the wall:
+      -- up it alone (the sidekicks have no way up a ladder the area graph
+      -- never had), the guards on the floor above, the cage lift down to
+      -- the far side of the diagonal door, which its keypad opens for them.
+      dk3.sidekick("all", "stay")
+      -- (Pressed from a stride back: from right against it a press fails.)
+      move({ -20, -2104, 216 }, { timeout = 60, radius = 8 })
+      look(0, 0)
+      for _ = 1, 3 do
+        if opened(122)() then break end
+        try(use, { index = 118 }, { timeout = 8 })
+        wait(1)
+      end
+      expect(opened(122)(), "the ladder's rungs did not come out")
+      wait(3)
+      -- The corner lift up to the narrow walkway along the walls (the area
+      -- graph has no way along it), round to the ladder's foot.
+      ride { index = 7 }
+      path({ { -15, -2300, 344 }, { -12, -2040, 344 }, { -150, -2012, 344 }, { -268, -2012, 344 } },
+           { direct = true, radius = 12, timeout = 10, fight = false })
+      move({ -272, -2012, 470 }, { direct = true, radius = 16, timeout = 15 })
+      move({ -240, -2100, 486 }, { direct = true, radius = 24, timeout = 10 })
+      -- West along the corridor to the cage lift's top (the area graph has
+      -- the shaft's way through the diagonal door below).
+      -- (Held: hunted, a guard leads off the floor's edge to the floor below.)
+      local block = { { -268, -2255 }, { -222, -2080 } }
+      for _, foe in ipairs({ 108, 583 }) do try(kill, { index = foe }, { hold = true, timeout = 15, arena = block }) end
+      move({ -600, -2190, 486 }, { timeout = 60 })
+      local corridor = { { -620, -2200 }, { -540, -2165 } }
+      for _, foe in ipairs({ 108, 583 }) do try(kill, { index = foe }, { hold = true, timeout = 15, arena = corridor }) end
+      ride { index = 148 }
+      use { index = 732 }
+      dk3.sidekick("all", "follow")
+      try(regroup, 250, 90)
+    end },
+    { "cage", checkpoint = true, function()
+      -- Back up alone: the cage's lock shot away, its keypad opens the
+      -- doors below for a while; off the corridor's edge to them, the
+      -- ragemaster and guards beyond, and their keypad lets the sidekicks in.
+      dk3.sidekick("all", "stay")
+      ride { index = 148 }
+      -- The cage's lock is a wire at the corridor's far end, with a worker
+      -- sat in front of it.
+      try(kill, { index = 603 }, { timeout = 20 })
+      try(shoot, { index = 53 }, { timeout = 30 })
+      use { index = 612 }
+      -- Out of the cage, off the corridor's north edge to the floor below
+      -- and through the doors before they shut (10 s).
+      path({ { -660, -2160, 480 }, { -620, -2080, 216 }, { -605, -1960, 216 }, { -605, -1880, 216 } },
+           { direct = true, radius = 24, timeout = 6, fight = false })
+      try(function() clear { radius = 700, timeout = 60 } end)
+      use { index = 610 }
+    end },
+    { "pipe", checkpoint = true, function()
+      -- The door across the catwalk is dead: down off the catwalk to the
+      -- channels below it, the keypad that opens the round hatch in their
+      -- floor, and the flooded pipe under it to the grate at its far end
+      -- (alone: the sidekicks wait).
+      dk3.sidekick("all", "stay")
+      move({ -700, -1390, 96 }, { timeout = 60 })
+      use { index = 208 }
+      move({ -230, -1440, -30 }, { timeout = 60 })
+      try(shoot, { index = 211 }, { timeout = 20 })
+      -- Up the ramp past the save gem: the fan's mechanism, shot from in
+      -- front of it, stops the fan, and the way drops past it.
+      move({ 300, -880, 216 }, { timeout = 60, cautious = true })
+      try(shoot, { index = 436 }, { timeout = 20 })
+      -- Into the duct behind it (its floor a hop up, its roof low: ducked)
+      -- and down out of its far end into the hallway.
+      -- (A hop up into it, timed: the lip is a jump up, the roof low.)
+      for _ = 1, 4 do
+        if x() < 240 then break end
+        try(move, { 300, -800, 216 }, { direct = true, radius = 12, timeout = 5 })
+        try(move, { 270, -800, 250 }, { direct = true, radius = 12, timeout = 5, crouch = true })
+        jump()
+        try(move, { 180, -800, 250 }, { direct = true, radius = 16, timeout = 8, crouch = true })
+      end
+      expect(x() < 240, "not into the duct behind the fan")
+      move({ 170, -800, 88 }, { direct = true, radius = 24, timeout = 8 })   -- down its shaft
+    end },
+    { "hatch", checkpoint = true, function()
+      -- West along the hallway (its guards on the way) to the ladder at its
+      -- end and the hatch at the ladder's top, opened by hand.
+      path({ { 0, -780, 88 }, { -500, -780, 88 }, { -864, -790, 88 } }, { direct = true, radius = 24, timeout = 20 })
+      move({ -864, -872, 88 }, { direct = true, radius = 12, timeout = 10 })
+      try(move, { -864, -880, 200 }, { direct = true, radius = 16, timeout = 8 })
+      local hx, hy, hz = dk3.position()
+      dk3.log(string.format("ladder top at %.0f,%.0f,%.0f hatch=%s", hx, hy, hz, tostring(dk3.mover({ index = 76 }))))
+      try(use, { index = 76 }, { timeout = 10 })
+      dk3.log("hatch after use: " .. tostring(dk3.mover({ index = 76 })))
+      progress("e1m7b")
     end },
   }(visit, resumed)
 end)
@@ -1102,7 +1664,7 @@ local chain = {
 }
 -- Maps without an authored route yet: head for the forward exit, operating
 -- reachable controls when the area graph has no route (see advance()).
-for index = 9, #chain - 1 do
+for index = 14, #chain - 1 do
   local map, destination = chain[index], chain[index + 1]
   level(map, function() progress(destination) end)
 end

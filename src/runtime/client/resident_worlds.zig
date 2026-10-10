@@ -124,7 +124,9 @@ pub const State = struct {
                         _ = try @import("sprites.zig").register(value);
                     } else if (try @import("models.zig").register(value) == 0) return error.MissingWorldModel;
                 } else if (field > c.CS_SOUNDS and field < c.CS_SOUNDS + c.MAX_SOUNDS) {
-                    if (try engine.registerSound(value) == 0) return error.MissingWorldSound;
+                    // A missing sample only loses that sound (the engine warned and keeps its
+                    // default); it must not end the game.
+                    _ = try engine.registerSound(value);
                 }
             }
             // Normal primary-world configstrings may have advanced other
@@ -135,7 +137,7 @@ pub const State = struct {
             receiver.deinit(std.heap.c_allocator);
             self.patches[index] = null;
             var message: [160]u8 = undefined;
-            engine.print(try std.fmt.bufPrintZ(&message, "dk3 world config: owner={d} index={d} applied\n", .{ id, field }));
+            engine.developerPrint(try std.fmt.bufPrintZ(&message, "dk3 world config: owner={d} index={d} applied\n", .{ id, field }));
             try patchAck(id, serial);
             return;
         }

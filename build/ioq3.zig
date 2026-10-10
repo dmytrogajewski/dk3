@@ -31,6 +31,9 @@ pub fn declare(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bu
         all.dependOn(installed);
         if (product == .server) server_step.dependOn(installed);
     }
+    // The optional Vulkan renderer is native Zig; OpenGL2 stays the default renderer.
+    const vulkan = @import("renderer_vulkan.zig").addProduct(b, target, optimize, settings);
+    all.dependOn(&b.addInstallFileWithDir(vulkan.getEmittedBin(), .bin, "renderer_vulkan.so").step);
     return true;
 }
 

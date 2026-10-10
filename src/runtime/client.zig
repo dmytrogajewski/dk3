@@ -106,6 +106,7 @@ fn init(server_message: i32, sequence: i32, client: i32, boundary: i32) !void {
     _ = engine.gateway.call(c.CG_UPDATESCREEN, .{});
     _ = engine.gateway.call(c.CG_CM_LOADMAP, .{map.ptr});
     loading.mark("collision", loadingNow());
+    @import("client/fog.zig").reset();
     _ = engine.gateway.call(c.CG_R_LOADWORLDMAP, .{map.ptr});
     loading.mark("render-world", loadingNow());
     try @import("client/sky.zig").init(name, &game);
@@ -356,6 +357,7 @@ fn draw(now: i32) !void {
     try @import("client/sky.zig").update(&game);
     ref.dk3Lightstyles = if (lightstyles.len > 0) try @import("domain/lightstyles.zig").decode(lightstyles) else @splat(1);
     _ = engine.gateway.call(c.CG_R_CLEARSCENE, .{});
+    @import("client/fog.zig").submit();
     _ = engine.gateway.call(c.CG_S_CLEARLOOPINGSOUNDS, .{@as(isize, c.qfalse)});
     var weapon_end_ms: ?i64 = null;
     presentation = .{ .now = now };
@@ -519,7 +521,8 @@ fn draw(now: i32) !void {
         } else if (entity.eType == c.ET_PLAYER or entity.eType == c.ET_DK3_ITEM or entity.eType == c.ET_MISSILE or entity.eType == c.ET_GENERAL) handle = try @import("client/models.zig").get(owner.game, entity.modelindex);
         if (handle == 0) continue;
         var rendered = std.mem.zeroes(c.refEntity_t);
-        rendered.dk3World = @bitCast(entity.dk3World);
+        // The renderer owns its world numbering; the network world id only names the owner.
+        rendered.dk3World = owner.render;
         rendered.hModel = handle;
         if (entity.eType == c.ET_PLAYER) rendered.customSkin = try @import("client/models.zig").playerSkin(owner.game, entity.clientNum);
         const animation = try @import("engine/animation.zig").sample(entity, now);

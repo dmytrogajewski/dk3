@@ -21,10 +21,16 @@ pub const status = struct {
 /// Headless engine runs: no audio device, software OpenGL, and only the X display xvfb-run
 /// provides. SDL3 (behind sdl2-compat) prefers Wayland when `WAYLAND_DISPLAY` is inherited, which
 /// would put the window on the real compositor, so the variable is dropped and both the SDL2
-/// (`SDL_VIDEODRIVER`) and SDL3 (`SDL_VIDEO_DRIVER`) driver variables select X11.
-pub fn applyHeadlessEnv(env: *std.process.Environ.Map) std.mem.Allocator.Error!void {
+/// (`SDL_VIDEODRIVER`) and SDL3 (`SDL_VIDEO_DRIVER`) driver variables select X11. Software
+/// rendering also covers Vulkan: when the Mesa lavapipe ICD exists it is the only one the loader
+/// sees (`VK_DRIVER_FILES`, and the older `VK_ICD_FILENAMES`).
+pub fn applyHeadlessEnv(env: *std.process.Environ.Map, vulkan_icd: ?[]const u8) std.mem.Allocator.Error!void {
     try env.put("SDL_AUDIODRIVER", "dummy");
     try env.put("LIBGL_ALWAYS_SOFTWARE", "1");
+    if (vulkan_icd) |icd| {
+        try env.put("VK_DRIVER_FILES", icd);
+        try env.put("VK_ICD_FILENAMES", icd);
+    }
     _ = env.swapRemove("WAYLAND_DISPLAY");
     try env.put("SDL_VIDEODRIVER", "x11");
     try env.put("SDL_VIDEO_DRIVER", "x11");
@@ -134,17 +140,26 @@ test "applyHeadlessEnv selects dummy audio and software GL and keeps the rest" {
     var env: std.process.Environ.Map = .init(std.testing.allocator);
     defer env.deinit();
     try env.put("PATH", "/usr/bin");
-    try applyHeadlessEnv(&env);
+    try applyHeadlessEnv(&env, null);
     try std.testing.expectEqualStrings("dummy", env.get("SDL_AUDIODRIVER").?);
     try std.testing.expectEqualStrings("1", env.get("LIBGL_ALWAYS_SOFTWARE").?);
     try std.testing.expectEqualStrings("/usr/bin", env.get("PATH").?);
+    try std.testing.expect(env.get("VK_DRIVER_FILES") == null);
+}
+
+test "applyHeadlessEnv restricts Vulkan to the software ICD when one is installed" {
+    var env: std.process.Environ.Map = .init(std.testing.allocator);
+    defer env.deinit();
+    try applyHeadlessEnv(&env, "/usr/share/vulkan/icd.d/lvp_icd.x86_64.json");
+    try std.testing.expectEqualStrings("/usr/share/vulkan/icd.d/lvp_icd.x86_64.json", env.get("VK_DRIVER_FILES").?);
+    try std.testing.expectEqualStrings("/usr/share/vulkan/icd.d/lvp_icd.x86_64.json", env.get("VK_ICD_FILENAMES").?);
 }
 
 test "applyHeadlessEnv drops the Wayland display and selects the X11 video driver" {
     var env: std.process.Environ.Map = .init(std.testing.allocator);
     defer env.deinit();
     try env.put("WAYLAND_DISPLAY", "wayland-1");
-    try applyHeadlessEnv(&env);
+    try applyHeadlessEnv(&env, null);
     try std.testing.expect(env.get("WAYLAND_DISPLAY") == null);
     try std.testing.expectEqualStrings("x11", env.get("SDL_VIDEODRIVER").?);
     try std.testing.expectEqualStrings("x11", env.get("SDL_VIDEO_DRIVER").?);

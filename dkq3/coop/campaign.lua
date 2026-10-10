@@ -4,9 +4,10 @@
 -- the bot routes over AAS, fights what it meets, opens doors through their
 -- authored controls and rides lifts. Map-specific steps are added where the
 -- authored progression requires them.
--- The sewers are long and their sludgeminions hit hard: more restorations,
--- each from the latest healthy stage checkpoint.
-settings { level_deaths = 12, map_deaths = { e1m2a = 16, e1m3b = 25, e1m4b = 30 } }
+-- The sewers are long and their sludgeminions hit hard, and the icelab's
+-- fights are on narrow walkways over nitrogen: more restorations, each from
+-- the latest healthy stage checkpoint.
+settings { level_deaths = 12, map_deaths = { e1m2a = 16, e1m3b = 25, e1m4b = 30, e1m6a = 20, e1m6b = 30, e1m6c = 30 } }
 
 
 level("intro", function()

@@ -1,0 +1,231 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// DDGI probe update (ddgi.zig): one workgroup per probe traces 64 rays on a randomly rotated
+// spherical Fibonacci set, shades hits from the world tables (baked lightmap radiance plus
+// unshadowed dynamic lights), projects them to L1 spherical harmonics and blends with history.
+#extension GL_EXT_ray_query : require
+#include "post_common.glsl"
+#include "rt_common.glsl"
+#include "rt_lighting.glsl"
+#include "ddgi_common.glsl"
+
+layout(local_size_x = 64) in;
+layout(set = 1, binding = 2) uniform image3D probes[];
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Params {
+    ivec4 origin;     // first world probe index of the field
+    ivec4 dims;       // probes per axis, w = total
+    vec4 spacing;     // spacing, hysteresis, unused, first probe of this dispatch
+    uvec4 counts;     // probes this dispatch, dynamic lights, frame, unused
+    uvec2 table;      // RtTable
+    uvec2 lights;     // dynamic lights (two vec4 each)
+    vec4 sky;         // radiance of rays that leave the world
+    uvec4 mapLights;  // ray traced lighting: map lights address, cell lists address (0 = baked)
+    vec4 cells;       // cell grid origin, cell size
+    uvec4 cellDims;   // cells per axis
+    vec4 lightScale;  // radiosity scale, overbright
+};
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer LightList { vec4 v[]; };
+
+const uint RAYS = 64u;          // lanes per probe
+const uint RAYS_PER_LANE = 3u;  // 192 rays per probe update
+
+// Chebyshev visibility of `pos` from a probe (DDGI): the probe's mean distance and squared
+// distance toward `pos` against the actual distance; a wall between them makes the probe
+// see a shorter mean distance, and its light is cut.
+float probeVisibility(vec4 d1, vec4 d2, vec3 toPos, float dist) {
+    vec3 dir = toPos / max(dist, 1e-3);
+    float mean = d1.x * SH_C0 + SH_C1 * (d1.y * dir.y + d1.z * dir.z + d1.w * dir.x);
+    float mean2 = d2.x * SH_C0 + SH_C1 * (d2.y * dir.y + d2.z * dir.z + d2.w * dir.x);
+    if (dist <= mean) return 1.0;
+    float variance = max(mean2 - mean * mean, 16.0);
+    float excess = dist - mean;
+    float chebyshev = variance / (variance + excess * excess);
+    return max(chebyshev * chebyshev * chebyshev, 0.0);
+}
+
+// Irradiance of the current field at `pos` (for multi-bounce): trilinear over valid probes.
+vec3 fieldIrradiance(Params p, vec3 pos, vec3 n) {
+    ivec3 dims = p.dims.xyz;
+    vec3 g = pos / p.spacing.x - 0.5;
+    ivec3 base = ivec3(floor(g));
+    vec3 f = g - vec3(base);
+    vec3 sum = vec3(0.0);
+    float weights = 0.0;
+    for (int k = 0; k < 8; ++k) {
+        ivec3 offset = ivec3(k & 1, (k >> 1) & 1, (k >> 2) & 1);
+        ivec3 index = base + offset;
+        ivec3 local = index - p.origin.xyz;
+        if (any(lessThan(local, ivec3(0))) || any(greaterThanEqual(local, dims))) continue;
+        ivec3 storage = ddgiStorage(index, dims);
+        vec4 t0 = imageLoad(probes[pc.slots.x], storage);
+        vec4 t1 = imageLoad(probes[pc.slots.y], storage);
+        vec4 t2 = imageLoad(probes[pc.slots.z], storage);
+        vec4 t3 = imageLoad(probes[pc.slots.w], storage);
+        vec3 tag = ddgiTag(index);
+        if (t1.a != tag.x || t2.a != tag.y || t3.a != tag.z || t0.a < 0.5) continue;
+        vec3 trilinear = mix(1.0 - f, f, vec3(offset));
+        vec3 probePos = (vec3(index) + 0.5) * p.spacing.x;
+        vec3 toPos = pos - probePos;
+        float vis = probeVisibility(imageLoad(probes[pc.size.x], storage), imageLoad(probes[pc.size.y], storage), toPos, length(toPos));
+        float w = trilinear.x * trilinear.y * trilinear.z * (vis + 0.001);
+        vec3 e = 3.14159265 * SH_C0 * t0.rgb + (2.0 * 3.14159265 / 3.0) * SH_C1 * (t1.rgb * n.y + t2.rgb * n.z + t3.rgb * n.x);
+        sum += w * max(e, vec3(0.0));
+        weights += w;
+    }
+    return weights > 0.0 ? sum / weights : vec3(0.0);
+}
+shared vec3 s_sh[RAYS][4];
+shared vec4 s_dist[RAYS];   // L1 SH of the hit distance
+shared vec4 s_dist2[RAYS];  // L1 SH of the squared hit distance
+shared float s_back[RAYS];
+
+vec3 fibonacci(uint i, uint n) {
+    float phi = 2.399963 * float(i);
+    float z = 1.0 - (2.0 * float(i) + 1.0) / float(n);
+    float r = sqrt(max(1.0 - z * z, 0.0));
+    return vec3(cos(phi) * r, sin(phi) * r, z);
+}
+
+mat3 rotation(float seed) {
+    float a = fract(sin(seed * 12.9898) * 43758.5453) * 6.2831853;
+    float b = fract(sin(seed * 78.233) * 12543.5453) * 6.2831853;
+    float ca = cos(a), sa = sin(a), cb = cos(b), sb = sin(b);
+    return mat3(ca, sa, 0.0, -sa, ca, 0.0, 0.0, 0.0, 1.0) * mat3(1.0, 0.0, 0.0, 0.0, cb, sb, 0.0, -sb, cb);
+}
+
+// Radiance arriving at the probe along `dir`; `back` = 1 when the ray hits a back face.
+vec3 shadeRay(Params p, vec3 position, vec3 dir, out float back, out float hitDist) {
+    float maxDist = p.spacing.x * 2.0;
+    RtHit h = rtTrace(p.table, position, dir, 4096.0, 3.0);
+    bool rtLighting = p.mapLights.zw != uvec2(0u);
+    // Ray traced lighting adds the sky per pixel (stage.frag), with its own occlusion; the
+    // field then carries only bounce light, so the sky cannot leak under ledges through it.
+    vec3 radiance = rtLighting ? vec3(0.0) : p.sky.rgb;
+    back = 0.0;
+    hitDist = h.hit ? min(h.t, maxDist) : maxDist;
+    if (h.hit) {
+        if (!h.front) {
+            back = 1.0;
+            radiance = vec3(0.0);
+            // Inside geometry: report a short distance so the probe does not light through.
+            hitDist = min(h.t * 0.2, maxDist);
+        } else {
+            // Emissive surfaces glow for the eye (bloom); as light sources for the probes they
+            // count at most half, since their lightmaps already hold their own light.
+            radiance = h.radiance - h.albedo * max(h.emissive - 0.5, 0.0);
+            vec3 hitPos = position + dir * h.t;
+            if (p.mapLights.zw != uvec2(0u)) {
+                // Ray traced lighting: no lightmap. The hit is lit by the map lights (two traced
+                // shadows), by the field itself (bounce after bounce over frames) and glows if
+                // emissive; the probe stores what leaves it.
+                vec3 direct = rtRawToLinear(rtMapLightRaw(p.table, p.mapLights.xy, p.mapLights.zw, p.cells, p.cellDims.xyz,
+                    hitPos, h.normal, hitPos + h.normal * 1.0, 2u) + vec3(p.lightScale.z), p.lightScale.x, p.lightScale.y);
+                vec3 bounce = fieldIrradiance(p, hitPos + h.normal * 4.0, h.normal) / 3.14159265;
+                // Sky light at the hit: one cosine ray toward the open sky.
+                vec3 up = abs(h.normal.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
+                vec3 tx = normalize(cross(up, h.normal)), ty = cross(h.normal, tx);
+                float r1 = fract(dot(dir, vec3(12.9898, 78.233, 37.719)) * 43.7585 + float(p.counts.z) * 0.618);
+                float r2 = fract(r1 * 7.31 + 0.137);
+                vec3 skyDir = normalize(tx * sqrt(r1) * cos(6.2831853 * r2) + ty * sqrt(r1) * sin(6.2831853 * r2) + h.normal * sqrt(1.0 - r1));
+                vec3 sky = rtOccluded(p.table, hitPos + h.normal * 1.0, skyDir, 16384.0) ? vec3(0.0) : p.sky.rgb;
+                // The field feeding itself amplifies its own noise; 0.7 keeps most of the
+                // multi-bounce light.
+                radiance = h.albedo * (direct + bounce * 0.7 + sky + min(h.emissive, 0.5));
+            }
+            LightList lights = LightList(p.lights);
+            for (uint k = 0u; k < p.counts.y; ++k) {
+                vec4 a = lights.v[k * 2u], b = lights.v[k * 2u + 1u];
+                vec3 d = a.xyz - hitPos;
+                float dist2 = dot(d, d);
+                if (dist2 >= a.w * a.w) continue;
+                float fall = 1.0 - sqrt(dist2) / a.w;
+                radiance += h.albedo * rtToLinear(b.rgb) * fall * fall * max(dot(h.normal, d * inversesqrt(max(dist2, 1e-4))), 0.0);
+            }
+        }
+    }
+    // Firefly clamp: one ray catching a small bright emitter (a lamp bulb) or open sky must not
+    // make the probe's light jump from update to update.
+    float luminanceRay = dot(radiance, vec3(0.2126, 0.7152, 0.0722));
+    if (luminanceRay > 1.5) radiance *= 1.5 / luminanceRay;
+    return radiance;
+}
+
+void main() {
+    Params p = Params(pc.buffer1);
+    uint lane = gl_LocalInvocationID.x;
+    uint total = uint(p.dims.w);
+    uint linear = (uint(p.spacing.w) + gl_WorkGroupID.x) % total;
+    ivec3 dims = p.dims.xyz;
+    ivec3 local = ivec3(int(linear) % dims.x, (int(linear) / dims.x) % dims.y, int(linear) / (dims.x * dims.y));
+    ivec3 index = p.origin.xyz + local;
+    vec3 position = (vec3(index) + 0.5) * p.spacing.x;
+
+    mat3 spin = rotation(float(p.counts.z) + float(linear) * 0.37);
+    vec3 sh[4] = vec3[](vec3(0.0), vec3(0.0), vec3(0.0), vec3(0.0));
+    float backs = 0.0;
+    vec4 dsh = vec4(0.0), dsh2 = vec4(0.0);
+    for (uint j = 0u; j < RAYS_PER_LANE; ++j) {
+        vec3 dir = normalize(spin * fibonacci(lane * RAYS_PER_LANE + j, RAYS * RAYS_PER_LANE));
+        float back, hitDist;
+        vec3 radiance = shadeRay(p, position, dir, back, hitDist);
+        vec4 basis = vec4(SH_C0, SH_C1 * dir.y, SH_C1 * dir.z, SH_C1 * dir.x);
+        dsh += hitDist * basis;
+        dsh2 += hitDist * hitDist * basis;
+        sh[0] += radiance * SH_C0;
+        sh[1] += radiance * SH_C1 * dir.y;
+        sh[2] += radiance * SH_C1 * dir.z;
+        sh[3] += radiance * SH_C1 * dir.x;
+        backs += back;
+    }
+    for (int k = 0; k < 4; ++k) s_sh[lane][k] = sh[k];
+    s_back[lane] = backs;
+    s_dist[lane] = dsh;
+    s_dist2[lane] = dsh2;
+    barrier();
+    for (uint stride = RAYS / 2u; stride > 0u; stride >>= 1u) {
+        if (lane < stride) {
+            for (int k = 0; k < 4; ++k) s_sh[lane][k] += s_sh[lane + stride][k];
+            s_back[lane] += s_back[lane + stride];
+            s_dist[lane] += s_dist[lane + stride];
+            s_dist2[lane] += s_dist2[lane + stride];
+        }
+        barrier();
+    }
+    if (lane != 0u) return;
+    float norm = 4.0 * 3.14159265 / float(RAYS * RAYS_PER_LANE);
+    vec3 c[4];
+    for (int k = 0; k < 4; ++k) c[k] = s_sh[0][k] * norm;
+    // Probes that see many back faces sit inside geometry.
+    float validity = s_back[0] / float(RAYS * RAYS_PER_LANE) < 0.25 ? 1.0 : 0.0;
+    ivec3 storage = ddgiStorage(index, dims);
+    vec3 tag = ddgiTag(index);
+    vec4 old0 = imageLoad(probes[pc.slots.x], storage);
+    vec4 old1 = imageLoad(probes[pc.slots.y], storage);
+    vec4 old2 = imageLoad(probes[pc.slots.z], storage);
+    vec4 old3 = imageLoad(probes[pc.slots.w], storage);
+    bool same = old1.a == tag.x && old2.a == tag.y && old3.a == tag.z;
+    float keep = same ? p.spacing.y : 0.0;
+    if (same) {
+        // Limit how far one update moves a probe (relative to its light): residual noise
+        // fades in over several updates instead of popping.
+        float before = dot(old0.rgb, vec3(0.2126, 0.7152, 0.0722));
+        float change = abs(dot(c[0] - old0.rgb, vec3(0.2126, 0.7152, 0.0722)));
+        float limit = max(before * 0.25, 0.01);
+        if (change > limit) {
+            float t = limit / change;
+            c[0] = old0.rgb + (c[0] - old0.rgb) * t;
+            c[1] = old1.rgb + (c[1] - old1.rgb) * t;
+            c[2] = old2.rgb + (c[2] - old2.rgb) * t;
+            c[3] = old3.rgb + (c[3] - old3.rgb) * t;
+        }
+    }
+    imageStore(probes[pc.slots.x], storage, vec4(mix(c[0], old0.rgb, keep), mix(validity, old0.a, same ? 0.5 : 0.0)));
+    imageStore(probes[pc.slots.y], storage, vec4(mix(c[1], old1.rgb, keep), tag.x));
+    imageStore(probes[pc.slots.z], storage, vec4(mix(c[2], old2.rgb, keep), tag.y));
+    imageStore(probes[pc.slots.w], storage, vec4(mix(c[3], old3.rgb, keep), tag.z));
+    // Distances settle faster than light: geometry does not flicker.
+    float keepDist = same ? 0.9 : 0.0;
+    imageStore(probes[pc.size.x], storage, mix(s_dist[0] * norm, imageLoad(probes[pc.size.x], storage), keepDist));
+    imageStore(probes[pc.size.y], storage, mix(s_dist2[0] * norm, imageLoad(probes[pc.size.y], storage), keepDist));
+}

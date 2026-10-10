@@ -1,0 +1,152 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Froxel inject: extinction and in-scattered radiance at each froxel centre.
+#ifdef RAY_QUERY
+#extension GL_EXT_ray_query : require
+#endif
+#include "froxel_common.glsl"
+#ifdef RAY_QUERY
+#include "rt_common.glsl"
+#include "rt_lighting.glsl"
+#endif
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+const float PI = 3.14159265;
+
+float hash(vec3 p) {
+    p = fract(p * 0.3183099 + 0.1);
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+float noise(vec3 x) {
+    vec3 i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mix(hash(i), hash(i + vec3(1, 0, 0)), f.x), mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), f.x), f.y),
+               mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), f.x), mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+
+float phaseHG(float cosTheta, float g) {
+    float g2 = g * g;
+    return (1.0 - g2) / (4.0 * PI * pow(max(1.0 + g2 - 2.0 * g * cosTheta, 1e-4), 1.5));
+}
+
+void main() {
+    uvec3 id = gl_GlobalInvocationID;
+    if (any(greaterThanEqual(id, pc.size.xyz))) return;
+    Params p = Params(pc.buffer1);
+    vec2 uv = (vec2(id.xy) + 0.5) / vec2(pc.size.xy);
+    vec3 dir = p.forward.xyz - p.left.xyz * (uv.x * 2.0 - 1.0) * p.forward.w + p.up.xyz * (1.0 - uv.y * 2.0) * p.left.w;
+    float d0 = sliceDistance(p, float(id.z)), d1 = sliceDistance(p, float(id.z) + 1.0);
+    float d = 0.5 * (d0 + d1);
+    vec3 pos = p.origin.xyz + dir * d;
+    vec3 eye = normalize(dir);
+    float time = p.origin.w;
+
+    // Slowly drifting density variation keeps the medium from reading as flat distance fog.
+    vec3 drift = vec3(time * 6.0, time * 3.5, time * 1.5);
+    float variation = 0.65 + 0.7 * noise((pos + drift) / 220.0) * (0.6 + 0.4 * noise((pos - drift) / 61.0));
+
+    float base = p.slices.z * variation;
+    vec3 scatter = vec3(0.0);
+    vec3 light = vec3(0.0);
+    bool hasGrid = p.counts.y != 0u;
+    vec3 gridUv = (pos - p.grid0.xyz) * p.grid1.xyz;
+    bool traced = false;
+#ifdef RAY_QUERY
+    if (p.rtSky.w > 0.5) {
+        // Light shafts: the air is lit only by light that reaches it. Map lights with traced
+        // visibility (the medium faces every light: a normal toward the strongest is not
+        // needed, cosine 1 via a receiver normal along the view) and the open sky straight up;
+        // canopies, windows and walls cut the shafts.
+        traced = true;
+        vec3 visibleSky = rtOccluded(p.rtTable, pos, vec3(0.0, 0.0, 1.0), 16384.0) ? vec3(0.0) : p.rtSky.rgb;
+        vec3 direct = vec3(0.0);
+        if (p.rtCellLists != uvec2(0u)) {
+            vec3 raw = rtMapLightRawIsotropic(p.rtTable, p.rtLights, p.rtCellLists, p.rtCells, p.rtCellDims.xyz, pos, 2u);
+            direct = rtRawToLinear(raw, p.rtLightScale.x, p.rtLightScale.y);
+        }
+        light = direct + visibleSky;
+        scatter += base * light;
+    }
+#endif
+    if (!traced && hasGrid) {
+        light = toLinearPost(texture(volumes[nonuniformEXT(p.counts.y - 1u)], gridUv).rgb);
+        vec4 g = texture(volumes[nonuniformEXT(p.counts.z - 1u)], gridUv);
+        vec3 l = normalize(g.xyz * 2.0 - 1.0);
+        // Forward-scattering toward the dominant baked light: glow around windows and lamps.
+        float phase = mix(1.0 / (4.0 * PI), phaseHG(dot(-eye, l), 0.55), g.a);
+        scatter += base * light * phase * 4.0 * PI * 0.6;
+    } else if (!traced) {
+        scatter += base * vec3(0.25);
+    }
+
+    float authored = 0.0;
+    if (p.fogRange.z > 0.5) {
+        // Authored worldspawn fog starts at its start distance like the original linear fog.
+        float ramp = smoothstep(p.fogRange.x * 0.6, max(p.fogRange.x, p.fogRange.x * 0.6 + 1.0), d);
+        authored = p.fog.w * ramp * mix(1.0, variation, 0.5);
+        // Its colour is what full coverage looks like, so it is also the in-scattered radiance.
+        vec3 fogLight = toLinearPost(p.fog.rgb);
+        if (hasGrid) fogLight *= mix(vec3(1.0), clamp(light * 2.0, vec3(0.5), vec3(1.6)), 0.35);
+        scatter += authored * fogLight;
+    }
+
+    // Distant rain as a participating medium: extinction 0.312 R^0.67 per km (Halder 2019),
+    // ~7e-5 per inch for heavy rain, scaled by r_vkWeatherDensity, only where the column is open
+    // to the sky (rain occlusion map), denser in a thin mist band above the ground. Rain
+    // scatters strongly forward, so lamps get halos and shafts.
+    float rainSigma = 0.0;
+    if (p.rainTile.w > 0.5 && p.rainInfo.z > 0.0) {
+        bool inRain = false;
+        for (uint k = 0u; k < uint(p.rainInfo.y); ++k) {
+            vec4 lo = p.rainBoxes[k * 2u], hi = p.rainBoxes[k * 2u + 1u];
+            if (lo.w < 0.5 && all(greaterThanEqual(pos, lo.xyz)) && all(lessThanEqual(pos, hi.xyz))) inRain = true;
+        }
+        if (inRain) {
+            vec4 c = p.rainToTile * vec4(pos.xy, p.rainParams.y, 1.0);
+            if (all(lessThanEqual(abs(c.xy), vec2(1.0)))) {
+                vec2 tuv = p.rainTile.xy + vec2(c.x * 0.5 + 0.5, 0.5 - c.y * 0.5) * p.rainTile.z;
+                float stored = textureLod(textures[nonuniformEXT(uint(p.rainInfo.x))], tuv, 0.0).r;
+                float surface = p.rainParams.y - stored / max(p.rainParams.x, 1e-6);
+                if (pos.z >= surface - 4.0) {
+                    float mist = 1.0 + 2.0 * (1.0 - smoothstep(0.0, 24.0, pos.z - surface));
+                    rainSigma = 1.2e-4 * p.rainInfo.z * mist;
+                }
+            }
+        }
+    }
+    if (rainSigma > 0.0) {
+        vec3 rainLight = hasGrid ? light : vec3(0.25);
+        float forward = 1.0;
+        if (hasGrid) {
+            vec4 g = texture(volumes[nonuniformEXT(p.counts.z - 1u)], gridUv);
+            forward = mix(1.0, phaseHG(dot(-eye, normalize(g.xyz * 2.0 - 1.0)), 0.75) * 4.0 * PI, g.a * 0.5);
+        }
+        scatter += rainSigma * rainLight * 0.6 * forward;
+    }
+
+    float sigma = base + authored + rainSigma;
+    // Dynamic lights scatter in the whole medium (muzzle flashes, rockets, lamps); their glow
+    // is stored apart from the fog so the fog's display remap leaves it alone.
+    vec3 glow = vec3(0.0);
+    LightList lights = LightList(pc.buffer0);
+    for (uint k = 0u; k < p.counts.x; ++k) {
+        vec4 a = lights.v[k * 2u], b = lights.v[k * 2u + 1u];
+        vec3 toLight = a.xyz - pos;
+        float dist = length(toLight);
+        if (dist >= a.w) continue;
+        float fall = 1.0 - dist / a.w;
+        fall *= fall;
+        float phase = phaseHG(dot(eye, toLight / max(dist, 1e-3)), 0.3) * 4.0 * PI;
+        // Scattered by the medium that is actually there: thin jungle air gives a faint halo,
+        // authored fog a visible one. (A fixed minimum density flooded clear maps with the
+        // colour of every muzzle flash and projectile.)
+        glow += min(sigma, 0.002) * toLinearPost(b.rgb) * fall * fall * phase * 4.0;
+    }
+    scatter *= p.slices.w;
+    glow *= p.slices.w;
+    imageStore(froxels[pc.slots.x], ivec3(id), vec4(scatter, sigma));
+    imageStore(froxels[pc.slots.z], ivec3(id), vec4(glow, 0.0));
+}

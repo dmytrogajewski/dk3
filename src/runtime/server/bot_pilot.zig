@@ -283,6 +283,8 @@ pub const Pilot = struct {
     /// enough becomes the `nuisance` the bot is allowed to shoot.
     blocker: u32 = 0,
     blocker_ms: i64 = 0,
+    /// Last time the blocker was met (a hop off it loses touch a moment).
+    blocker_seen_ms: i64 = 0,
     nuisance: u32 = 0,
     /// Closest the player came to the current step target, and when.
     approach_point: v.Vec3 = @splat(0),
@@ -440,6 +442,22 @@ pub const Pilot = struct {
         // that shuts in front of it, an enemy stepping into the lane) is
         // the last hit: another weapon that reaches comes first.
         const hurt = if (world.get(entity, data.Health)) |health| health.current * 2 < health.maximum else |_| false;
+        // Nor at a target inside twice a round's blast radius: a dodge, a
+        // near wall or the floor at its feet brings the splash back.
+        // Nor with one of the party within the blast of where it lands.
+        var close_blasts: i32 = 0;
+        if (enemy != null) for (@import("weapon_catalog").entries) |entry| if (entry.spec.splash_hazard and (report.enemy_distance < @max(entry.spec.projectile.splash_radius * 2, 320) or try allyNear(frame, eye, enemy_point, entry.spec.projectile.splash_radius * 1.25))) {
+            close_blasts |= @as(i32, 1) << entry.id;
+        };
+        // The shockwave's sphere bounces about and bursts into rings that run
+        // 350 out for seconds: in the halls and rooms fights happen in, they
+        // come back on the party. Fired only when a route names it.
+        if (intent.weapon == null) excluded |= @as(i32, 1) << @import("weapon_catalog").shockwave.id;
+        if (close_blasts != 0) {
+            var others = loadout;
+            others.dk3Inventory &= ~close_blasts;
+            if (combat.rangedFor(others, frame.table, .{ .advancing = true, .excluded = excluded })) excluded |= close_blasts;
+        }
         if (frame.capabilities.duck_to_shoot and hurt) {
             var blasts: i32 = 0;
             for (@import("weapon_catalog").entries) |entry| if (entry.spec.splash_hazard) {
@@ -473,7 +491,9 @@ pub const Pilot = struct {
             const other = combat.selectFor(others, frame.table, range, .{ .wet = wet, .advancing = true, .ranged_first = true, .excluded = excluded });
             if (other != selected and others.dk3Inventory & (@as(i32, 1) << other) != 0 and weaponReach(frame, other) >= 160 and others.ammo[other] > 12) selected = other;
         }
-        if (frame.capabilities.conserve_ammo and intent.weapon == null and intent.shoot_slot == null and enemy != null) {
+        // (Not while being worn down: rounds kept back then are never spent.)
+        const pressed = if (world.get(entity, data.Health)) |health| health.current * 10 < health.maximum * 8 else |_| false;
+        if (frame.capabilities.conserve_ammo and intent.weapon == null and intent.shoot_slot == null and enemy != null and !pressed) {
             const ranged = weaponReach(frame, selected) >= 160;
             if (ranged and loadout.ammo[selected] <= 12) {
                 // A kill order may still spend rounds at range; anything else waits.
@@ -595,7 +615,12 @@ pub const Pilot = struct {
                 ladder = waypoint.ladder;
                 const hull = (try world.get(entity, data.Body)).*;
                 crouch = waypoint.crouch or try steering.crouch(frame.collision, pose.position, waypoint.point, hull.mins, .{ hull.maxs[0], hull.maxs[1], frame.hull.maxs[2] }, frame.slot, hull.collision_mask);
-                if (waypoint.jump and player.ground_entity != c.ENTITYNUM_NONE and frame.now >= self.jump_ready) {
+                // A jump link is jumped from its takeoff (a hop on the way
+                // there lands short of it; the stride after walks off the
+                // edge instead: e1m6b's leap from the walkway to the platform
+                // in the nitrogen).
+                const at_takeoff = v.length(waypoint.entrance) == 0 or nav.horizontalDistance(pose.position, waypoint.entrance) < 32;
+                if (waypoint.jump and at_takeoff and player.ground_entity != c.ENTITYNUM_NONE and frame.now >= self.jump_ready) {
                     self.jump_until = frame.now + 200;
                     self.jump_ready = frame.now + 800;
                 }
@@ -728,14 +753,28 @@ pub const Pilot = struct {
         }
 
         // Standing on an actor (a worker who stopped on the goal, a corpse
-        // mid-fall) is no footing: step off it, away from its centre.
+        // mid-fall) or a player (a companion settled on the leader's head,
+        // pinning him under a ramp's ceiling) is no footing: step off it,
+        // away from its centre.
         if (player.ground_entity < frame.slots.occupants.len) if (frame.slots.occupants[player.ground_entity]) |under| {
-            if ((world.get(under, data.Actor) catch null) != null) {
+            if ((world.get(under, data.Actor) catch null) != null or (world.get(under, data.Player) catch null) != null) {
                 var away = v.subtract(pose.position, (try world.get(under, data.Transform)).position);
                 away[2] = 0;
                 if (v.length(away) < 4) away = .{ @cos(self.detour_side), @sin(self.detour_side), 0 };
                 movement = v.scale(v.normalize(away), 64);
             }
+        };
+
+        // Riding a lift while it moves (a vertical mover underfoot): keep to
+        // its middle until it stops. A stride for the landing mid-ride walks
+        // to its edge and into the landing's lip (e1m6b's plat up to the
+        // walkway to the exit crushes a rider caught there).
+        if (player.ground_entity < frame.slots.occupants.len) if (frame.slots.occupants[player.ground_entity]) |under| {
+            if (world.get(under, data.Mover) catch null) |mover| if (mover.moving() and !mover.angular and @abs(mover.opened[2] - mover.closed[2]) > @max(@abs(mover.opened[0] - mover.closed[0]), @abs(mover.opened[1] - mover.closed[1]))) {
+                const box = frame.projections[player.ground_entity].shared;
+                movement = .{ (box.absmin[0] + box.absmax[0]) / 2 - pose.position[0], (box.absmin[1] + box.absmax[1]) / 2 - pose.position[1], 0 };
+                if (v.length(movement) < 6) movement = @splat(0);
+            };
         };
 
         // Ladders the route steers straight at (rungs that slide out of a
@@ -808,10 +847,15 @@ pub const Pilot = struct {
                 in_the_way = report.obstacle_id;
             };
         };
-        if (in_the_way == 0 or in_the_way != self.blocker) {
-            self.blocker = in_the_way;
-            self.blocker_ms = frame.now;
-        } else if (frame.now - self.blocker_ms > 3000) self.nuisance = in_the_way;
+        // (A hop to shake loose leaves it a moment: touch lost that briefly
+        // still counts as the same standoff.)
+        if (in_the_way != 0) {
+            if (in_the_way != self.blocker) {
+                self.blocker = in_the_way;
+                self.blocker_ms = frame.now;
+            } else if (frame.now - self.blocker_ms > 3000) self.nuisance = in_the_way;
+            self.blocker_seen_ms = frame.now;
+        } else if (frame.now - self.blocker_seen_ms > 1500) self.blocker = 0;
 
         // View: use/shoot/look targets first, then a visible enemy, else travel.
         var aim = movement;
@@ -1026,6 +1070,16 @@ pub const Pilot = struct {
         // Under a lift that is moving close overhead (a raised platform
         // called down): step out of its shaft before it arrives.
         if (try crushOverhead(frame, pose.position)) |away| direction = away;
+        // A shockwave bouncing or bursting close (one fired down the way
+        // the route goes on): back out of its rings' reach and wait there.
+        if (try shockwaveNear(frame, pose.position, shockwave_hold)) |center| {
+            var out = v.subtract(pose.position, center);
+            out[2] = 0;
+            out = if (v.length(out) > 1) v.normalize(out) else v.scale(axes.forward, -1);
+            if (nav.horizontalDistance(pose.position, center) < shockwave_clear) {
+                direction = if (try evasion.supported(frame, pose.position, v.add(pose.position, v.scale(out, 40)))) out else @splat(0);
+            } else if (v.dot(direction, out) < 0) direction = @splat(0);
+        }
         // A current (a targetless push: a draught, a water flow) beside a drop
         // shoves whoever touches it over the edge: lean away from it while
         // going on, as a player keeps off it. Precise segments that steer
@@ -1055,6 +1109,23 @@ pub const Pilot = struct {
             self.unstick_until = 0;
             self.jump_until = 0;
         }
+        // Never a stride into a lethal liquid (the nitrogen e1m6c's rooms
+        // stand in, under a ring of catwalks): whatever steers that way,
+        // straight at a prey the area graph has no way to, stops at the edge.
+        // (Authored straight segments keep their line: a running drop over
+        // the nitrogen onto e1m6b's platform is meant.)
+        if (!intent.direct and player.ground_entity != c.ENTITYNUM_NONE and player.water_level < 2 and v.length(direction) > 0.01) {
+            const lethal: u32 = c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO;
+            const ahead = v.add(pose.position, v.scale(v.normalize(.{ direction[0], direction[1], 0 }), 24));
+            const below = try frame.collision.trace(.{ .start = ahead, .end = v.add(ahead, .{ 0, 0, -200 }), .mins = .{ -4, -4, 0 }, .maxs = .{ 4, 4, 0 }, .slot = frame.slot, .mask = @as(u32, c.MASK_PLAYERSOLID) | lethal });
+            // (No hop to shake loose there either: it lands in the liquid.)
+            if (below.fraction < 1 and below.contents & lethal != 0) {
+                direction = @splat(0);
+                self.unstick_until = 0;
+                self.jump_until = 0;
+                report.blocked = true;
+            }
+        }
         // Precise straight steering brakes into its goal instead of overrunning it.
         var magnitude: f32 = 127 * intent.pace;
         if (intent.direct and intent.brake) if (intent.destination) |goal| {
@@ -1069,7 +1140,9 @@ pub const Pilot = struct {
         // falls away while the way stays level, walk instead of running so a
         // turn does not carry the player off the edge. Precise segments keep
         // the route's own pace (their braking, a door's timed window).
-        if (!intent.direct and player.ground_entity != c.ENTITYNUM_NONE and player.water_level < 2 and movement[2] > -18 and v.length(direction) > 0.01) {
+        // (Not running up to a jump: it needs the speed.)
+        const jumping = if (self.route.waypoint) |waypoint| waypoint.jump else false;
+        if (!intent.direct and !jumping and player.ground_entity != c.ENTITYNUM_NONE and player.water_level < 2 and movement[2] > -18 and v.length(direction) > 0.01) {
             const stride = v.add(pose.position, v.scale(v.normalize(.{ direction[0], direction[1], 0 }), 24));
             const below = try frame.collision.trace(.{ .start = stride, .end = v.add(stride, .{ 0, 0, -64 }), .mins = @splat(0), .maxs = @splat(0), .slot = frame.slot, .mask = c.MASK_PLAYERSOLID });
             if (below.fraction == 1) magnitude *= 0.4;
@@ -1321,6 +1394,29 @@ fn allyInFire(frame: Frame, eye: v.Vec3, target: v.Vec3) !bool {
 }
 /// Whether another of the party (a player or a companion) stands within
 /// `radius` of `to`, or within a stride of the line from `from` to it.
+/// A shockwave's rings run 350 out from where its sphere bursts, and the
+/// sphere splashes 300 round each wall it bounces off.
+const shockwave_clear: f32 = 420;
+const shockwave_hold: f32 = 500;
+/// The nearest shockwave sphere in flight or burst within `radius`.
+fn shockwaveNear(frame: Frame, position: v.Vec3, radius: f32) !?v.Vec3 {
+    const id = @import("weapon_catalog").shockwave.id;
+    var nearest: ?v.Vec3 = null;
+    var best = radius;
+    for (frame.slots.occupants) |slot_entity| {
+        const other = slot_entity orelse continue;
+        const burst = (frame.world.get(other, data.Shockwave) catch null) != null;
+        const sphere = if (frame.world.get(other, data.Projectile) catch null) |projectile| projectile.weapon == id else false;
+        if (!burst and !sphere) continue;
+        const at = (frame.world.get(other, data.Transform) catch continue).position;
+        const distance = v.length(v.subtract(at, position));
+        if (distance < best) {
+            best = distance;
+            nearest = at;
+        }
+    }
+    return nearest;
+}
 fn allyNear(frame: Frame, from: v.Vec3, to: v.Vec3, radius: f32) !bool {
     for (frame.slots.occupants) |slot_entity| {
         const other = slot_entity orelse continue;

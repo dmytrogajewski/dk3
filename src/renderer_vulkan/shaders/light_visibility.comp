@@ -1,0 +1,55 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Light visibility cache (rt.zig `refreshVisibility`): for each light cell and each light in its
+// list, RT_VIS_RAYS rays from points spread through the cell to points on the light count how
+// often the world lets the light in. Shading skips lights no ray reached and prefers the ones
+// most seen, so emitters behind walls (other floors, the next room) cannot take the shadow rays
+// meant for the lights that actually reach a pixel. One workgroup per (cell, light slot), one
+// ray per lane; a slice of cells per frame, so opened doors are picked up again.
+#extension GL_EXT_ray_query : require
+#include "post_common.glsl"
+#include "rt_common.glsl"
+
+const uint RT_VIS_RAYS = 32u;
+layout(local_size_x = 32) in;
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer VisParams {
+    uvec2 table;    // RtTable
+    uvec2 lights;   // map lights (style header first)
+    uvec2 cells;    // cell lists, then the visibility counts in the same layout
+    uvec2 unused;
+    vec4 origin;    // cell grid origin, cell size
+    uvec4 dims;     // cells per axis, w = first cell of this slice
+};
+
+shared uint visibleCount;
+
+void main() {
+    VisParams p = VisParams(pc.buffer0);
+    uint slot = gl_WorkGroupID.x;
+    uint cell = p.dims.w + gl_WorkGroupID.y;
+    uint total = p.dims.x * p.dims.y * p.dims.z;
+    if (cell >= total) return;
+    RtWords list = RtWords(p.cells);
+    uint base = cell * RT_CELL_STRIDE;
+    if (slot >= min(list.v[base], RT_LIGHTS_PER_CELL)) return;
+    if (gl_LocalInvocationIndex == 0u) visibleCount = 0u;
+    barrier();
+    uint index = list.v[base + 1u + slot];
+    float lane = float(gl_LocalInvocationIndex + 1u);
+    // Fixed low-discrepancy points: the same answer every refresh unless the world changed.
+    vec3 u = fract(vec3(0.8191725, 0.6710436, 0.5497005) * lane + 0.5);
+    uvec3 c3 = uvec3(cell % p.dims.x, (cell / p.dims.x) % p.dims.y, cell / (p.dims.x * p.dims.y));
+    vec3 pos = p.origin.xyz + (vec3(c3) + u) * p.origin.w;
+    vec3 target = rtLightPoint(RtFloats(p.lights), index, fract(u.yz * 1.618 + 0.25), pos);
+    vec3 d = target - pos;
+    float dist = length(d);
+    float reach = dist - 12.0;
+    bool seen = reach <= 0.0 || rtHitDistance(p.table, pos, d / max(dist, 1e-3), reach) >= reach;
+    if (seen) atomicAdd(visibleCount, 1u);
+    barrier();
+    if (gl_LocalInvocationIndex == 0u) {
+        uint visBase = total * RT_CELL_STRIDE;
+        RtWordsRw(p.cells).v[visBase + base + 1u + slot] = visibleCount;
+    }
+}

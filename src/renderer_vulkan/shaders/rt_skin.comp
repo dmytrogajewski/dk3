@@ -1,0 +1,65 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Characters in the ray tracing scene (rt.zig `prepareCharacters`): one invocation per index of
+// a model mesh writes that corner in world space, exactly as stage.vert places it (MD3 frames
+// blended by backlerp, IQM linear-blend skinning, then the entity transform). The output is an
+// unindexed triangle list for this frame's character acceleration structure.
+// buffer0 = SkinParams, buffer1 = output positions (3 floats each), size.x = index count.
+#include "post_common.glsl"
+
+layout(local_size_x = 64) in;
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer SkinParams {
+    uvec2 vertices;
+    uvec2 indices;
+    uvec2 frameB;
+    uvec2 extra;
+    uvec4 info;   // kind (1 MD3, 2 IQM), index count, first output vertex
+    vec4 misc;    // backlerp
+    vec4 model[3];
+};
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer SkinFloats { float v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer SkinUints { uint v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) writeonly buffer SkinOut { float v[]; };
+
+void main() {
+    uint i = gl_GlobalInvocationID.x;
+    SkinParams p = SkinParams(pc.buffer0);
+    if (i >= p.info.y) return;
+    uint index = SkinUints(p.indices).v[i];
+    vec4 pos = vec4(0.0, 0.0, 0.0, 1.0);
+    if (p.info.x == 1u) {
+        SkinFloats a = SkinFloats(p.vertices), b = SkinFloats(p.frameB);
+        uint o = index * 6u;
+        pos.xyz = mix(vec3(a.v[o], a.v[o + 1u], a.v[o + 2u]), vec3(b.v[o], b.v[o + 1u], b.v[o + 2u]), p.misc.x);
+    } else {
+        SkinFloats f = SkinFloats(p.vertices);
+        SkinUints u = SkinUints(p.vertices);
+        uint o = index * 12u;
+        vec4 source = vec4(f.v[o], f.v[o + 1u], f.v[o + 2u], 1.0);
+        pos.xyz = source.xyz;
+        if (p.extra != uvec2(0u)) {
+            SkinFloats bones = SkinFloats(p.extra);
+            uvec4 bi = (uvec4(u.v[o + 8u]) >> uvec4(0, 8, 16, 24)) & 255u;
+            vec4 bw = vec4((uvec4(u.v[o + 9u]) >> uvec4(0, 8, 16, 24)) & 255u) / 255.0;
+            if (bw.x > 0.0) {
+                vec3 skinned = vec3(0.0);
+                for (int k = 0; k < 4; ++k) {
+                    if (bw[k] == 0.0) continue;
+                    uint m = bi[k] * 12u;
+                    vec4 r0 = vec4(bones.v[m], bones.v[m + 1u], bones.v[m + 2u], bones.v[m + 3u]);
+                    vec4 r1 = vec4(bones.v[m + 4u], bones.v[m + 5u], bones.v[m + 6u], bones.v[m + 7u]);
+                    vec4 r2 = vec4(bones.v[m + 8u], bones.v[m + 9u], bones.v[m + 10u], bones.v[m + 11u]);
+                    skinned += bw[k] * vec3(dot(r0, source), dot(r1, source), dot(r2, source));
+                }
+                pos.xyz = skinned;
+            }
+        }
+    }
+    vec3 world = vec3(dot(p.model[0], pos), dot(p.model[1], pos), dot(p.model[2], pos));
+    SkinOut out_ = SkinOut(pc.buffer1);
+    uint w = (p.info.z + i) * 3u;
+    out_.v[w] = world.x;
+    out_.v[w + 1u] = world.y;
+    out_.v[w + 2u] = world.z;
+}

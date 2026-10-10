@@ -1,0 +1,21 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Log-luminance histogram of the HDR scene at half resolution (256 bins).
+#include "post_common.glsl"
+layout(local_size_x = 16, local_size_y = 16) in;
+shared uint local_bins[256];
+void main() {
+    uint i = gl_LocalInvocationIndex;
+    local_bins[i] = 0u;
+    barrier();
+    ivec2 p = ivec2(gl_GlobalInvocationID.xy) * 2;
+    if (p.x < int(pc.size.z) && p.y < int(pc.size.w)) {
+        vec3 c = texelFetch(textures[pc.slots.x], p, 0).rgb;
+        float l = dot(c, LUMA);
+        // params: min log2 luminance, inverse log2 range
+        uint bin = l < 1e-5 ? 0u : uint(clamp((log2(l) - pc.params.x) * pc.params.y, 0.0, 1.0) * 254.0 + 1.0);
+        atomicAdd(local_bins[bin], 1u);
+    }
+    barrier();
+    if (local_bins[i] != 0u) atomicAdd(Words(pc.buffer0).v[i], local_bins[i]);
+}

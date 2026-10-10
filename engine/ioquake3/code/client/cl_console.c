@@ -288,8 +288,18 @@ void Con_CheckResize (void)
 
 	if (con_scale != NULL)
 	{
-		g_smallchar_width = (int)((float)SMALLCHAR_WIDTH * con_scale->value);
-		g_smallchar_height = (int)((float)SMALLCHAR_HEIGHT * con_scale->value);
+		float scale = con_scale->value;
+		// dk3: 0 picks a scale from the screen height so native high-DPI modes stay readable.
+		if (scale <= 0.0f)
+		{
+			scale = (float)cls.glconfig.vidHeight / 540.0f;
+			if (scale < 1.0f)
+				scale = 1.0f;
+			if (scale > 4.0f)
+				scale = 4.0f;
+		}
+		g_smallchar_width = (int)((float)SMALLCHAR_WIDTH * scale);
+		g_smallchar_height = (int)((float)SMALLCHAR_HEIGHT * scale);
 	}
 
 	width = (cls.glconfig.vidWidth / g_smallchar_width) - 2;
@@ -370,8 +380,9 @@ void Con_Init (void) {
 	Cvar_CheckRange(con_notifylines, 1, NUM_CON_TIMES - 1, qtrue);
 	con_conspeed = Cvar_Get ("scr_conspeed", "3", CVAR_ARCHIVE);
 	con_autoclear = Cvar_Get("con_autoclear", "1", CVAR_ARCHIVE);
-	con_scale = Cvar_Get("con_scale", "1", CVAR_ARCHIVE);
-	Cvar_CheckRange(con_scale, 1.0f, 4.0f, qfalse);
+	con_scale = Cvar_Get("con_scale", "0", CVAR_ARCHIVE);
+	Cvar_CheckRange(con_scale, 0.0f, 4.0f, qfalse);
+	Cvar_SetDescription(con_scale, "Console text scale: 1 to 4, or 0 to follow the screen height");
 
 	Field_Clear( &g_consoleField );
 	g_consoleField.widthInChars = g_console_field_width;

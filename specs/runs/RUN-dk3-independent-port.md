@@ -8187,3 +8187,438 @@ probe flakiness, not map geometry.
 | Same save, fixed build: keys ride with keypads | Passed | `fixed-4`: three keys restored at y 26 with their keypads; `fixed-6`: key at y 2 when out, use hits it (`region trace` target), monitor view starts |
 | Right key opens Superfly's bar gate; middle key opens the rotating dock door | Passed | `fixed-7`: `helpi` open (z 176), `muza` open, two monitor views |
 | Other save loads after `reconcile` (peer report of a panic in an intermediate build) | Passed | `e1m5a-load`: the co-op session's e1m5a arrival save loads; peer confirmed after rebuild |
+
+## Sequence 347–357 — vulkan-renderer — native Zig Vulkan renderer, now the default
+
+**Scope.** Owner request: a 2026-quality remaster path with Vulkan and optional ray
+tracing. Decisions: own hybrid renderer in Zig, Vulkan 1.3 baseline, RT optional;
+milestone 1 is GL parity. Proposal and roadmap: `docs/vulkan-remaster.md`. Mid-run owner
+additions: native resolution, and Vulkan as the default renderer.
+
+| # | Slug | State |
+|---|---|---|
+| 347 | `vulkan-renderer-build` | implemented: `build/renderer_vulkan.zig`, glslc SPIR-V embedded, staged Vulkan headers; exports only `GetRefAPI`/`ri` |
+| 348 | `vulkan-renderer-boot` | implemented, viewed: SDL Vulkan window, device pick (CPU device under `LIBGL_ALWAYS_SOFTWARE`), swapchain, timeline-paced frames, bindless set; `dkguard --headless` selects lavapipe; `CL_InitRef` falls back to OpenGL2 |
+| 349 | `vulkan-renderer-images-2d` | implemented, viewed: GL1 image loading order, box mips, picmip, software gamma; 2D, cinematic raw uploads |
+| 350 | `vulkan-renderer-materials` | implemented: tr_shader.c port (stages, sorts, implicit shaders, multitexture collapse, remaps, animMap, skies); `r_vkMaterialScan`/`vk_materialscan` report unknown keywords — not yet run |
+| 351 | `vulkan-renderer-world` | implemented, viewed: IBSP v46 staged admission, PVS/areas/frustum, sky box and cloud dome, GL1 dlight falloff |
+| 352 | `vulkan-renderer-resident-worlds` | implemented, viewed (preview): resident handles, inline models, aperture portals with a clip plane |
+| 353 | `vulkan-renderer-lightstyles-fog` | implemented, fog viewed: DKLS blocks; native client fog submission restored for all renderers |
+| 354 | `vulkan-renderer-models` | implemented: MD3 GPU frame lerp with LODs, IQM GPU skinning with dk3 live bones, skins, tags |
+| 355 | `vulkan-renderer-effects` | implemented: polys, sprites, marks, forward dlights; beams/rails/lightning not drawn |
+| 356 | `vulkan-renderer-capture` | implemented, viewed: TGA/JPEG, save previews, levelshots; AVI unverified |
+| 357 | `vulkan-renderer-acceptance` | partial; see docs/native-acceptance.md "Sequences 347–357" |
+
+Native resolution: high-DPI drawable, `r_mode -2` borderless desktop fullscreen, fullscreen
+toggles and settled drawable changes re-create the window. Evidence:
+`zig-out/reports/vulkan-renderer-357/` (scratch harness `vkrun.py` included). The owner
+stopped further headless visual comparisons to inspect in game directly.
+
+## Sequence 358–370 — vulkan-remaster — the remaster roadmap after milestone 1
+
+**Scope.** The owner asked to fix the missing models first, then drive the roadmap to
+completion without stopping. The models fix: the client passed its network world id
+as `refEntity.dk3World`, and that only matched the OpenGL renderers' world handles
+by accident (`client.zig`, now `owner.render`). The owner checks visuals in game, so
+each item got one lavapipe smoke run (`zig-out/reports/vulkan-remaster/<dir>/`).
+
+| # | Slug | State |
+|---|---|---|
+| 358 | `vulkan-renderer-hdr-pbr-core` | implemented: HDR target, float lightmaps, auto exposure, bloom, AgX, GGX with normal/specular maps or procedural bump |
+| 359 | `native-runtime-environment` | implemented: underwater composite from the eye's brush contents |
+| 360 | `vulkan-renderer-water` | implemented: liquid classification, refraction, absorption, SSR, foam, lava |
+| 361 | `vulkan-renderer-volumetrics` | implemented: froxel inject/integrate; persistent volume slots fixed (map loads reused the froxel descriptor) |
+| 362 | `vulkan-renderer-taa-fsr` | implemented: jittered TAA, separate scaled HDR depth, temporal upscale, CAS |
+| 363 | `vulkan-renderer-weather-gpu` | implemented: `CG_DK3_R_WEATHER_V1` (716) and `AddDk3WeatherToScene`, procedural drops/flakes/splashes, wet and snowy surfaces |
+| 364 | `vulkan-renderer-clustered-lights-shadows` | implemented: 16x9x24 light clusters (256 lights), shadow-atlas model shadows |
+| 365 | `material-sidecars` | implemented: `dkq3/tools/materialgen.py`, optional `zz-dk3-materials.pk3` in play-install |
+| 366 | `vulkan-renderer-rt-shadows-reflections` | implemented: BLAS per world and inline model, per-frame TLAS, ray-query shadows and reflections |
+| 367 | `vulkan-renderer-ddgi` | implemented: scrolling L1-SH probe field for model ambient |
+| 368 | `lightmap-rebake-directional` | implemented: progressive GPU deluxe bake from map light entities |
+| 369 | `vulkan-renderer-path-tracing` | implemented: RIS direct light, lightmap-cached bounce, temporal + à-trous denoise; instance facing flipped for Quake 3 winding |
+| 370 | `vulkan-renderer-m1-gaps` | beams/rails/lightning implemented; material scan passed (0 unknown keywords); AVI blocked by demo playback |
+
+Acceptance state and open items: docs/native-acceptance.md "Sequences 358–372".
+
+## Sequence 371 — vulkan-remaster — the owner's first in-game screenshots
+
+**Change.** Four screenshots from the RTX 5090: a blocky face and gi (the procedural bump
+carved the skin's painted shading into relief, texel by texel under magnification), rain
+streaks inside a cave, white speckles over wet walls, and an opaque green lid when looking
+up from under water. Fixes: model skins get no procedural bump and world textures fade it
+out once a texel spans screen pixels (`image.zig`, `stage.frag`); a top-down rain occlusion
+map of the world around the eye (`shadows.rainCamera`, `scene.renderRainMap`, lower half of
+the shadow atlas) hides drops, flakes and splashes under roofs, lands splashes on the stored
+surface and limits wet and snowy surfaces to exposed ones (`common.glsl` `rainSurface`,
+`rainExposure`); the baked-light specular lobe has a roughness floor of 0.28 and wet walls
+go glossy (0.3) instead of mirror-like; the sky column samples the froxel volume at the
+depth whose coverage matches the authored `fog_skyend` (`scene.skyFogDepth`); liquids seen
+from below show the world above through the waves. `renderView` kept a slice of the draw
+list across `buildViewData`; the rain-map pass appends enough surfaces to move the list,
+which segfaulted (found with gdb under dkguard), so the slice is taken again afterwards.
+
+| # | Slug | State |
+|---|---|---|
+| 371 | `vulkan-renderer-rain-occlusion` | implemented; lavapipe smoke `wx3/` composites a frame (`r_vkValidation 1` was set, but the validation layer was not installed on the host, so that proved nothing); in-game acceptance open |
+
+## Sequence 372 — vulkan-remaster — "everything is white"
+
+**Change.** The owner's second set of screenshots showed every lit surface washed toward
+white and grey (a white gi with no cloth detail, a textureless pale pillar, grey walls).
+Headless e1m1a measured the remaster at 3.6x the classic frame's mean luma with far lower
+saturation. Cause: remaster lightmaps were uploaded with the full x4 overbright range
+(radiance up to 21), while the original normalises each texel so its brightest channel caps
+at white; the models used the normalised grid, so world and models disagreed too. Fixes:
+`world.linearLight` normalises like `R_ColorShiftLightingBytes` with a quarter stop of
+headroom (both the static pages and the lightstyle blocks); dynamic lights add at that scale;
+the composite defaults to Khronos PBR Neutral without its black-level toe (`r_vkTonemap`
+0, AgX as 1), `r_vkSaturation` 1, auto exposure clamped to [0.75, 1.25]; the baked-light
+sheen gets a roughness floor of 0.5 (the pillar's pale blotches were that sheen through the
+normal map); authored fog coverage is remapped in stage.frag so partial coverage matches the
+original's display-space blend (a few percent of a bright fog colour was invisible there and
+a flat green wall here), with the dynamic-light glow integrated in its own froxel pair so the
+remap does not dim it; opaque model pixels write HDR alpha 0 and taa.comp trusts the new
+frame there (ghosted arms on an animating character). Headless e1m1a: mean luma 0.314 ->
+0.124 (classic 0.086), saturation 0.41 -> 0.38-0.68 (classic 0.62) across the two steps.
+
+| # | Slug | State |
+|---|---|---|
+| 372 | `vulkan-renderer-lighting-scale` | implemented; lavapipe smokes `wx4/`, `wx5/`; in-game acceptance open |
+
+**Validation.** No validation layer was installed on the host; the Fedora package was
+downloaded and extracted locally (`dnf download` + `rpm2cpio`, x86_64, manifest pointed at
+the absolute library path) and loaded through `VK_LAYER_PATH`. Core validation on the intro
+map (`val5/`) reported two device-creation omissions, both fixed in `vk.zig`: storage-image
+bindings were flagged update-after-bind without `descriptorBindingStorageImageUpdateAfterBind`,
+and glslc's Vulkan 1.3 `discard` needs `shaderDemoteToHelperInvocation`; the remaining
+message is the harmless "fragment output not consumed" of the depth-only shadow and rain-map
+pipelines. The intro map (the dojo cutscene, which the owner's screenshots show rendering on
+the RTX 5090) still faults on lavapipe in JIT shader code after the froxel passes, with core
+validation otherwise clean; `r_vkVolumetric 0` avoids it. GPU-assisted validation runs are
+recorded under `gpuav*/`; GPU-assisted validation (`gpuav6/`, confirmed active) reported
+nothing before the fault either.
+
+**Dynamic lights.** The owner's next screenshot (the dojo cutscene from above) showed Hiro
+pale and desaturated with grey hair while the room read correctly. The PBR dynamic-light
+falloff peaked at ~0.175 x radius (about 50x the light colour) at the source, so a lantern
+over a character painted a sheen not scaled by the texture over the whole model. It is now
+inverse square beyond a quarter radius and flat inside, never above the light's own colour,
+which is the original's projected-dlight ceiling (`stage.frag` `pbrDynamicLights`). The owner
+reported no effect, so the lamps were not the cause.
+
+**Probe ambient.** An OpenGL1 capture of the same cutscene shot (`cine-gl1b/c.jpg`, with
+`dk3_cinematics 1` overriding the harness's skip) gives the reference: a white gi, black hair,
+tan skin, the figure at ~1.9x the floor's brightness. The remaster showed grey hair, grey skin
+and ~2.7x: a white light not scaled by the texture. The model path let the ray-traced probe
+field replace 80% of the grid ambient, and probes beside the dojo's paper lanterns (emissive
+1.6 on top of their own lightmap) gather bright white light. Now the probe term may at most
+double the grid ambient's luminance and blends at 0.6; the probe gather counts emissive at
+most 0.5; model skins get specular 0.4 (their highlights are painted). `r_vkDebugView 6`
+shows texture colour only and 7 light only, so asset and lighting can be told apart in game.
+The intro map cannot be rendered on lavapipe (the fault above), so this is unverified here.
+The owner reported no effect again; the probe term was not the cause either.
+
+**Root causes, found on the RTX 5090** (`dkguard --gpu`, a 1280x720 window, cvars toggled
+live through the command pipe, `zig-out/reports/vulkan-remaster/gpu*/`, `wf*/`):
+- *Grazing specular.* A one-frame per-draw dump showed the overhead dojo shot draws
+  `models/cinematic/c_hiro_intr.dkm.md3` with `skins/c_hirodojo` (black hair, white gi), with
+  grid light ambient 183 and directed 252 of 255, identical with ray tracing on or off. Black
+  albedo cannot whiten through diffuse light; Schlick Fresnel rising to 1 at grazing angles
+  under a directed radiance of ~3 can, and a distant figure is mostly grazing pixels: every
+  object turned white with distance. Fresnel now rises toward
+  `(1 - roughness) * specular strength` (1 for metals) instead of white, and model skins get
+  specular 0 (their highlights are painted; the original lit them diffusely).
+- *Waterfalls as pools.* Vertical faces inside a water brush were classified as liquid surfaces
+  and drawn with the pool shading (opaque refraction and reflection, pale grey) instead of
+  their translucent scrolling stages; e1m1a's waterfall rendered as a grey slab with dark
+  blotches (the "white pillars" of the owner's jungle screenshots). Only faces with
+  |normal.z| >= 0.6 get liquid shading now.
+- Both verified on the GPU against an OpenGL1 capture of the same view (`gpu13/`, `wf3/`).
+- Also: `dk3 world config ... applied` and `dk3 path: ...` printed every frame and buried the
+  console; they now print only with `developer 1` (the probes run with it). `con_scale 0`
+  (new default) scales the console with the screen height; a saved `con_scale 1` keeps the
+  old size.
+- *Ion blaster flash.* Firing filled the screen with green: the froxel glow of dynamic lights
+  used a fixed minimum density (0.0015/unit, ~10x the jungle air) times 3. It now scatters by
+  the medium actually present, `min(sigma, 0.002) * fall^2 * phase * 4` (`fire1/`, GPU).
+- *Crash records.* A crash in the owner's run left nothing on disk: `crashlog.txt` was written
+  only by `Sys_Error`. Fatal signals (segfault, abort from a Zig panic) now write it too, with
+  the glibc backtrace and the console history (`Sys_CrashLog`, `engine/CHANGES.json`);
+  verified by sending SIGSEGV to a headless run (`crashtest/`). The crash itself is not
+  reproduced yet.
+
+## Sequence 373 — vulkan-remaster — realistic rain
+
+**Change.** Research (Garg & Nayar 2006, Tariq/NVIDIA 2007, Lagarde's Remember Me rain,
+Halder 2019, Wang/MSR) found the grey sheet came from unlit constant-grey streaks, constant
+alpha with widening far streaks, 90% of drops far away, 52-in streaks and TAA smearing.
+Implemented (`stage.vert` `weatherParticle`/`weatherLight`, `stage.frag` `weatherShape`,
+`weather.zig`, `froxel_inject.comp`, `taa.comp`, `vk.zig` `mark_motion`):
+- drops of 1-3 mm with Gunn-Kinzer terminal velocity (160-310 in/s), streak length = speed
+  x 1/30 s exposure, at least one pixel wide with coverage-preserving alpha, Gaussian profile
+  and a faint oscillation wobble;
+- per-drop light: light grid ambient (drops refract their surroundings), the grid's dominant
+  light and dynamic lights with a forward Henyey-Greenstein lobe (g 0.75: back-lit glints),
+  sky; drifting gust cells (x0.4-1.0); drops only within 800 units, twice the near density;
+- distant rain as froxel fog inside rain volumes where the occlusion map shows open sky
+  (7e-5/in x intensity, forward scattering, a mist band 24 in above the ground);
+- splashes are lit crowns 0.5-1.5 in across lasting 60-120 ms, none in puddles;
+- ripples: 8-in cells, rings up to 3 in, 0.6-1 s, up to four layers, only in puddles;
+  wet darkening by porosity (to x0.3 on rough dielectrics, none on metal);
+- rain lowers the HDR alpha (new pipeline blend `mark_motion`) so TAA keeps streaks crisp.
+GPU captures `rain1/`, `rain2/` (RTX 5090). Also `con_scale` in the dev home config set to 0
+(automatic) since the saved 1 overrode the new default.
+
+| # | Slug | State |
+|---|---|---|
+| 373 | `vulkan-renderer-rain-realism` | implemented; GPU smoke `rain2/`; owner acceptance open |
+
+## Sequence 374 — vulkan-remaster — ray traced lighting without lightmaps
+
+**Change.** The owner: modern lighting must not use the baked lightmaps (a tree stayed black;
+"in AAA games lights do not work that way"). New `r_vkLighting` (1 by default with ray
+tracing; menu Video > Lighting "Ray traced lighting"):
+- world surfaces and characters: direct light from the map's light entities in the receiver's
+  256-unit cell, the radiosity tool's model (light - distance, cosine, colour) and scale, the
+  four strongest with exact traced shadows and the rest scaled by their visible fraction
+  (deterministic, no denoiser; `shaders/rt_lighting.glsl`); indirect light from the DDGI field;
+  character shadows from the shadow atlas;
+- DDGI probes shade their hits from the same map lights (two traced shadows), the field itself
+  (multi-bounce over frames) and emissive surfaces, no lightmap; rays leaving the world see the
+  sky at the skybox's hue and the brightness the original radiosity gave it (80th percentile of
+  upward-facing lightmap texels, `world.calibrateSky`, since the converted shaders lost the sky
+  emission);
+- the directional lightmap bake is skipped in this mode; baked mode is the original lightmaps
+  again (the earlier ambient-floor patches were removed).
+GPU captures `dyn3/`, `dyn4/` (e1m1a), `dyn5/` (dojo). Path tracing mode still bounces off the
+lightmap radiance cache.
+
+| # | Slug | State |
+|---|---|---|
+| 374 | `vulkan-renderer-rt-lighting` | implemented; GPU smoke; owner acceptance open |
+
+Follow-up: rooms lit by their fixtures were dark ("lamps? no lights"). The original radiosity
+also emitted light from light textures, added the worldspawn `ambient` floor and bounced many
+times; e1m1c's spawn has only weak entity lights (`light 175` at 300+ units). Now emissive faces
+become lights (`rt.surfaceLights`: centroid, texture colour, reach from area), worldspawn
+`ambient` is added, START_OFF lights are skipped, the sky level uses the 90th percentile and
+8192 probes update per frame. Cells hold up to 63 lights (was an arbitrary 31; the dojo map
+reaches 45) and a full cell keeps its strongest. e1m1c spawn: mean linear luminance 0.0009
+ray traced vs 0.0010 baked (`cal4/`). Rain light halved, opacity 0.6 (`rain4/`).
+
+Further: foliage and other alpha-tested surfaces are in the ray tracing scene as non-opaque
+structures whose candidate hits are alpha-tested against their texture (`rt_common.glsl`
+`rtAlphaPass`, `rt.zig` `alpha_models`); characters (skeletal IQM and multi-frame MD3 within
+3000 units) are skinned by `rt_skin.comp` into a per-frame structure (instance mask 2, shadow
+rays only) so they cast and receive traced shadows (`r_vkRtCharacters`, menu "Ray traced
+characters"); static props stay out, since e1m4a's lamp models carry their light entity inside
+the shade (`lamp1/`: ray traced and baked match there). The froxel pass has a ray traced
+variant (`froxel_inject_rt.comp`) lit only by visible map lights and open sky (light shafts,
+`r_vkVolumetricShadows`); authored map fog is scaled by `r_vkMapFog` (0.3). Probe hysteresis
+0.97 and a per-ray firefly clamp against flicker. Menu: Atmosphere and a new Weather page.
+
+Green flicker ("soft green spots flickering around", every episode 1 map): probe noise. Each
+update traced 64 randomly rotated rays, and on open ground the few that reach the bright green
+sky swung a probe's light from update to update; probes 96 units apart blur that into soft
+moving spots. Measured on the RTX 5090 with the irradiance view (`r_vkDebugView 4`), static
+camera: open floor changed by up to 186 levels between frames (50 with probes off). Now 192 rays
+per update (3 per lane), hysteresis 0.98, a per-update change limit of 25% of the probe's light,
+a per-ray clamp at luminance 1.5 and self-feedback 0.7: floor change at most 17 (`probe2/`).
+Ray traced and baked lighting measured interleaved flicker the same otherwise (`flick3/`).
+
+Survey (`survey4/`, RTX 5090, 11 maps across the four episodes, two views each, ray traced vs
+baked): ray traced lighting is 1.1-19x brighter than baked and flatter. Outdoors (e1m6a snow,
+e2m1a, e2m2a, e3m1a) the sky term washes out the original's dark ledges and overhangs, since
+sky light arrives only through 96-unit probes with no per-pixel sky occlusion; indoors
+(e1m3a/b Solitary, e4m1a, e4m4a) probes leak bright bounce through walls and corners, and
+contact darkening is missing. The bake shader still used the old 32-entry light cell stride
+after the limit went to 63 (fixed); a mid-game baked-mode corruption from starting the
+directional bake could not be pinned down (it vanishes under the validation layer), so
+`r_vkDirectionalBake` now defaults to 0. Switching lighting modes mid-game can still
+occasionally show a dark baked frame; unresolved.
+
+## Sequence 375 — vulkan-remaster — ray traced lighting gaps (1-5)
+
+**Change.** From the survey:
+1. *Probe visibility.* The DDGI field stores L1 SH of hit distance and squared distance (two more
+   volumes); field lookups (stage.frag via `ddgi_sample.glsl`, probe-to-probe in ddgi.comp, path
+   tracing) weight each probe by a Chebyshev test, so light no longer passes through walls.
+2. *Per-pixel sky and occlusion.* In ray traced lighting the probes no longer carry sky light;
+   each world pixel and character traces four cosine rays (R2 sequence advanced per frame):
+   sky light = sky radiance x fraction escaping, bounce light x occlusion within 64 units.
+   Probe hits get their own sky ray.
+3. *Calibration.* Sky level from the 75th percentile of upward lightmap texels; auto exposure
+   may adapt 0.6-3x with ray traced lighting (was 0.75-1.25x), since nothing is designer-baked:
+   the owner asked for brightness to may differ but images to stay readable (`vis1/`).
+4. *Area lights.* Glowing faces become rectangles (`MapLight` 16 floats: two half-axes);
+   shadow rays aim at a per-frame point on them (soft shadows through TAA).
+5. *Per-pixel GI.* Path tracing mode's bounce hits are lit by map lights, the probe field and
+   emissive light instead of lightmaps (`r_vkPathTracing 1`), with its existing temporal and
+   a-trous denoise; no reservoir reuse (ReSTIR) yet.
+Debug views 12-14 show the direct, bounce and sky terms. Static-camera noise at e1m1a with
+probes settled: 2.10 ray traced vs 1.77 baked (blur-10 metric, rain dominated, `flick6/`).
+Mid-game the game's own region streaming shows its loading overlay ~40 s after a map loads,
+which earlier read as dark baked frames in surveys.
+
+| # | Slug | State |
+|---|---|---|
+| 375 | `vulkan-renderer-rt-lighting-gaps` | implemented; GPU smoke `vis1/`, `flick6/`; owner acceptance open |
+
+Follow-ups from the owner's play session:
+- *Crash.* The pasted console showed `ERROR: Zig client: MissingWorldSound` after
+  `sounds/superfly/death8.wav` failed to load: the Superfly sidekick's burning voice picked
+  death6-8, but Superfly recorded only death1-7 (`src/actors/companions.zig`, now death5-7, with
+  a test bounding every sidekick voice to its recorded set), and the client treated the
+  engine's default-sound handle as fatal (`world_admission.zig`, `resident_worlds.zig`: a
+  missing sound now only stays silent). An error exit is not a signal, hence no crash log.
+- *Rain intensity.* Base alpha 1.0, 0.035 drops per square unit near the eye, coverage falloff
+  `(D/width)^0.6`, rain fog 1.2e-4/in (`rain3/`).
+- *Waterfall top.* The underside of a liquid surface seen from outside the liquid is discarded
+  (ViewData `fogParams.y` = the eye's liquid); it rendered as a grey slab.
+- *Black tree.* The trunk's lightmap is black in the original radiosity too (OpenGL1 shows it at
+  ~9/255); world surfaces now take at least 0.2x the light grid there (`tree2/`).
+- *Menu.* Video now has six pages (Display, Remaster, Image, Lighting, Atmosphere, Surfaces)
+  with Prev/Next buttons and PgUp/PgDn (`ui/settings.zig` `page`, `video_pages`,
+  `display_scale`; `ui/menu.zig` `video_page`): remaster, ray tracing, path tracing and its
+  light, render scale, TAA, sharpening, bloom, exposure, filmic tone mapping, RT shadows and
+  reflections, probe GI, directional bake, character shadows, volumetric fog, air density,
+  scattering, weather, rain intensity, wetness, splashes, relief, shininess, saturation.
+  Restart-only ones say so. `runtime_ui_probe.py --scenario video --renderer vulkan` clicks
+  through all pages (`menu-video/`).
+
+| 376 | `vulkan-renderer-rt-light-sources` | implemented; GPU smokes `green*/`, `probe4c_fix/`, `survey13/`; owner acceptance open |
+
+Every original light source is ray traced from its own data (docs/vulkan-remaster.md, "Ray
+traced light sources"):
+- **Surface lights.** `dkq3/tools/surface_lights.py` extracts each map's emitting faces
+  (SURF_LIGHT value plus extsurfinfo colour) and emitting sky into `maps/<map>.lights` in the
+  materials package: 84 maps, 40,722 faces, 56 skies. The surface walk equals the converted
+  surface count. The sidecars stay local:
+  - each records its surface count;
+  - `play.py install` regenerates all of them from the asset generation's `input` when any is
+    missing or stale, and fails when it cannot;
+  - verified by stripping every sidecar from a copy.
+- **Entity lights.** `cap`, normalised colours, `style` and START_OFF-with-style are handled.
+  Targets and cones were measured to be ignored by the original tool.
+- **Sun and styles.** Worldspawn sun keys are read. A per-frame style header sits in the light
+  buffer.
+- **Light cells.** Ranked by light inside the cell, culled by PVS, plus a GPU visibility cache
+  (`light_visibility.comp`, `r_vkLightVisibility`).
+- **Shadows.** Unbiased sampled shadow rays replace the "visible fraction of the strongest four"
+  scaling.
+- **Sky.** From the original emitting sky for the per-pixel term, probes and path tracer, at
+  value × 0.6 × visible sky in radiosity units.
+- **Self-light.** Emitting faces show their own light.
+- **Normals.** World and model shading normals face the viewer. `gl_FrontFacing` is false on
+  ordinary visible faces under the flipped viewport, so flipping on it inverted normals:
+  - e1m4c's shaft probe went from no light to 61, 41 and 13 raw from its step lights;
+  - e1m1a's swamp platform went from black to visible;
+  - earlier outdoor sky rays had escaped through the floor.
+- **Bounce.** Probe bounce and visible sky are summed with the direct light in radiosity units
+  before the single conversion, as the lightmaps were.
+
+Diagnosis of the owner's green room (e1m4a crematorium): the sky term used the green sky box's
+hue under an open roof. Baked e2m1a's mint is the original lightmaps (green/red 1.25 even
+600 units from the emitting water).
+
+Instrumentation:
+- `dk3_runtime_pacify_monsters` makes the world's monsters ignore the player (probe mode). The
+  first version removed them, which segfaulted e1m1a; that crash preceded the host freeze of
+  2026-10-10.
+- `dk3_runtime_place x y z [yaw [pitch]]` sets the view.
+- `r_vkDebugView` 15–19:
+  - 15 is direct light without shadows;
+  - 16 aims shadow rays at area-light centres;
+  - 17 shows the strongest light's shadow ray: clear, or blocked near, midway or far;
+  - 18 shows the blocker's albedo;
+  - 19 prints the centre pixel's four lights to the console. It enables `fragmentStoresAndAtomics`.
+- Harness note: `screenshotJPEG` captures after the next queued command, so captures need a
+  pause after them. The earlier survey ratios were inverted by this.
+
+Survey `survey13/` (auto exposure off, RT/baked luminance; two views per map):
+
+| Map | View 1 | View 2 |
+|---|---|---|
+| e1m3a | 1.15 | 1.28 |
+| e1m3b | 0.87 | 0.89 |
+| e1m2a | 0.84 | 0.83 |
+| e1m5a | 0.51 | 0.37 |
+| e1m6a | 1.65 | 1.11 |
+| e2m1a | 0.96 | 1.10 |
+| e2m2a | 0.52 | 0.81 |
+| e3m1a | 0.80 | 0.76 |
+| e3m3a | 0.99 | 0.89 |
+| e4m1a | 0.96 | 1.01 |
+| e4m4a | 0.87 | 0.94 |
+
+Median 0.89, before the facing and bounce fixes. Post-mortem:
+docs/vulkan-rt-lighting-postmortem.md. `zig build test`: 483/483 Zig tests pass. The Python suite has 12 errors, all
+environmental: no PIL for the system python3, and a SciPy rotation API change in the cinematic
+tools.
+
+## Sequence 348 — coop-campaign — the co-op bot through e1m5b, e1m6a and e1m6b
+
+**Change.**  Routes for e1m5b (catwalk, spiral, south; the console room: the doorway
+hold, the door-slab steps, the health east of it, the console and its monitor; the
+golden soul under the stair landing short of the freezer; the freezer: its deathsphere
+from the stair landing, then the lasergat from just inside; the shockwave; the great
+hall: doorway hold, its deathspheres, lasergat and guard hunted by name, the health
+on its floor), e1m6a (the decontamination door's delayed button, the blue card in the
+control room past the typing worker, the card room's station, the four-way door; the
+cryo lab: down its ladder shaft, the cryotechs shot across the nitrogen gap from its
+foot, a leap over the gap, the valve that drains the pool, the lift, the timed door,
+the exit console) and e1m6b (the megashield along the pipe; the ramp console and the
+deathspheres it releases; a running drop onto the platform in the nitrogen, its
+ladder and hatch, the hatch room's guards, the lift up; then four checkpointed legs
+round to the exit with the lower floor cleared before Superfly follows).
+
+Game and runtime fixes found by the runs:
+
+- Lethal liquids in movers and thin layers: `func_water` nitrogen (e1m6a's pool) is a
+  mover BSPC leaves out of the area graph, so routes walked off ledges into it. A
+  navigation gate kind `pool` now shuts the areas whose floor lies in a standing
+  func_water of nitro, lava or slime (contents sampled across its box) until it has
+  drained. The bundled BSPC classes `CONTENTS_DK3_NITRO` brushes as lava (they were
+  converted with the water bit and compiled as swimmable water). Regenerated
+  navigation for e1m6a–c only (scratch overlay; the installed package is older).
+- A jump or fall the route takes next whose landing has lethal liquid straight under
+  its centre shuts that landing area and replans (e1m6b's leap onto the rim of the
+  platform in the nitrogen, which in play ends short).
+- Plats rose only for a player standing on them; the reference's touch accepts bots,
+  so a sidekick now calls a plat too (e1m6a's lift up from the drained pool).
+- The kill hunt's held shift toward an unseen prey was overwritten by the prey's own
+  position, walking a held bot into the room it was holding; the shift now stands.
+  An arena narrower than a body across no longer trips `std.math.clamp`'s assertion
+  (a reproducible crash at e1m5b's freezer).
+- Seek probes: a goal below and off the platform underfoot is a step down, not a
+  descending lift (e1m5b's door-slab steps sent the bot across the room to their
+  button); climbing straight up, the probe looks overhead (a closed hatch over a
+  ladder); companions' door contact looks overhead too, so they open such hatches.
+- A civilian blocking the way became a shootable nuisance only after 3 s of
+  uninterrupted contact, which the unstick hops always broke (e1m6a's typing worker
+  between the card room's desks).
+- Riders keep to a moving lift's middle (a stride for the landing mid-ride walked to
+  the edge and was crushed against the landing's lip, e1m6b's plat).
+- A companion standing on the player's head steps off it (it pinned the player under
+  a ramp's ceiling in e1m5b).
+- Jump links are jumped from their takeoff, at running pace (the narrow-footing walk
+  does not apply to a jump's run-up).
+- Shockwave: nobody walks into a live sphere's or burst's reach (backs out to 420);
+  it is no longer chosen automatically (its bounces and rings killed the bot and
+  Superfly in e1m5b and e1m6c); blast weapons need 320 units minimum and nobody of the
+  party within their splash of the target.
+- The last 12 rounds are no longer held back while the bot is below 80 % health (it
+  stood holding the glove while guards shot it).
+- `move` takes `pace`; stage checkpoints also collect ammunition near by.
+
+| Scenario | State | Evidence (scratch runs, not checked in) |
+|---|---|---|
+| e1m5b console stage (steps, health, console, monitor) | Passed | `e1m5b-20` (stage 5 reached twice) |
+| e1m5b soul → freezer → hall → e1m6a | Passed | `e1m5b-21` (soul 56→156), `e1m5b-26` (freezer), `e1m5b-29`/`-30` (travelled to e1m6a, no deaths) |
+| e1m6a lab → valve → lift → exit | Passed with a reload | `e1m6a-17`, `e1m6a-18` (second attempt reaches e1m6b) |
+| e1m6b shield → ramp → platform → legs → e1m6c | Passed with reloads | `e1m6b-20` (ramp, platform, upper floor), `e1m6b-22` (legs), `e1m6b-25` (reaches e1m6c after 9 deaths at the lower floor's cryotechs) |
+| Pool gate drains open; sidekick on a plat | Implemented; Passed in play | `e1m6a-8`, `e1m6a-17` |
+| Landing-over-liquid replans | Implemented; exercised | `e1m6b-18` (areas 1425, 1465, 1512 shut) |
+| Shockwave not auto-chosen | Implemented; Unverified | — |
+| e1m6c → credits | Open | generic chains only |
+| Full New Game → credits chain | Open | |

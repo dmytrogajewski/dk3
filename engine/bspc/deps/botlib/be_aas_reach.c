@@ -2365,6 +2365,27 @@ int AAS_Reachability_Jump(int area1num, int area2num)
 			} //end if
 		} //end if
 		//
+		//dk3: no jump over a lethal liquid (lava, slime, the authored nitrogen,
+		//CONTENTS_DK3_NITRO 0x0800 in the map's own contents): a player who
+		//falls short of the far side dies in it
+		{
+			vec3_t over, under;
+			int k;
+			for (k = 1; k <= 3; k++)
+			{
+				VectorSubtract(bestend, beststart, over);
+				VectorMA(beststart, k * 0.25f, over, over);
+				VectorCopy(over, under);
+				under[2] -= 512;
+				trace = AAS_TraceClientBBox(over, under, PRESENCE_NORMAL, -1);
+				if (trace.startsolid || trace.fraction >= 1) continue;
+				VectorCopy(trace.endpos, under);
+				under[2] -= 23;
+				if (AAS_PointContents(under) & (CONTENTS_LAVA|CONTENTS_SLIME|0x0800))
+					return qfalse;
+			} //end for
+		}
+		//
 		// get command movement
 		VectorClear(cmdmove);
 		if ((traveltype & TRAVELTYPE_MASK) == TRAVEL_JUMP)

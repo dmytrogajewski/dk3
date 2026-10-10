@@ -16,7 +16,7 @@ const usage =
     \\  --lock-file PATH   GPU lock file (default:
 ++ " " ++ args.default_lock_file ++ ")\n" ++
     \\  --mem CAP          memory cap, e.g. 512M, 8G (K/M/G/T are powers of 1024)
-    \\  --headless         SDL_AUDIODRIVER=dummy, LIBGL_ALWAYS_SOFTWARE=1, run under xvfb-run;
+    \\  --headless         SDL_AUDIODRIVER=dummy, LIBGL_ALWAYS_SOFTWARE=1, lavapipe Vulkan, run under xvfb-run;
     \\                     no WAYLAND_DISPLAY, SDL_VIDEODRIVER=x11, SDL_VIDEO_DRIVER=x11
     \\  --screen WxH       with --headless: the virtual display's size (default: xvfb-run's 640x480)
     \\  --timeout DURATION kill the whole process group after DURATION (500ms, 30s, 5m, 1h; bare = s)
@@ -94,7 +94,7 @@ fn prepare(
         };
         wrappers.xvfb_run = try arena.dupe(u8, xvfb_run);
         wrappers.screen = config.screen;
-        try plan.applyHeadlessEnv(env);
+        try plan.applyHeadlessEnv(env, lavapipeIcd(io));
     }
     if (config.mem_cap_bytes) |cap| {
         const mechanism = host.selectMemMechanism(arena, io, path_list, cap) orelse {
@@ -102,6 +102,15 @@ fn prepare(
             return try finish(report, plan.status.unavailable, "memory cap unavailable");
         };
         wrappers.mem = .{ .mechanism = mechanism, .cap_bytes = cap };
+    }
+    return null;
+}
+
+/// The Mesa software Vulkan driver manifest, when installed.
+fn lavapipeIcd(io: std.Io) ?[]const u8 {
+    for ([_][]const u8{ "/usr/share/vulkan/icd.d/lvp_icd.x86_64.json", "/etc/vulkan/icd.d/lvp_icd.x86_64.json" }) |path| {
+        std.Io.Dir.accessAbsolute(io, path, .{}) catch continue;
+        return path;
     }
     return null;
 }

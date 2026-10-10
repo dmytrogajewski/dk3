@@ -1,0 +1,40 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Path tracing mode, pass 4: albedo x filtered irradiance (+ emissive) replaces the rasterised
+// world where the traced primary hit matched the raster depth, with the froxel fog re-applied.
+// slots: x filtered irradiance, y albedo, z normal-depth, w HDR target image.
+#include "post_common.glsl"
+#include "pt_common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer FogView {
+    vec4 rect;
+    vec4 froxel;   // near, 1 / log(far / near), far, enabled
+    uvec4 slots;   // integrated froxel volume slot
+};
+
+void main() {
+    ivec2 id = ivec2(gl_GlobalInvocationID.xy);
+    if (any(greaterThanEqual(uvec2(id), pc.size.xy))) return;
+    vec4 irradiance = imageLoad(images[pc.slots.x], id);
+    vec4 nd = imageLoad(images[pc.slots.z], id);
+    if (nd.w < 0.0 || irradiance.a <= 0.0) return;
+    vec4 albedo = imageLoad(images[pc.slots.y], id);
+    vec3 color = albedo.rgb * (irradiance.rgb + albedo.a * 8.0);
+    PtParams p = PtParams(pc.buffer1);
+    // r_vkDebugView: 1 lighting only, 2 traced-pixel mask.
+    if (p.counts.z == 1u) color = irradiance.rgb;
+    if (p.counts.z == 2u) color = vec3(1.0, 0.0, 1.0);
+    if (p.viewData != uvec2(0u) && p.counts.z == 0u) {
+        FogView view = FogView(p.viewData);
+        if (view.froxel.w > 0.0) {
+            vec2 suv = (vec2(id) + 0.5 - view.rect.xy) / view.rect.zw;
+            float w = log(max(nd.w, 1e-3) / view.froxel.x) * view.froxel.y;
+            vec4 fog = texture(volumes[nonuniformEXT(view.slots.x)], vec3(clamp(suv, 0.0, 1.0), clamp(w, 0.0, 1.0)));
+            fog = mix(vec4(0.0, 0.0, 0.0, 1.0), fog, clamp(nd.w / view.froxel.x, 0.0, 1.0));
+            color = color * fog.a + fog.rgb;
+        }
+    }
+    imageStore(images[pc.slots.w], id, vec4(color, 1.0));
+}

@@ -440,6 +440,6 @@ pub fn path(world: *data.World, slots: *Slots, projections: []abi.EntityProjecti
         }
     }
     var text: [128]u8 = undefined;
-    engine.print(try std.fmt.bufPrintZ(&text, "dk3 path: actor={d} corner={s} next={d}\n", .{ try world.persistentId(actor_entity), object.targetname, actor.path }));
+    engine.developerPrint(try std.fmt.bufPrintZ(&text, "dk3 path: actor={d} corner={s} next={d}\n", .{ try world.persistentId(actor_entity), object.targetname, actor.path }));
     return null;
 }

@@ -8,6 +8,10 @@ or game data for the engine build. The independent game runtime is still being i
 
 - Linux x86-64, Zig 0.16.x, Make.
 - SDL2 development package and pkg-config for the client and renderers.
+- Vulkan headers and loader pkg-config files (`vulkan-headers`, `vulkan-loader-devel`) and
+  `glslc` (shaderc) for `renderer_vulkan.so`; the build fails with a named message without them.
+- Mesa lavapipe (`mesa-vulkan-drivers`) for headless Vulkan runs; `dkguard --headless`
+  restricts the Vulkan loader to it.
 - Python 3.10+ for the existing archive tools and their synthetic checks.
 - Optional FreeType development package for `-DUSE_FREETYPE=true`.
 - util-linux `prlimit` or a working systemd user session for dkguard resource limits.
@@ -21,8 +25,9 @@ zig build engine-server
 zig build game test-runtime
 ```
 
-`zig build` builds the client `zig-out/native-dev/bin/dk3`, server `dk3ded`, both renderer shared
-libraries, native Zig modules in `lib/dk3/`, and `dkguard`.
+`zig build` builds the client `zig-out/native-dev/bin/dk3`, server `dk3ded`, the three renderer
+shared libraries (`renderer_vulkan.so`, written in Zig under `src/renderer_vulkan`, plus the
+OpenGL1/OpenGL2 renderers), native Zig modules in `lib/dk3/`, and `dkguard`.
 `engine` builds only client/server/renderers; `game` builds the Zig modules. Legacy
 native and QVM gameplay targets have been removed. Bundled upstream sources and
 licenses remain intact; they are not another supported game runtime.

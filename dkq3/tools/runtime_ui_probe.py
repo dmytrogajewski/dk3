@@ -274,6 +274,18 @@ def maps_scenario(driver, issue, capture, process, log, observer):
     return {'scope': 'Real XTest map picker clicks and keyboard selection/paging/cancel; mode-specific choices and Internet/LAN selection retention; LAN launch into e1dm1 with processed player input. No Internet room creation or public service mutation.', 'lan': state}
 
 
+def video_scenario(driver, issue, capture, process, log):
+    driver.align_menu()
+    driver.click(530, 212)  # Video category.
+    capture("video-1")
+    for page in range(2, 8):
+        driver.click(397, 391)  # Next >.
+        capture(f"video-{page}")
+    driver.click(397, 391)  # Wraps back to the first page.
+    capture("video-wrap")
+    return {"scope": "Real XTest clicks through the paged Video settings (display and Vulkan remaster pages). Captures only; settings values are not asserted."}
+
+
 def run(args):
     if not __debug__ or (args.report.exists() and any(args.report.iterdir())):
         raise RuntimeError("Native menu evidence requires assertions and a fresh directory")
@@ -315,6 +327,8 @@ def run(args):
                     result = saves_scenario(driver, issue, capture, process, log, home, observer)
                 elif args.scenario == "maps":
                     result = maps_scenario(driver, issue, capture, process, log, observer)
+                elif args.scenario == "video":
+                    result = video_scenario(driver, issue, capture, process, log)
                 else:
                     result = menu_scenario(driver, issue, capture, process, log)
                 issue("quit", 0)
@@ -339,8 +353,8 @@ def main():
     parser.add_argument("--prefix", type=Path, required=True)
     parser.add_argument("--guard", type=Path, default=Path("zig-out/native-dev/bin/dkguard"))
     parser.add_argument("--report", type=Path, default=Path("zig-out/reports/runtime-zig-229/ui"))
-    parser.add_argument("--renderer", choices=("opengl1", "opengl2"), default="opengl1")
-    parser.add_argument("--scenario", choices=("menus", "saves", "maps"), default="menus")
+    parser.add_argument("--renderer", choices=("opengl1", "opengl2", "vulkan"), default="opengl1")
+    parser.add_argument("--scenario", choices=("menus", "saves", "maps", "video"), default="menus")
     parser.add_argument("--under-guard", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     for name in ("engine", "prefix", "guard", "report"):

@@ -5,6 +5,7 @@ const c = @import("../engine/abi.zig").c;
 const v = @import("../domain/vector.zig");
 const policy = @import("../domain/weather.zig");
 const particles = @import("fx_particles.zig");
+const engine = @import("../engine/client.zig");
 const Random = @import("../domain/components.zig").Random;
 const Clock = struct { id: u32, tick: i64, seen_ms: i32, random: Random };
 var clocks: [c.MAX_GENTITIES]?Clock = @splat(null);
@@ -25,8 +26,11 @@ pub fn emit(entity: c.entityState_t, now: i32, ref: *const c.refdef_t) void {
     if (entity.number < 0 or entity.number >= clocks.len or entity.time2 == 0 or entity.weapon < 0 or entity.weapon > 1) return;
     for (entity.origin2 ++ entity.angles2) |value| if (!std.math.isFinite(value) or @abs(value) > 1000000) return;
     const state: policy.State = .{ .kind = @enumFromInt(entity.weapon), .flags = @bitCast(entity.frame), .mins = entity.origin2, .maxs = entity.angles2 };
-    const distance = policy.cornerDistance(state, ref.vieworg, ref.viewaxis[0]) orelse return;
     if (!frustum(state, ref)) return;
+    // Renderers that simulate weather on the GPU take the whole volume; the others decline and
+    // the finite CPU particles below remain.
+    if (engine.gateway.call(c.CG_DK3_R_WEATHER_V1, .{ @as(isize, entity.weapon), @as(isize, entity.frame), &state.mins, &state.maxs, @as(isize, entity.time2) }) != 0) return;
+    const distance = policy.cornerDistance(state, ref.vieworg, ref.viewaxis[0]) orelse return;
     const width: i32 = @intFromFloat(@trunc(state.maxs[0]) - state.mins[0]);
     const depth: i32 = @intFromFloat(@trunc(state.maxs[1]) - state.mins[1]);
     var height: i32 = @intFromFloat(@trunc(state.maxs[2]) - state.mins[2]);

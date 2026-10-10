@@ -28,6 +28,18 @@ _SIZES = dict(asphalt=1024, plaza_stone=1024, tower_front=1024, concrete_panel=1
               prop_paint_red=512, prop_paint_cyan=512, prop_concrete=512, foliage=512,
               vend_face=512)
 
+_SIZES.update(dict(                                     # the street kit, see textures.py
+    plaster_warm=512, stucco_pale=512, plaster_slate=512, tile_cream=512, tile_dark=512,
+    tile_sage=512, brick_deep=512, slat_timber=512, slat_dark=512, shutter_steel=512,
+    shutter_green=512, corrugated_rust=512, panel_blue=512, concrete_rough=1024,
+    kerb_granite=512, tactile_yellow=512, paving_court=512, paving_lane=512,
+    paint_line_white=512, paint_line_yellow=512, asphalt_wet=1024, grate_drain=512,
+    sign_band_a=512, sign_band_b=512, sign_menu=512, sign_vertical=512,
+    sign_vertical_b=512, wayfinding_blue=512, banner_red=512, banner_white=512,
+    noren_strip=512, poster_wall=512, ad_board_b=1024, vend_face_b=512, vend_face_c=512,
+    neon_c=512, light_strip_warm=256, light_strip_cyan=256, roof_membrane=1024,
+    deck_timber=512, prop_paint_yellow=512, prop_paint_green=512, metal_brass=512))
+
 SKY = dict(
     kind='sky', shader='japandm/sky', skybox='env/japandm', cloudheight=512,
     diffuse=False,
@@ -157,6 +169,176 @@ MATERIALS = {
     'japandm/glass': dict(
         kind='trans', shader='japandm/glass', repeat=256, texwidth=_SIZES['glass'],
         normal=True, specular=True, transparency=0.22),
+    # --- the kit walls ------------------------------------------------------
+    # Fourteen surfaces for the parts a facade is actually built from, because a
+    # `metal_column` handrail, a `concrete_panel` spandrel and a shopfront's tile
+    # are three different pitches and the arena used to give them one.  All of
+    # these are `lit`: they are masonry and board, and they must take the street's
+    # light pools or a lane with a lamp in it will read as a lane with nothing in
+    # it.  `kind='lit'` + `glow` is only used where the surface genuinely carries
+    # its own light (see the signage block below).
+    'japandm/plaster_warm': dict(
+        kind='lit', shader='japandm/plaster_warm', repeat=128,
+        texwidth=_SIZES['plaster_warm'], normal=True, specular=True),
+    'japandm/stucco_pale': dict(
+        kind='lit', shader='japandm/stucco_pale', repeat=128,
+        texwidth=_SIZES['stucco_pale'], normal=True, specular=True),
+    'japandm/plaster_slate': dict(
+        kind='lit', shader='japandm/plaster_slate', repeat=128,
+        texwidth=_SIZES['plaster_slate'], normal=True, specular=True),
+    'japandm/tile_cream': dict(
+        kind='lit', shader='japandm/tile_cream', repeat=96,
+        texwidth=_SIZES['tile_cream'], normal=True, specular=True),
+    'japandm/tile_dark': dict(
+        kind='lit', shader='japandm/tile_dark', repeat=128,
+        texwidth=_SIZES['tile_dark'], normal=True, specular=True),
+    'japandm/tile_sage': dict(
+        kind='lit', shader='japandm/tile_sage', repeat=96,
+        texwidth=_SIZES['tile_sage'], normal=True, specular=True),
+    'japandm/brick_deep': dict(
+        kind='lit', shader='japandm/brick_deep', repeat=128,
+        texwidth=_SIZES['brick_deep'], normal=True, specular=True),
+    'japandm/slat_timber': dict(
+        kind='lit', shader='japandm/slat_timber', repeat=128,
+        texwidth=_SIZES['slat_timber'], normal=True, specular=True),
+    'japandm/slat_dark': dict(
+        kind='lit', shader='japandm/slat_dark', repeat=128,
+        texwidth=_SIZES['slat_dark'], normal=True, specular=True),
+    'japandm/shutter_steel': dict(
+        kind='lit', shader='japandm/shutter_steel', repeat=128,
+        texwidth=_SIZES['shutter_steel'], normal=True, specular=True),
+    'japandm/shutter_green': dict(
+        kind='lit', shader='japandm/shutter_green', repeat=128,
+        texwidth=_SIZES['shutter_green'], normal=True, specular=True),
+    'japandm/corrugated_rust': dict(
+        kind='lit', shader='japandm/corrugated_rust', repeat=96,
+        texwidth=_SIZES['corrugated_rust'], normal=True, specular=True),
+    'japandm/panel_blue': dict(
+        kind='lit', shader='japandm/panel_blue', repeat=96,
+        texwidth=_SIZES['panel_blue'], normal=True, specular=True),
+    'japandm/concrete_rough': dict(
+        kind='lit', shader='japandm/concrete_rough', repeat=192,
+        texwidth=_SIZES['concrete_rough'], normal=True, specular=True),
+    # --- foot-level ground --------------------------------------------------
+    # Everything here is laid 2 units proud of the surface it decorates, so none
+    # of it is a step; the walk audit does not care, and neither does a boot.
+    'japandm/kerb_granite': dict(
+        kind='lit', shader='japandm/kerb_granite', repeat=64,
+        texwidth=_SIZES['kerb_granite'], normal=True, specular=True),
+    'japandm/tactile_yellow': dict(
+        kind='lit', shader='japandm/tactile_yellow', repeat=96,
+        texwidth=_SIZES['tactile_yellow'], normal=True, specular=True),
+    'japandm/paving_court': dict(
+        kind='lit', shader='japandm/paving_court', repeat=128,
+        texwidth=_SIZES['paving_court'], normal=True, specular=True),
+    'japandm/paving_lane': dict(
+        kind='lit', shader='japandm/paving_lane', repeat=128,
+        texwidth=_SIZES['paving_lane'], normal=True, specular=True),
+    'japandm/paint_line_white': dict(
+        kind='lit', shader='japandm/paint_line_white', repeat=96,
+        texwidth=_SIZES['paint_line_white'], normal=True, specular=True),
+    'japandm/paint_line_yellow': dict(
+        kind='lit', shader='japandm/paint_line_yellow', repeat=96,
+        texwidth=_SIZES['paint_line_yellow'], normal=True, specular=True),
+    # The wet tarmac is the map's mirror: `extra_gain 0.9` on a specular stage that
+    # already reads the painter's own rain film is what returns a sign to the
+    # street it stands over, which no light entity can do.
+    'japandm/asphalt_wet': dict(
+        kind='lit', shader='japandm/asphalt_wet', repeat=128,
+        texwidth=_SIZES['asphalt_wet'], normal=True, specular=True),
+    'japandm/grate_drain': dict(
+        kind='lit', shader='japandm/grate_drain', repeat=64,
+        texwidth=_SIZES['grate_drain'], normal=True, specular=True,
+        surfaceparm=('metalsteps',)),
+    # --- signage ------------------------------------------------------------
+    # `emissive_full`, so the plate is its own light and the street's darkness is
+    # not asked to reveal it.  Each carries a small `q3map_surfacelight`: this is
+    # how a night market's street is lit at all -- by its own shopfronts -- and
+    # WP4's district lighting is built on these rather than on bare points.  The
+    # values are deliberately a fraction of `ad_board`'s 330: a lane lined with
+    # twelve 300-unit sign faces is a football pitch, not a shopping street.
+    'japandm/sign_band_a': dict(
+        kind='emissive_full', shader='japandm/sign_band_a', repeat=192,
+        texwidth=_SIZES['sign_band_a'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 150', 'q3map_lightsubdivide 128']),
+    'japandm/sign_band_b': dict(
+        kind='emissive_full', shader='japandm/sign_band_b', repeat=160,
+        texwidth=_SIZES['sign_band_b'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 140', 'q3map_lightsubdivide 128']),
+    'japandm/sign_menu': dict(
+        kind='emissive_full', shader='japandm/sign_menu', repeat=96,
+        texwidth=_SIZES['sign_menu'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 70', 'q3map_lightsubdivide 64']),
+    'japandm/sign_vertical': dict(
+        kind='emissive_full', shader='japandm/sign_vertical', repeat=160,
+        texwidth=_SIZES['sign_vertical'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 150', 'q3map_lightsubdivide 128']),
+    'japandm/sign_vertical_b': dict(
+        kind='emissive_full', shader='japandm/sign_vertical_b', repeat=192,
+        texwidth=_SIZES['sign_vertical_b'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 150', 'q3map_lightsubdivide 128']),
+    'japandm/wayfinding_blue': dict(
+        kind='emissive_full', shader='japandm/wayfinding_blue', repeat=192,
+        texwidth=_SIZES['wayfinding_blue'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 110', 'q3map_lightsubdivide 128']),
+    'japandm/banner_red': dict(
+        kind='emissive_full', shader='japandm/banner_red', repeat=128,
+        texwidth=_SIZES['banner_red'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 55', 'q3map_lightsubdivide 96']),
+    'japandm/banner_white': dict(
+        kind='emissive_full', shader='japandm/banner_white', repeat=128,
+        texwidth=_SIZES['banner_white'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 60', 'q3map_lightsubdivide 96']),
+    'japandm/noren_strip': dict(
+        kind='emissive_full', shader='japandm/noren_strip', repeat=64,
+        texwidth=_SIZES['noren_strip'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 30', 'q3map_lightsubdivide 48']),
+    # Paper does not light itself.  A poster wall is a lit wall, and the only
+    # reason it is in this block is that it belongs to the same kit.
+    'japandm/poster_wall': dict(
+        kind='lit', shader='japandm/poster_wall', repeat=128,
+        texwidth=_SIZES['poster_wall'], normal=True, specular=True),
+    'japandm/ad_board_b': dict(
+        kind='emissive_full', shader='japandm/ad_board_b', repeat=256,
+        texwidth=_SIZES['ad_board_b'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 300', 'q3map_lightsubdivide 256']),
+    'japandm/vend_face_b': dict(
+        kind='emissive_full', shader='japandm/vend_face_b', repeat=64,
+        texwidth=_SIZES['vend_face_b'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 120', 'q3map_lightsubdivide 64']),
+    'japandm/vend_face_c': dict(
+        kind='emissive_full', shader='japandm/vend_face_c', repeat=84,
+        texwidth=_SIZES['vend_face_c'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 130', 'q3map_lightsubdivide 64']),
+    'japandm/neon_c': dict(
+        kind='emissive_full', shader='japandm/neon_c', repeat=96,
+        texwidth=_SIZES['neon_c'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 190', 'q3map_lightsubdivide 96']),
+    'japandm/light_strip_warm': dict(
+        kind='emissive_full', shader='japandm/light_strip_warm', repeat=128,
+        texwidth=_SIZES['light_strip_warm'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 120', 'q3map_lightsubdivide 64']),
+    'japandm/light_strip_cyan': dict(
+        kind='emissive_full', shader='japandm/light_strip_cyan', repeat=96,
+        texwidth=_SIZES['light_strip_cyan'], glow=True, surfaceparm=('nolightmap',),
+        q3map=['q3map_surfacelight 110', 'q3map_lightsubdivide 64']),
+    # --- roof and deck, re-scaled ------------------------------------------
+    'japandm/roof_membrane': dict(
+        kind='lit', shader='japandm/roof_membrane', repeat=256,
+        texwidth=_SIZES['roof_membrane'], normal=True, specular=True),
+    'japandm/deck_timber': dict(
+        kind='lit', shader='japandm/deck_timber', repeat=96,
+        texwidth=_SIZES['deck_timber'], normal=True, specular=True),
+    # --- painted fixtures ---------------------------------------------------
+    'japandm/prop_paint_yellow': dict(
+        kind='lit', shader='japandm/prop_paint_yellow', repeat=32,
+        texwidth=_SIZES['prop_paint_yellow'], normal=True, specular=True),
+    'japandm/prop_paint_green': dict(
+        kind='lit', shader='japandm/prop_paint_green', repeat=32,
+        texwidth=_SIZES['prop_paint_green'], normal=True, specular=True),
+    'japandm/metal_brass': dict(
+        kind='lit', shader='japandm/metal_brass', repeat=48,
+        texwidth=_SIZES['metal_brass'], normal=True, specular=True),
     # --- the sky and the brushes nobody sees --------------------------------
     'japandm/sky': SKY,
     'japandm/nodraw': dict(kind='nodraw', shader='common/nodraw', diffuse=False),

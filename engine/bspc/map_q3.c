@@ -281,6 +281,12 @@ void Q3_BSPBrushToMapBrush(q3_dbrush_t *bspbrush, entity_t *mapent)
 	for (i = 0; i < b->numsides; ++i)
 		if (b->original_sides[i].surf & SURF_LADDER)
 			b->contents |= CONTENTS_LADDER;
+	/* An authored lethal cold volume (CONTENTS_DK3_NITRO, 0x0800, in the
+	   engine's surfaceflags.h; converted with the water bit) is a liquid no
+	   route may enter: class it with lava, so its areas are lava areas the
+	   default travel flags leave out. */
+	if (b->contents & 0x0800)
+		b->contents = (b->contents & ~(0x0800 | CONTENTS_WATER)) | CONTENTS_LAVA;
 //	b->contents = Q3_BrushContents(b);
 	//
 

@@ -1,4 +1,4 @@
-"""Generate a local cinematic video proof from a recorded game frame.
+"""Generate local cinematic video latents from a photorealistic keyframe.
 
 This is an offline authoring tool. It never modifies DK3's runtime or source
 assets; output is confined to the caller's report directory.
@@ -10,7 +10,6 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-import subprocess
 import sys
 
 
@@ -27,55 +26,57 @@ def sha256(path: Path) -> str:
 
 
 def generate(args: argparse.Namespace) -> None:
-    import numpy as np
     import torch
     from PIL import Image
-    from diffusers import HunyuanVideo15ImageToVideoPipeline
+    from diffusers import BitsAndBytesConfig, HunyuanVideo15ImageToVideoPipeline
+    from diffusers.quantizers import PipelineQuantizationConfig
+    from safetensors.torch import save_file
 
     model_dir = args.model_dir.resolve(strict=True)
     image_path = args.image.resolve(strict=True)
     report_dir = args.report_dir.resolve()
     report_dir.mkdir(parents=True, exist_ok=True)
-    frames_dir = report_dir / "frames"
-    frames_dir.mkdir(exist_ok=True)
 
     image = Image.open(image_path).convert("RGB")
+    quantization = PipelineQuantizationConfig(
+        quant_mapping={"transformer": BitsAndBytesConfig(load_in_8bit=True)}
+    )
     pipe = HunyuanVideo15ImageToVideoPipeline.from_pretrained(
-        str(model_dir), torch_dtype=torch.bfloat16, local_files_only=True
+        str(model_dir),
+        torch_dtype=torch.bfloat16,
+        quantization_config=quantization,
+        local_files_only=True,
     )
     pipe.target_size = args.target_size
-    # Variable-length padded attention is a major source of wasted VRAM here.
-    # The optimized backend is documented for HunyuanVideo 1.5 by Diffusers.
-    pipe.transformer.set_attention_backend("flash_hub")
-    pipe.enable_model_cpu_offload()
     pipe.vae.enable_tiling()
+    # The quantized transformer starts on CUDA. Encoding text on CUDA at the
+    # same time would load the 7B language encoder beside it and exhaust VRAM.
+    # Produce both CFG embeddings on CPU, then move only the image/VAE modules.
+    with torch.inference_mode():
+        positive = pipe.encode_prompt(args.prompt, device=torch.device("cpu"))
+        negative = pipe.encode_prompt(args.negative_prompt, device=torch.device("cpu"))
+    pipe.image_encoder.to("cuda")
+    pipe.vae.to("cuda")
     generator = torch.Generator(device="cuda").manual_seed(args.seed)
     with torch.inference_mode():
-        frames = pipe(
+        latents = pipe(
             image=image,
-            prompt=args.prompt,
-            negative_prompt=args.negative_prompt,
+            prompt_embeds=positive[0],
+            prompt_embeds_mask=positive[1],
+            prompt_embeds_2=positive[2],
+            prompt_embeds_mask_2=positive[3],
+            negative_prompt_embeds=negative[0],
+            negative_prompt_embeds_mask=negative[1],
+            negative_prompt_embeds_2=negative[2],
+            negative_prompt_embeds_mask_2=negative[3],
             generator=generator,
             num_frames=args.frames,
             num_inference_steps=args.steps,
-        ).frames[0]
+            output_type="latent",
+        ).frames
 
-    for index, frame in enumerate(frames):
-        pixels = np.asarray(frame)
-        if pixels.dtype != np.uint8:
-            pixels = np.clip(pixels * 255.0, 0, 255).astype(np.uint8)
-        Image.fromarray(pixels).save(frames_dir / f"frame_{index:04d}.png")
-
-    video_path = report_dir / "generated.mp4"
-    subprocess.run(
-        [
-            "ffmpeg", "-y", "-v", "error", "-framerate", "24",
-            "-i", str(frames_dir / "frame_%04d.png"),
-            "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
-            str(video_path),
-        ],
-        check=True,
-    )
+    latent_path = report_dir / "latents.safetensors"
+    save_file({"latents": latents.detach().cpu().contiguous()}, latent_path)
     report = {
         "model": MODEL_ID,
         "model_revision": MODEL_REVISION,
@@ -85,15 +86,17 @@ def generate(args: argparse.Namespace) -> None:
         "negative_prompt": args.negative_prompt,
         "seed": args.seed,
         "steps": args.steps,
-        "frames": len(frames),
+        "requested_frames": args.frames,
+        "latent_shape": list(latents.shape),
+        "latents": str(latent_path),
+        "latents_sha256": sha256(latent_path),
         "target_size": args.target_size,
         "fps": 24,
         "torch": torch.__version__,
+        "transformer_quantization": "bitsandbytes_int8",
         "cuda": torch.version.cuda,
         "gpu": torch.cuda.get_device_name(0),
-        "video": str(video_path),
-        "video_sha256": sha256(video_path),
-        "status": "generated; visual review required",
+        "status": "latents ready; run cinematic_ai_decode.py in a fresh process",
     }
     (report_dir / "generation.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -111,14 +114,14 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=345)
     parser.add_argument("--frames", type=int, default=49)
     parser.add_argument("--steps", type=int, default=12)
-    parser.add_argument("--target-size", type=int, default=384)
+    parser.add_argument("--target-size", type=int, default=640)
     args = parser.parse_args()
     if args.frames < 5 or args.frames > 121 or args.frames % 4 != 1:
         parser.error("--frames must be 4n+1, from 5 through 121")
     if args.steps < 1 or args.steps > 50:
         parser.error("--steps must be from 1 through 50")
-    if args.target_size < 256 or args.target_size > 480 or args.target_size % 32:
-        parser.error("--target-size must be a multiple of 32 from 256 through 480")
+    if args.target_size < 256 or args.target_size > 640 or args.target_size % 32:
+        parser.error("--target-size must be a multiple of 32 from 256 through 640")
     if not args.prompt.strip():
         parser.error("--prompt must not be blank")
     generate(args)

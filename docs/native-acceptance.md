@@ -1,5 +1,70 @@
 # Native port acceptance
 
+## Sequences 358–373 — vulkan-remaster — implemented; owner visual acceptance open
+
+The owner directed the remaster roadmap in [vulkan-remaster.md](vulkan-remaster.md)
+to completion after milestone 1. Every item below is implemented. Each one only
+passed a lavapipe smoke run (`dkguard --headless`, 1280x720, e1m1a), which shows it
+runs and composites. None is verified: the owner asked to judge visuals in game,
+and the RT tier still needs a `--gpu` run on the RTX 5090.
+
+Also fixed in this pass: the native client set `refEntity.dk3World` to the network
+world id instead of the renderer's world handle (`client.zig`, `owner.render`).
+The two numberings only matched under OpenGL, so Vulkan dropped every model
+except the view weapon.
+
+| # | Slug | State | Smoke evidence (`zig-out/reports/vulkan-remaster/`) |
+| --- | --- | --- | --- |
+| 358 | `vulkan-renderer-hdr-pbr-core` | Implemented | `rm1/` |
+| 359 | `native-runtime-environment` | Implemented (underwater composite from brush contents) | `water1/` |
+| 360 | `vulkan-renderer-water` | Implemented | `water1/` |
+| 361 | `vulkan-renderer-volumetrics` | Implemented; extinction tuned against e1m1a fog | `vol2/`, `vol3/` |
+| 362 | `vulkan-renderer-taa-fsr` | Implemented; `r_vkRenderScale 0.5` vid_restart smoke | `taa1/` |
+| 363 | `vulkan-renderer-weather-gpu` | Implemented; new syscall `CG_DK3_R_WEATHER_V1` (716) | `wx1/`, `wx2/` |
+| 364 | `vulkan-renderer-clustered-lights-shadows` | Implemented | `sh1/` |
+| 365 | `material-sidecars` | Implemented: 3,960 sidecars, 3,851 normal maps in 6 s | `mat1/` |
+| 366 | `vulkan-renderer-rt-shadows-reflections` | Implemented: lavapipe builds 16,208-triangle structures for e1m1a | `rt1/` |
+| 367 | `vulkan-renderer-ddgi` | Implemented | `gi1/` |
+| 368 | `lightmap-rebake-directional` | Implemented: 25 e1m1a pages baked progressively | `bk4/` (direction view), `bk5/` |
+| 369 | `vulkan-renderer-path-tracing` | Implemented, off by default; ray facing flipped for Quake 3 winding (also fixes DDGI validity) | `pt3/` (mask, lighting), `pt4/` |
+| 370 | `vulkan-renderer-m1-gaps` | Beams/rails/lightning and model shadows implemented; material scan Passed (`definitions=7086 unknown_keywords=0`, `final1/`); AVI Blocked: `demo` playback stops at once, so `video` refuses | `final1/`, `avi1/` |
+| 372 | `vulkan-renderer-lighting-scale` | Implemented from the owner's second set of screenshots ("everything is white"): remaster lightmaps now normalise each texel like the original (`world.linearLight`, brightest channel capped at white with a quarter stop of headroom) instead of keeping the full x4 overbright range that lit surfaces up to 21x; dynamic lights add at that scale; the composite defaults to Khronos PBR Neutral without its black toe (`r_vkTonemap 0`, AgX stays as 1; `r_vkSaturation` 1); auto exposure adapts within [0.75, 1.25]; the baked-light sheen uses a roughness floor of 0.5; authored fog coverage is remapped to the original display-space blend with dynamic-light glow kept in its own froxel pair; opaque model pixels mark HDR alpha so TAA stops accumulating history over moving limbs. Headless e1m1a: mean luma 0.314 -> 0.124 (classic 0.086), saturation back to the classic range. A locally extracted validation layer (`val5/`) found two device-creation omissions, fixed: update-after-bind storage images and shader demote need their features enabled. PBR dynamic lights now cap at the light's own colour (they peaked at ~50x at the source). Against an OpenGL1 capture of the same cutscene shot (`cine-gl1b/`), the remaster character was ~1.4x too bright with grey hair and skin: the probe ambient now may at most double the grid ambient and emissive surfaces count at most 0.5 in the probe gather; model skins get specular 0.4; `r_vkDebugView 6`/`7` show texture colour / light only. Found on the RTX 5090 (`gpu*/`, `wf*/`): distant objects turned white from Schlick Fresnel rising to 1 at grazing angles (now limited by roughness and specular strength; model skins specular 0), and waterfalls were drawn as pool surfaces (vertical faces now keep their authored stages); both match OpenGL1 captures of the same views. Open: the intro map faults lavapipe in shader code after the froxel passes (`r_vkVolumetric 0` avoids it); the owner's screenshots show the same map rendering on the RTX 5090 | `wx4/`, `wx5/`, `val5/` |
+| 373 | `vulkan-renderer-rain-realism` | Implemented: physical drops (1-3 mm, Gunn-Kinzer speeds, 1/30 s streaks, pixel-wide with coverage alpha), per-drop lighting with back-lit glints, distant rain as froxel fog under open sky, crown splashes, puddle-only ripples, porosity darkening, TAA motion mark. Also: crashes now write `crashlog.txt` with a backtrace (`crashtest/`); ion-blaster glow no longer floods the fog (`fire1/`) | `rain1/`, `rain2/` (RTX 5090) |
+| 371 | `vulkan-renderer-rain-occlusion` | Implemented from the owner's first in-game screenshots: rain occlusion map (`shadows.rainCamera`, lower half of the shadow atlas) hides drops, flakes and splashes under roofs and lands splashes on the stored surface; only exposed surfaces get wet or snowed on. Also: procedural bump off for model skins and faded under magnification (blocky faces), wider baked-light specular lobe and glossy rather than mirror-like wet walls (white speckles), sky column fogged at the authored `fog_skyend` coverage, liquids translucent from below, and a dangling draw-list slice in `renderView` that the new pass exposed (segfault) | `wx3/` (no validation layer was installed on the dev host at the time, so the `r_vkValidation 1` run there proves nothing) |
+
+Open:
+- Owner in-game inspection.
+- An RTX 5090 run of the ray-tracing tier and its performance.
+- Brightness tuning of path tracing against the radiosity (`r_vkPtLightScale`).
+- Alpha-tested foliage is outside the acceleration structures, so it neither
+  casts ray-traced shadows nor blocks path-traced light.
+- Skinned models are not in the acceleration structures: they get shadow-map
+  shadows and DDGI ambient light instead.
+- FSR 3.1 is not bundled; the in-house temporal upscaler covers render scaling.
+
+## Sequences 347–357 — vulkan-renderer — milestone 1 implemented; owner visual acceptance open
+
+`renderer_vulkan.so` (Zig 0.16, `src/renderer_vulkan/`) implements the complete
+refexport v13 surface on Vulkan 1.3 and is now the default `cl_renderer`; OpenGL2
+loads automatically when the module is missing or refuses the machine. Scope,
+design and the later remaster roadmap: [vulkan-remaster.md](vulkan-remaster.md).
+The native client again submits worldspawn fog (`client/fog.zig`), which also
+restores fog in both OpenGL renderers. `r_mode -2` renders at the native,
+high-DPI drawable; fullscreen is borderless desktop size.
+
+| Evidence (`zig-out/reports/vulkan-renderer-357/`) | State | Limits |
+| --- | --- | --- |
+| `boot1/`, `boot-gl2/` | Passed: lavapipe boot, menu 2D, fonts and lit menu models inspected against OpenGL2 | `dkguard --headless`, 1280x720 |
+| `map1/`, `map-opengl1/`, `map-opengl2/` | Passed: e1m1a lightmaps, rain, view weapon, HUD inspected; matches OpenGL1's overbright model | Single view; no RMSE tolerance recorded |
+| `fog-vulkan/`, `fog-opengl1/` | Passed: e2m1a authored fog identical in both renderers | — |
+| `preview-vulkan/`, `preview-opengl1/` | Passed: resident e1m1b preview from e1m1a, distinct inline handles | `runtime_render_world_probe.py` itself times out on both renderers: its ready-line wait predates region admission |
+| `combat-vulkan/`, `combat-opengl1/` | Passed: glove fire view, 400x300 `dk3-save-*` preview, 128x128 levelshot | `video` only runs during demo playback: AVI capture unverified |
+| `default-native/`, `fallback/` | Passed: default loads Vulkan with a native drawable; with every Vulkan driver disabled the client logs the refusal and runs OpenGL2 | — |
+
+Open: owner in-game inspection on the RTX 5090; Khronos validation run (layer not
+installed on the host); skeletal cinematic characters. `RT_BEAM`/rail/lightning
+entities and model shadows are drawn since sequence 370.
+
 ## Sequence 342 — cinematic-performance-pivot — diagnostic gate implemented; new performance unverified
 
 The default client now uses original vertex-model presentation for cinematic

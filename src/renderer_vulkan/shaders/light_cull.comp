@@ -1,0 +1,53 @@
+#version 460
+// SPDX-License-Identifier: GPL-2.0-or-later
+// Clustered light culling (clusters.zig): one invocation per cluster tests every light sphere
+// against the cluster's bounding box in view space and stores up to size.w light indices.
+// slots.xy = cluster list buffer address; buffer0 = lights; buffer1 = Params.
+#include "post_common.glsl"
+
+layout(local_size_x = 4, local_size_y = 3, local_size_z = 4) in;
+
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Params {
+    vec4 origin;
+    vec4 forward;   // w = tan(fov_x / 2)
+    vec4 left;      // w = tan(fov_y / 2)
+    vec4 up;        // w = near
+    vec4 slices;    // log(far / near), far, light count
+};
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer LightList { vec4 v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) writeonly buffer ClusterList { uint v[]; };
+
+float sliceDistance(Params p, float s) {
+    return s <= 0.0 ? 0.0 : p.up.w * exp(p.slices.x * s / float(pc.size.z));
+}
+
+void main() {
+    uvec3 id = gl_GlobalInvocationID;
+    if (any(greaterThanEqual(id, pc.size.xyz))) return;
+    Params p = Params(pc.buffer1);
+    // View space: x right, y up, z forward (distance along the view axis).
+    float z0 = sliceDistance(p, float(id.z)), z1 = sliceDistance(p, float(id.z) + 1.0);
+    vec2 t0 = (vec2(id.xy) / vec2(pc.size.xy)) * 2.0 - 1.0;
+    vec2 t1 = (vec2(id.xy + 1u) / vec2(pc.size.xy)) * 2.0 - 1.0;
+    // Screen y grows downward.
+    vec2 a = vec2(t0.x * p.forward.w, -t1.y * p.left.w), b = vec2(t1.x * p.forward.w, -t0.y * p.left.w);
+    vec3 lo = vec3(min(a * z0, a * z1), z0), hi = vec3(max(b * z0, b * z1), z1);
+    LightList lights = LightList(pc.buffer0);
+    ClusterList list = ClusterList(pc.slots.xy);
+    uint cluster = id.x + pc.size.x * (id.y + pc.size.y * id.z);
+    uint base = cluster * (pc.size.w + 1u);
+    uint count = 0u;
+    uint total = uint(p.slices.z);
+    for (uint k = 0u; k < total && count < pc.size.w; ++k) {
+        vec4 l = lights.v[k * 2u];
+        vec3 d = l.xyz - p.origin.xyz;
+        vec3 view = vec3(-dot(d, p.left.xyz), dot(d, p.up.xyz), dot(d, p.forward.xyz));
+        vec3 closest = clamp(view, lo, hi);
+        vec3 delta = closest - view;
+        if (dot(delta, delta) <= l.w * l.w) {
+            list.v[base + 1u + count] = k;
+            ++count;
+        }
+    }
+    list.v[base] = count;
+}

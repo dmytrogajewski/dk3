@@ -23,7 +23,7 @@ const c = abi.c;
 const v = @import("../domain/vector.zig");
 const allocator = std.heap.c_allocator;
 
-pub const Kind = enum(u8) { hazard, wall, door, floor, breakable, tripwire };
+pub const Kind = enum(u8) { hazard, wall, door, floor, breakable, tripwire, pool };
 pub const Gate = struct { id: u32, kind: Kind, areas: []i32, closed: bool = false };
 /// The first closed gate on a route, and where that route reaches it: the
 /// predicted position in the last open area before the gate (the near side
@@ -201,6 +201,7 @@ pub const State = struct {
                     };
                 },
                 .breakable => try inside(&found, projection, 0),
+                .pool => try submerged(&found, projection),
                 .floor => {
                     const mover = (try world.get(entity, data.Mover)).*;
                     const pose = (try world.get(entity, data.Transform)).*;
@@ -224,10 +225,10 @@ pub const State = struct {
                 }
             }
         };
-        var counts = [_]usize{0} ** 6;
+        var counts = [_]usize{0} ** 7;
         for (self.gates.items) |gate| counts[@intFromEnum(gate.kind)] += 1;
         var message: [192]u8 = undefined;
-        engine.print(try std.fmt.bufPrintZ(&message, "dk3 navigation gates: hazards={d} walls={d} doors={d} floors={d} breakables={d} tripwires={d}\n", .{ counts[0], counts[1], counts[2], counts[3], counts[4], counts[5] }));
+        engine.print(try std.fmt.bufPrintZ(&message, "dk3 navigation gates: hazards={d} walls={d} doors={d} floors={d} breakables={d} tripwires={d} pools={d}\n", .{ counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6] }));
     }
 };
 
@@ -238,6 +239,20 @@ pub fn kindOf(world: *data.World, entity: @import("../ecs/world.zig").Entity, ob
     if (has(world, entity, data.Wall) and object.flags & 3 != 0) return .wall;
     if (has(world, entity, data.Destructible)) return .breakable;
     const mover = world.get(entity, data.Mover) catch return null;
+    // A lethal liquid that drains away (e1m6a's nitrogen under the labs, a
+    // func_water BSPC leaves out of the area graph): shut while it stands.
+    // (Its entity is linked solid: the liquid is in its brushes' contents,
+    // sampled across its box at mid-depth: the brushes need not fill it.)
+    if (std.mem.eql(u8, object.classname, "func_water")) {
+        const low = projection.shared.absmin;
+        const span = v.subtract(projection.shared.absmax, low);
+        for (0..5) |i| for (0..5) |j| {
+            const point: v.Vec3 = .{ low[0] + span[0] * (@as(f32, @floatFromInt(i)) + 0.5) / 5, low[1] + span[1] * (@as(f32, @floatFromInt(j)) + 0.5) / 5, low[2] + span[2] / 2 };
+            const liquid = engine.collisionService().contents(point, c.ENTITYNUM_NONE) catch 0;
+            if (liquid & (c.CONTENTS_DK3_NITRO | c.CONTENTS_LAVA | c.CONTENTS_SLIME) != 0) return .pool;
+        };
+        return null;
+    }
     // A door the party opens itself holds no route shut.
     if (@import("authored_nodes.zig").partyDoor(world, object, projection.shared.absmin, projection.shared.absmax)) return null;
     // A remote rotating door (e1m3b's hatch over the stairs): BSPC leaves its
@@ -323,6 +338,7 @@ fn blocks(world: *data.World, entity: @import("../ecs/world.zig").Entity, kind: 
         },
         // Removed (killtarget) once its chain has run.
         .tripwire => true,
+        .pool => (try world.get(entity, data.Mover)).state != .open,
     };
 }
 /// A func_door that slides sideways and is a thin wide slab: a bridge or a
@@ -359,6 +375,20 @@ fn inside(found: *std.ArrayList(i32), projection: abi.EntityProjection, contents
         if (engine.gateway.call(c.BOTLIB_AAS_AREA_INFO, .{ @as(isize, area), &info }) == 0) continue;
         const centre: v.Vec3 = info.center;
         if (centre[0] < low[0] - 15 or centre[0] > high[0] + 15 or centre[1] < low[1] - 15 or centre[1] > high[1] + 15 or centre[2] < low[2] - 32 or centre[2] > high[2] + 24) continue;
+        try found.append(allocator, area);
+    }
+}
+/// Areas where a player stands with feet in a liquid volume (the floor of a
+/// pool the area graph sees as dry).
+fn submerged(found: *std.ArrayList(i32), projection: abi.EntityProjection) !void {
+    var touching: std.ArrayList(i32) = .empty;
+    defer touching.deinit(allocator);
+    try collect(&touching, projection.shared.absmin, projection.shared.absmax, 0, false);
+    for (touching.items) |area| {
+        var info = std.mem.zeroes(c.aas_areainfo_t);
+        if (engine.gateway.call(c.BOTLIB_AAS_AREA_INFO, .{ @as(isize, area), &info }) == 0) continue;
+        // (Area bounds are player origins: the feet are 24 below.)
+        if (info.mins[2] - 24 >= projection.shared.absmax[2] - 2) continue;
         try found.append(allocator, area);
     }
 }

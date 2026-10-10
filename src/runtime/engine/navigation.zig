@@ -163,6 +163,23 @@ pub const Navigation = struct {
             }
             return null;
         }
+        // A jump or fall the route takes next that lands with lethal liquid
+        // straight under the landing (the area graph's leap onto the rim of
+        // e1m6b's platform in the nitrogen ends short in play): its landing
+        // area is shut for good and the route planned again.
+        if (route.endtravelflags & (c.TFL_JUMP | c.TFL_WALKOFFLEDGE) != 0 and route.endarea > 0) {
+            var crossing = std.mem.zeroes(c.aas_predictroute_t);
+            var start: [3]f32 = route.endpos;
+            _ = engine.gateway.call(c.BOTLIB_AAS_PREDICT_ROUTE, .{ &crossing, route.endarea, &start, to, @as(isize, flags), @as(isize, 1), @as(isize, 0), @as(isize, 0), @as(isize, 0), @as(isize, 0), @as(isize, 0) });
+            if (crossing.stopevent != c.RSE_NOROUTE and crossing.endarea > 0 and crossing.endarea != to and landingUnsafe(crossing.endpos)) {
+                _ = engine.gateway.call(c.BOTLIB_AAS_ENABLE_ROUTING_AREA, .{ @as(isize, crossing.endarea), @as(isize, 0) });
+                if (engine.integer("developer") >= 1) {
+                    var text: [160]u8 = undefined;
+                    engine.print(std.fmt.bufPrintZ(&text, "dk3 navigation: landing over lethal liquid shut: area={d} at {d:.0},{d:.0},{d:.0}\n", .{ crossing.endarea, crossing.endpos[0], crossing.endpos[1], crossing.endpos[2] }) catch "");
+                }
+                return nextFrom(request, nudged);
+            }
+        }
         // Approach the reachability entrance before crossing it. A shortcut to its
         // far endpoint can cut across the wall at a corner or launch a jump early.
         // A lift's entrance is marked too: the rider waits there for the lift.
@@ -185,6 +202,13 @@ pub const Navigation = struct {
         return .{ .point = route.endpos, .jump = route.endtravelflags & (c.TFL_JUMP | c.TFL_BARRIERJUMP) != 0, .crouch = route.endtravelflags & c.TFL_CROUCH != 0 or crouchOnly(from) or crouchOnly(route.endarea), .ladder = route.endtravelflags & c.TFL_LADDER != 0, .elevator = route.endtravelflags & c.TFL_ELEVATOR != 0, .drop = route.endtravelflags & c.TFL_WALKOFFLEDGE != 0, .entrance = entrance, .from_area = @intCast(from), .to_area = @intCast(to) };
     }
 };
+/// Whether lethal liquid lies straight under a landing's centre before any
+/// floor does (a player's origin: the feet are 24 below).
+fn landingUnsafe(point: [3]f32) bool {
+    const lethal: u32 = c.CONTENTS_LAVA | c.CONTENTS_SLIME | c.CONTENTS_DK3_NITRO;
+    const below = engine.collisionService().trace(.{ .start = .{ point[0], point[1], point[2] - 23 }, .end = .{ point[0], point[1], point[2] - 160 }, .mins = @splat(0), .maxs = @splat(0), .slot = c.ENTITYNUM_NONE, .mask = @as(u32, c.MASK_PLAYERSOLID) | lethal }) catch return false;
+    return below.fraction < 1 and below.contents & lethal != 0;
+}
 /// The player's area (botlib's guess). `nudged`, for one pressed against a
 /// wall just outside the area graph's expanded solid when that guess has no
 /// route (it can be an area above or below): the nearest area a short step

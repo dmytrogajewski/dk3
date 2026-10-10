@@ -451,6 +451,12 @@ fn consoleCommand() isize {
             @import("server/actors.zig").diagnostics(&active.systems.actors, &active.world.?, &active.slots, clock.now_ms) catch |err| runtimeFailure(err);
             return 1;
         }
+        if (std.mem.eql(u8, command, "dk3_runtime_pacify_monsters")) {
+            const pacified = @import("server/actors.zig").pacifyMonsters(&active.world.?) catch |err| runtimeFailure(err);
+            var message: [96]u8 = undefined;
+            engine.print(std.fmt.bufPrintZ(&message, "dk3 zig probe: pacified {d} monsters\n", .{pacified}) catch unreachable);
+            return 1;
+        }
         if (std.mem.eql(u8, command, "dk3_runtime_performers")) {
             @import("server/cinematics.zig").diagnostics(&active.world.?, clock.now_ms) catch |err| runtimeFailure(err);
             return 1;
@@ -581,9 +587,20 @@ fn consoleCommand() isize {
             axis.* = std.fmt.parseFloat(f32, engine.argv(@intCast(i + 1), &argument)) catch return 1;
             if (!std.math.isFinite(axis.*) or @abs(axis.*) > 1000000) return 1;
         }
-        (active.world.?.get(player_entity, component.Transform) catch unreachable).position = point;
+        const transform = active.world.?.get(player_entity, component.Transform) catch unreachable;
+        transform.position = point;
         (active.world.?.get(player_entity, component.Velocity) catch unreachable).linear = @splat(0);
-        (active.world.?.get(player_entity, component.Player) catch unreachable).ground_entity = c.ENTITYNUM_NONE;
+        const player = active.world.?.get(player_entity, component.Player) catch unreachable;
+        player.ground_entity = c.ENTITYNUM_NONE;
+        // Optional yaw and pitch: a fixed view for captures (the delta angles a teleport sets).
+        var angle_text: [64]u8 = undefined;
+        if (std.fmt.parseFloat(f32, engine.argv(4, &angle_text)) catch null) |yaw| if (std.math.isFinite(yaw)) {
+            const pitch = std.fmt.parseFloat(f32, engine.argv(5, &angle_text)) catch 0;
+            transform.angles = .{ if (std.math.isFinite(pitch)) pitch else 0, yaw, 0 };
+            var input: c.usercmd_t = undefined;
+            engine.usercmd(0, &input);
+            for (transform.angles, 0..) |angle, i| player.delta_angles[i] = @as(i32, @intFromFloat(@mod(angle, 360) * (65536.0 / 360.0))) -% input.angles[i];
+        };
         active.clients.publish(&active.world.?, &active.projection, &active.players, 0, clock.now_ms) catch |err| runtimeFailure(err);
         return 1;
     }

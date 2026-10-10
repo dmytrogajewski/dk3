@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "scene": "dojo_dialogue",
+  "fps": 24,
+  "model": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v_step_distilled",
+  "negative_prompt": "cartoon, CGI, changed actor, younger face, changed costume, extra limbs, missing hands, changing prop, added people, floating feet, camera cut, subtitles, text, watermark",
+  "shots": [
+    {
+      "index": 0,
+      "keyframe": "hiro-shot-00-keyframe.png",
+      "seed": 360,
+      "negative_prompt": "cartoon, CGI, face change, armor, extra limbs, missing hands, foot sliding, teleporting, new people, door disappears, camera cut, subtitles, text, watermark",
+      "prompt": "One continuous photoreal live-action shot from behind Hiro. The same adult Japanese warrior in a white martial arts gi with black collar and waist sash walks across the dojo wood floor toward the metal doorway, then reaches the door. Preserve his black ponytail, white gi, black bracers, natural anatomy, doorway geometry, tatami floor, green wall and moody lighting exactly as the starting frame. His gait is grounded and his arms swing naturally. Camera slowly follows at a fixed height; no cut."
+    },
+    {
+      "index": 1,
+      "keyframe": "hiro-shot-01-keyframe.png",
+      "seed": 351,
+      "mouths": {"hiro": [0.39, 0.38]},
+      "negative_prompt": "cartoon, CGI, face change, different actor, armor, extra limbs, missing fingers, sliding feet, floating body, new people, camera cut, subtitles, text, watermark",
+      "prompt": "One continuous photoreal live-action shot. Hiro, the same Japanese man in the white martial arts gi with black collar, black belt and dark bracers, walks slowly toward the camera through the dojo corridor. Preserve the exact same face, hair, body proportions, clothing, doorway composition, wooden floor, wall panels and lighting as the reference frame. His natural arms swing as he walks and both hands remain anatomically correct. Subtle camera motion only, no cut."
+    },
+    {
+      "index": 2,
+      "keyframe": "two-actor-shot-02-keyframe.png",
+      "seed": 362,
+      "mouths": {"ebihara": [0.41, 0.32]},
+      "prompt": "One continuous photoreal live-action over-the-shoulder scene in a dark industrial dojo. In the right foreground Hiro in a white martial arts gi stands at the doorway, holds the same katana low in his right hand and looks toward Toshiro. At the back of the room Toshiro, the same stern older Japanese man in a charcoal hooded robe, stands with his carved wooden staff upright and speaks toward Hiro. Preserve both distinct faces, body sizes, outfits, staff, katana and exact room layout. Their posture and hand gestures are restrained and natural. Camera holds this angle without a cut."
+    },
+    {
+      "index": 3,
+      "keyframe": "toshiro-shot-03-keyframe.png",
+      "seed": 350,
+      "mouths": {"ebihara": [0.49, 0.43]},
+      "negative_prompt": "cartoon, CGI, younger face, different person, altered staff, extra limbs, extra people, corpses, cut, camera jump, subtitles, text, watermark",
+      "prompt": "One continuous photoreal live-action shot in the same dark industrial dojo corridor. Toshiro is the same stern older Japanese man from the reference frame, with the identical weathered mature face, charcoal hood and layered robe. He holds the same carved wooden staff upright beside him. He speaks seriously toward Hiro off camera, with restrained natural lip, eye, head and shoulder motion. Preserve the exact face, age, hood, staff, camera framing, greenish worn left wall, dark metal wall and lighting from the first frame throughout. No camera cut or change of person."
+    },
+    {
+      "index": 4,
+      "keyframe": "hiro-shot-04-keyframe.png",
+      "seed": 364,
+      "mouths": {"hiro": [0.47, 0.30]},
+      "prompt": "One continuous photoreal live-action shot of Hiro answering Toshiro from the dojo corridor. Hiro is the same adult Japanese man with a strong mature face, black tied-back hair, white textured martial arts gi, black collar and sash, dark bracers and wrapped boots. He remains in the doorway and speaks with a serious controlled expression, slight head motion and restrained hand gestures. Keep his exact face and clothing, body proportions, wooden floor, screen painting, corridor walls and lighting. The camera eases forward slightly; no cut."
+    },
+    {
+      "index": 5,
+      "keyframe": "toshiro-shot-05-keyframe.png",
+      "seed": 365,
+      "mouths": {"ebihara": [0.38, 0.27]},
+      "prompt": "One continuous photoreal live-action dialogue shot of Toshiro in the dark dojo. He is the same weathered older Japanese man in a charcoal hooded robe, holding the same carved staff. Hiro's katana remains in the near foreground exactly as in the reference frame. Toshiro speaks gravely, then coughs and recovers with subtle shoulder and head movement. Preserve Toshiro's mature face, hood, robe, staff, foreground sword and corridor background; no added person or camera cut."
+    },
+    {
+      "index": 6,
+      "keyframe": "hiro-shot-06-keyframe.png",
+      "seed": 366,
+      "mouths": {"hiro": [0.60, 0.17]},
+      "prompt": "One continuous photoreal live-action medium shot of Hiro in the dojo, the same mature Japanese warrior in a white textured gi with black collar, black waist sash and dark bracers. He speaks to Toshiro off camera with concern and gestures with both open hands, then lowers them naturally. Preserve his exact face, hair, anatomy, white outfit, wood pillar, painted screen and lighting. Hands must have five fingers and stay attached to the arms. No camera cut."
+    },
+    {
+      "index": 7,
+      "keyframe": "toshiro-shot-07-keyframe.png",
+      "seed": 367,
+      "mouths": {"ebihara": [0.38, 0.27]},
+      "prompt": "One continuous photoreal live-action dialogue shot of Toshiro in the dark dojo. The same stern older Japanese man in a charcoal hooded robe holds his carved staff upright while Hiro's katana remains fixed in the near foreground. Toshiro speaks a long serious line, making only small purposeful head, lip and free-hand motions. Preserve his weathered mature face, hood, staff, foreground sword, corridor geometry and lighting through the whole shot. No camera cut or extra people."
+    },
+    {
+      "index": 8,
+      "keyframe": "hiro-shot-08-keyframe.png",
+      "seed": 368,
+      "mouths": {"hiro": [0.49, 0.10]},
+      "prompt": "One continuous photoreal live-action shot of Hiro speaking briefly from the dojo doorway. He is the same mature Japanese warrior with tied-back dark hair and white martial arts gi, black collar and sash, dark bracers and boots. He remains in place, turns his head slightly toward Toshiro and makes a restrained facial response. Keep his face, outfit, hands, door frame, wood floor and screen painting unchanged. No camera cut."
+    },
+    {
+      "index": 9,
+      "keyframe": "two-actor-shot-09-keyframe.png",
+      "seed": 369,
+      "mouths": {"ebihara": [0.38, 0.26], "hiro": [0.72, 0.33]},
+      "prompt": "One continuous photoreal live-action over-the-shoulder dialogue shot in the dark dojo. Hiro stands in the right foreground in his white gi, holding the same katana low; Toshiro faces him from the left background, an older Japanese man in a charcoal hooded robe holding the same carved staff vertically. Toshiro speaks and Hiro gives a short reply. Preserve the distinct faces, exact positions and scale, both weapons, outfits, black metal walls and reflected wooden floor. Only restrained natural gestures and slight camera drift; no cut."
+    },
+    {
+      "index": 10,
+      "keyframe": "toshiro-shot-10-keyframe.png",
+      "seed": 370,
+      "mouths": {"ebihara": [0.48, 0.29]},
+      "prompt": "One continuous photoreal live-action close shot of Toshiro finishing his conversation in the dark dojo. He is the same stern older Japanese man with the exact weathered face, deep-set eyes, charcoal hood and robe from the reference frame. The same carved wooden staff stands upright at his right side. He speaks gravely with subtle lip and eye movements, then settles to stillness. Preserve the exact face, age, head size, hood, staff, wall texture, framing and lighting; no camera cut."
+    }
+  ]
+}

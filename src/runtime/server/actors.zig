@@ -793,6 +793,23 @@ pub const Actors = struct {
         }
     }
 };
+/// Probe instrumentation (`dk3_runtime_pacify_monsters`): every monster of the world stops
+/// perceiving the player, so renderer and lighting captures are not interrupted by attacks.
+/// Nothing is removed: other systems keep their references (destroying actors this way crashed
+/// e1m1a). Hurting a monster makes it hostile again.
+pub fn pacifyMonsters(world: *data.World) !usize {
+    var count: usize = 0;
+    var query = world.queryAccess(data.World.mask(.{data.Actor}), 0, data.World.mask(.{data.Actor}));
+    defer query.deinit();
+    while (query.next()) |view| for (view.write(data.Actor)) |*actor| {
+        if (!std.mem.startsWith(u8, catalog.entries[actor.definition].classname, "monster_")) continue;
+        actor.ignore_player = true;
+        actor.threat = 0;
+        count += 1;
+    };
+    return count;
+}
+
 pub fn diagnostics(self: *const Actors, world: *data.World, slots: *const Slots, now: i64) !void {
     for (slots.occupants) |occupant| {
         const entity = occupant orelse continue;

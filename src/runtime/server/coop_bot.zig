@@ -441,8 +441,10 @@ pub const Driver = struct {
             // the save the run resumed from and the autosave (which may be a
             // map behind): any of them may not exist.
             if (self.last_save[0] == 0) _ = engine.gateway.call(c.G_CVAR_VARIABLE_STRING_BUFFER, .{ @as([*:0]const u8, "dk3_coop_last_save"), &self.last_save, @as(isize, self.last_save.len) });
-            // Only a checkpoint of this level.
-            if (!std.mem.startsWith(u8, std.mem.sliceTo(&self.last_save, 0), "coop-") or std.mem.indexOf(u8, std.mem.sliceTo(&self.last_save, 0), self.level.slice()) == null) self.last_save = @splat(0);
+            // The route's latest checkpoint, of this level or (when this
+            // level's arrival was too hurt to save) the one before: a
+            // player reloads the last good save, not the hurt arrival.
+            if (!std.mem.startsWith(u8, std.mem.sliceTo(&self.last_save, 0), "coop-")) self.last_save = @splat(0);
             const slot = std.mem.sliceTo(&self.last_save, 0);
             var command: [96]u8 = undefined;
             // The stage the loaded save resumes at: the checkpoint's own, the
@@ -654,6 +656,8 @@ pub const Driver = struct {
                 result.intent.direct = action.direct;
                 result.intent.brake = action.direct;
                 result.intent.crouch = action.crouch;
+                // A walk off a narrow ledge drops close under it.
+                result.intent.pace = action.pace;
                 // A precise straight segment ends standing on the floor with its
                 // momentum spent, so the next one does not inherit a drift.
                 const settled = !action.direct or player.water_level >= 2 or (player.ground_entity != c.ENTITYNUM_NONE and nav.horizontalDistance((try world.get(frame.entity, data.Velocity)).linear, @splat(0)) < 120);
@@ -1178,6 +1182,9 @@ pub const Driver = struct {
         const action = running.action;
         var result = base;
         result.intent.fight = true;
+        // A route may name the weapon (the shockwave, kept out of the bot's
+        // own choice, fired into a room of brutes from its doorway).
+        if (action.weapon != 0) result.intent.weapon = action.weapon;
         // Track every matching hostile seen inside the search area; a kill is a
         // tracked actor that has died or been removed.
         var nearest: ?targets.Resolved = null;
@@ -1220,6 +1227,7 @@ pub const Driver = struct {
         // Seen behind cover a shot cannot clear is not yet a firing position.
         const firing_line = self.report.enemy == prey.id and !self.report.lane_blocked;
         var engaged = action.hold or (firing_line and distance <= reach);
+        var shifted = false;
         if (engaged) result.intent.leash = if (action.hold) running.home else pose.position;
         result.intent.arena = action.arena;
         result.intent.look_at = prey.point;
@@ -1232,11 +1240,15 @@ pub const Driver = struct {
             const flat = v.normalize(.{ toward[0], toward[1], 0 });
             var shift = v.add(running.home, v.scale(flat, 200));
             // An arena bounds the shift too: the fight stays where the route put it.
+            // (An arena narrower than a body across holds its middle.)
             if (action.arena) |box| for (0..2) |axis| {
-                shift[axis] = std.math.clamp(shift[axis], box[0][axis] + 16, box[1][axis] - 16);
+                const low = box[0][axis] + 16;
+                const high = box[1][axis] - 16;
+                shift[axis] = if (low <= high) std.math.clamp(shift[axis], low, high) else (box[0][axis] + box[1][axis]) / 2;
             };
             result.intent.destination = try standing(frame, shift);
             engaged = false;
+            shifted = true;
         }
         // Losing a trade of fire (a guard's magazine against rounds that do
         // not finish it): back out of its line for a moment, as a player
@@ -1248,8 +1260,9 @@ pub const Driver = struct {
             return result;
         };
         if (engaged and !action.hold) try self.measureTrade(frame, running, prey, pose);
-        if (!engaged) result.intent.destination = prey.point;
-        if (!engaged and stalled(frame, running, self.report, pose.position, prey.point, frame.now)) return stuck(running, self.report, pose.position);
+        // (A held shift keeps its own point: it stays within the tether.)
+        if (!engaged and !shifted) result.intent.destination = prey.point;
+        if (!engaged and !shifted and stalled(frame, running, self.report, pose.position, prey.point, frame.now)) return stuck(running, self.report, pose.position);
         if (engaged) running.progress = .{};
         return result;
     }

@@ -33,7 +33,7 @@ from runtime_input import NativeInput
 from runtime_probe import client_settings, stage_client_modules, wait
 
 # What the console prints that says who drew the frame and what it was given.
-RENDERER_EVIDENCE = ('GL_VERSION', 'GL_RENDERER', 'OpenGL', 'renderer', 'deluxe', 'lightmap')
+RENDERER_EVIDENCE = ('GL_VERSION', 'GL_RENDERER', 'OpenGL', 'VK_RENDERER', 'VK_DRIVER', 'VK_VERSION', 'Vulkan', 'renderer', 'deluxe', 'lightmap')
 
 
 def sha256(path):
@@ -516,7 +516,7 @@ def main():
     parser.add_argument('--materials', type=Path, default=None,
                         help='the map material table (default maps/<map>/materials.py)')
     parser.add_argument('--report', type=Path, required=True)
-    parser.add_argument('--renderer', default='opengl2', choices=('opengl1', 'opengl2'))
+    parser.add_argument('--renderer', default='opengl2', choices=('opengl1', 'opengl2', 'vulkan'))
     parser.add_argument('--size', default='1280x720')
     parser.add_argument('--only', default=None, help='photograph one authored start only')
     parser.add_argument('--no-starts', action='store_true',

@@ -3291,6 +3291,8 @@ int CL_ScaledMilliseconds(void) {
 CL_InitRef
 ============
 */
+#define CL_FALLBACK_RENDERER "opengl2"
+
 void CL_InitRef( void ) {
 	refimport_t	ri;
 	refexport_t	*ret;
@@ -3302,7 +3304,9 @@ void CL_InitRef( void ) {
 	Com_Printf( "----- Initializing Renderer ----\n" );
 
 #ifdef USE_RENDERER_DLOPEN
-	cl_renderer = Cvar_Get("cl_renderer", "opengl2", CVAR_ARCHIVE | CVAR_LATCH);
+	/* Vulkan is the default renderer; OpenGL2 remains the fallback for systems
+	 * without the Vulkan module or without a Vulkan 1.3 device. */
+	cl_renderer = Cvar_Get("cl_renderer", "vulkan", CVAR_ARCHIVE | CVAR_LATCH);
 
 	Com_sprintf(dllName, sizeof(dllName), "renderer_%s" DLL_EXT, cl_renderer->string);
 
@@ -3312,6 +3316,13 @@ void CL_InitRef( void ) {
 		Cvar_ForceReset("cl_renderer");
 
 		Com_sprintf(dllName, sizeof(dllName), "renderer_%s" DLL_EXT, cl_renderer->resetString);
+		rendererLib = Sys_LoadDll(dllName, qfalse);
+	}
+
+	if(!rendererLib && Q_stricmp(cl_renderer->string, CL_FALLBACK_RENDERER))
+	{
+		Com_Printf("failed:\n\"%s\"\n", Sys_LibraryError());
+		Com_sprintf(dllName, sizeof(dllName), "renderer_%s" DLL_EXT, CL_FALLBACK_RENDERER);
 		rendererLib = Sys_LoadDll(dllName, qfalse);
 	}
 
@@ -3386,6 +3397,25 @@ void CL_InitRef( void ) {
 	ri.Sys_LowPhysicalMemory = Sys_LowPhysicalMemory;
 
 	ret = GetRefAPI( REF_API_VERSION, &ri );
+
+#ifdef USE_RENDERER_DLOPEN
+	/* A renderer may refuse the machine (renderer_vulkan without a Vulkan 1.3
+	 * device). OpenGL2 then takes over for this session; the saved choice is
+	 * kept so a later driver installation is used again. */
+	if ( !ret && Q_stricmp( cl_renderer->string, CL_FALLBACK_RENDERER ) ) {
+		Com_Printf( "Renderer %s refused this system; using %s\n", cl_renderer->string, CL_FALLBACK_RENDERER );
+		Sys_UnloadDll( rendererLib );
+		Com_sprintf( dllName, sizeof( dllName ), "renderer_%s" DLL_EXT, CL_FALLBACK_RENDERER );
+		if ( !( rendererLib = Sys_LoadDll( dllName, qfalse ) ) ) {
+			Com_Error( ERR_FATAL, "Failed to load renderer" );
+		}
+		GetRefAPI = Sys_LoadFunction( rendererLib, "GetRefAPI" );
+		if ( !GetRefAPI ) {
+			Com_Error( ERR_FATAL, "Can't load symbol GetRefAPI: '%s'", Sys_LibraryError() );
+		}
+		ret = GetRefAPI( REF_API_VERSION, &ri );
+	}
+#endif
 
 #if defined __USEA3D && defined __A3D_GEOM
 	hA3Dg_ExportRenderGeom (ret);

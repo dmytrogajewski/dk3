@@ -11,6 +11,7 @@ URL: https://github.com/dmytrogajewski/dk3
 Source0: payload.tar
 ExclusiveArch: x86_64
 Requires: python3
+Recommends: vulkan-loader
 Requires: /usr/bin/prlimit
 Requires: libcurl.so.4()(64bit)
 

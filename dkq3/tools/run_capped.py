@@ -35,10 +35,37 @@ the number is on the record rather than inferred from a crash.
 
 Usage
 -----
-    python3 dkq3/tools/run_capped.py --memory-gib 8 -- python3.14 -B \\
+    python3 dkq3/tools/run_capped.py --memory-gib 8 -- python3.14 -B \
         dkq3/tools/craft_textures.py --recipes maps/japanDM/textures.py --out ...
-    python3 dkq3/tools/run_capped.py --memory-gib 12 --need-vram-mib 18000 -- \\
+    python3 dkq3/tools/run_capped.py --memory-gib 12 --need-vram-mib 18000 -- \
         python3.14 -B dkq3/tools/qwen_studio.py --out ...
+
+What the ceiling does *not* cover
+---------------------------------
+A `MemoryMax` on the run's own cgroup stops this run from killing the session, but
+it cannot stop a run from writing into a machine that is already dying.  Both
+recorded crashes were arrived at that way: one ENOSPC at 100 %-full `/home`
+mid-write, one OOM at 7/7 G swap with ten leaked `dk3ded` servers holding tmpfs
+homepaths.  In both there was a healthy-looking 60 G of RAM right up to the moment
+the write or the swap-out failed.  Three preconditions therefore exist beside the
+ceiling, and all three are refused rather than warned about:
+
+* `--require-free-gib N`      -- an absolute `MemAvailable` floor.  The cgroup
+  cannot protect against somebody *else*'s allocation, and most of this machine's
+  RAM is routinely somebody else: a peer's video generation held 15 G while the
+  first version of this guard was written.
+* `--require-disk-gib N`      -- free space on the filesystem holding `--path`
+  (default: the working directory).  A 134 MB pk3 written to a full `/home` is a
+  corrupted pk3, and possibly a dead compositor.
+* `--require-swap-free-pct N` -- swap at or below `100 - N` % used.  With no swap
+  left, the next page reclaim has nowhere to go and the kernel picks its victim
+  machine-wide -- including the compositor this shell is a child of.  On its own
+  this one is a poor proxy: this box's 8 G zram has been pinned at 100 % for hours
+  at a time by long-lived idle daemons while 40 G of RAM sat free, so it is used
+  *with* the other two, never instead of them.
+
+`--heavy` sets the three at once to the numbers this project's crashes were
+measured against: 50 % swap free, 12 GiB available, 40 GiB on disk.
 """
 
 from __future__ import annotations
@@ -66,6 +93,39 @@ def memory_available():
         key, _, rest = line.partition(':')
         fields[key] = int(rest.split()[0]) // 1024
     return (fields['MemAvailable'], fields['MemFree'], fields.get('SwapFree', 0))
+
+
+def swap_state():
+    """-> (total MiB, used MiB, free fraction) from the kernel's own counts.
+
+    A machine with swap configured but never used reports `SwapTotal 0`; that is
+    read as perfectly free -- there is nothing here to fill up -- rather than as a
+    division by zero or as a reason to refuse every run.
+    """
+    fields = {}
+    for line in Path('/proc/meminfo').read_text().splitlines():
+        key, _, rest = line.partition(':')
+        fields[key] = int(rest.split()[0]) // 1024
+    total = fields.get('SwapTotal', 0)
+    unused = fields.get('SwapFree', 0)
+    if total <= 0:
+        return 0, 0, 1.0
+    return total, total - unused, unused / total
+
+
+def disk_free_gib(path):
+    """-> (available GiB, total GiB) on the filesystem `path` would be written to.
+
+    Measured against the *path the run writes to*, not against `/`: here `/home`
+    and `/` are separate filesystems, and the run that filled one had its output
+    under `/home` while `/` sat nearly empty.  A path that does not exist yet is
+    resolved to its closest existing ancestor, which is what the write lands on.
+    """
+    target = Path(path).expanduser()
+    while not target.exists() and target != target.parent:
+        target = target.parent
+    usage = shutil.disk_usage(target)
+    return usage.free / 1024 ** 3, usage.total / 1024 ** 3
 
 
 def vram_free():
@@ -126,18 +186,37 @@ def main():
                         help='refuse to start unless this much RAM is available, on top of the floor')
     parser.add_argument('--need-vram-mib', type=int, default=0,
                         help='refuse to start unless this much GPU memory is free (no-op without nvidia-smi)')
+    parser.add_argument('--require-free-gib', type=float, default=0.0,
+                        help='absolute MemAvailable floor in GiB, on top of the built-in 6 GiB floor')
+    parser.add_argument('--require-disk-gib', type=float, default=0.0,
+                        help='refuse to start unless this much space is free on the filesystem of --path')
+    parser.add_argument('--require-swap-free-pct', type=float, default=0.0,
+                        help='refuse to start unless at least this percent of swap is unused')
+    parser.add_argument('--path', default='.',
+                        help='the directory this run writes into, for the disk precondition (default: cwd)')
+    parser.add_argument('--heavy', action='store_true',
+                        help='the measured crash gate: 50%% swap free, 12 GiB available, 40 GiB on disk')
     parser.add_argument('--allow-swap', action='store_true',
                         help='let the run spill into swap (default: off, so a runaway is killed '
                              'quickly instead of freezing the machine for minutes)')
     parser.add_argument('--force', action='store_true', help='start even if the preflight objects')
+    parser.add_argument('--preflight-only', action='store_true',
+                        help='report the machine and exit 3 if a run would be refused, 0 if not')
     parser.add_argument('command', nargs=argparse.REMAINDER, help='the command to cap (after --)')
     arguments = parser.parse_args()
 
     command = arguments.command
     if command and command[0] == '--':
         command = command[1:]
-    if not command:
+    if not command and not arguments.preflight_only:
         parser.error('nothing to run; pass the command after --')
+
+    if arguments.heavy:
+        # The numbers read off the two recorded crashes, not round numbers chosen
+        # now.  A peer session may raise them further; nothing lowers them.
+        arguments.require_swap_free_pct = max(arguments.require_swap_free_pct, 50.0)
+        arguments.require_free_gib = max(arguments.require_free_gib, 12.0)
+        arguments.require_disk_gib = max(arguments.require_disk_gib, 40.0)
 
     available, _, swap_free = memory_available()
     ceiling = int(arguments.memory_gib * 1024)
@@ -145,6 +224,38 @@ def main():
     if available < RAM_FLOOR_MIB + arguments.need_ram_mib:
         complaints.append('only %d MiB available, this run wants %d MiB free'
                           % (available, RAM_FLOOR_MIB + arguments.need_ram_mib))
+    if arguments.require_free_gib and available < arguments.require_free_gib * 1024:
+        complaints.append('only %.1f GiB available, this run requires %.1f GiB'
+                          % (available / 1024.0, arguments.require_free_gib))
+    if arguments.require_disk_gib:
+        free_gib, total_gib = disk_free_gib(arguments.path)
+        if free_gib < arguments.require_disk_gib:
+            complaints.append('only %.1f GiB free of %.0f GiB on the filesystem holding %s; this '
+                              'run requires %.1f GiB (ENOSPC mid-write is a corrupted product, '
+                              'not a failed run)'
+                              % (free_gib, total_gib, arguments.path, arguments.require_disk_gib))
+    if arguments.require_swap_free_pct:
+        swap_total, swap_used, swap_fraction_free = swap_state()
+        if 100.0 * swap_fraction_free < arguments.require_swap_free_pct:
+            complaints.append('swap is %.0f%% used (%d of %d MiB), this run requires at least '
+                              '%.0f%% free; with no swap left the next reclaim picks its victim '
+                              'machine-wide'
+                              % (100.0 * (1.0 - swap_fraction_free), swap_used, swap_total,
+                                 arguments.require_swap_free_pct))
+    if arguments.preflight_only:
+        swap_total, swap_used, swap_fraction_free = swap_state()
+        state = ('preflight: %d MiB available, swap %s, %s free on the filesystem of %s'
+                 % (available,
+                    '%.0f%% used of %d MiB' % (100.0 * (1.0 - swap_fraction_free), swap_total)
+                    if swap_total else 'none configured',
+                    '%.1f GiB' % disk_free_gib(arguments.path)[0], arguments.path))
+        if complaints:
+            for complaint in complaints:
+                print('run-capped: would refuse -- %s' % complaint, file=sys.stderr)
+            print(state + '  -- REFUSED')
+            return 3
+        print(state + '  -- OK')
+        return 0
     if arguments.need_vram_mib:
         probe = vram_free()
         if probe is not None and probe[0] < arguments.need_vram_mib:

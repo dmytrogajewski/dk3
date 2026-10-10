@@ -444,7 +444,11 @@ def paint_asphalt(size, spec, seed):
     seam = cracks.plane()
     albedo = put(albedo, seam * 0.8, (0.038, 0.038, 0.042))
     height = height - 0.35 * seam
-    wet = np.clip((patch - 0.52) * 2.2, 0.0, 1.0)          # rain film on the low ground
+    # `wet` scales the rain film: `asphalt` carries a damp sheen in its shaded
+    # patches, and `asphalt_wet` is the same tarmac after rain with the low ground
+    # under a mirror -- the difference is one number, not another painter.
+    wet = np.clip((patch - 0.52) * 2.2, 0.0, 1.0) * float(spec.get('wet', 1.0))
+    albedo = put(albedo, np.clip(wet - 1.0, 0.0, 1.0) * 0.35, (0.028, 0.032, 0.046))
     return albedo, np.clip(height, 0.0, 1.0), {'spec': wet}
 
 def paint_plaza_stone(size, spec, seed):
@@ -1539,6 +1543,484 @@ def sky_ambient(panorama):
     divisor = float(weight.sum(axis=(0, 1))[0]) * panorama.shape[1]
     return ((panorama * weight).sum(axis=(0, 1)) / divisor).astype(np.float32)
 
+
+# --------------------------------------------------------------------------- #
+# the street kit: what a 2017 night street is actually surfaced with
+# --------------------------------------------------------------------------- #
+# Every long wall in this arena used to wear one of two materials --
+# `concrete_panel`, whose motif is a 128-unit panel with four tie holes and is
+# therefore three storeys of wall per repeat, or `tower_front`, whose motif is a
+# whole curtain-wall bay at 512 units per repeat.  Neither of those is a surface a
+# pedestrian can reach out and touch: a shopfront is tile, plaster, timber slats,
+# a corrugated shutter and a painted board, and the eye that walks past them reads
+# the *pitch* of the pattern, not its grain.  These eight painters exist to give
+# the level's kit parts a pitch at hand scale, and they are built the same way the
+# first twenty are: draw the structure, derive the height from it, and let the
+# specular stage inherit the painter's own statement about which parts are wet.
+#
+# One rule is specific to this block and is worth keeping: a coordinate array is
+# fetched and used in the same breath, and fetched again for the next block.  C++
+# reason given in `_image_pair`: the numpy this map is painted with has been seen
+# to hand a live array's buffer to a temporary derived from it, and a painter that
+# keeps `x` across half a page then computes its grout from whatever `x` now holds.
+
+def _image_pair(name, albedo, height):
+    """-> the (albedo, height) pair, having refused anything that is not an image.
+
+    A painter's failure mode is not an exception: a mask that lost a fight with a
+    temporary is still a float array, and it ships as a tile that is either flat or
+    made of somebody else's numbers.  Two cheap facts are enough to catch that --
+    an albedo that is *finite* and *not flat* (every material in this file draws a
+    grain, a joint or a stroke, so a spread under 0.01 is a field that got
+    overwritten rather than a deliberately plain surface), and a height field that
+    actually spans a tenth of its range.  The names are reported, not the numbers,
+    because the numbers are what `--check-seams` and the contact sheet are for.
+    """
+    for label, field in (('albedo', albedo), ('height', height)):
+        if not np.isfinite(field).all():
+            raise ValueError('paint_%s: %s is not finite' % (name, label))
+    spread = float((albedo @ LUMA).std())
+    if spread < 0.010:
+        raise ValueError('paint_%s: albedo luma spread %.4f -- a field was '
+                         'overwritten, not painted' % (name, spread))
+    if float(height.max()) - float(height.min()) < 0.10:
+        raise ValueError('paint_%s: height spans %.4f, which draws no relief at all'
+                         % (name, float(height.max()) - float(height.min())))
+    return albedo, height
+
+
+def _glyph_cell(size, glyph, box, stroke=0.10):
+    """-> one glyph's stroke mask, scaled into `box` (tile fractions) on a full canvas.
+
+    `kana_plane` draws one glyph across the whole tile, which is right for a
+    single-sign tile and useless for a row of them: squeezing the canvas horizontally
+    and then resizing it back restores the original.  So the glyph is resampled to the
+    cell's own pixel box and pasted where the cell sits, which is also what keeps the
+    lettering inside the plate's margin instead of running under the frame.
+    """
+    x0, y0, x1, y1 = (max(0, min(size - 1, int(size * f))) for f in box)
+    width, height = max(1, x1 - x0), max(1, y1 - y0)
+    plane = kana_plane(size, glyph, stroke)
+    image = Image.fromarray((np.clip(plane, 0.0, 1.0) * 255.0).astype(np.uint8))
+    image = image.resize((width, height), Image.BILINEAR)
+    canvas = Image.new('L', (size, size), 0)
+    canvas.paste(image, (x0, y0))
+    return np.asarray(canvas, np.float32) / 255.0
+
+
+def _divisor_count(size, wanted, label='cells'):
+    """-> the nearest divisor of `size` to `wanted`, so the grid wraps.
+
+    A pitch that does not divide the tile cannot be seamless, whatever the
+    painter does around it: `pitch = size / cells` puts the last cell of every row
+    at a fraction of a cell from the border, so the grout line that closes the
+    row on the far side is a different width from the one that opens it on this
+    side, and the per-cell tone lookup lands on a different cell across the seam.
+    `tile_cream` measured a wrap step nine times its interior gradient for exactly
+    this reason at cells=8, rows=10 on a 512 tile -- 10 does not divide 512.
+    Snapping the count is one integer, and it keeps the *pitch* within a few
+    percent of what the recipe asked for instead of silently redrawing the motif.
+    """
+    wanted = max(1, int(wanted))
+    best, cost = 1, None
+    for candidate in range(1, size + 1):
+        if size % candidate:
+            continue
+        here = abs(candidate - wanted) / float(wanted)
+        if cost is None or here < cost:
+            best, cost = candidate, here
+    return best
+
+
+def _joint_field(size, pitch_x, pitch_y, width):
+    """-> the grout/mortar mask of a `pitch_x` by `pitch_y` grid, fetched fresh.
+
+    Shared because four of these painters need the same thing and each of them had to
+    be written against a live `x`/`y`: the coordinates are created here and die here.
+    """
+    x, y = axes(size)
+    u = np.minimum(x % pitch_x, pitch_x - x % pitch_x)
+    v = np.minimum(y % pitch_y, pitch_y - y % pitch_y)
+    del x, y
+    return np.clip(1.0 - np.minimum(u, v) / (min(pitch_x, pitch_y) * width), 0.0, 1.0) ** 1.25
+
+
+def paint_plaster(size, spec, seed):
+    """Lime plaster over blockwork: sand, trowel swirls, thin patches, sill staining.
+
+    Plaster has no panel joints at all, so nothing in this tile may march on a
+    straight grid except the one thing that genuinely does: the drip line under every
+    sill course, keyed to `y % course` so the tile wraps and the staining arrives once
+    per storey instead of once per tile height.
+    """
+    courses = max(1, int(spec.get('courses', 2)))
+    sand = fbm(size, 6, 48, seed, 1.0, 3.1)
+    trowel = fbm(size, 4, 7, seed + 1, 4.0, 2.0)
+    swath = fbm(size, 2, 2, seed + 7, 1.0, 1.8)
+    albedo = np.repeat((0.52 + 0.14 * (sand - 0.5) + 0.17 * (trowel - 0.5))[..., None], 3, axis=2)
+    albedo = multiply(albedo, 0.84 + 0.32 * swath)
+    thin = np.clip((fbm(size, 5, 90, seed + 2, 1.0, 3.4) - 0.63) * 4.0, 0.0, 1.0)
+    albedo = put(albedo, thin * 0.55, (0.30, 0.275, 0.245))      # aggregate through the coat
+    height = np.clip(0.58 + 0.20 * sand, 0.0, 1.0)
+    rng = rng_for('plaster', seed)
+    patches = Mask(size)
+    for _ in range(int(spec.get('patches', 2))):
+        width, depth = size * rng.uniform(0.14, 0.30), size * rng.uniform(0.10, 0.22)
+        cx, cy = rng.uniform(0, size), rng.uniform(0, size)
+        patches.polygon([(cx - width / 2, cy - depth / 2), (cx + width / 2, cy - depth * 0.44),
+                         (cx + width * 0.46, cy + depth / 2), (cx - width / 2, cy + depth * 0.47)],
+                        255, pad=max(width, depth))
+    albedo = put(albedo, patches.plane() * 0.70, (0.60, 0.565, 0.505))
+    cracks = Mask(size)
+    for _ in range(int(spec.get('cracks', 3))):
+        anchor = rng.uniform(0, size)
+        points = [(anchor + rng.uniform(-size * 0.03, size * 0.03), row)
+                  for row in range(-size // 12, size + size // 12, max(1, size // 24))]
+        cracks.stroke(points, 255, width=max(1, size // 512))
+    crack = cracks.plane()
+    albedo = put(albedo, crack * 0.70, (0.24, 0.22, 0.20))
+    height = np.clip(height - 0.34 * crack, 0.0, 1.0)
+    x, y = axes(size)                                            # used once, then dropped
+    course = size / float(courses)
+    v = y % course
+    drip = np.clip(1.0 - np.abs(v - course * 0.05) / (course * 0.024), 0.0, 1.0)
+    del x, y
+    fans = np.clip((fbm(size, 4, 26, seed + 11, 40.0, 2.2) - 0.50) * 2.4, 0.0, 1.0)
+    # A hump, not a ramp.  `v / (course * 0.5)` is bright at the sill and dark
+    # half a course below it, and since the courses divide the tile the sill sits on
+    # the wrap: the tile therefore closed with a hard step from stained to clean,
+    # which the eye reads as a bar every storey.  Weathering starts *at* the drip,
+    # is worst mid-course, and is washed clean again by the next sill.
+    wash = np.clip(np.sin(np.pi * v / course), 0.0, 1.0) ** 1.3
+    albedo = multiply(albedo, 1.0 - 0.22 * wash)
+    albedo = put(albedo, np.clip(drip + fans * wash, 0.0, 1.0) * 0.50, (0.205, 0.175, 0.150))
+    height = np.clip(height - 0.16 * drip, 0.0, 1.0)
+    return *_image_pair('plaster', albedo, height), {'spec': -0.5 * wash - 0.35 * thin}
+
+
+def paint_tile(size, spec, seed):
+    """Ceramic wall tiles on grey grout, with the odd chipped corner and a glaze sweep.
+
+    `brick_deep` is this same painter with the grid turned to 2:1 and a rust tint:
+    facing brick and facing tile are the same wall system read at two pitches.
+    """
+    cells = _divisor_count(size, spec.get('cells', 8))
+    rows = _divisor_count(size, spec.get('rows', 10))
+    pitch_x, pitch_y = size / float(cells), size / float(rows)
+    tones = cell_random(rows, cells, seed)
+    xg, yg = axes(size)
+    tone = tones[(np.floor(yg / pitch_y).astype(int)) % rows,
+                 (np.floor(xg / pitch_x).astype(int)) % cells]
+    del xg, yg
+    glaze = fbm(size, 5, 90, seed, 1.0, 3.2)
+    xs, ys = axes(size)
+    sweep = periodic_sweep(size, xs, ys, cycles_y=2)
+    del xs, ys
+    face = 0.55 + 0.14 * (tone - 0.5) + 0.12 * (glaze - 0.5) + 0.10 * (sweep - 0.5)
+    albedo = np.repeat(face[..., None], 3, axis=2)
+    joint = _joint_field(size, pitch_x, pitch_y, float(spec.get('grout', 0.06)))
+    albedo = put(albedo, joint * 0.90, (0.155, 0.150, 0.148))
+    rng = rng_for('tile', seed)
+    chips = Mask(size)
+    for _ in range(int(spec.get('chip', 6))):
+        radius = min(pitch_x, pitch_y) * rng.uniform(0.12, 0.30)
+        cx, cy = rng.uniform(0, size), rng.uniform(0, size)
+        chips.box('ellipse', (cx - radius, cy - radius, cx + radius, cy + radius), 255,
+                  pad=radius * 2)
+    chip = np.clip(chips.plane() * np.clip((fbm(size, 5, 60, seed + 5, 1.0, 2.4) - 0.45) * 2.6,
+                                           0.0, 1.0), 0.0, 1.0)
+    albedo = put(albedo, chip * 0.80, (0.235, 0.220, 0.200))
+    height = np.clip(0.72 * (1.0 - joint ** 0.7) + 0.12 * tone + 0.08 * glaze - 0.28 * chip,
+                     0.0, 1.0)
+    return *_image_pair('tile', albedo, height), \
+        {'spec': 0.55 * (1.0 - joint) * (0.4 + 0.6 * sweep) - 0.5 * chip}
+
+
+def paint_slat(size, spec, seed):
+    """Timber slats and louvres: a board, the open shadow reveal under it, knots, bow."""
+    slats = _divisor_count(size, spec.get('slats', 8))
+    pitch = size / float(slats)
+    grain = fbm(size, 6, 14, seed, 34.0, 2.4)                   # stretched along x, like grain
+    fine = fbm(size, 5, 70, seed + 2, 60.0, 3.0)
+    _, yv = axes(size)
+    index = np.floor(yv / pitch).astype(int) % slats
+    del yv
+    board = 0.46 + 0.20 * (grain - 0.5) + 0.10 * (fine - 0.5)
+    albedo = np.repeat(board[..., None], 3, axis=2)
+    albedo = multiply(albedo, 0.86 + 0.28 * cell_random(slats, 1, seed)[:, 0][index])
+    _, yv = axes(size)
+    # The shadow reveal is drawn as a *distance to the nearest board line*, not as
+    # a ramp down from it: `1 - (y % pitch) / gap` exists only below the line, so a
+    # line on the tile border -- which is what a dividing slat count puts it at --
+    # arrives as a hard step from board to shadow across the wrap (measured 4.4x the
+    # interior gradient on `slat_timber`).  Measured to the nearest line, half the
+    # reveal sits either side of it, which is also what an open joint actually is.
+    to_line = np.minimum(yv % pitch, pitch - yv % pitch)
+    reveal = np.clip(1.0 - to_line / (pitch * float(spec.get('gap', 0.18)) * 0.5),
+                     0.0, 1.0) ** 0.8
+    del yv
+    albedo = put(albedo, reveal * 0.92, (0.040, 0.031, 0.023))
+    rng = rng_for('slat', seed)
+    knots = Mask(size)
+    for _ in range(int(spec.get('knots', 5))):
+        radius = pitch * rng.uniform(0.10, 0.22)
+        cx, cy = rng.uniform(0, size), rng.uniform(0, size)
+        knots.box('ellipse', (cx - radius * 1.7, cy - radius, cx + radius * 1.7, cy + radius),
+                  255, pad=radius * 3)
+    albedo = put(albedo, knots.plane() * 0.75, (0.185, 0.125, 0.080))
+    weather = np.clip((fbm(size, 3, 3, seed + 8, 1.0, 1.9) - 0.58) * 2.6, 0.0, 1.0)
+    albedo = put(albedo, weather * 0.30, (0.150, 0.135, 0.120))
+    height = np.clip(0.62 + 0.16 * grain + 0.06 * fine - 0.55 * reveal, 0.0, 1.0)
+    return *_image_pair('slat', albedo, height), \
+        {'spec': 0.30 * (1.0 - reveal) * (1.0 - weather) - 0.25 * weather}
+
+
+def paint_shutter(size, spec, seed):
+    """A roller shutter: corrugated laths, a rust belt, a tag, and a lock band.
+
+    The closed shopfront is the most common wall on a Japanese shopping street after
+    twenty hours, and it is the one surface here that is *ribbed*: its specular is a
+    saw of bright lines every lath, which is what a flat placeholder panel cannot fake
+    and what makes a lane read as shops rather than as a car park.
+    """
+    bands = _divisor_count(size, spec.get('bands', 16))
+    pitch = size / float(bands)
+    dirt = fbm(size, 4, 8, seed, 20.0, 2.0)
+    _, yv = axes(size)
+    ridge = np.sin(np.pi * ((yv % pitch) / pitch)) ** 0.7
+    albedo = np.repeat((0.34 + 0.24 * ridge + 0.12 * (dirt - 0.5))[..., None], 3, axis=2)
+    joint = np.clip(1.0 - np.minimum(yv % pitch, pitch - yv % pitch) / (pitch * 0.055),
+                    0.0, 1.0) ** 1.2
+    del yv
+    albedo = put(albedo, joint * 0.88, (0.055, 0.058, 0.066))
+    rust = np.clip(band_field(size, size * 0.5, size * float(spec.get('rust', 0.24)), 'y')
+                   * np.clip((fbm(size, 5, 24, seed + 3, 1.0, 2.6) - 0.45) * 2.6, 0.0, 1.0),
+                   0.0, 1.0)
+    albedo = put(albedo, rust * 0.85, (0.155, 0.072, 0.044))
+    rng = rng_for('shutter', seed)
+    tag = Mask(size)
+    origin_x, origin_y = rng.uniform(0, size), rng.uniform(0, size)
+    tag.stroke([(origin_x + step * size * 0.055,
+                 origin_y + size * 0.06 * math.sin(step * 1.7) * rng.uniform(0.6, 1.4))
+                for step in range(9)], 255, width=max(2, int(size * 0.016)))
+    tag_colour = np.array(spec.get('tag', (0.42, 0.10, 0.44)), np.float32)
+    albedo = put(albedo, tag.plane() * 0.70, tag_colour)
+    grime = np.clip((fbm(size, 4, 5, seed + 9, 1.0, 1.9) - 0.60) * 2.8, 0.0, 1.0)
+    albedo = put(albedo, grime * 0.35, (0.060, 0.060, 0.062))
+    height = np.clip(0.44 + 0.50 * ridge - 0.42 * joint - 0.14 * rust, 0.0, 1.0)
+    return *_image_pair('shutter', albedo, height), \
+        {'spec': 0.55 * ridge * (1.0 - rust) - 0.45 * rust - 0.2 * grime}
+
+
+def paint_sign(size, spec, seed):
+    """A sign face: a plate, a frame, lettering that survives being cropped, and wear.
+
+    Signage in this arena was a flat emissive quad, tiled edge to edge, which is how a
+    kanji composition arrives as pink confetti (DESIGN.md section 5).  Three things fix
+    it without a diffusion model: an inset (the letters keep a margin), one glyph per
+    cell (so a crop shows one letter and not half of three), and a frame with screws in
+    it, because a plate is bolted to something and the eye looks for the bolts.
+    `weave` turns the same plate into a cloth banner and `arrow` puts a chevron on it
+    for the transit wayfinding plates.
+    """
+    glyphs = list(spec.get('glyphs') or ('ka', 'shi'))
+    orient = spec.get('orient', 'h')
+    face = np.array(spec.get('face', (0.88, 0.30, 0.44)), np.float32)
+    border = np.array(spec.get('border', (0.72, 0.66, 0.30)), np.float32)
+    background = np.array(spec.get('bg', (0.050, 0.022, 0.032)), np.float32)
+    albedo = np.zeros((size, size, 3), np.float32) + background
+    glow = np.zeros((size, size, 3), np.float32)
+    height = np.full((size, size), 0.30, np.float32)
+    weave = int(spec.get('weave', 0))
+    if weave:
+        xw, yw = axes(size)
+        cloth = 0.5 * (0.5 + 0.5 * np.sin(xw / float(size) * 2.0 * math.pi * weave)) \
+            + 0.5 * (0.5 + 0.5 * np.sin(yw / float(size) * 2.0 * math.pi * weave))
+        del xw, yw
+        albedo = multiply(albedo, 0.84 + 0.24 * cloth)
+        height = np.clip(height + 0.06 * (2.0 * cloth - 1.0), 0.0, 1.0)
+    albedo = multiply(albedo, 0.90 + 0.20 * fbm(size, 4, 4, seed, 1.0, 2.0))
+    inset = float(spec.get('inset', 0.14))
+    count = max(1, len(glyphs))
+    span = 0.90 / count
+    for index, glyph in enumerate(glyphs):
+        start, pad = 0.05 + index * span, span * inset
+        if orient == 'v':
+            box = (0.10 + pad, start + pad, 0.90 - pad, start + span - pad)
+        else:
+            box = (start + pad, 0.10 + pad, start + span - pad, 0.90 - pad)
+        strokes = np.clip(gaussian_filter(_glyph_cell(size, glyph, box,
+                                                      stroke=float(spec.get('stroke', 0.10))),
+                                          max(1.0, size * 0.0035), mode='wrap'), 0.0, 1.0)
+        albedo = put(albedo, strokes, face)
+        glow = np.clip(glow + strokes[..., None] * face * float(spec.get('lum', 1.0)), 0.0, 1.0)
+        height = np.clip(height + 0.28 * strokes, 0.0, 1.0)
+    if spec.get('arrow'):
+        chevron = Mask(size)
+        for step in range(3):
+            base = size * (0.12 + step * 0.16)
+            chevron.polygon([(base, size * 0.34), (base + size * 0.10, size * 0.50),
+                             (base, size * 0.66), (base + size * 0.035, size * 0.66),
+                             (base + size * 0.135, size * 0.50), (base + size * 0.035, size * 0.34)],
+                            255, pad=size * 0.15)
+        albedo = put(albedo, chevron.plane() * 0.92, face)
+        glow = np.clip(glow + chevron.plane()[..., None] * face * 0.9, 0.0, 1.0)
+    rng = rng_for('sign-rule', seed)
+    rule = Mask(size)
+    for step in range(int(spec.get('rules', 3))):
+        row = size * (0.80 + step * 0.055)
+        rule.stroke([(size * rng.uniform(0.08, 0.20), row), (size * rng.uniform(0.62, 0.92), row)],
+                    255, width=max(1, int(size * 0.010)))
+    albedo = put(albedo, rule.plane() * 0.80, face * 0.72)
+    glow = np.clip(glow + rule.plane()[..., None] * face * 0.55, 0.0, 1.0)
+    frame = Mask(size)
+    frame.box('rect', (size * 0.015, size * 0.015, size * 0.985, size * 0.985), 255)
+    frame.box('rect', (size * 0.048, size * 0.048, size * 0.952, size * 0.952), 0)
+    albedo = put(albedo, frame.plane() * 0.92, border)
+    glow = np.clip(glow + frame.plane()[..., None] * border * 0.25, 0.0, 1.0)
+    height = np.clip(height + 0.20 * frame.plane(), 0.0, 1.0)
+    screws = Mask(size)
+    for cx, cy in ((0.075, 0.075), (0.925, 0.075), (0.075, 0.925), (0.925, 0.925)):
+        radius = size * 0.016
+        screws.box('ellipse', (cx * size - radius, cy * size - radius,
+                               cx * size + radius, cy * size + radius), 255, pad=radius * 2)
+    albedo = put(albedo, screws.plane() * 0.9, border * 0.55)
+    scratches = np.clip((fbm(size, 4, 60, seed + 5, 40.0, 2.3) - 0.72) * 4.0, 0.0, 1.0)
+    albedo = put(albedo, scratches * 0.25, (0.10, 0.09, 0.095))
+    return *_image_pair('sign', albedo, height), {'glow': glow, 'spec': 0.30 * (1.0 - scratches)}
+
+
+def paint_poster(size, spec, seed):
+    """A wall papered over: overlapping flyers, tape, and print that resolves as tone.
+
+    One material that reads as *many* posters, because the kit puts it on a recessed
+    bay and a bay cannot carry twelve brushes.  Every sheet is a quadrilateral drawn
+    through the wrap seam, and each carries a headline bar over three to six thin bars:
+    at the distance a poster wall is actually seen, print is a band of dark tone, and a
+    sheet without that band is a blank card.
+    """
+    paper = fbm(size, 5, 60, seed, 1.0, 2.9)
+    albedo = np.repeat((0.40 + 0.14 * (paper - 0.5))[..., None], 3, axis=2)
+    height = np.full((size, size), 0.30, np.float32)
+    rng = rng_for('poster', seed)
+    for _ in range(int(spec.get('sheets', 7))):
+        width = size * rng.uniform(0.18, 0.42)
+        depth = size * rng.uniform(0.24, 0.50)
+        cx, cy = rng.uniform(0, size), rng.uniform(0, size)
+        skew = rng.uniform(-0.12, 0.12)
+        corners = [(cx - width / 2, cy - depth / 2), (cx + width / 2, cy - depth / 2 * (1 + skew)),
+                   (cx + width / 2 * (1 - skew), cy + depth / 2), (cx - width / 2, cy + depth / 2)]
+        sheet = Mask(size)
+        sheet.polygon(corners, 255, pad=max(width, depth))
+        cover = sheet.plane()
+        tone = rng.uniform(0.36, 0.68)
+        tint = np.array([tone * rng.uniform(0.86, 1.06), tone * rng.uniform(0.84, 1.02),
+                         tone * rng.uniform(0.74, 0.98)], np.float32)
+        albedo = put(albedo, cover * 0.90, tint)
+        height = np.clip(height + 0.10 * cover, 0.0, 1.0)
+        print_mask = Mask(size)
+        print_mask.stroke([(cx - width * 0.34, cy - depth * 0.30),
+                           (cx + width * rng.uniform(0.10, 0.36), cy - depth * 0.30)], 255,
+                          width=max(2, int(size * rng.uniform(0.030, 0.055))))
+        for line in range(3 + int(rng.random() > 0.5)):
+            row = cy - depth * 0.12 + line * depth * 0.13
+            print_mask.stroke([(cx - width * 0.34, row),
+                               (cx + width * rng.uniform(-0.05, 0.36), row)], 255,
+                              width=max(1, int(size * 0.011)))
+        albedo = put(albedo, np.clip(print_mask.plane() * cover, 0.0, 1.0) * 0.85, tint * 0.22)
+        tape = Mask(size)
+        for corner_x, corner_y in (corners[0], corners[2]):
+            tape.polygon([(corner_x - size * 0.035, corner_y - size * 0.012),
+                          (corner_x + size * 0.035, corner_y - size * 0.020),
+                          (corner_x + size * 0.035, corner_y + size * 0.012),
+                          (corner_x - size * 0.035, corner_y + size * 0.020)], 255,
+                         pad=size * 0.05)
+        albedo = put(albedo, np.clip(tape.plane() * cover, 0.0, 1.0) * 0.65, (0.62, 0.60, 0.52))
+    sunfade = np.clip((fbm(size, 3, 3, seed + 12, 1.0, 1.8) - 0.40) * 1.8, 0.0, 1.0)
+    albedo = multiply(albedo, 1.0 - 0.22 * sunfade)
+    tears = np.clip((fbm(size, 5, 80, seed + 6, 6.0, 2.4) - 0.74) * 4.2, 0.0, 1.0)
+    albedo = put(albedo, tears * 0.50, (0.20, 0.185, 0.170))
+    height = np.clip(height - 0.20 * tears, 0.0, 1.0)
+    return *_image_pair('poster', albedo, height), {'spec': -0.4 * sunfade + 0.2 * (1.0 - paper)}
+
+
+def paint_sett(size, spec, seed):
+    """Court setts and tactile pavers: square units, wide joints, broom finish, domes.
+
+    `plaza_stone` staggers its courses and was chosen for the plaza's big sawn slabs.
+    A court is the opposite -- small squares on a true grid, a wide swept joint, and a
+    directional broom finish that runs one way across the whole field.  `dots` adds the
+    truncated domes of a tactile strip, worn brighter on their crowns because that is
+    where boots take the paint off.
+    """
+    cells = _divisor_count(size, spec.get('cells', 6))
+    rows = _divisor_count(size, spec.get('rows', cells))
+    pitch_x, pitch_y = size / float(cells), size / float(rows)
+    tones = cell_random(rows, cells, seed)
+    xg, yg = axes(size)
+    tone = tones[(np.floor(yg / pitch_y).astype(int)) % rows,
+                 (np.floor(xg / pitch_x).astype(int)) % cells]
+    broom = np.clip((fbm(size, 5, 12, seed + 4, 60.0, 2.6) - 0.5) * 1.4, -1.0, 1.0)
+    del xg, yg
+    grit = fbm(size, 6, 90, seed, 1.0, 3.3)
+    swath = fbm(size, 2, 2, seed + 21, 1.0, 1.8)
+    face = 0.44 + 0.22 * (tone - 0.5) + 0.14 * (grit - 0.5) + 0.10 * broom
+    albedo = np.repeat(face[..., None], 3, axis=2)
+    albedo = multiply(albedo, 0.84 + 0.32 * swath)
+    joint = _joint_field(size, pitch_x, pitch_y, float(spec.get('mortar', 0.07)))
+    albedo = put(albedo, joint * 0.88, (0.062, 0.062, 0.066))
+    height = np.clip(0.70 * (1.0 - joint ** 0.7) + 0.14 * tone + 0.10 * grit, 0.0, 1.0)
+    if int(spec.get('dots', 0)):
+        xd, yd = axes(size)
+        cx, cy = (xd % pitch_x) - pitch_x * 0.5, (yd % pitch_y) - pitch_y * 0.5
+        del xd, yd
+        step = min(pitch_x, pitch_y) / float(spec['dots'])
+        radius = step * float(spec.get('dot_radius', 0.34))
+        gx = np.abs(cx % step) - step * 0.5
+        gy = np.abs(cy % step) - step * 0.5
+        dome = np.clip(1.0 - (gx * gx + gy * gy) / (radius * radius), 0.0, 1.0)
+        dome = np.where((np.abs(cx) < pitch_x * 0.42) & (np.abs(cy) < pitch_y * 0.42), dome, 0.0)
+        crown = np.clip(dome ** 0.55, 0.0, 1.0) * (1.0 - joint)
+        albedo = put(albedo, crown * 0.45, (0.72, 0.70, 0.66))
+        height = np.clip(height + 0.30 * crown, 0.0, 1.0)
+    wear = np.clip((fbm(size, 4, 20, seed + 9, 1.0, 2.1) - 0.62) * 3.0, 0.0, 1.0)
+    albedo = put(albedo, wear * 0.30, (0.115, 0.115, 0.118))
+    wet = np.clip((fbm(size, 3, 2, seed + 6, 1.0, 1.6) - 0.46) * 2.2, 0.0, 1.0)
+    albedo = put(albedo, wet * 0.30, (0.030, 0.034, 0.048))
+    height = np.clip(height, 0.0, 1.0)
+    return *_image_pair('sett', albedo, height), {'spec': wet * (1.0 - joint) - 0.3 * wear}
+
+
+def paint_road_paint(size, spec, seed):
+    """Thermoplastic road paint on asphalt: a bright field, chipped edges, glass beads.
+
+    A painted line in this map used to be `light_strip`, i.e. an emissive bar, which is
+    why the crossings read as light boxes bolted to the tarmac.  Real paint is a
+    *worn* film: it goes off in flakes where the tyres drag, it is embedded with beads
+    that throw the headlight back, and the asphalt still owns the gaps.
+    """
+    grit = fbm(size, 7, 40, seed, 1.0, 2.9)
+    patch = fbm(size, 3, 2, seed + 1, 1.0, 1.5)
+    base = np.repeat((0.19 + 0.28 * grit)[..., None], 3, axis=2)
+    base = put(base, np.clip((patch - 0.58) * 2.6, 0.0, 1.0) * 0.50, (0.075, 0.078, 0.086))
+    field = spec.get('field', (0.04, 0.06, 0.96, 0.94))
+    plate = Mask(size)
+    plate.box('rect', (field[0] * size, field[1] * size, field[2] * size, field[3] * size), 255,
+              pad=size * 0.12)
+    cover = plate.plane()
+    edge = np.clip(1.0 - cover * 3.0, 0.0, 1.0)              # the chipped border band
+    wear = np.clip((fbm(size, 6, 26, seed + 4, 1.0, 2.4) - (0.50 - 0.30 * edge)) * 3.4, 0.0, 1.0)
+    paint = np.array(spec.get('line', (0.62, 0.62, 0.58)), np.float32)
+    albedo = put(base, np.clip(cover - wear, 0.0, 1.0) * 0.95, paint)
+    beads = np.clip((fbm(size, 5, 150, seed + 6, 1.0, 3.4) - 0.74) * 4.4, 0.0, 1.0) * cover
+    albedo = put(albedo, beads * 0.45, paint * 1.30)
+    scuff = np.clip((fbm(size, 4, 20, seed + 7, 30.0, 2.1) - 0.68) * 3.4, 0.0, 1.0)
+    albedo = put(albedo, scuff * cover * 0.55, (0.070, 0.070, 0.076))
+    height = np.clip(0.42 + 0.52 * grit + 0.10 * (cover - wear) - 0.12 * wear, 0.0, 1.0)
+    wet = np.clip((patch - 0.52) * 2.2, 0.0, 1.0)
+    return *_image_pair('road_paint', albedo, np.clip(height, 0.0, 1.0)), \
+        {'spec': 0.45 * beads + 0.35 * wet - 0.35 * wear}
+
 PAINTERS = {
     'asphalt': paint_asphalt,
     'plaza_stone': paint_plaza_stone,
@@ -1558,6 +2040,14 @@ PAINTERS = {
     'light_strip': paint_light_strip,
     'holo_pool': paint_holo_pool,
     'vend_face': paint_vend_face,
+    'plaster': paint_plaster,
+    'tile': paint_tile,
+    'slat': paint_slat,
+    'shutter': paint_shutter,
+    'sign': paint_sign,
+    'poster': paint_poster,
+    'sett': paint_sett,
+    'road_paint': paint_road_paint,
 }
 
 # --------------------------------------------------------------------------- #

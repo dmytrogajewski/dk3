@@ -454,6 +454,245 @@ CRAFT = {
         paint='vend_face', size=512, columns=4, rows=5, sold_out=0.14,
         brand=(0.34, 0.06, 0.07),
         glow=dict(gain=1.30, blur=2.2), repeat=72),
+    # ======================================================================
+    # the street kit: what a 2017 night street is surfaced with
+    # ======================================================================
+    # Every one of these exists because the census counted 24 materials doing the
+    # work of a city block, and the four most-used of them were `metal_column`,
+    # `concrete_panel`, `tower_front` and `prop_concrete` -- three of which draw a
+    # motif a *storey* tall.  A wall relief kit needs a surface a pedestrian can
+    # reach: tile, plaster, slat, shutter, painted board.  `repeat` for these is
+    # picked at >= 4 texels per world unit (a 512-texel tile over 128 units) so the
+    # pitch of the pattern survives the walk-past, which is the thing the eye
+    # actually reads on a shopfront.
+    #
+    # --- kit walls ---------------------------------------------------------
+    'plaster_warm': dict(
+        paint='plaster', size=512, grade=(0.255,), normal=1.5, courses=2,
+        spec=dict(base=0.05, gain=0.16, tint=(0.52, 0.49, 0.44), power=1.2, extra_gain=0.16),
+        repeat=128, grain=0.7),
+    'stucco_pale': dict(
+        paint='plaster', size=512, grade=(0.300,), normal=1.3, courses=3, patches=1,
+        colorize=(0.95, 0.93, 0.88),
+        spec=dict(base=0.06, gain=0.18, tint=(0.56, 0.55, 0.51), power=1.25, extra_gain=0.18),
+        repeat=128, grain=0.75),
+    'plaster_slate': dict(
+        paint='plaster', size=512, grade=(0.225,), normal=1.5, courses=2, cracks=4,
+        colorize=(0.72, 0.78, 0.88),
+        spec=dict(base=0.06, gain=0.20, tint=(0.50, 0.53, 0.60), power=1.3, extra_gain=0.20),
+        repeat=128, grain=0.7),
+    'tile_cream': dict(
+        paint='tile', size=512, grade=(0.300,), normal=1.2, cells=8, rows=10, grout=0.05,
+        spec=dict(base=0.14, gain=0.26, tint=(0.60, 0.58, 0.52), power=1.9, extra_gain=0.24),
+        repeat=96, grain=0.7),
+    'tile_dark': dict(
+        paint='tile', size=512, grade=(0.215,), normal=1.2, cells=6, rows=8, grout=0.06,
+        colorize=(0.30, 0.34, 0.40),
+        spec=dict(base=0.16, gain=0.28, tint=(0.48, 0.52, 0.60), power=2.0, extra_gain=0.26),
+        repeat=128, grain=0.7),
+    'tile_sage': dict(
+        paint='tile', size=512, grade=(0.245,), normal=1.2, cells=10, rows=12, grout=0.045,
+        colorize=(0.62, 0.80, 0.66),
+        spec=dict(base=0.14, gain=0.24, tint=(0.52, 0.60, 0.54), power=1.9, extra_gain=0.22),
+        repeat=96, grain=0.7),
+    'brick_deep': dict(
+        paint='tile', size=512, grade=(0.205,), normal=1.6, cells=8, rows=16, grout=0.08,
+        colorize=(0.42, 0.20, 0.16),
+        spec=dict(base=0.05, gain=0.14, tint=(0.48, 0.36, 0.30), power=1.25, extra_gain=0.14),
+        repeat=128, grain=0.7),
+    'slat_timber': dict(
+        paint='slat', size=512, grade=(0.240,), normal=1.5, slats=10,
+        colorize=(0.90, 0.68, 0.44),
+        spec=dict(base=0.07, gain=0.16, tint=(0.50, 0.43, 0.35), power=1.3, extra_gain=0.16),
+        repeat=128, grain=0.7),
+    'slat_dark': dict(
+        paint='slat', size=512, grade=(0.185,), normal=1.5, slats=7, gap=0.24, knots=7,
+        colorize=(0.44, 0.36, 0.30),
+        spec=dict(base=0.05, gain=0.12, tint=(0.40, 0.36, 0.32), power=1.25, extra_gain=0.12),
+        repeat=128, grain=0.7),
+    'shutter_steel': dict(
+        paint='shutter', size=512, grade=(0.255,), normal=1.1, bands=18, rust=0.16,
+        spec=dict(base=0.22, gain=0.30, tint=(0.58, 0.61, 0.68), power=2.3, extra_gain=0.28),
+        repeat=128, grain=0.65),
+    'shutter_green': dict(
+        paint='shutter', size=512, grade=(0.215,), normal=1.1, bands=14, rust=0.22,
+        colorize=(0.42, 0.74, 0.56), tag=(0.80, 0.72, 0.20),
+        spec=dict(base=0.20, gain=0.28, tint=(0.46, 0.60, 0.52), power=2.2, extra_gain=0.26),
+        repeat=128, grain=0.65),
+    'corrugated_rust': dict(
+        paint='shutter', size=512, grade=(0.205,), normal=1.3, bands=26, rust=0.34,
+        colorize=(0.55, 0.42, 0.34),
+        spec=dict(base=0.10, gain=0.18, tint=(0.50, 0.42, 0.34), power=1.5, extra_gain=0.18),
+        repeat=96, grain=0.7),
+    'panel_blue': dict(
+        paint='metal_column', size=512, grade=(0.270,), normal=0.7, rivets=4,
+        colorize=(0.28, 0.52, 0.78),
+        spec=dict(base=0.24, gain=0.22, tint=(0.46, 0.58, 0.72), power=2.3, extra_gain=0.20),
+        repeat=96),
+    'concrete_rough': dict(
+        paint='concrete_panel', size=1024, grade=(0.215,), normal=1.7, cells=2, storeys=2,
+        mortar=0.06, bolts=0.55,
+        spec=dict(base=0.05, gain=0.18, tint=(0.48, 0.48, 0.50), power=1.2, extra_gain=0.18),
+        repeat=192, grain=0.7),
+    # --- the ground, at foot scale -----------------------------------------
+    # The eye looks *down* when it moves, and this map's ground used to be two
+    # materials: tarmac and slab.  Kerb, tactile strip, court sett, painted line,
+    # drain grate and wet tarmac are the six things a real pavement is made of.
+    'kerb_granite': dict(
+        paint='plaza_stone', size=512, grade=(0.255,), normal=1.4, cells=6, mortar=0.05,
+        colorize=(0.72, 0.70, 0.66),
+        spec=dict(base=0.12, gain=0.28, tint=(0.56, 0.58, 0.62), power=1.5, extra_gain=0.26),
+        repeat=64, grain=0.7),
+    'tactile_yellow': dict(
+        paint='sett', size=512, grade=(0.330,), normal=1.5, cells=4, rows=4, dots=6,
+        dot_radius=0.34, mortar=0.05, colorize=(1.00, 0.72, 0.12),
+        spec=dict(base=0.10, gain=0.22, tint=(0.60, 0.50, 0.24), power=1.4, extra_gain=0.20),
+        repeat=96, grain=0.7),
+    'paving_court': dict(
+        paint='sett', size=512, grade=(0.235,), normal=1.5, cells=6, rows=6, mortar=0.07,
+        spec=dict(base=0.10, gain=0.26, tint=(0.54, 0.55, 0.58), power=1.4, extra_gain=0.26),
+        repeat=128, grain=0.75),
+    'paving_lane': dict(
+        paint='sett', size=512, grade=(0.185,), normal=1.5, cells=9, rows=9, mortar=0.09,
+        colorize=(0.52, 0.52, 0.56),
+        spec=dict(base=0.08, gain=0.22, tint=(0.46, 0.47, 0.52), power=1.35, extra_gain=0.24),
+        repeat=128, grain=0.7),
+    'paint_line_white': dict(
+        paint='road_paint', size=512, grade=(0.395,), normal=0.9,
+        line=(0.62, 0.62, 0.60), field=(0.04, 0.30, 0.96, 0.70),
+        spec=dict(base=0.12, gain=0.30, tint=(0.60, 0.62, 0.66), power=1.6, extra_gain=0.30),
+        repeat=96, grain=0.6),
+    'paint_line_yellow': dict(
+        paint='road_paint', size=512, grade=(0.375,), normal=0.9,
+        line=(0.72, 0.60, 0.10), field=(0.04, 0.42, 0.96, 0.58),
+        spec=dict(base=0.12, gain=0.30, tint=(0.66, 0.56, 0.26), power=1.6, extra_gain=0.30),
+        repeat=96, grain=0.6),
+    # The same tarmac after rain.  One knob (`wet`) rather than a new painter: the
+    # low ground under a mirror film is what makes a night street read as a night
+    # street, because it is the only thing down there that returns the signage.
+    'asphalt_wet': dict(
+        paint='asphalt', size=1024, grade=(0.135,), normal=1.1, cracks=5, wet=2.2,
+        spec=dict(base=0.10, gain=0.46, tint=(0.54, 0.60, 0.70), power=1.5, extra_gain=0.90),
+        repeat=128, grain=0.6),
+    'grate_drain': dict(
+        paint='grate', size=512, grade=(0.235,), normal=1.2, cells=6, radius=0.34,
+        spec=dict(base=0.20, gain=0.28, tint=(0.56, 0.58, 0.64), power=2.1, extra_gain=0.26),
+        repeat=64, grain=0.6),
+    # --- signage -----------------------------------------------------------
+    # A sign's albedo IS the sign, so none of these take a `grade`: the
+    # composition decides its own contrast and the `_g` stage is the lamp.  What
+    # they all take is `inset` -- the letters keep a margin -- and one glyph per
+    # cell, so that cropping a plate to the size of the brush that wears it shows
+    # one letter rather than half of three (DESIGN.md section 5).
+    'sign_band_a': dict(
+        paint='sign', size=512, glyphs=('ka', 'ku', 'shi', 'to'), orient='h',
+        face=(0.94, 0.28, 0.34), border=(0.86, 0.80, 0.72), bg=(0.055, 0.020, 0.026),
+        inset=0.12, rules=2, lum=1.0,
+        glow=dict(gain=1.20, blur=2.4), repeat=192),
+    'sign_band_b': dict(
+        paint='sign', size=512, glyphs=('me', 'tsu', 'ha'), orient='h',
+        face=(0.30, 0.78, 0.86), border=(0.80, 0.84, 0.90), bg=(0.016, 0.030, 0.042),
+        inset=0.12, rules=3, lum=1.0,
+        glow=dict(gain=1.15, blur=2.4), repeat=160),
+    'sign_menu': dict(
+        paint='sign', size=512, glyphs=('to', 'n', 'ma'), orient='h',
+        face=(0.96, 0.84, 0.44), border=(0.62, 0.44, 0.22), bg=(0.048, 0.030, 0.014),
+        inset=0.16, stroke=0.13, rules=4, lum=0.85,
+        glow=dict(gain=0.95, blur=1.8), repeat=96),
+    'sign_vertical': dict(
+        paint='sign', size=512, glyphs=('ka', 'ki', 'ra'), orient='v',
+        face=(0.98, 0.88, 0.80), border=(0.74, 0.20, 0.26), bg=(0.060, 0.014, 0.018),
+        inset=0.10, rules=0, lum=1.0,
+        glow=dict(gain=1.25, blur=2.6), repeat=160),
+    'sign_vertical_b': dict(
+        paint='sign', size=512, glyphs=('shi', 'yo'), orient='v',
+        face=(0.36, 0.94, 0.56), border=(0.20, 0.60, 0.34), bg=(0.014, 0.036, 0.022),
+        inset=0.10, rules=0, lum=1.0,
+        glow=dict(gain=1.20, blur=2.6), repeat=192),
+    'wayfinding_blue': dict(
+        paint='sign', size=512, glyphs=('to',), orient='h', arrow=True,
+        face=(0.94, 0.96, 0.98), border=(0.30, 0.42, 0.62), bg=(0.030, 0.098, 0.230),
+        inset=0.20, rules=1, lum=0.95,
+        glow=dict(gain=0.90, blur=1.8), repeat=192),
+    'banner_red': dict(
+        paint='sign', size=512, glyphs=('to', 'ku'), orient='v', weave=40,
+        face=(0.98, 0.94, 0.88), border=(0.86, 0.82, 0.74), bg=(0.300, 0.048, 0.056),
+        inset=0.14, rules=0, stroke=0.13, lum=0.80,
+        glow=dict(gain=0.80, blur=1.6), repeat=128),
+    'banner_white': dict(
+        paint='sign', size=512, glyphs=('n', 'ha'), orient='v', weave=32,
+        face=(0.16, 0.10, 0.36), border=(0.86, 0.84, 0.80), bg=(0.820, 0.800, 0.750),
+        inset=0.16, rules=0, stroke=0.14, lum=0.72,
+        glow=dict(gain=0.70, blur=1.5), repeat=128),
+    'noren_strip': dict(
+        paint='sign', size=512, glyphs=('me',), orient='v', weave=24,
+        face=(0.96, 0.92, 0.86), border=(0.20, 0.12, 0.08), bg=(0.075, 0.036, 0.110),
+        inset=0.22, rules=0, stroke=0.16, lum=0.55,
+        glow=dict(gain=0.55, blur=1.2), repeat=64),
+    # A poster wall is *not* emissive: paper does not light itself, and a wall of
+    # lit rectangles is the exact thing the flat quads were.  It is a lit surface
+    # that happens to carry print, which is why it takes a `grade` like masonry.
+    'poster_wall': dict(
+        paint='poster', size=512, grade=(0.215,), normal=1.4, sheets=8,
+        spec=dict(base=0.05, gain=0.14, tint=(0.46, 0.44, 0.42), power=1.2, extra_gain=0.14),
+        repeat=128, grain=0.8),
+    # A second light box, unmirrored and cooler, so a run of three boards down one
+    # facade is three pictures rather than one picture repeated.
+    'ad_board_b': dict(
+        paint='ad_board', size=1024, panels=3,
+        glow=dict(gain=0.95, blur=2.0), repeat=256),
+    'vend_face_b': dict(
+        paint='vend_face', size=512, columns=5, rows=6, sold_out=0.22,
+        brand=(0.06, 0.16, 0.34),
+        glow=dict(gain=1.20, blur=2.0), repeat=64),
+    'vend_face_c': dict(
+        paint='vend_face', size=512, columns=3, rows=4, sold_out=0.08,
+        brand=(0.28, 0.22, 0.04),
+        glow=dict(gain=1.35, blur=2.2), repeat=84),
+    'neon_c': dict(
+        paint='neon', size=512, glyphs=('ha', 'yo', 'ra'), tube=0.72, inset=0.12,
+        colours=((0.30, 0.90, 0.72), (0.86, 0.82, 0.94), (0.24, 0.66, 0.86)),
+        glow=dict(gain=1.20, blur=2.8), repeat=96),
+    'light_strip_warm': dict(
+        paint='light_strip', size=256, colorize=(1.00, 0.70, 0.32),
+        glow=dict(gain=1.60), repeat=128),
+    'light_strip_cyan': dict(
+        paint='light_strip', size=256, colorize=(0.36, 0.86, 1.00),
+        glow=dict(gain=1.55), repeat=96),
+    # --- roof and deck, re-scaled ------------------------------------------
+    # Both of these are re-scals of what the tier already wore: `roof_gravel` put a
+    # 128-unit motif on a 96-unit parapet coping, and `metal_deck` put diamond
+    # plate on the timber walkways in front of the roof houses.
+    'roof_membrane': dict(
+        paint='plaza_stone', size=1024, grade=(0.175,), normal=0.9, cells=3, mortar=0.02,
+        colorize=(0.44, 0.44, 0.48),
+        spec=dict(base=0.08, gain=0.24, tint=(0.44, 0.47, 0.54), power=1.6, extra_gain=0.24),
+        repeat=256, grain=0.65),
+    'deck_timber': dict(
+        paint='slat', size=512, grade=(0.225,), normal=1.5, slats=12, gap=0.13,
+        colorize=(0.76, 0.60, 0.44),
+        spec=dict(base=0.06, gain=0.14, tint=(0.46, 0.40, 0.33), power=1.25, extra_gain=0.14),
+        repeat=96, grain=0.7),
+    # --- painted fixtures ---------------------------------------------------
+    # The three things a street paints the colour of a warning: a cone, a barrier
+    # foot, a planter rim.  `prop_paint_yellow` is also the material the hazard
+    # chevrons and the A-frame boards wear, so the level can say "do not stand
+    # here" without an entity.
+    'prop_paint_yellow': dict(
+        paint='lacquer_red', size=512, grade=(0.460,), normal=1.0,
+        colorize=(0.98, 0.72, 0.10),
+        spec=dict(base=0.30, gain=0.22, tint=(0.68, 0.54, 0.26), power=2.2, extra_gain=0.24),
+        repeat=32),
+    'prop_paint_green': dict(
+        paint='lacquer_red', size=512, grade=(0.400,), normal=1.0,
+        colorize=(0.24, 0.72, 0.44),
+        spec=dict(base=0.30, gain=0.22, tint=(0.30, 0.60, 0.42), power=2.2, extra_gain=0.24),
+        repeat=32),
+    'metal_brass': dict(
+        paint='metal_column', size=512, grade=(0.320,), normal=0.6, rivets=3,
+        colorize=(0.72, 0.56, 0.22),
+        spec=dict(base=0.38, gain=0.34, tint=(0.70, 0.60, 0.36), power=2.6, extra_gain=0.30),
+        repeat=48),
 }
 
 # The dusk sky, as the keys `craft_textures.dusk_panorama` actually reads.  The

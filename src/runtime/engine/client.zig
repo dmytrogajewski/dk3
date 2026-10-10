@@ -35,6 +35,10 @@ fn inlineModel(index: i32) isize {
 pub fn print(text: [:0]const u8) void {
     _ = gateway.call(c.CG_PRINT, .{text.ptr});
 }
+/// Diagnostic lines that recur during play: shown only with `developer 1`.
+pub fn developerPrint(text: [:0]const u8) void {
+    if (integer("developer") != 0) print(text);
+}
 pub fn fatal(text: [:0]const u8) noreturn {
     _ = gateway.call(c.CG_ERROR, .{text.ptr});
     @panic("engine error returned");
